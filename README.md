@@ -1,8 +1,8 @@
 <div align="center">
 
-# OpenMausBot
+# Hezuo（核作）
 
-**The open-source Grok Bot alternative: your own team of AI bots, in a chat app.**
+**A task-focused AI team workspace, based on OpenMausBot.**
 
 [**openmausbot.com**](https://www.openmausbot.com) &nbsp;·&nbsp; [Download](https://www.openmausbot.com/download) &nbsp;·&nbsp; [Open source Grok Bot alternative, compared](https://www.openmausbot.com/blog/grok-bot-vs-openmausbot)
 

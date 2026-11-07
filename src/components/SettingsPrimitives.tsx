@@ -4,10 +4,10 @@ import { cn } from "@/lib/cn";
 import { useCopyFeedback } from "@/lib/copy-text";
 import { t } from "@/lib/i18n";
 
-export const SIMPLE_CARD = "rounded-[12px] border-[0.5px] border-(--settings-edge) bg-menu py-2";
+export const SIMPLE_CARD = "rounded-[10px] border-[0.5px] border-(--settings-edge) bg-menu py-1 [&>[role=group]+[role=group]]:border-t [&>[role=group]+[role=group]]:border-hairline/30";
 export const SIMPLE_BUTTONS = cn(
   "[&_.ui-button]:h-8 [&_.ui-button]:rounded-full [&_.ui-button]:border-0 [&_.ui-button]:px-3 [&_.ui-button]:text-[14px] [&_.ui-button]:font-normal",
-  "[&_.ui-button:not(.ui-button-primary)]:bg-ink/5 [&_.ui-button:not(.ui-button-primary)]:text-ink [&_.ui-button:not(.ui-button-primary):enabled:hover]:bg-ink/10",
+  "[&_.ui-button:not(.ui-button-primary)]:bg-ink/[0.06] [&_.ui-button:not(.ui-button-primary)]:text-ink [&_.ui-button:not(.ui-button-primary):enabled:hover]:bg-ink/10",
   "[&_.ui-button-primary]:bg-ink [&_.ui-button-primary]:text-app [&_.ui-button-primary:enabled:hover]:bg-ink/85",
 );
 
@@ -76,7 +76,7 @@ export function SettingRow({
     <div role="group" aria-labelledby={titleId} className={cn("px-4 in-data-[settings-look=simple]:py-2.5", className)}>
       <div className="grid min-w-0 grid-cols-1 items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-6 in-data-[settings-look=simple]:flex in-data-[settings-look=simple]:min-h-6 in-data-[settings-look=simple]:flex-wrap in-data-[settings-look=simple]:gap-x-5 in-data-[settings-look=simple]:gap-y-2">
         <div className="min-w-0 in-data-[settings-look=simple]:flex in-data-[settings-look=simple]:min-w-[min(100%,15rem)] in-data-[settings-look=simple]:flex-1 in-data-[settings-look=simple]:flex-col in-data-[settings-look=simple]:gap-0.5">
-          <div id={titleId} className="text-[14px] font-medium text-ink in-data-[settings-look=simple]:font-normal in-data-[settings-look=simple]:leading-5">{title}</div>
+          <div id={titleId} className="text-[14px] font-medium text-ink in-data-[settings-look=simple]:text-[13px] in-data-[settings-look=simple]:font-normal in-data-[settings-look=simple]:leading-5">{title}</div>
           {subtitle && <div className="mt-1 text-[12px] leading-relaxed text-pretty text-ink-secondary in-data-[settings-look=simple]:mt-0 in-data-[settings-look=simple]:text-[13px] in-data-[settings-look=simple]:leading-[18px]">{subtitle}</div>}
         </div>
         <div className="min-w-0 sm:max-w-[240px] in-data-[settings-look=simple]:ml-auto in-data-[settings-look=simple]:shrink-0 in-data-[settings-look=simple]:sm:max-w-none">{children}</div>

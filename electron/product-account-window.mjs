@@ -76,7 +76,7 @@ export function createProductAccountWindow({
   partition,
   iconPath,
   parent,
-  title = "OpenMausBot",
+  title = "Hezuo",
   width = 980,
   height = 720,
   show = true,

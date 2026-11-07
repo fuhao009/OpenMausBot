@@ -66,7 +66,8 @@ export function NewBotDialog({ defaultsMode = false, onClose, onCreated, readyBo
   const [chosenOwner, setChosenOwner] = useState<string | null>(null);
   const ownerOrAdmin = useOwnerOrAdmin();
   const showThreads = useShowThreads();
-  const sections = useAdvancedMode() ? SECTIONS : SECTIONS.filter((section) => section !== "Model");
+  const advanced = useAdvancedMode();
+  const sections = advanced && !parent.state.config?.productManaged ? SECTIONS : SECTIONS.filter((section) => section !== "Model");
   const choosesVisibility = !defaultsMode && typeof window !== "undefined" && !window.ogb && ownerOrAdmin === true;
   const dialog = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);

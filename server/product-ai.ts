@@ -13,6 +13,7 @@ import type { ProviderRegistry } from "./harness/registry.ts";
 import { normalizeProductCa, productCaBindsOrigin } from "../electron/product-ca.mjs";
 import type { TaskPatch } from "./store.ts";
 import type { ProductAiState, ProductModel } from "../shared/product-account.ts";
+import { PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE } from "../shared/product-account.ts";
 
 export type { ProductAiState, ProductModel } from "../shared/product-account.ts";
 
@@ -353,6 +354,8 @@ export class ProductAiProviders {
   private refusal(epoch: Epoch): string | null {
     if (this.stateValue === "pending") return PRODUCT_AI_PENDING_MESSAGE;
     if (this.stateValue === "suspended") return PRODUCT_AI_SUSPENDED_MESSAGE;
+    // A credentialless balance refusal is authoritative even for a fenced wrapper; it never grants access.
+    if (this.stateValue === "insufficient_balance" && !this.session) return PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE;
     if (this.expired) return PRODUCT_AI_EXPIRED_MESSAGE;
     if (epoch !== this.epoch || epoch.fenced) return PRODUCT_AI_UNAVAILABLE_MESSAGE;
     if (this.stateValue === "unavailable") return PRODUCT_AI_UNAVAILABLE_MESSAGE;

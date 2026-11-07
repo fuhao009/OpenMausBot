@@ -1,5 +1,10 @@
-# Shipping the hosted product build
+# Shipping Hezuo
 
+Hezuo is the managed desktop product name and artifact prefix. Its application
+ID and URL scheme remain `com.openmausbot.product` and `openmausbot-product`.
+The desktop keeps `OpenMausBot Product` as its user-data directory so installing
+`Hezuo.app` preserves existing account sessions and workspaces. Reinstallation
+replaces the application bundle only, never the account directory or gateway.
 The managed product is the same Electron application under its own release
 identity: the operator runs the control-plane Worker and the model upstream,
 users install the app and sign in with an email code, and the app's default
@@ -35,6 +40,40 @@ On macOS the same script installs the gateway as a login service
 0600 log, and names the operator by exact registered address without granting
 anything (`operator --operator-email …`). Both are described in
 [the local gateway](local-gateway.md).
+
+The desktop product's bot list and docked work panel resize by dragging their
+shared edges, without size buttons. Widths are remembered locally; the chat
+retains at least 420px while resizing. Focus an edge and use Left/Right for
+keyboard sizing; Escape during a drag restores its starting width. Narrow
+screens retain the existing overlay drawers rather than draggable columns.
+
+Managed workspaces present bots and tasks rather than execution models. Chat
+headers, bot badges, team cards, bot creation/settings and account history do
+not expose a model selector or model identity. Account balances and request
+charges remain visible. The server-side catalog and execution contracts remain
+unchanged; hiding model controls does not implement automatic team routing.
+The managed sidebar omits its top-level add/new menu and inline add-bot rows.
+Existing bots and conversations remain accessible; server-side bot and team
+creation capabilities are unchanged.
+
+The managed desktop uses a 280px default bot sidebar, a centered conversation
+and pill composer, and an optional right details panel with Activity, Library
+and Computer navigation. Existing width preferences and resizing remain active.
+Apps and Settings use responsive 900px by 702px dialogs with 14px corners;
+Settings uses a 198px section rail and separate Vault navigation. Execution
+connector setup and task forms expand inside their cards, while pending
+approvals remain visible. Account points and ledger errors remain explicit;
+an unavailable balance is shown as a dash rather than zero.
+Insufficient account credit is reported as insufficient points even when no
+model credential was issued. A generic AI-unavailable message is not used for
+that state. This does not release unknown-usage reservations: stale requests
+must enter operator review and be settled through the audited ledger.
+An authenticated operator can top up their own account from Account settings.
+The desktop checks operator eligibility with the service, confirms explicitly,
+and computes maximum headroom including held reservations in its main process.
+No account bearer crosses the preload bridge. A grant is sent once with a unique
+operation id; an uncertain response requires ledger review rather than an
+automatic retry. Application points do not fund the upstream provider account.
 
 ## 1. Deploy the Worker
 

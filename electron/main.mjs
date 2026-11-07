@@ -13,6 +13,12 @@ import { createProductAccountWindow } from "./product-account-window.mjs";
 import { installProductAccountIpc } from "./product-account-ipc.mjs";
 import { productVerificationEntry } from "./product-verification-entry.mjs";
 const productFixture = productVerificationEntry();
+if (!productFixture && app.getName() === "Hezuo") {
+  app.setName("OpenMausBot Product");
+  const accountStorage = path.join(app.getPath("appData"), "OpenMausBot Product");
+  app.setPath("userData", accountStorage);
+  app.setPath("sessionData", accountStorage);
+}
 if (productFixture) {
   app.setPath("userData", productFixture.userData);
   app.setPath("sessionData", productFixture.userData);

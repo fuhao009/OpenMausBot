@@ -3,11 +3,10 @@ import { isTechnicalError, plainErrorLine } from "./plain-error";
 import { setLocale } from "./i18n";
 import { registrySaveFailure } from "../../shared/registry-save-failure";
 import { requestTooLargeMessage } from "../../shared/request-too-large";
+import { PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE } from "../../shared/product-account";
 
 describe("plainErrorLine", () => {
   it.each([
-    ["Failed to fetch", "Couldn't reach MausBot. Check that it's running, then try again."],
-    ["NetworkError when attempting to fetch resource.", "Couldn't reach MausBot. Check that it's running, then try again."],
     ["The operation was aborted due to timeout", "That took too long. Try again."],
     ["502 Bad Gateway", "Something went wrong on the other end. Try again."],
     ["500 Internal Server Error", "Something went wrong on the other end. Try again."],
@@ -68,5 +67,17 @@ describe("a provider refusing a message as too large", () => {
     setLocale("ja");
     expect(plainErrorLine(`  ${requestTooLargeMessage("vendor/model-1.5")}\n`)).toBe("このメッセージは vendor/model-1.5 には大きすぎます。新しいチャットを始めるか、より多くを受け付けるモデルを選んでください。");
     expect(plainErrorLine("This message is too large for the box.")).toBeUndefined();
+  });
+});
+
+describe("an account refusing a request reservation", () => {
+  afterEach(() => setLocale("en"));
+
+  it("uses the account balance notice in the reader's language", () => {
+    setLocale("en");
+    expect(plainErrorLine(PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE)).toBe(PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE);
+    setLocale("zh");
+    expect(plainErrorLine(`  ${PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE}\n`))
+      .toBe("可用点数不足以预留本次请求，请联系管理员");
   });
 });

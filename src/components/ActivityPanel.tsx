@@ -23,7 +23,7 @@ const TONE_CLASS: Record<ChipTone, string> = {
   warn: "bg-warning/15 text-warning",
 };
 
-export function ActivityPanel({ bot }: { bot: Bot }) {
+export function ActivityPanel({ bot, embedded = false }: { bot: Bot; embedded?: boolean }) {
   const { dispatch } = useStore();
   const { dragProps } = useCaptionChrome();
   const [rows, setRows] = useState<ActivityRow[] | null>(null);
@@ -99,7 +99,7 @@ export function ActivityPanel({ bot }: { bot: Bot }) {
   };
 
   return (
-    <aside aria-label={t("activity.panel.aria", { name: bot.name })} className="animate-panel-in flex h-full w-[400px] max-w-full shrink-0 flex-col border-l border-hairline/40 bg-panel max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-30">
+    <aside aria-label={t("activity.panel.aria", { name: bot.name })} className={cn("flex h-full min-h-0 max-w-full shrink-0 flex-col bg-panel", embedded ? "w-full" : "animate-panel-in w-[400px] border-l border-hairline/40 max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-30")}>
       <div {...dragProps} className="flex items-center justify-between px-4 py-3">
         <span className="flex items-center gap-2 text-[15px] font-semibold text-ink">
           <ListChecks size={16} className="text-ink-secondary" /> {t("activity.panel.title")}
@@ -113,14 +113,14 @@ export function ActivityPanel({ bot }: { bot: Bot }) {
           >
             <RefreshCw size={14} />
           </button>
-          <button
+          {!embedded && <button
             onClick={() => dispatch({ type: "toggleActivity", open: false })}
             aria-label={t("activity.panel.close")}
             title={t("activity.panel.close")}
             className="rounded-md p-1 text-ink-secondary hover:bg-raised hover:text-ink"
           >
             <X size={18} />
-          </button>
+          </button>}
         </span>
       </div>
 

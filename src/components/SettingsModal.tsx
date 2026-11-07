@@ -125,9 +125,10 @@ export const SIMPLE_PAGES: SimpleSettingsPage[] = [
     keywords: ["account", "theme", "looks", "open at login", "startup", "analytics", "advanced mode"] },
   { id: "account", labelKey: "product.accountSection", icon: Coins, sections: ["account"],
     keywords: ["account", "balance", "credit", "charges", "ledger", "review", "email", "sign out", "models", "prices"] },
-  { id: "botAccess", labelKey: "settings.section.botAccess", icon: Users, sections: ["botAccess"] },
+  { id: "botAccess", labelKey: "settings.simple.page.permissions", icon: Users, sections: ["botAccess"] },
   { id: "ai", labelKey: "settings.group.ai", icon: Sparkles, sections: ["engines", "connections"] },
-  { id: "computer", labelKey: "settings.simple.page.computer", icon: Monitor, sections: ["companion", "desktopWorkspaces", "computer", "logins"] },
+  { id: "computer", labelKey: "settings.simple.page.computer", icon: Monitor, sections: ["companion", "desktopWorkspaces", "computer"] },
+  { id: "vault", labelKey: "settings.simple.page.vault", icon: LockKeyhole, sections: ["logins"], keywords: ["vault", "passwords", "credentials", "1password"] },
   { id: "billing", labelKey: "settings.simple.page.billing", icon: ChartNoAxesColumn, sections: ["usage", "cloudAccount"], keywords: ["billing", "included", "allowance", "cloud hours", "voice"] },
   { id: "updates", labelKey: "settings.simple.page.updates", icon: CloudDownload, sections: ["updates"],
     keywords: ["update", "version", "release", "product updates", "newsletter", "email updates", "welcome", "tour", "diagnostics", "logs", "support"] },
@@ -157,7 +158,7 @@ export function simpleSettingsPages(
   // that page is named for what it is instead, and the account's own page joins Usage & billing.
   const pages = SIMPLE_PAGES
     .filter((page) => !productManaged || page.id !== "ai")
-    .map((page) => ({ ...page, sections: page.sections.filter((id) => available.has(id)) }))
+    .map((page) => ({ ...page, ...(productManaged && page.id === "billing" ? { labelKey: "settings.section.usage" as const } : {}), sections: page.sections.filter((id) => available.has(id)) }))
     .filter((page) => page.sections.length > 0);
   if (productManaged && available.has("connections")) {
     pages.push({ id: "connections", labelKey: "settings.section.connections", icon: KeyRound, sections: ["connections"],
@@ -523,6 +524,7 @@ export function SettingsModal() {
       <div
         className="glass-popup-frame"
         data-settings-sheet
+        data-product-settings={productManaged || undefined}
         data-settings-look="simple"
         style={glassPopupFrameStyle()}
         onMouseDown={(e) => e.target === e.currentTarget && close()}
@@ -535,10 +537,10 @@ export function SettingsModal() {
           aria-labelledby="app-settings-title"
           tabIndex={-1}
           style={{ outline: "none" }}
-          className="glass-surface glass-popup animate-pop-in relative flex overflow-hidden rounded-2xl text-ink"
+          className="glass-popup animate-pop-in relative flex h-[702px] max-h-full w-full max-w-[900px] overflow-hidden rounded-[14px] border border-hairline/40 bg-menu text-[13px] text-ink shadow-2xl"
         >
           <span id="app-settings-title" className="sr-only">{t("settings.title")}</span>
-          <nav aria-label={t("settings.title")} className="glass-rail hidden min-h-0 w-[198px] shrink-0 flex-col gap-0.5 overflow-y-auto px-3 py-4 sm:flex">
+          <nav aria-label={t("settings.title")} className="hidden min-h-0 w-[198px] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-hairline/30 bg-raised/40 px-3 py-4 sm:flex">
             {searchField(
               "mb-2 flex h-8 shrink-0 items-center gap-2 rounded-lg bg-ink/[0.05] px-[9px] text-[13px] focus-within:ring-2 focus-within:ring-focus/60",
               "w-full min-w-0 bg-transparent text-[13px] text-ink placeholder:text-ink-secondary focus:outline-none",
@@ -631,6 +633,7 @@ export function SettingsModal() {
     <div
       className="glass-popup-frame"
       data-settings-sheet
+      data-product-settings={productManaged || undefined}
       data-settings-look="advanced"
       style={glassPopupFrameStyle()}
       onMouseDown={(e) => e.target === e.currentTarget && close()}
@@ -643,10 +646,10 @@ export function SettingsModal() {
         aria-modal="true"
         aria-labelledby="app-settings-title"
         tabIndex={-1}
-        className="glass-surface glass-popup animate-pop-in relative flex overflow-hidden rounded-2xl outline-none"
+        className="glass-popup animate-pop-in relative flex h-[702px] max-h-full w-full max-w-[900px] overflow-hidden rounded-[14px] border border-hairline/40 bg-menu text-[13px] shadow-2xl outline-none"
       >
         <span id="app-settings-title" className="sr-only">{t("settings.title")}</span>
-        <nav className="glass-rail hidden min-h-0 w-[200px] shrink-0 flex-col gap-1 overflow-y-auto border-r border-hairline/30 p-3 sm:flex">
+        <nav className="hidden min-h-0 w-[198px] shrink-0 flex-col gap-1 overflow-y-auto border-r border-hairline/30 bg-raised/40 px-3 py-4 sm:flex">
           <div className="shrink-0 px-2 py-3 text-[15px] font-semibold text-ink">
             {t("settings.title")}
           </div>

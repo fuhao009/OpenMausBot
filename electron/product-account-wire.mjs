@@ -10,6 +10,8 @@ export const PRODUCT_ACCOUNT_CHANNELS = Object.freeze({
   verifyCode: "product-account:verify-code",
   refresh: "product-account:refresh",
   ledger: "product-account:ledger",
+  operatorStatus: "product-account:operator-status",
+  grantMaximum: "product-account:grant-maximum",
   signOut: "product-account:sign-out",
   close: "product-account:close",
   methods: "product-account:methods",
@@ -118,6 +120,30 @@ export function sanitizeProductAccountState(value) {
     state.pendingEmail = value.pendingEmail;
   }
   return state;
+}
+
+export function sanitizeProductOperatorStatus(value) {
+  if (!record(value) || typeof value.eligible !== "boolean") throw invalid("operator_status");
+  if (!value.eligible) return { eligible: false };
+  const { availableMicroPoints, reservedMicroPoints, maxGrantMicroPoints } = value;
+  if (![availableMicroPoints, reservedMicroPoints, maxGrantMicroPoints].every(count)
+    || BigInt(availableMicroPoints) + BigInt(reservedMicroPoints) + BigInt(maxGrantMicroPoints) !== BigInt(Number.MAX_SAFE_INTEGER)) throw invalid("operator_status");
+  return { eligible: true, availableMicroPoints, reservedMicroPoints, maxGrantMicroPoints };
+}
+
+export function sanitizeProductMaximumGrantResult(value) {
+  if (!record(value) || !["granted", "already_max", "failed"].includes(value.outcome)
+    || !count(value.amountMicroPoints)) throw invalid("grant_result");
+  const result = { outcome: value.outcome, amountMicroPoints: value.amountMicroPoints, state: sanitizeProductAccountState(value.state) };
+  if (value.operationId !== undefined) {
+    if (typeof value.operationId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.operationId)) throw invalid("grant_result");
+    result.operationId = value.operationId;
+  }
+  if (value.errorCode !== undefined) {
+    if (typeof value.errorCode !== "string" || !/^[a-z0-9_]{1,128}$/.test(value.errorCode)) throw invalid("grant_result");
+    result.errorCode = value.errorCode;
+  }
+  return result;
 }
 
 function sanitizeLedgerEntry(value) {

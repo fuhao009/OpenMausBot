@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld("ogb", {
     resetPassword: (email, code, password) =>
       ipcRenderer.invoke("product-account:reset-password", text(email, 254), text(code, 8), text(password, 128)),
     refresh: () => ipcRenderer.invoke("product-account:refresh"),
+    operatorStatus: () => ipcRenderer.invoke("product-account:operator-status"),
+    grantMaximum: () => ipcRenderer.invoke("product-account:grant-maximum"),
     ledger: (cursor) => ipcRenderer.invoke("product-account:ledger", ...(cursor === undefined ? [] : [text(cursor, 256)])),
     signOut: () => ipcRenderer.invoke("product-account:sign-out"),
     onState: (callback) => {

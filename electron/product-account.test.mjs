@@ -204,6 +204,7 @@ function fixture({ saved = null, status = readyStatus(), readError, start, stop,
 
   return {
     service,
+    client,
     events,
     record,
     writes,
@@ -926,5 +927,96 @@ describe("product account password sign-in", () => {
     expect(f.states.at(-1)).toMatchObject({ auth: "signed_out" });
     expect(f.events.filter((event) => event.type === "startRuntime")).toHaveLength(0);
     expect(f.record.value).toBeNull();
+  });
+});
+
+describe("current-account operator maximum grant", () => {
+  function operatorFixture() {
+    const f = fixture({ saved: savedRecord() });
+    let balance = { userId: user.id, email: user.email, availableMicroPoints: 19_869_000, reservedMicroPoints: 501_024_000 };
+    f.client.operatorAiAccount = async (bearer, email) => {
+      expect(bearer).toBe(ACCOUNT);
+      expect(email).toBe(user.email);
+      return { ...balance, bearer: ACCOUNT };
+    };
+    f.client.operatorGrantAiBalance = async (bearer, input) => {
+      expect(bearer).toBe(ACCOUNT);
+      expect(input.userId).toBe(user.id);
+      f.events.push({ type: "grant", ...input });
+      balance = { ...balance, availableMicroPoints: balance.availableMicroPoints + input.amountMicroPoints };
+      f.setStatus(readyStatus(balance));
+      return { account: balance, grantedMicroPoints: input.amountMicroPoints, replayed: false };
+    };
+    return f;
+  }
+
+  it("previews without mutation, grants fresh BigInt headroom, preserves reservations and refreshes", async () => {
+    const f = operatorFixture();
+    await f.service.restore();
+    const preview = await f.service.operatorStatus();
+    expect(preview).toEqual({ eligible: true, availableMicroPoints: 19_869_000, reservedMicroPoints: 501_024_000,
+      maxGrantMicroPoints: Number(BigInt(Number.MAX_SAFE_INTEGER) - 19_869_000n - 501_024_000n) });
+    expect(f.types()).not.toContain("grant");
+    const result = await f.service.grantMaximum();
+    expect(result).toMatchObject({ outcome: "granted", amountMicroPoints: preview.maxGrantMicroPoints,
+      state: { ai: { availableMicroPoints: Number.MAX_SAFE_INTEGER - 501_024_000, reservedMicroPoints: 501_024_000 } } });
+    expect(result.operationId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(JSON.stringify(result)).not.toContain(ACCOUNT);
+    expect(await f.service.grantMaximum()).toMatchObject({ outcome: "already_max", amountMicroPoints: 0 });
+    expect(f.events.filter(e => e.type === "grant")).toHaveLength(1);
+    f.service.dispose();
+  });
+
+  it("denies nonoperators without a mutation", async () => {
+    const f = operatorFixture();
+    await f.service.restore();
+    f.client.operatorAiAccount = async () => { throw new ControlPlaneError("forbidden", 403); };
+    expect(await f.service.operatorStatus()).toEqual({ eligible: false });
+    expect(await f.service.grantMaximum()).toMatchObject({ outcome: "failed", errorCode: "forbidden", amountMicroPoints: 0 });
+    expect(f.types()).not.toContain("grant");
+    f.service.dispose();
+  });
+
+  it.each(["amount_out_of_range", "network_unavailable"])("does not retry %s and refreshes status", async code => {
+    const f = operatorFixture();
+    await f.service.restore();
+    let attempts = 0;
+    f.client.operatorGrantAiBalance = async () => { attempts++; throw new ControlPlaneError(code); };
+    const before = f.events.filter(e => e.type === "aiStatus").length;
+    expect(await f.service.grantMaximum()).toMatchObject({ outcome: "failed", errorCode: code, amountMicroPoints: 0 });
+    expect(attempts).toBe(1);
+    expect(f.events.filter(e => e.type === "aiStatus").length).toBe(before + 1);
+    f.service.dispose();
+  });
+
+  it("recomputes after preview and retains confirmed grant when refresh fails", async () => {
+    const f = operatorFixture();
+    await f.service.restore();
+    await f.service.operatorStatus();
+    f.client.operatorAiAccount = async () => ({ userId: user.id, email: user.email,
+      availableMicroPoints: Number.MAX_SAFE_INTEGER - 10, reservedMicroPoints: 3 });
+    f.client.operatorGrantAiBalance = async (_bearer, input) => {
+      expect(input.amountMicroPoints).toBe(7);
+      f.setStatus(new ControlPlaneError("network_unavailable"));
+      return { account: { userId: user.id }, grantedMicroPoints: 7, replayed: false };
+    };
+    expect(await f.service.grantMaximum()).toMatchObject({ outcome: "granted", amountMicroPoints: 7,
+      state: { errorCode: "network_unavailable" } });
+    f.service.dispose();
+  });
+
+  it("fences an in-flight lookup on sign-out before any grant", async () => {
+    const f = operatorFixture();
+    await f.service.restore();
+    let release;
+    f.client.operatorAiAccount = () => new Promise(resolve => { release = resolve; });
+    const grant = f.service.grantMaximum();
+    await settle();
+    const out = f.service.signOut();
+    release({ userId: user.id, email: user.email, availableMicroPoints: 0, reservedMicroPoints: 0 });
+    expect(await grant).toMatchObject({ outcome: "failed", errorCode: "signed_out" });
+    await out;
+    expect(f.types()).not.toContain("grant");
+    f.service.dispose();
   });
 });

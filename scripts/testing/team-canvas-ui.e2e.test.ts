@@ -50,6 +50,10 @@ type BotRecord = {
       throw new Error(`Keyboard focus did not reach ${name}; focused ${await focused()}`);
     };
     const click = async (name: string, role?: string) => {
+      const snapshot = await ui("snapshot");
+      if (String(snapshot.snapshot).includes('complementary "$50 of Boat credit for you"')) {
+        await ui("click", "--name", "Dismiss for good");
+      }
       let matches: Array<[string, { name: string; role: string }]> = [];
       await expect.poll(async () => {
         const refs = (await ui("snapshot")).refs as Record<string, { name: string; role: string }>;

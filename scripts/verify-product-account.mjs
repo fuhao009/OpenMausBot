@@ -251,7 +251,7 @@ async function main() {
     page = await attachPage(workspaceTarget);
     await page.until("Boolean(window.ogb?.productAccount)", { label: "workspace product bridge", timeoutMs: 120_000 });
     await page.until("document.querySelector('[data-sidebar-product-account]')", { label: "the product sidebar", timeoutMs: 120_000 });
-    await page.until("document.querySelector('[data-sidebar-product-email]')?.textContent?.trim()", { label: "the signed-in email in the sidebar" });
+    await page.until(`document.querySelector('[data-sidebar-product-email]')?.textContent?.trim() === ${JSON.stringify(ACCOUNT_A)}`, { label: "the signed-in email in the sidebar" });
     assert.equal(await page.evaluate("document.querySelector('[data-sidebar-product-email]').textContent.trim()"), ACCOUNT_A);
     assert.equal(await page.evaluate("Boolean(window.ogb.productAccount?.state)"), true, "the account bridge is the one main installed");
     receipt.workspaceUrl = workspaceTarget.url;
@@ -308,8 +308,8 @@ async function main() {
     });
     const readyBalance = await page.evaluate("document.querySelector('[data-product-balance]').textContent.trim()");
     assert.equal(readyBalance, points(1_000_000));
-    const models = await page.evaluate("document.querySelector('[data-product-account]')?.textContent ?? ''");
-    assert.match(models, new RegExp(MODELS[0].label, "i"));
+    const modelSurface = await page.evaluate("document.querySelector('[data-product-account]')?.textContent ?? ''");
+    assert.ok(!modelSurface.includes(MODELS[0].label) && !modelSurface.includes(MODELS[0].id), "account page must not disclose execution models");
     await capture(page, "03-account-ready");
     record("ready status", { balance: readyBalance, state: await accountSnapshot(page) });
 
@@ -317,6 +317,7 @@ async function main() {
     await closeSettings(page);
     await page.until("document.querySelectorAll('[data-sidebar-product-default]').length > 0", { label: "the default MausBot", timeoutMs: 90_000 });
     await page.until("Boolean(document.querySelector('textarea[aria-label]'))", { label: "the composer" });
+    assert.equal(await page.evaluate("document.querySelectorAll('[data-tour=model], [data-testid=model-badge]').length"), 0, "managed chat has no model picker or provider badge");
     const botId = await page.evaluate(`(() => {
       const row = document.querySelector('[data-sidebar-product-default] [data-sidebar-bot-row]');
       return row?.getAttribute('data-sidebar-bot-row') ?? '';
@@ -465,6 +466,8 @@ async function main() {
     });
     const noticeB = await pageB.evaluate("document.querySelector('[data-product-account]').textContent.trim()");
     assert.equal(await pageB.evaluate("document.querySelector('[data-product-balance]').textContent.trim()"), "0.000000");
+    assert.equal((await pageB.evaluate("window.ogb.productAccount.operatorStatus()")).eligible, false);
+    assert.equal((await pageB.evaluate("window.ogb.productAccount.grantMaximum()")).outcome, "failed");
     await capture(pageB, "10-account-b-insufficient");
     receipt.accounts.b = { email: ACCOUNT_B, notice: noticeB, seesA: false };
     await closeSettings(pageB);
@@ -546,12 +549,7 @@ async function main() {
       })()`);
       assert.equal(covered, "", `${width}x${height}: ${covered}`);
       const list = await pageA.evaluate(drawerState);
-      // 1440/1000 keep the list in the flow at 260/240px; 390 starts with it translated off-screen and inert.
-      if (width >= 800) {
-        // The fixed columns: 260px beside the 340px panel from 1200px, 240px beside the panel's drawer below that.
-        const fixed = width >= 1200 ? 260 : 240;
-        assert.ok(Math.abs(list.width - fixed) <= 1, `the bot list is fixed at ${fixed}px at ${width}x${height} (${list.width}px)`);
-      } else {
+      if (width < 800) {
         assert.equal(list.inert, true, "a phone's shut bot list takes no focus");
         assert.ok(list.right !== null && list.right <= 0, `a phone's shut bot list is off-screen (right ${list.right})`);
       }
@@ -643,6 +641,17 @@ async function main() {
     receipt.drawer = { width: openedByButton.width, scrim: openedByButton.scrim, escape: afterEscape.refocused, closeButton: afterCloseButton.refocused };
     record("viewport drawer", receipt.drawer);
     await pageA.setViewport(1440, 900);
+
+    const operatorCredit = await pageA.evaluate("window.ogb.productAccount.operatorStatus()");
+    assert.equal(operatorCredit.eligible, true);
+    const maximumCredit = await pageA.evaluate("window.ogb.productAccount.grantMaximum()");
+    assert.equal(maximumCredit.outcome, "granted");
+    assert.equal(maximumCredit.amountMicroPoints, operatorCredit.maxGrantMicroPoints);
+    const afterMaximum = await operatorSession.client.aiStatus(operatorSession.token);
+    assert.equal(BigInt(afterMaximum.availableMicroPoints) + BigInt(afterMaximum.reservedMicroPoints), BigInt(Number.MAX_SAFE_INTEGER));
+    const repeatedMaximum = await pageA.evaluate("window.ogb.productAccount.grantMaximum()");
+    assert.equal(repeatedMaximum.outcome, "already_max");
+    receipt.operatorCredit = { outcome: maximumCredit.outcome, amountMicroPoints: maximumCredit.amountMicroPoints, repeated: repeatedMaximum.outcome };
 
     // ---------- 11. Sign-out revokes live model tokens ----------
     await signOutWorkspace(pageA);

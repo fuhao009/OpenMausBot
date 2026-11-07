@@ -71,6 +71,8 @@ function makeBridge(): ProductAccountBridge {
     resetPassword: vi.fn().mockResolvedValue({ auth: "signed_out", runtime: "stopped" }),
     refresh: vi.fn().mockResolvedValue(SIGNED_IN),
     ledger: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+    operatorStatus: vi.fn().mockResolvedValue({ eligible: false }),
+    grantMaximum: vi.fn().mockResolvedValue({ outcome: "failed", amountMicroPoints: 0, errorCode: "forbidden", state: SIGNED_IN }),
     signOut: vi.fn().mockResolvedValue({ auth: "signed_out", runtime: "stopped" }),
     onState: vi.fn(() => () => {}),
   };

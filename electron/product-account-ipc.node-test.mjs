@@ -84,6 +84,33 @@ function harness({ account = fakeWindow(ACCOUNT_URL), accountUrl = ACCOUNT_URL, 
   return { handlers, calls, published, installed, account };
 }
 
+test("operator bridge checks owned top frame, strips private fields, and never forwards targets", async () => {
+  const workspace = fakeWindow(WORKSPACE_URL);
+  const calls = [];
+  const h = harness({ workspace, override: {
+    operatorStatus: async (...args) => {
+      calls.push(args);
+      return { eligible: true, availableMicroPoints: 0, reservedMicroPoints: 0,
+        maxGrantMicroPoints: Number.MAX_SAFE_INTEGER, accountToken: "secret", endpoint: "private" };
+    },
+    grantMaximum: async (...args) => {
+      calls.push(args);
+      return { outcome: "already_max", amountMicroPoints: 0, accountToken: "secret",
+        state: { ...accountState(), accountToken: "secret" } };
+    },
+  } });
+  for (const channel of ["product-account:operator-status", "product-account:grant-maximum"]) {
+    const handler = h.handlers.get(channel);
+    await assert.rejects(() => handler(childEvent(workspace)), /only available/);
+    await assert.rejects(() => handler(eventFor(fakeWindow(WORKSPACE_URL))), /only available/);
+    await assert.rejects(() => handler(eventFor(workspace, "https://evil.example/")), /only available/);
+    const result = await handler(eventFor(workspace, WORKSPACE_URL), { userId: "other", accountToken: "forged" });
+    assert.equal(JSON.stringify(result).includes("secret"), false);
+    assert.equal(JSON.stringify(result).includes("private"), false);
+  }
+  assert.deepEqual(calls, [[], []]);
+});
+
 test("the account page's exact top frame alone reaches the service", async () => {
   const { handlers, calls, account } = harness();
   assert.deepEqual(await handlers.get("product-account:state")(eventFor(account)), accountState());

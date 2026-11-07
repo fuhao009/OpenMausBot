@@ -12,10 +12,9 @@ import { isProductWorkspace } from "@/lib/product-workspace";
 export function ModelSection({ bot }: { bot: Bot }) {
   const { state, dispatch } = useStore();
   const { draft } = useBotEditor();
-  // A managed account has one route to one upstream: there is no second provider to fail over to, and the workspace's
-  // own usage is not what bills, so neither row is offered here.
   const productManaged = isProductWorkspace(state.config?.productManaged);
   const modelVariants = state.instances.find((instance) => instance.instanceId === bot.modelSelection.instanceId)?.capabilities?.modelVariants;
+  if (productManaged) return null;
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl bg-card p-4">

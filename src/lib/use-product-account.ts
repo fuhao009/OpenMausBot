@@ -240,7 +240,6 @@ export function productLedgerLine(entry: ProductLedgerEntry, locale = "en"): Pro
     else if (entry.reservedMicroPoints !== undefined) amount = t("product.reservedAmount", { amount: formatPointsMicros(entry.reservedMicroPoints) });
   }
   const detail: string[] = [];
-  if (entry.model) detail.push(entry.model);
   if (entry.inputTokens !== undefined || entry.cachedInputTokens !== undefined || entry.outputTokens !== undefined) {
     detail.push(t("product.tokens", {
       input: String(entry.inputTokens ?? 0),

@@ -7,8 +7,8 @@ import type { LocaleKey } from "@/locales";
 import type { ApproveExecutionTask, CreateExecutionConnector, ExecutionConnector, ExecutionConnectorList, ExecutionLocation, ExecutionTask, ExecutionTool, StartExecutionTask } from "../../shared/execution-connectors";
 
 const tools: { id: ExecutionTool; name: string }[] = [{ id: "claude", name: "Claude Code" }, { id: "codex", name: "Codex" }, { id: "omp", name: "OMP" }];
-const button = "rounded-full bg-control px-3 py-1.5 text-[12px] text-ink hover:bg-raised-hover disabled:opacity-40";
-const input = "w-full rounded-lg bg-inset px-3 py-2 text-[13px] text-ink focus:outline-none focus:ring-1 focus:ring-accent";
+const button = "ui-button text-[12px] disabled:opacity-40";
+const input = "w-full rounded-lg border border-hairline/40 bg-raised/50 px-3 py-2 text-[13px] text-ink focus:outline-none focus:ring-1 focus:ring-focus";
 const root = "/api/execution-connectors";
 const taskState: Record<ExecutionTask["status"], LocaleKey> = { running: "execution.status.running", approval: "execution.status.awaiting_approval", completed: "execution.status.completed", failed: "execution.status.failed", cancelled: "execution.status.cancelled" };
 
@@ -104,18 +104,18 @@ export function ExecutionConnectorsSection({ search, connectedOnly, onConnection
       </div>)}
     </div>;
   }
-  return <section className="mb-7 space-y-3" aria-labelledby="execution-tools-title">
+  return <section data-product-execution-connectors className="mb-6 space-y-3" aria-labelledby="execution-tools-title">
     <div className="flex items-center justify-between gap-3"><h3 id="execution-tools-title" className="text-[15px] font-semibold text-ink">{t("execution.title")}</h3><button type="button" className={button} disabled={busy} onClick={() => void refresh()}><RefreshCw size={13} className="me-1 inline" />{t("execution.refresh")}</button></div>
     <p className="text-[12px] text-ink-secondary">{t("execution.description")}</p>
     {error && <p role="alert" className="text-[12px] text-danger">{error}</p>}
     {stale && inventory && <p className="text-[12px] text-danger">{t("execution.stale")}</p>}
-    {!inventory && !error && <p className="text-[12px]"><Loader2 size={14} className="me-2 inline animate-spin" />{t("execution.loading")}</p>}
+    {!inventory && !error && <p role="status" className="text-[12px]"><Loader2 size={14} className="me-2 inline animate-spin" />{t("execution.loading")}</p>}
     {inventory && !canManage && <p className="text-[12px] text-ink-secondary">{t("execution.adminOnly")}</p>}
     {inventory && inventory.connectors.length === 0 && <p className="text-[12px] text-ink-secondary">{t("execution.noConnections")}</p>}
-    <div className="grid gap-3 lg:grid-cols-3">{matching.map((tool) => {
+    <div className="grid items-start gap-3 sm:grid-cols-2">{matching.map((tool) => {
       const connections = inventory?.connectors.filter((connector) => connector.tool === tool.id) ?? [];
       if (connectedOnly && !connections.some((connector) => connector.state === "connected")) return null;
-      return <article key={tool.id} className="min-w-0 space-y-3 rounded-xl border border-hairline/40 p-3" data-execution-tool={tool.id}>
+      return <article key={tool.id} className="min-w-0 space-y-3 rounded-xl border border-hairline/40 bg-menu p-4" data-execution-tool={tool.id}>
         <div className="flex items-center gap-2"><Terminal size={18} /><h4 className="flex-1 text-[14px] font-semibold">{tool.name}</h4><button type="button" className={button} disabled={busy || stale || !canManage} onClick={() => { setEditing(editing === tool.id ? null : tool.id); setConsent(false); setRemoteToken(""); setLocation(localAvailable ? "local" : "server"); setBotIds([]); }}>{t("execution.configure")}</button></div>
         {connections.map((connector) => {
           const allowed = bots.filter((bot) => connector.botIds.includes(bot.id));
@@ -132,6 +132,9 @@ export function ExecutionConnectorsSection({ search, connectedOnly, onConnection
                 }}>{t("execution.disconnect")}</button>
               </div>
             </div>}
+            <details className="group rounded-lg bg-raised/40 px-3 py-2">
+              <summary className="cursor-pointer text-[12px] font-medium text-ink">{t("execution.configure")}</summary>
+              <div className="space-y-3 pt-3">
             {grants(connector)}
             {canManage && <form className="space-y-2" onSubmit={(event) => {
               event.preventDefault();
@@ -142,8 +145,10 @@ export function ExecutionConnectorsSection({ search, connectedOnly, onConnection
             }}>
               <select className={input} aria-label={t("execution.bot")} value={botId} onChange={(event) => setTaskBots((previous) => ({ ...previous, [connector.id]: event.target.value }))} disabled={busy}>{!allowed.length && <option value="">{t("execution.bot")}</option>}{allowed.map((bot) => <option key={bot.id} value={bot.id}>{bot.name}</option>)}</select>
               <textarea className={input} rows={3} aria-label={t("execution.prompt")} placeholder={t("execution.prompt")} value={prompts[connector.id] ?? ""} onChange={(event) => setPrompts((previous) => ({ ...previous, [connector.id]: event.target.value }))} />
-              <button type="submit" className={button} disabled={busy || stale || connector.state !== "connected" || !botId || !prompts[connector.id]?.trim()}>{t("execution.start")}</button>
+              <button type="submit" className={`${button} ui-button-primary`} disabled={busy || stale || connector.state !== "connected" || !botId || !prompts[connector.id]?.trim()}>{t("execution.start")}</button>
             </form>}
+              </div>
+            </details>
             {inventory?.tasks.filter((task) => task.connectorId === connector.id).map(renderTask)}
           </div>;
         })}
@@ -159,7 +164,7 @@ export function ExecutionConnectorsSection({ search, connectedOnly, onConnection
           {location === "server" && <><label className="block space-y-1 text-[12px]">{t("execution.endpoint")}<input type="url" required className={input} value={remoteUrl} onChange={(event) => setRemoteUrl(event.target.value)} placeholder="https://" autoComplete="off" /></label><label className="block space-y-1 text-[12px]">{t("execution.token")}<input type="password" required className={input} value={remoteToken} onChange={(event) => setRemoteToken(event.target.value)} autoComplete="new-password" /></label></>}
           {grants()}
           <label className="flex items-start gap-2 text-[12px]"><input type="checkbox" className="mt-1" checked={consent} onChange={(event) => setConsent(event.target.checked)} />{t("execution.consent")}</label>
-          <button type="submit" className={button} disabled={busy || stale || !canManage || !consent || !botIds.length || (location === "local" ? !localAvailable : !remoteUrl.trim() || !remoteToken.trim())}>{busy && <Loader2 size={12} className="me-1 inline animate-spin" />}{t("execution.connect")}</button>
+          <button type="submit" className={`${button} ui-button-primary`} disabled={busy || stale || !canManage || !consent || !botIds.length || (location === "local" ? !localAvailable : !remoteUrl.trim() || !remoteToken.trim())}>{busy && <Loader2 size={12} className="me-1 inline animate-spin" />}{t("execution.connect")}</button>
         </form>}
       </article>;
     })}</div>

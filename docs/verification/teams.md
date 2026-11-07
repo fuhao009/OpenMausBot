@@ -58,6 +58,9 @@ section keeps Team map mounted. A multi-bot move preserves bot identities,
 threads, model defaults, messages, and shared instructions; selecting a Chief
 and another bot for a conflicting move leaves both memberships unchanged.
 Team controls are grouped under each team's **Manage** menu.
+Team titles are directly draggable focusable groups, not action buttons;
+their arrow-key positioning remains available. Trackpad pan and zoom apply
+each delta to the latest view, so bursts of wheel events do not lose movement.
 The General-team move is also completed with keyboard input through the native
 menu and bot picker, with focus returning to the menu summary afterward.
 Cross-team drag/drop explains that the bot's home team and shared instructions

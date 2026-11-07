@@ -1011,6 +1011,7 @@ export function ModelPicker({
     </div>
   );
 
+  if (productMode) return null;
   return (
     <div ref={rootRef} className={cn(contained ? "w-full" : "relative", className)}>
       {contained ? (

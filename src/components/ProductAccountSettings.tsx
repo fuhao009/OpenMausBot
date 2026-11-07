@@ -1,24 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { activeLocale, t } from "@/lib/i18n";
 import { formatPointsMicros, productAccountNotice, productLedgerLine, useProductAccount, useProductLedger } from "@/lib/use-product-account";
 import { Card, SettingRow, SettingsGroup, SettingsRows } from "./SettingsPrimitives";
+import type { ProductOperatorStatus, ProductMaximumGrantResult } from "../../shared/product-account";
 
-const MODEL_PRICE = (model: { inputMicroPointsPerMillion: number; cachedInputMicroPointsPerMillion: number; outputMicroPointsPerMillion: number }) =>
-  t("product.modelPrices", {
-    input: formatPointsMicros(model.inputMicroPointsPerMillion),
-    cached: formatPointsMicros(model.cachedInputMicroPointsPerMillion),
-    output: formatPointsMicros(model.outputMicroPointsPerMillion),
-  });
-
-const tokens = (value: number) => new Intl.NumberFormat(activeLocale()).format(value);
-
-/**
- * The account page: the verified email, the point balance the gateway holds, the
- * models it offers and their prices, and the request history with anything
- * awaiting review. There is no purchase, top-up or personal-key action here:
- * an account is opened and funded by its administrator.
- */
 export function ProductAccountSettings() {
   const state = useProductAccount();
   const signedIn = state.auth === "signed_in";
@@ -56,28 +42,17 @@ export function ProductAccountSettings() {
         <SettingsGroup label={t("product.balance")}>
           <SettingsRows>
             <SettingRow title={t("product.balance")} subtitle={t("product.balanceReserved")}>
-              <div className="flex flex-col items-end gap-0.5 text-[14px] tabular-nums text-ink">
-                <span data-product-balance>{formatPointsMicros(ai?.availableMicroPoints ?? 0)}</span>
-                <span data-product-reserved className="text-[12px] text-ink-secondary">{formatPointsMicros(ai?.reservedMicroPoints ?? 0)}</span>
+              <div className="flex flex-col items-end gap-0.5 tabular-nums text-ink">
+                <span data-product-balance className="text-[22px] font-semibold tracking-tight">{ai ? formatPointsMicros(ai.availableMicroPoints) : "—"}</span>
+                <span data-product-reserved className="text-[12px] text-ink-secondary">{ai ? formatPointsMicros(ai.reservedMicroPoints) : "—"}</span>
               </div>
             </SettingRow>
           </SettingsRows>
         </SettingsGroup>
       )}
 
-      {ai && ai.models.length > 0 && (
-        <SettingsGroup label={t("product.models")}>
-          <SettingsRows>
-            {ai.models.map(model => (
-              <SettingRow key={model.id} title={model.label} subtitle={MODEL_PRICE(model)}>
-                <div className="flex flex-col items-end gap-0.5 text-right text-[12px] leading-4 text-ink-secondary">
-                  <span>{t("product.modelLimits", { context: tokens(model.maxContextTokens), output: tokens(model.maxOutputTokens) })}</span>
-                  {model.id === ai.defaultModel && <span className="text-ink-secondary">{t("product.modelManaged")}</span>}
-                </div>
-              </SettingRow>
-            ))}
-          </SettingsRows>
-        </SettingsGroup>
+      {signedIn && state.user && (
+        <CurrentAccountOperator key={state.user.email} email={state.user.email} onRefresh={ledger.reload} />
       )}
 
       {signedIn && (
@@ -124,5 +99,99 @@ export function ProductAccountSettings() {
         </SettingsGroup>
       )}
     </div>
+  );
+}
+
+function CurrentAccountOperator({ email, onRefresh }: { email: string; onRefresh: () => void }) {
+  const bridge = window.ogb?.productAccount;
+  const [status, setStatus] = useState<ProductOperatorStatus>();
+  const [confirming, setConfirming] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string>();
+  const [result, setResult] = useState<ProductMaximumGrantResult>();
+  const submitting = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    void bridge?.operatorStatus().then(next => { if (active) setStatus(next); }).catch(() => {
+      // Eligibility is never inferred from local account data or an unsuccessful lookup.
+      if (active) setStatus(undefined);
+    });
+    return () => { active = false; };
+  }, [bridge]);
+
+  async function grant() {
+    if (!bridge || submitting.current) return;
+    submitting.current = true;
+    setPending(true);
+    setError(undefined);
+    setResult(undefined);
+    try {
+      const next = await bridge.grantMaximum();
+      setResult(next);
+      if (next.outcome === "failed") setError(next.errorCode ?? "request_failed");
+      setConfirming(false);
+      onRefresh();
+      try {
+        setStatus(await bridge.operatorStatus());
+      } catch {
+        setError(current => current ?? "capability_unavailable");
+      }
+    } catch {
+      // A rejected IPC response does not prove that the server rejected the mutation.
+      setError("request_failed");
+      setConfirming(false);
+      onRefresh();
+    } finally {
+      submitting.current = false;
+      setPending(false);
+    }
+  }
+
+  if (!status?.eligible) return null;
+  const amount = status.maxGrantMicroPoints;
+  const validAmount = amount !== undefined && Number.isSafeInteger(amount) && amount >= 0;
+  const granted = result?.outcome === "granted";
+  const refreshed = result?.state.ai;
+  return (
+    <Card title={t("product.operator.title")} subtitle={t("product.operator.note")}>
+      <div data-product-operator className="flex flex-col gap-3 text-[13px] leading-[18px]">
+        {validAmount && <p data-product-operator-amount className="tabular-nums text-ink">{t("product.operator.amount", { amount: formatPointsMicros(amount) })}</p>}
+        {confirming && validAmount && (
+          <p data-product-operator-confirmation className="text-ink-secondary">
+            {t("product.operator.confirmNote", { amount: formatPointsMicros(amount), email })}
+          </p>
+        )}
+        {pending && <p data-product-operator-pending role="status">{t("product.operator.pending")}</p>}
+        {granted && refreshed && !result.state.errorCode && (
+          <p data-product-operator-result role="status" className="tabular-nums">{t("product.operator.success", {
+            amount: formatPointsMicros(result.amountMicroPoints),
+            available: formatPointsMicros(refreshed.availableMicroPoints),
+            reserved: formatPointsMicros(refreshed.reservedMicroPoints),
+          })}</p>
+        )}
+        {granted && (!refreshed || result.state.errorCode) && (
+          <p data-product-operator-result role="alert">
+            {t("product.operator.granted", { amount: formatPointsMicros(result.amountMicroPoints) })} {t("product.operator.refreshError")}
+          </p>
+        )}
+        {(result?.outcome === "already_max" || amount === 0) && <p role="status">{t("product.operator.limitReached")}</p>}
+        {error && <p data-product-operator-error role="alert">{t("product.operator.error", { code: error })}</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          {confirming ? (
+            <>
+              <button data-product-operator-confirm type="button" className="ui-button" disabled={pending || !validAmount || amount === 0} onClick={() => { void grant(); }}>
+                {t("product.operator.confirm")}
+              </button>
+              <button type="button" className="ui-button" disabled={pending} onClick={() => setConfirming(false)}>{t("common.cancel")}</button>
+            </>
+          ) : (
+            <button data-product-operator-open type="button" className="ui-button" disabled={pending || !validAmount || amount === 0} onClick={() => setConfirming(true)}>
+              {t("product.operator.open")}
+            </button>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }

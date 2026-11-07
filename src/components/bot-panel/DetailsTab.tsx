@@ -2,7 +2,7 @@ import { Calendar, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
-import type { Bot } from "@/state/store";
+import { useStore, type Bot } from "@/state/store";
 import { useChatMoreItems } from "../ChatMoreMenu";
 import { ModelPicker } from "../ModelPicker";
 import type { SidebarMenuItem } from "../SidebarPopoverMenu";
@@ -42,12 +42,13 @@ export function DetailsTab({ bot, derived, onOpen }: {
   onOpen: (page: SimplePageId) => void;
 }) {
   const { items } = useChatMoreItems(bot);
+  const { state } = useStore();
   const routinesOn = derived.botRoutines.filter((routine) => routine.enabled).length;
   const conversationItems = CONVERSATION_ITEMS.flatMap((key) => items.filter((item) => item.key === key));
 
   return (
     <div data-panel-tabpanel="details">
-      <Card anchor="model">
+      {!state.config?.productManaged && <Card anchor="model">
         <div data-panel-row="model" className={rowCls}>
           <ModelPicker
             bot={bot}
@@ -56,7 +57,7 @@ export function DetailsTab({ bot, derived, onOpen }: {
             label={<span className="flex min-w-0 flex-1 items-center gap-2.5"><RowIcon icon={Sparkles} /><RowText title={t("model.simple.model")} /></span>}
           />
         </div>
-      </Card>
+      </Card>}
 
       <BotConversations bot={bot} />
 

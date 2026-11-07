@@ -170,7 +170,7 @@ export function ProductAccountGate() {
 
   if (!bridge) {
     return (
-      <main data-product-account-window="unavailable" className="mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center gap-3 p-6 text-ink">
+      <main data-product-account-window="unavailable" className="mx-auto flex min-h-screen w-full max-w-[420px] flex-col justify-center gap-3 bg-menu px-6 py-10 text-[13px] text-ink">
         <h1 className="text-[22px] font-semibold leading-7">{t("product.signIn")}</h1>
         <p role="alert" className="text-[14px] leading-relaxed text-ink-secondary">{t("product.windowUnavailable")}</p>
       </main>
@@ -181,7 +181,7 @@ export function ProductAccountGate() {
     const ai = state.ai;
     return (
       <main data-product-account-window="signed-in" data-product-runtime={state.runtime} data-product-ai={ai?.state}
-        className="mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center gap-4 p-6 text-ink">
+        className="mx-auto flex min-h-screen w-full max-w-[420px] flex-col justify-center gap-5 bg-menu px-6 py-10 text-[13px] text-ink">
         <h1 className="text-[22px] font-semibold leading-7">{t("product.accountSection")}</h1>
         <p data-product-account-email className="text-[14px] font-medium text-ink">{state.user?.email}</p>
         {ai && (
@@ -216,7 +216,7 @@ export function ProductAccountGate() {
     );
   }
 
-  const field = "h-10 rounded-lg border-[0.5px] border-edge bg-inset px-3 text-[14px] font-normal text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-focus/60";
+  const field = "h-10 rounded-lg border border-hairline/40 bg-raised/50 px-3 text-[13px] font-normal text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-focus/60";
   const label = "flex flex-col gap-1.5 text-[13px] font-medium text-ink";
 
   const emailField = (disabled: boolean) => (
@@ -260,7 +260,7 @@ export function ProductAccountGate() {
 
   return (
     <main data-product-account-window="sign-in" data-product-auth={state.auth} data-product-step={step}
-      className="mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center gap-4 p-6 text-ink">
+      className="mx-auto flex min-h-screen w-full max-w-[420px] flex-col justify-center gap-5 bg-menu px-6 py-10 text-[13px] text-ink [&_.ui-button]:min-h-9 [&_.ui-button]:rounded-full [&_.ui-button-primary]:bg-ink [&_.ui-button-primary]:text-menu">
       <h1 className="text-[22px] font-semibold leading-7">{t("product.signIn")}</h1>
 
       {step === "password" && (

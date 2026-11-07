@@ -156,8 +156,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   const advanced = useAdvancedMode();
   const roomPanelOpen = useRoomPanelShown({ group, state, simple: !advanced && !remoteClient });
   const sidePanelOpen = (Boolean(bot) && (state.settingsOpen || state.computerOpen || state.inspectorOpen || state.activityOpen)) || roomPanelOpen || (notificationFeed && state.notificationsOpen) || inboxShown;
-  // The product layout fixes the sidebar at 260/240 so the chat keeps its 420px beside the 340px work panel; collapsing it
-  // to a rail below 1280 would take that width back out of the chat.
+  // Managed workspaces keep their grouped list; the details panel becomes an overlay before chat gets cramped.
   const collapseSidebar = !product && sidePanelOpen && !sidebarAndPanelFit;
   const calendarFocus = state.activeView === "routines" && state.routinesFocus.view === "calendar";
 
@@ -423,6 +422,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
       ) : product && !bot && !group ? (
         <main data-product-waiting={account.runtime} className="relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-app text-ink-secondary">
           <WindowDragStrip />
+          <div className="w-full max-w-md px-5"><ChatNotice notice={state.notice} /></div>
           {(account.runtime === "starting" || state.hydrated !== true) && <Loader2 size={20} className="animate-spin" />}
           <div className="text-[14px]">{t(account.runtime === "starting" || state.hydrated !== true ? "product.starting" : "product.pending")}</div>
         </main>

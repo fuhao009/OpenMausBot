@@ -48,9 +48,7 @@ describe("a managed account's points", () => {
 
   it("reads one ledger entry as a person would", () => {
     const settled = productLedgerLine(entry(), "en");
-    expect(settled.title).toBe("Model request");
     expect(settled.amount).toBe("Charged 0.002100 points");
-    expect(settled.detail).toBe("maus-1 · 1000 in (200 cached) · 100 out");
     expect(settled.state).toEqual({ label: "Settled", review: false });
 
     // A request awaiting review holds its amount; it is not shown as a charge.

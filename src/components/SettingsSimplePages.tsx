@@ -16,7 +16,6 @@ import { LocalComputerSection } from "./LocalComputerSection";
 import { PeopleSection } from "./PeopleSection";
 import { ActivitySection } from "./ActivitySection";
 import { BuiltInBrowserRow, ServerSitesRow } from "./BrowserSettingsRows";
-import { LoginsSettings } from "./LoginsSettings";
 import { OrganizationSettings } from "./OrganizationSettings";
 import { CloudPlanRow, CloudPlanFootnote, useCloudPlan } from "./ProIntroduction";
 import { CloudUsageDetails, CloudUsageSummaryView, useCloudUsageSettings } from "./CloudUsageMeter";
@@ -144,7 +143,6 @@ export function SimpleComputerPage({ has, remoteAccess, servers, disclose }: { h
           <BrowserProfilesRow />
         </SettingsGroup>
       )}
-      {has("logins") && <div data-settings-block="logins" className="scroll-mt-4"><LoginsSettings /></div>}
       {(has("companion") || has("desktopWorkspaces")) && (
         <SettingsDisclosureRow title={t("settings.simple.computer.elsewhere")} block="elsewhere" {...disclose("computer-elsewhere")}>
           {has("companion") && <div data-settings-block="remote" className="flex scroll-mt-4 flex-col gap-4 empty:hidden">{remoteAccess.client}{remoteAccess.domain}</div>}

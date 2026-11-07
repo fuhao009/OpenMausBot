@@ -102,6 +102,8 @@ export interface ProductAccountService {
   /** The sign-in ways this deployment offers, read once and published on state. */
   methods(): Promise<ProductAccountState>;
   refresh(): Promise<ProductAccountState>;
+  operatorStatus(): Promise<import("../shared/product-account.ts").ProductOperatorStatus>;
+  grantMaximum(): Promise<import("../shared/product-account.ts").ProductMaximumGrantResult>;
   /** Throws ControlPlaneError("signed_out") when nobody is signed in and
    * ("invalid_cursor") for a cursor that is not an opaque page token. */
   ledger(cursor?: string): Promise<ProductLedgerPage>;

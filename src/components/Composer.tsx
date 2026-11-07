@@ -1,4 +1,5 @@
 import { directMessageSent, roomMessageSent } from "@/lib/product-events";
+import { isProductWorkspace } from "@/lib/product-workspace";
 import { useComposerDictation } from "@/lib/use-composer-dictation";
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import { Mic, Paperclip, Square, X } from "lucide-react";
@@ -127,13 +128,14 @@ export function Composer({
   const bot = profile ? currentTaskBot(profile) : undefined;
   const locked = setupLocked || Boolean(bot?.awaitingThreadSnapshot);
   const { state, dispatch } = useStore();
+  const product = isProductWorkspace(state.config?.productManaged);
   const { threads, currentBotId } = useThreadRefs();
   const { capabilities } = useDesktopCapabilities();
   const advanced = useAdvancedMode();
   // On a phone the composer is a dock: a round + (attach and every other tool), then one pill with the field, the mic and the voice button.
   const singleRow = useMediaQuery(PHONE_LAYOUT);
   // Simple mode on a wider screen: one pill holding a round +, the field, the mic and one round button in the bot's colour.
-  const simpleDock = !advanced && !singleRow;
+  const simpleDock = (product || !advanced) && !singleRow;
   const sendKey = useSendKey(); const followUpDefault = useFollowUpDefault();
   const sendLabel = sendKeyLabel(sendKey);
   const remoteClient = window.ogb?.remoteClient?.active === true;
@@ -698,7 +700,7 @@ export function Composer({
   const goal = !group?.dm ? { on: effectiveChannelMode === "goal", onToggle: toggleGoal, solo: !group } : undefined;
 
   return (
-    <div className={cn("pointer-events-none relative px-5", simpleDock ? "pb-4" : "pb-3")}>
+    <div data-product-composer={product ? "" : undefined} className={cn("pointer-events-none relative px-5", simpleDock ? "pb-4" : "pb-3")}>
       {speechError && (
         <div className="pointer-events-auto mb-2 w-full rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-warning">
           {speechError}
@@ -784,7 +786,7 @@ export function Composer({
             data-composer-backdrop
             className={cn("pointer-events-none absolute -left-5 -right-5 bg-app", advanced ? "-bottom-3 top-1/2" : cn("top-0", simpleDock ? "-bottom-4" : "-bottom-3"))}
           />
-        <div ref={shellRef} data-tour="composer" data-multiline={multiline ? "" : undefined} className={cn("@container/composer relative z-[1]", singleRow ? "flex items-end gap-2" : simpleDock ? cn(SIMPLE_COMPOSER, multiline ? "rounded-[18px]" : "rounded-[22px]") : cn("rounded-2xl px-2 py-1.5", ELEVATED_FLOAT))}>
+        <div ref={shellRef} data-tour="composer" data-multiline={multiline ? "" : undefined} className={cn("@container/composer relative z-[1]", singleRow ? "flex items-end gap-2" : simpleDock ? cn(SIMPLE_COMPOSER, multiline ? "rounded-[24px]" : "rounded-full") : cn("rounded-2xl px-2 py-1.5", ELEVATED_FLOAT))}>
         {singleRow && !locked && (
           <div className="flex shrink-0 items-center">
             <PhonePlus

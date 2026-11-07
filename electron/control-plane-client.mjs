@@ -431,8 +431,40 @@ export function createControlPlaneClient({
     return installations;
   };
 
+  const operatorAccount = value => {
+    const account = plainObject(value);
+    if (!account || typeof account.userId !== "string" || !account.userId || account.userId.length > 128
+      || !normalizeAccountEmail(account.email)
+      || !Number.isSafeInteger(account.availableMicroPoints) || account.availableMicroPoints < 0
+      || !Number.isSafeInteger(account.reservedMicroPoints) || account.reservedMicroPoints < 0) {
+      throw new ControlPlaneError("invalid_response");
+    }
+    return { userId: account.userId, email: account.email,
+      availableMicroPoints: account.availableMicroPoints, reservedMicroPoints: account.reservedMicroPoints };
+  };
+
   return {
     origin,
+
+    async operatorAiAccount(accountToken, rawEmail) {
+      if (!boundedSecret(accountToken)) throw new ControlPlaneError("signed_out", 401);
+      const email = normalizeAccountEmail(rawEmail);
+      if (!email) throw new ControlPlaneError("invalid_email");
+      const { payload } = await request(`/v1/operator/ai/account?email=${encodeURIComponent(email)}`, { token: accountToken });
+      return operatorAccount(payload.account);
+    },
+
+    async operatorGrantAiBalance(accountToken, { operationId, userId, amountMicroPoints, reason }) {
+      if (!boundedSecret(accountToken)) throw new ControlPlaneError("signed_out", 401);
+      if (!REQUEST_ID.test(operationId) || typeof userId !== "string" || !userId || userId.length > 128
+        || !Number.isSafeInteger(amountMicroPoints) || amountMicroPoints <= 0
+        || typeof reason !== "string" || !reason.trim() || reason.length > 1000) throw new ControlPlaneError("invalid_request");
+      const { payload } = await request("/v1/operator/ai/balance", {
+        token: accountToken, method: "POST", body: { operationId, userId, amountMicroPoints, reason },
+      });
+      if (payload.grantedMicroPoints !== amountMicroPoints || typeof payload.replayed !== "boolean") throw new ControlPlaneError("invalid_response");
+      return { account: operatorAccount(payload.account), grantedMicroPoints: payload.grantedMicroPoints, replayed: payload.replayed };
+    },
 
     async health() {
       const { payload } = await request("/healthz", {

@@ -32,7 +32,7 @@ export function useChatMoreItems(profile: Bot, phoneHeader = false): { items: Si
   const findOpen = useChatFindOpen(bot.threadId);
   const [copyStatus, setCopyStatus] = useState<"copied" | "failed" | null>(null);
   const remoteClient = window.ogb?.remoteClient?.active === true;
-  const usage = usageSummary(bot, state.instances);
+  const usage = state.config?.productManaged ? null : usageSummary(bot, state.instances);
   const hasMessages = messages.length > 0;
   const transcript = () => formatTranscriptMarkdown({ title: bot.name, messages, botName: bot.name, isGroup: false });
   const threads = showThreads ? [] : orderedThreadList((profile.tasks ?? []).filter((task) => !task.routineRunId));
@@ -50,7 +50,7 @@ export function useChatMoreItems(profile: Bot, phoneHeader = false): { items: Si
     },
   ] : [];
   const phoneScreen: SidebarMenuItem[] = phoneHeader ? [
-    ...(remoteClient ? [] : [{
+    ...(remoteClient || state.config?.productManaged ? [] : [{
       key: "model",
       label: t("model.simple.model"),
       icon: <Cpu size={16} />,

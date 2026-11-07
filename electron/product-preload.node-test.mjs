@@ -41,13 +41,15 @@ test("the account bridge sends only text and returns no other capability", async
   const { bridge } = preload({ invoked });
   const account = bridge.productAccount;
   assert.deepEqual(Object.keys(account).sort(), [
-    "confirmEmail", "ledger", "methods", "onState", "refresh", "requestCode", "requestPasswordReset",
+    "confirmEmail", "grantMaximum", "ledger", "methods", "onState", "operatorStatus", "refresh", "requestCode", "requestPasswordReset",
     "resetPassword", "signInWithPassword", "signOut", "signUp", "state", "verifyCode",
   ]);
   await account.state();
   await account.requestCode({ toString: () => "person@example.test" });
   await account.verifyCode("person@example.test", "12345678");
   await account.refresh();
+  await account.operatorStatus({ accountToken: "forged" });
+  await account.grantMaximum({ userId: "someone-else", amountMicroPoints: 1 });
   await account.ledger();
   await account.ledger("abc_DEF-123");
   await account.signOut();
@@ -62,6 +64,8 @@ test("the account bridge sends only text and returns no other capability", async
     ["product-account:request-code", ""],
     ["product-account:verify-code", "person@example.test", "12345678"],
     ["product-account:refresh"],
+    ["product-account:operator-status"],
+    ["product-account:grant-maximum"],
     ["product-account:ledger"],
     ["product-account:ledger", "abc_DEF-123"],
     ["product-account:sign-out"],

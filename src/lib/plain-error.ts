@@ -1,6 +1,7 @@
 import { t } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
 import { requestTooLargeModel } from "../../shared/request-too-large";
+import { PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE } from "../../shared/product-account";
 
 const UNREACHABLE = /^(?:TypeError:\s*)?(?:Failed to fetch|NetworkError when attempting to fetch resource\.?|Load failed|fetch failed)$/i;
 const TIMED_OUT = /^(?:TimeoutError:\s*)?(?:The operation was aborted due to timeout|signal timed out|The operation timed out\.?)$/i;
@@ -42,6 +43,7 @@ const STATUS_PREFIX = /^(?:[\w-]+ ){0,2}(?:API Error|HTTP|status(?: code)?)[:\s]
 const REASON_PHRASE = /^(?:[A-Z][a-z]+ ?){1,4}\.?$/;
 
 export function plainErrorLine(raw: string): string | undefined {
+  if (raw.trim() === PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE) return t("product.insufficient_balance");
   const tooLargeFor = requestTooLargeModel(raw);
   if (tooLargeFor) return t("chat.error.requestTooLarge", { model: tooLargeFor });
   if (!isTechnicalError(raw)) return undefined;

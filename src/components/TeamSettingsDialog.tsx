@@ -24,6 +24,7 @@ import { approvalModeOptions } from "./ApprovalModeSelector";
 import { LocalComputerAutoWarning } from "./LocalComputerAutoWarning";
 import { effortLabel } from "./ModelPicker";
 import { Select } from "./Select";
+import { isProductWorkspace } from "@/lib/product-workspace";
 
 type Tab = "approval" | "model";
 const KEEP = "";
@@ -50,6 +51,7 @@ export function TeamSettingsRows({ rows }: { rows: ReadonlyArray<TeamPlanRow | T
 
 export function TeamSettingsDialog({ team, onClose }: { team: string; onClose: () => void }) {
   const { state, dispatch } = useStore();
+  const product = isProductWorkspace(state.config?.productManaged);
   const [tab, setTab] = useState<Tab>("approval");
   const [mode, setMode] = useState<TeamApprovalMode | null>(null);
   const [model, setModel] = useState<string>(KEEP);
@@ -104,8 +106,8 @@ export function TeamSettingsDialog({ team, onClose }: { team: string; onClose: (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onMouseDown={(event) => {
       if (event.target === event.currentTarget) close();
     }}>
-      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="team-settings-title" data-testid="team-settings-dialog"
-        className="max-h-[90vh] w-full max-w-[460px] overflow-y-auto rounded-2xl border border-hairline/50 bg-panel p-5 text-ink shadow-2xl"
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="team-settings-title" data-testid="team-settings-dialog" data-product-team-settings={product ? "" : undefined}
+        className="max-h-[min(702px,90vh)] w-full max-w-[520px] overflow-y-auto rounded-[14px] border border-hairline/50 bg-app p-6 text-[13px] text-ink shadow-2xl"
         onKeyDown={(event) => { if (event.key === "Escape" && !consent) { event.stopPropagation(); close(); } }}>
         <div className="mb-2 flex items-center justify-between gap-3">
           <h2 id="team-settings-title" className="text-[17px] font-semibold">{t("teamSettings.title", { name: team || t("teamSettings.general") })}</h2>
@@ -118,16 +120,16 @@ export function TeamSettingsDialog({ team, onClose }: { team: string; onClose: (
             </p>
             <TeamSettingsRows rows={results} />
             <div className="mt-4 flex justify-end">
-              <button type="button" onClick={onClose} className="rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-white">{t("teamSettings.done")}</button>
+              <button type="button" onClick={onClose} className="rounded-lg bg-ink px-4 py-2 text-[13px] font-medium text-app">{t("teamSettings.done")}</button>
             </div>
           </>
         ) : (
           <>
             <p className="mb-3 text-[13px] leading-relaxed text-ink-secondary">{t("teamSettings.intro", { count: bots.length })}</p>
-            <div className="mb-3 flex gap-1 rounded-lg bg-inset p-0.5" role="tablist">
+            {!product && <div className="mb-3 flex gap-1 rounded-lg bg-inset p-0.5" role="tablist">
               <button type="button" role="tab" aria-selected={tab === "approval"} disabled={running} className={tabClass(tab === "approval")} onClick={() => setTab("approval")}>{t("teamSettings.tab.approval")}</button>
               <button type="button" role="tab" aria-selected={tab === "model"} disabled={running} className={tabClass(tab === "model")} onClick={() => setTab("model")}>{t("teamSettings.tab.model")}</button>
-            </div>
+            </div>}
             {tab === "approval" ? (
               <fieldset disabled={running} className="flex flex-col gap-1">
                 <legend className="sr-only">{t("teamSettings.tab.approval")}</legend>
@@ -171,7 +173,7 @@ export function TeamSettingsDialog({ team, onClose }: { team: string; onClose: (
               {running && <span role="status" className="mr-auto text-[12px] text-ink-secondary">{t("teamSettings.progress", { done: progress, count: plan.length })}</span>}
               <button type="button" disabled={running} onClick={close} className="rounded-lg px-3 py-2 text-[13px] text-ink-secondary hover:bg-raised">{t("common.cancel")}</button>
               <button type="button" disabled={running || !applying} onClick={apply}
-                className="rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-white disabled:opacity-40">
+                className="rounded-lg bg-ink px-4 py-2 text-[13px] font-medium text-app disabled:opacity-40">
                 {t(applying === 1 ? "teamSettings.applyOne" : "teamSettings.applyMany", { count: applying })}
               </button>
             </div>

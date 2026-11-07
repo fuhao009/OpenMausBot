@@ -1095,6 +1095,56 @@ export function createProductAccountService({
     return snapshot();
   }
 
+  // Eligibility is a read-only server-authorized lookup, never a local role flag.
+  async function operatorStatusNow(stamp) {
+    if (auth !== "signed_in" || !accountToken || !user || stale(stamp)) throw new ControlPlaneError("signed_out", 401);
+    let account;
+    try { account = await client.operatorAiAccount(accountToken, user.email); }
+    catch (error) {
+      if (stale(stamp)) throw new ControlPlaneError("signed_out", 401);
+      if (error.status === 403) return { eligible: false };
+      throw error;
+    }
+    if (stale(stamp)) throw new ControlPlaneError("signed_out", 401);
+    if (account.userId !== user.id || account.email !== user.email) throw new ControlPlaneError("login_mismatch");
+    const { availableMicroPoints, reservedMicroPoints } = account;
+    if (![availableMicroPoints, reservedMicroPoints].every(value => Number.isSafeInteger(value) && value >= 0)) throw new ControlPlaneError("invalid_response");
+    const remaining = BigInt(Number.MAX_SAFE_INTEGER) - BigInt(availableMicroPoints) - BigInt(reservedMicroPoints);
+    if (remaining < 0n) throw new ControlPlaneError("invalid_response");
+    return { eligible: true, availableMicroPoints, reservedMicroPoints, maxGrantMicroPoints: Number(remaining) };
+  }
+
+  async function grantMaximumNow(stamp) {
+    let outcome = "failed";
+    let amountMicroPoints = 0;
+    let operationId;
+    let failure;
+    try {
+      const status = await operatorStatusNow(stamp);
+      if (!status.eligible) throw new ControlPlaneError("forbidden", 403);
+      if (stale(stamp)) throw new ControlPlaneError("signed_out", 401);
+      if (status.maxGrantMicroPoints === 0) outcome = "already_max";
+      else {
+        operationId = randomUUID();
+        // Exactly one attempt. An ambiguous response or a concurrent balance
+        // overflow must never trigger a second mutation with another UUID.
+        const result = await client.operatorGrantAiBalance(accountToken, {
+          operationId, userId: user.id, amountMicroPoints: status.maxGrantMicroPoints,
+          reason: "Desktop operator: maximum balance for current account",
+        });
+        if (result.account.userId !== user?.id) throw new ControlPlaneError("login_mismatch");
+        outcome = "granted";
+        amountMicroPoints = result.grantedMicroPoints;
+      }
+    } catch (error) { failure = errorCodeOf(error); }
+    if (!stale(stamp) && auth === "signed_in") {
+      try { await refreshNow(); }
+      catch { errorCode = "status_unavailable"; publish(); }
+    }
+    return { outcome, amountMicroPoints, ...(operationId ? { operationId } : {}),
+      ...(failure ? { errorCode: failure } : {}), state: snapshot() };
+  }
+
   return {
     async state() {
       return snapshot();
@@ -1140,6 +1190,16 @@ export function createProductAccountService({
 
     async refresh() {
       return serial(() => refreshNow());
+    },
+
+    operatorStatus() {
+      const stamp = generation;
+      return serial(() => operatorStatusNow(stamp));
+    },
+
+    grantMaximum() {
+      const stamp = generation;
+      return serial(() => grantMaximumNow(stamp));
     },
 
     async ledger(cursor) {

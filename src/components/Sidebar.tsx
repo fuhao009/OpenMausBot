@@ -1,7 +1,7 @@
 import { OrganizationIdentity } from "./OrganizationIdentity";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch } from "react";
 import { createPortal } from "react-dom";
-import { Activity, Archive, Bot as BotIcon, Check, ChevronRight, ClipboardCopy, Crown, FolderPlus, Library, Loader2, MessageSquarePlus, MoreHorizontal, Pencil, Phone, Pin, PinOff, Plus, Puzzle, Search, TextQuote, Trash2, Users, X, Zap } from "lucide-react";
+import { Activity, Archive, Bot as BotIcon, Check, ChevronRight, ClipboardCopy, Crown, FolderPlus, Library, Loader2, MessageSquarePlus, MoreHorizontal, Pencil, Phone, Pin, PinOff, Plus, Search, TextQuote, Trash2, Users, X, Zap } from "lucide-react";
 import { api, useStore, formatTime, visibleMessages, currentTaskBot, botOpensTo, openBot, openThread, type Action, type AppState, type Bot, type BotProject, type Group, type InstanceInfo, type Message } from "@/state/store";
 import { approvalModeFor } from "../../shared/approval-mode";
 import { liveActivityLabel } from "@/lib/live-activity";
@@ -83,6 +83,8 @@ import { ELEVATED_CONTROL } from "./elevated";
 import { useTeamPeople } from "@/state/team-people";
 export { TeamMenuItems };
 import { SidebarResizeHandle, useSidebarWidth } from "./SidebarResizeHandle";
+import { SidebarConnectApps } from "./SidebarConnectApps";
+import { WorkspaceResizeEdge } from "./WorkspaceResizeEdge";
 import { PHONE_TOP_BUTTON, SIMPLE_CORNER_BUTTON, SIMPLE_ROW_FOCUS, SIMPLE_TOP_BUTTON, SidebarSearchPill, SidebarSearchToggle } from "./SidebarSimpleTop";
 import { isSidebarToggle } from "@/lib/keyboard-shortcuts";
 import { SidebarRailSeparator, SimpleRailFooter } from "./SidebarSimpleRail";
@@ -683,7 +685,7 @@ export function botRowProps(
     mascotMotion: selected && state.mascotMotion?.botId === bot.id ? state.mascotMotion : null,
     reveal: reveal && (bot.threadId === reveal.threadId || bot.tasks?.some((task) => task.threadId === reveal.threadId)) ? reveal : null,
     pendingQueued: state.pendingQueued,
-    instances: state.instances,
+    instances: isProductWorkspace(state.config?.productManaged) ? [] : state.instances,
     liveCall: state.liveCall,
     locale: activeLocale(),
     generatedTitles: llmThreadTitlesEnabled(state.config),
@@ -933,8 +935,7 @@ function ProductSidebarFooter({ account }: { account: ProductAccountState }) {
   const label = [email, balance === null ? null : `${t("product.balance")} ${balance}`].filter(Boolean).join(" · ");
   return (
     <div data-sidebar-product-account className="px-3 pb-3 pt-2">
-      {/* Routines and the app store stay one click away: the account column keeps them as two quiet icons, not the
-          ordinary footer's Cloud plan cards and workspace tools. */}
+      {/* Keep connected apps and schedules beside the account, without a managed-workspace add menu. */}
       <div className="mb-1.5 flex items-center gap-1">
         <button
           type="button"
@@ -946,16 +947,7 @@ function ProductSidebarFooter({ account }: { account: ProductAccountState }) {
         >
           <Zap size={16} aria-hidden="true" />
         </button>
-        <button
-          type="button"
-          onClick={() => dispatch({ type: "togglePlugins", open: true })}
-          aria-pressed={state.pluginsOpen}
-          title={t("sidebar.nav.apps")}
-          aria-label={t("sidebar.nav.apps")}
-          className="flex size-8 items-center justify-center rounded-lg text-ink-secondary hover:bg-raised/60 hover:text-ink"
-        >
-          <Puzzle size={16} aria-hidden="true" />
-        </button>
+        <SidebarConnectApps />
       </div>
       <button
         data-product-account-open
@@ -990,8 +982,6 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
   collapseToIcons?: boolean;
 }) {
   const { state, dispatch } = useStore();
-  // A managed product workspace: fixed two/three-column widths, no workspace switcher or Cloud upsell in the sidebar,
-  // and one account line with its balance at the foot. Every ordinary layout below is left exactly as it was.
   const product = isProductWorkspace(state.config?.productManaged);
   const productAccount = useProductAccount();
   const now = useRelativeNow();
@@ -1332,6 +1322,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
       inert={productDrawer && !open}
       data-native-view-overlay
       data-sidebar
+      data-product-sidebar={product ? "" : undefined}
       onClick={(event) => {
         // The phone's list covers the whole screen: choosing the bot that is already open has to dismiss it too.
         if (phone && open && event.target instanceof Element && !(event.target instanceof HTMLInputElement) && event.target.closest("[data-sidebar-bot-row], [data-sidebar-hero]")) onClose();
@@ -1341,11 +1332,9 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
         "relative flex h-full shrink-0 flex-col border-r-[0.5px] border-edge bg-panel max-md:[--scroll-fade-surface:var(--color-app)]",
         !product && (sizing.resizing && !sizing.snapping ? "transition-none" : "transition-[width] duration-200 motion-reduce:transition-none"),
         product
-          // The product's fixed widths: 260 beside a 340px panel from 1200px, 240 from 800px, and below 800 a drawer
-          // exclusive with the work panel. Never the resizable rail.
           ? cn(
               "w-[280px] max-[799.98px]:absolute max-[799.98px]:inset-y-0 max-[799.98px]:left-0 max-[799.98px]:z-50 max-[799.98px]:w-[min(280px,85vw)] max-[799.98px]:bg-panel max-[799.98px]:shadow-xl",
-              "min-[800px]:w-[240px] min-[1200px]:w-[260px]",
+              "min-[800px]:w-[var(--workspace-width,280px)]",
               // Closed is instant: narrowing the window into the drawer band must never show a panel caught half-way out.
               // Only opening slides, and reduced motion skips that too.
               open
@@ -1363,6 +1352,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
             ),
       )}
     >
+      {product && !productDrawer && <WorkspaceResizeEdge target={sidebarRef} side="right" label={t("sidebar.resize")} storageKey="omb-product-sidebar-width" minimum={200} maximum={360} />}
       <GlassScrollFrame className="flex-1" fade><PlaceTint />
       <GlassBar edge="top">
       <div
@@ -1386,11 +1376,11 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
           <button type="button" onClick={railSearch} aria-label={t("sidebar.searchAria")} title={t("sidebar.searchAria")} className={SIMPLE_TOP_BUTTON}>
             <Search size={18} strokeWidth={1.5} aria-hidden="true" />
           </button>
-          <div className="relative flex">{plusControl}</div>
+          {!product && <div className="relative flex">{plusControl}</div>}
         </div>}
         {density !== "icons" && (simpleDesk ? <div data-sidebar-top-slot className="min-w-0 flex-1" /> : (
           <div data-sidebar-top-slot className={cn("@container/sidebar-top flex min-w-0 flex-1 items-center", simple && "justify-end")}>
-            {!simple && <div data-sidebar-top-spacer className="min-w-0 flex-1 @min-[96px]/sidebar-top:min-w-6" />}
+            {!simple && !product && <div data-sidebar-top-spacer className="min-w-0 flex-1 @min-[96px]/sidebar-top:min-w-6" />}
             <div data-sidebar-top-switcher className={simple ? "flex min-w-0 items-center" : "flex min-w-0 max-w-[140px] items-center"}>
               {product
                 // The account's own space has one name and no place to switch to.
@@ -1462,7 +1452,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
               </>
             )}
           </div>}
-          {plusControl}
+          {!product && plusControl}
           {productDrawer && <button
             type="button"
             data-sidebar-drawer-close
@@ -1643,7 +1633,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
                         listItem={BotListItem}
                       />
                     ) : sectionBotItems.map((bot) => <BotListItem key={bot.id} {...botRow(bot)} />)}
-                    {!remoteClient && sectionName && layoutInteractive && !drops.naming(sectionName) && (!simple || sectionChiefItems.length + sectionGroupItems.length + sectionBotItems.length === 0) && (
+                    {!product && !remoteClient && sectionName && layoutInteractive && !drops.naming(sectionName) && (!simple || sectionChiefItems.length + sectionGroupItems.length + sectionBotItems.length === 0) && (
                       <button onClick={() => setMoveToTeam(sectionName)} aria-label={t(state.bots.some(bot => !bot.hidden && bot.section?.trim() === sectionName) ? "team.manageBotsIn" : "team.addBotsTo", { name: sectionName })}
                         className="mx-3 my-1 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] text-ink-secondary hover:bg-raised hover:text-ink">
                         <Plus size={13} /> {t(state.bots.some(bot => !bot.hidden && bot.section?.trim() === sectionName) ? "team.manageBots" : "team.addBots")}

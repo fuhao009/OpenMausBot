@@ -7,10 +7,10 @@ import path from "node:path";
 import { normalizeProductCa, productCaBindsOrigin } from "../electron/product-ca.mjs";
 import { validateProductOrigin } from "../electron/product-service.mjs";
 
-export const PRODUCT_NAME = "OpenMausBot Product";
+export const PRODUCT_NAME = "Hezuo";
 export const PRODUCT_APP_ID = "com.openmausbot.product";
 export const PRODUCT_PROTOCOL = "openmausbot-product";
-export const PRODUCT_ARTIFACT_PREFIX = "OpenMausBot-Product";
+export const PRODUCT_ARTIFACT_PREFIX = "Hezuo";
 export const PRODUCT_SERVICE_RESOURCE = "product-service.json";
 
 /** Domains owned by the upstream open-source project. A product build must

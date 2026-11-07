@@ -28,6 +28,7 @@ import { BOT_PANEL_ID, sidePanelCls } from "./bot-panel/side-panel";
 import { HistoryRollbackDialog, useBotHistory, useBotOverview } from "./bot-settings/useBotOverview";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
 import { ShareBotButton, useTeamName } from "./bot-access/ShareBotButton";
+import { isProductWorkspace } from "@/lib/product-workspace";
 
 const sectionLabel = (entry: (typeof BOT_SECTIONS)[number]) => (entry.labelKey ? t(entry.labelKey) : entry.label);
 
@@ -49,12 +50,14 @@ export function BotSettingsDialog({ bot, overlay = false }: {
   const collapsed = !state.botSettingsExpandAccordion;
   const q = query.trim().toLowerCase();
   const advanced = useAdvancedMode();
-  const simpleView = !advanced;
+  const product = isProductWorkspace(state.config?.productManaged);
+  const simpleView = product || !advanced;
   const linkedSection = !collapsed && !state.botSettingsExpandRemembered ? section : null;
   const slackUrl = useSlackManagementUrl(bot.id);
   const ownerOrAdmin = useOwnerOrAdmin();
   const teamName = useTeamName();
   const sections = BOT_SECTIONS
+    .filter((entry) => !product || (entry.id !== "model" && entry.id !== "usage"))
     .filter((entry) => entry.id !== "slack" || slackUrl !== null)
     .filter((entry) => entry.id !== "visibility" || (!window.ogb && ownerOrAdmin === true && !teamName));
   const visibleSections = sections.filter((entry) => sectionMatches(entry, q));
@@ -168,6 +171,7 @@ export function BotSettingsDialog({ bot, overlay = false }: {
         ref={dialogRef}
         id={simpleView ? BOT_PANEL_ID : undefined}
         role="dialog"
+        data-product-bot-details={product ? "" : undefined}
         aria-labelledby="bot-settings-title"
         tabIndex={-1}
         className={sidePanelCls(overlay, simpleView)}

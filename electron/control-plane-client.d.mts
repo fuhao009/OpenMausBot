@@ -19,6 +19,13 @@ export interface ControlPlaneUser {
   emailVerified?: boolean;
 }
 
+export interface OperatorAiAccount {
+  userId: string;
+  email: string;
+  availableMicroPoints: number;
+  reservedMicroPoints: number;
+}
+
 export interface ControlPlaneInstallation {
   id: string;
   clientInstanceId: string;
@@ -55,6 +62,8 @@ export interface PasswordCredential {
 }
 
 export interface ControlPlaneClient {
+  operatorAiAccount(accountToken: string, email: string): Promise<OperatorAiAccount>;
+  operatorGrantAiBalance(accountToken: string, input: { operationId: string; userId: string; amountMicroPoints: number; reason: string }): Promise<{ account: OperatorAiAccount; grantedMicroPoints: number; replayed: boolean }>;
   health(): Promise<unknown>;
   requestOTP(email: string): Promise<unknown>;
   verifyOTP(email: string, otp: string): Promise<{ accountToken: string; user: ControlPlaneUser }>;

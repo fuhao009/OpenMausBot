@@ -636,6 +636,28 @@ describe("control-plane desktop client", () => {
     await expect(client.revokeAiToken(ACCOUNT, "someone-else")).rejects.toMatchObject({ code: "invalid_request" });
   });
 
+  it("uses authenticated operator APIs and never retries a refused grant", async () => {
+    const account = { userId: "user-1", email: "ada@example.com", availableMicroPoints: 1, reservedMicroPoints: 2 };
+    const calls = [];
+    const client = createControlPlaneClient({ baseURL: "https://accounts.openmausbot.com",
+      fetchImpl: async (url, init) => {
+        calls.push({ url, init });
+        expect(new Headers(init.headers).get("authorization")).toBe(`Bearer ${ACCOUNT}`);
+        expect(init.redirect).toBe("error");
+        return init.method === "POST"
+          ? jsonResponse({ error: "amount_out_of_range" }, { status: 400 })
+          : jsonResponse({ account: { ...account, accountToken: "never-return" } });
+      },
+    });
+    expect(await client.operatorAiAccount(ACCOUNT, account.email)).toEqual(account);
+    expect(calls[0].url).toContain("/v1/operator/ai/account?email=ada%40example.com");
+    const input = { operationId: "11111111-1111-4111-8111-111111111111", userId: account.userId,
+      amountMicroPoints: Number.MAX_SAFE_INTEGER - 3, reason: "explicit operator action" };
+    await expect(client.operatorGrantAiBalance(ACCOUNT, input)).rejects.toMatchObject({ code: "amount_out_of_range" });
+    expect(calls).toHaveLength(2);
+    expect(JSON.parse(calls[1].init.body)).toEqual(input);
+  });
+
   it("pages the ledger with an opaque cursor and rejects a malformed page", async () => {
     const page = {
       items: [

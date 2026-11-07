@@ -1,5 +1,8 @@
 export type ProductAiState = "pending" | "ready" | "insufficient_balance" | "suspended" | "unavailable";
 
+export const PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE =
+  "Your available points cannot reserve this request. Contact your administrator.";
+
 /** Prices are nonnegative safe-integer micro-points per million tokens. */
 export interface ProductModel {
   id: string;
@@ -68,6 +71,22 @@ export interface ProductAuthMethods {
   emailVerification: "required" | "off";
 }
 
+/** Server-authorized read-only preview for the signed-in account only. */
+export interface ProductOperatorStatus {
+  eligible: boolean;
+  availableMicroPoints?: number;
+  reservedMicroPoints?: number;
+  maxGrantMicroPoints?: number;
+}
+
+export interface ProductMaximumGrantResult {
+  outcome: "granted" | "already_max" | "failed";
+  amountMicroPoints: number;
+  operationId?: string;
+  errorCode?: string;
+  state: ProductAccountState;
+}
+
 /**
  * The renderer receives account state, never account or model credentials.
  *
@@ -79,6 +98,9 @@ export interface ProductAccountBridge {
   requestCode(email: string): Promise<ProductAccountState>;
   verifyCode(email: string, code: string): Promise<ProductAccountState>;
   refresh(): Promise<ProductAccountState>;
+  operatorStatus(): Promise<ProductOperatorStatus>;
+  /** Explicit operator action only; main chooses self identity and operation ID. */
+  grantMaximum(): Promise<ProductMaximumGrantResult>;
   ledger(cursor?: string): Promise<ProductLedgerPage>;
   signOut(): Promise<ProductAccountState>;
   /** The ways in this deployment signs people in. */

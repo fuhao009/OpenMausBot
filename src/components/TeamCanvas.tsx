@@ -16,6 +16,7 @@ import { BotAvatar } from "./Avatar";
 import { ComputerNode } from "./ComputerNode";
 import { InstanceProviderMark, ProviderMark } from "./ProviderIcons";
 import { openBotSettings } from "./bot-panel/panel-link";
+import { isProductWorkspace } from "@/lib/product-workspace";
 
 type Gesture = {
   id: number;
@@ -73,14 +74,14 @@ function BotCard({ bot, selected, moving, connected, tagged = false, sent, onCom
       </span>}
       {selected && onComputer && <button className={cn(iconButton, "size-8")} aria-label={t("canvas.botComputer", { name: bot.name })} title={t("computer.tab.computer")}
         onClick={() => onComputer(bot)}><Monitor size={13} /></button>}
-      <button aria-label={t("canvas.changeModel", { name: bot.name })} title={`${t("canvas.defaultModel")}: ${model}`}
+      {!isProductWorkspace(state.config?.productManaged) && <button aria-label={t("canvas.changeModel", { name: bot.name })} title={`${t("canvas.defaultModel")}: ${model}`}
         onClick={() => openBotSettings(dispatch, "model", { botId: bot.id })}
         className="ml-auto flex h-8 min-w-0 max-w-[130px] items-center gap-1.5 rounded-md px-2 text-[10px] text-ink-secondary hover:bg-control hover:text-ink focus-visible:outline-2 focus-visible:outline-accent">
         <span className="flex size-3.5 shrink-0 items-center justify-center">{instance
           ? <InstanceProviderMark instance={instance} size={13} />
           : <ProviderMark driverKind="" size={13} />}</span>
         <span className="truncate">{model || t("canvas.defaultModel")}</span>
-      </button>
+      </button>}
     </div>
   </article>;
 }
@@ -237,14 +238,12 @@ export function TeamCanvas({ sections, canManage, onMove, onInstructions, onMemo
       if ((event.target as HTMLElement).closest("details[open]")) return;
       event.preventDefault();
       if (gesture.current) return;
-      const previous = current.current.view;
       const bounds = element.getBoundingClientRect();
       if (event.ctrlKey || event.metaKey) {
-        const scale = Math.min(1.5, Math.max(0.3, previous.scale * Math.exp(-event.deltaY * 0.006)));
-        setView(zoomAt(previous, scale, { x: event.clientX - bounds.left, y: event.clientY - bounds.top }));
+        setView((latest) => zoomAt(latest, Math.min(1.5, Math.max(0.3, latest.scale * Math.exp(-event.deltaY * 0.006))), { x: event.clientX - bounds.left, y: event.clientY - bounds.top }));
       } else {
         const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? bounds.height : 1;
-        setView({ ...previous, x: previous.x - event.deltaX * unit, y: previous.y - event.deltaY * unit });
+        setView((latest) => ({ ...latest, x: latest.x - event.deltaX * unit, y: latest.y - event.deltaY * unit }));
       }
     };
     element.addEventListener("wheel", wheel, { passive: false });
@@ -424,7 +423,7 @@ export function TeamCanvas({ sections, canManage, onMove, onInstructions, onMemo
           className={cn("absolute rounded-2xl border bg-panel/90 shadow-sm has-[details[open]]:z-20 data-[computer-dropping=true]:border-accent data-[computer-dropping=true]:ring-2 data-[computer-dropping=true]:ring-accent/25", dropping ? "border-accent ring-2 ring-accent/25" : "border-hairline/50")}
           style={{ left: tile.x, top: tile.y, width: tile.width, height: tile.height }}>
           <header className="flex h-16 items-center gap-2 px-5">
-            <button data-arrange-team={section.key} disabled={!layoutLoaded} aria-label={t("canvas.arrange", { name: section.name })}
+            <div role="group" data-arrange-team={section.key} tabIndex={layoutLoaded ? 0 : -1} aria-label={t("canvas.arrange", { name: section.name })}
               title={t("canvas.arrangeHint")} className="min-w-0 flex-1 cursor-grab rounded-md py-2 text-left active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-accent"
               onKeyDown={(event) => {
                 const delta = ({ ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] } as Record<string, number[]>)[event.key];
@@ -434,7 +433,7 @@ export function TeamCanvas({ sections, canManage, onMove, onInstructions, onMemo
                 savePositions({ ...positions, [section.key]: { x: tile.x + delta[0] * step, y: tile.y + delta[1] * step } });
               }}>
               <h2 className="truncate text-[13px] font-semibold tracking-tight">{section.name}</h2>
-            </button>
+            </div>
             {computer && <button aria-label={t("canvas.teamComputer", { team: section.name, name: computer.name })} title={`${computer.name}${computer.state ? ` · ${computer.state}` : ""}`}
               disabled={!onTeamComputer} onClick={() => onTeamComputer?.(section.key)}
               className="flex min-w-0 max-w-[120px] shrink items-center gap-1.5 rounded-md px-1.5 py-2 text-[10px] text-ink-secondary hover:bg-control hover:text-ink focus-visible:outline-2 focus-visible:outline-accent disabled:pointer-events-none">

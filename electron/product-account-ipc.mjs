@@ -4,6 +4,8 @@ import {
   PRODUCT_ACCOUNT_CHANNELS,
   sanitizeProductAccountState,
   sanitizeProductLedgerPage,
+  sanitizeProductOperatorStatus,
+  sanitizeProductMaximumGrantResult,
   unavailableProductAccountState,
 } from "./product-account-wire.mjs";
 import { ownsDocument, showsDocument } from "./product-account-window.mjs";
@@ -176,6 +178,16 @@ export function installProductAccountIpc({
   register(PRODUCT_ACCOUNT_CHANNELS.refresh, async event => {
     requireSender(event, "any");
     return publish(await safeState(serviceNow(), "refresh"));
+  });
+  register(PRODUCT_ACCOUNT_CHANNELS.operatorStatus, async event => {
+    requireSender(event, "any");
+    return sanitizeProductOperatorStatus(await serviceNow().operatorStatus());
+  });
+  register(PRODUCT_ACCOUNT_CHANNELS.grantMaximum, async event => {
+    requireSender(event, "any");
+    const result = sanitizeProductMaximumGrantResult(await serviceNow().grantMaximum());
+    publish(result.state);
+    return result;
   });
   register(PRODUCT_ACCOUNT_CHANNELS.ledger, async (event, cursor) => {
     requireSender(event, "any");

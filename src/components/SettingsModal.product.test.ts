@@ -53,12 +53,14 @@ describe("Settings for a managed account", () => {
 
   it("gives the account its own page and drops the model-provider page from AI", () => {
     const pages = simpleSettingsPages(productAvailable, "general", { productManaged: true });
-    expect(pages.map((page) => page.id)).toEqual(["general", "account", "botAccess", "computer", "billing", "updates", "connections"]);
+    expect(pages.map((page) => page.id)).toEqual(["general", "account", "botAccess", "computer", "vault", "billing", "updates", "connections"]);
     expect(pages.some((page) => page.id === "account")).toBe(true);
     expect(pages.some((page) => page.id === "ai"), "the model-provider page is gone, not emptied").toBe(false);
     // The remaining page holds only what a managed account may still change.
     expect(pages.find((page) => page.id === "connections")!.sections).toEqual(["connections"]);
     expect(pages.find((page) => page.id === "billing")!.sections).toEqual(["usage"]);
+    expect(pages.find((page) => page.id === "billing")!.labelKey).toBe("settings.section.usage");
+    expect(pages.find((page) => page.id === "vault")!.sections).toEqual(["logins"]);
     expect(pages.find((page) => page.id === "computer")!.sections).not.toContain("desktopWorkspaces");
   });
 

@@ -3151,12 +3151,6 @@ button:disabled.bg-danger {
 .trace-step-ink { color: color-mix(in srgb, #7c6cf0 85%, var(--color-ink)); }
 .trace-tool-ink { color: color-mix(in srgb, #1f9a8c 80%, var(--color-ink)); }
 
-/* ── Product workspace layout ───────────────────────────────────────────────
-   A managed account's three columns: the 260px bot list, a chat that keeps at
-   least 420px, and the 340px work panel. From 800px the list is 240px and the
-   panel is a drawer over the chat; below 800px both are exclusive full-height
-   drawers, so the chat alone fills the window. The panel's own inner height is
-   the browser's own: nothing here may squeeze the composer or overflow. */
 [data-product-chat] {
   min-width: 0;
 }
@@ -3165,10 +3159,7 @@ button:disabled.bg-danger {
     min-width: 420px;
   }
 }
-/* The Activity and Computer panels draw their own side-panel chrome (a fixed width, a resize edge, an entrance) for
-   the ordinary layout. Hosted here they are the panel's whole body: full width, no resize edge, no second animation,
-   and no inline width to spill out of the 340px column. */
-[data-product-work-panel] > div > aside {
+[data-product-details-content] > aside {
   position: static !important;
   width: 100% !important;
   max-width: 100% !important;
@@ -3178,8 +3169,26 @@ button:disabled.bg-danger {
   box-shadow: none;
   animation: none;
 }
-[data-product-work-panel] > div > aside > [role="separator"] {
+[data-product-details-content] > aside > [role="separator"] {
   display: none;
+}
+[data-product-details-header] {
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  padding: 32px 24px 16px;
+  text-align: center;
+  border-bottom: 0;
+  background: var(--color-app);
+}
+[data-product-details-header] > button:last-child {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+[data-product-details-tabs],
+[data-product-details-content] {
+  background: var(--color-app);
 }
 @media (prefers-reduced-motion: reduce) {
   [data-product-work-panel],

@@ -13,6 +13,7 @@ import type {
   SendTurnInput,
 } from "./contracts.ts";
 import { ProviderRegistry } from "./harness/registry.ts";
+import { PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE } from "../shared/product-account.ts";
 import {
   PRODUCT_AI_EXPIRED_MESSAGE,
   PRODUCT_AI_INSTANCE_ID,
@@ -316,7 +317,37 @@ describe("ProductAiProviders", () => {
     expect(provider.error()).toBe(PRODUCT_AI_UNAVAILABLE_MESSAGE);
     await provider.apply({ state: "insufficient_balance", connection: null });
     expect(provider.status()).toBe("insufficient_balance");
+    expect(provider.error()).toBe(PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE);
     expect(provider.allows(selected)).toBe(true);
+  });
+
+  it("reports insufficient reservation without credentials and keeps revoked wrappers fenced after recovery", async () => {
+    const { fixture, registry, provider } = setup();
+    await provider.apply({ state: "insufficient_balance", connection: null });
+    expect(provider.status()).toBe("insufficient_balance");
+    expect(provider.error()).toBe(PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE);
+    expect(registry.get(PRODUCT_AI_INSTANCE_ID)).toBeNull();
+
+    await provider.apply(ready());
+    const old = registry.get(PRODUCT_AI_INSTANCE_ID)!;
+    const revoked = provider.apply({ state: "insufficient_balance", connection: null });
+    expect(provider.error()).toBe(PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE);
+    await expect(old.adapter.sendTurn({ threadId: "thread", text: "refused" }))
+      .rejects.toThrow(PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE);
+    await expect(old.generateText!("helper")).rejects.toThrow(PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE);
+    await revoked;
+    expect(provider.status()).toBe("insufficient_balance");
+    expect(registry.get(PRODUCT_AI_INSTANCE_ID)).toBeNull();
+    expect(fixture.turns).toHaveLength(0);
+    expect(fixture.keys).toHaveLength(0);
+
+    await provider.apply(ready({ token: NEXT_TOKEN, tokenId: "token-2" }));
+    await expect(old.adapter.sendTurn({ threadId: "thread", text: "still fenced" }))
+      .rejects.toThrow(PRODUCT_AI_UNAVAILABLE_MESSAGE);
+    await expect(old.generateText!("still fenced")).rejects.toThrow(PRODUCT_AI_UNAVAILABLE_MESSAGE);
+    await registry.get(PRODUCT_AI_INSTANCE_ID)!.adapter.sendTurn({ threadId: "thread", text: "recovered" });
+    expect(fixture.turns).toHaveLength(1);
+    expect(fixture.keys.at(-1)).toBe(NEXT_TOKEN);
   });
 
   it("replaces the engine when the model catalog or protocol changes, fencing the old one at once", async () => {
