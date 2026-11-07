@@ -35,6 +35,8 @@ export interface SimpleModelMenuProps extends SimpleMenuActions {
   botModel: { label: string; title: string };
   thinking?: SimpleThinking | null;
   idPrefix: string;
+  /** A managed account's picker: no install, sign-in or key step exists, and an empty catalog is the account's. */
+  product?: boolean;
 }
 
 const Gutter = ({ children }: { children?: ReactNode }) => <span className={MENU_GUTTER}>{children}</span>;
@@ -88,6 +90,7 @@ function GroupBody({ group, props }: { group: MenuGroup; props: SimpleModelMenuP
       );
     case "setUp":
     case "signIn":
+      if (props.product) return <p data-product-no-model className={cn(MENU_NOTE, "pl-8")}>{t("product.noModel")}</p>;
       return (
         <button type="button" data-menu-row data-simple-set-up tabIndex={-1} onClick={(event) => props.onSetUp(instance, event.detail === 0)}
           title={t("model.simple.needsSetup", { name: group.account ?? group.provider })} className={MENU_ROW}>
@@ -104,7 +107,7 @@ function GroupBody({ group, props }: { group: MenuGroup; props: SimpleModelMenuP
         </div>
       ) : (
         <>
-          <p className={cn(MENU_NOTE, "pl-8")}>{t("model.simple.noModels")}</p>
+          <p className={cn(MENU_NOTE, "pl-8")}>{t(props.product ? "product.noModel" : "model.simple.noModels")}</p>
           <button type="button" data-menu-row data-simple-refresh tabIndex={-1} disabled={props.menu.busy} onClick={() => props.onCheckAgain(instance)} className={MENU_ROW}>
             <Gutter>
               {props.menu.busy
@@ -130,7 +133,7 @@ function GroupBody({ group, props }: { group: MenuGroup; props: SimpleModelMenuP
               <span className="min-w-0 flex-1 truncate">{t("model.lookingLocal")}</span>
             </div>
           )}
-          {body.signInForOwn && (
+          {body.signInForOwn && !props.product && (
             <button type="button" data-menu-row data-simple-sign-in tabIndex={-1} onClick={(event) => props.onSetUp(instance, event.detail === 0)} className={MENU_ROW}>
               <Gutter><LogIn size={16} strokeWidth={MENU_STROKE} className={MENU_ICON} aria-hidden="true" /></Gutter>
               <span className="min-w-0 flex-1 truncate">{t("model.simple.signInForOwn", { name: group.provider })}</span>
@@ -283,7 +286,7 @@ export function SimpleModelMenu(props: SimpleModelMenuProps) {
               <span className="min-w-0 flex-1 truncate">{t("model.simple.lookingModels")}</span>
             </div>
           )}
-          {menu.empty === "none" && <p className={cn(MENU_NOTE, !top && "pt-2")}>{t("model.noProviders")}</p>}
+          {menu.empty === "none" && <p className={cn(MENU_NOTE, !top && "pt-2")} data-product-no-model={props.product || undefined}>{t(props.product ? "product.noModel" : "model.noProviders")}</p>}
           {menu.results === 0 && <p className={cn(MENU_NOTE, "py-2")}>{t("model.noMatch", { query: menu.query })}</p>}
         </div>
       </div>

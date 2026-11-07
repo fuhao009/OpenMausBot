@@ -1,15 +1,37 @@
 import { betterAuth } from "better-auth";
 import { bearer, emailOTP } from "better-auth/plugins";
 
-import type { ControlPlaneConfig } from "./config";
+import type { AuthConfig, EmailVerificationMode } from "./config";
 import { sendOTPEmail } from "./email";
+
+/**
+ * The auth instance for one request.
+ *
+ * Email and password sign-up is always enabled: a person creates an account
+ * with a password and no mail transport is needed. Email codes stay available
+ * wherever mail is configured (sign-in, password reset, email confirmation).
+ * `AUTH_EMAIL_VERIFICATION=required` makes a password sign-up prove the address
+ * before it gets a session; `off` (also the fallback with no mail) lets it sign
+ * in immediately. Either way the account starts with no AI permission and no
+ * balance: an operator grants those later.
+ *
+ * Passwords are hashed by Better Auth's own hasher (scrypt; it uses
+ * `node:crypto`, which Workers supports). No plaintext password is logged,
+ * returned or stored, and no mail address or code reaches a log line.
+ */
+/** The password policy the sign-up form shows and Better Auth enforces. */
+export const PASSWORD_MIN_LENGTH = 10;
+export const PASSWORD_MAX_LENGTH = 128;
 
 export function createAuth(
   env: Env,
   ctx: ExecutionContext,
-  config: ControlPlaneConfig,
+  config: AuthConfig,
   requestId: string,
 ) {
+  const mailFrom = config.mailConfigured ? config.emailFrom : null;
+  const requireVerification = config.emailVerification === "required";
+
   return betterAuth({
     appName: "OpenMausBot",
     baseURL: config.authBaseURL,
@@ -18,6 +40,14 @@ export function createAuth(
     database: env.DB,
     trustedOrigins: [...config.allowedOrigins],
     logger: { disabled: true },
+    emailAndPassword: {
+      enabled: true,
+      disableSignUp: false,
+      requireEmailVerification: requireVerification,
+      autoSignIn: !requireVerification,
+      minPasswordLength: PASSWORD_MIN_LENGTH,
+      maxPasswordLength: PASSWORD_MAX_LENGTH,
+    },
     // Better Auth would otherwise delete expired verification rows inline on
     // every OTP check (two serial D1 round trips). Expired codes still fail
     // their expiresAt check; the sweep runs after the sign-in response.
@@ -30,6 +60,12 @@ export function createAuth(
       customRules: {
         "/email-otp/send-verification-otp": { window: 60, max: 5 },
         "/sign-in/email-otp": { window: 60, max: 10 },
+        // Password guesses are the one unauthenticated path with a cheap
+        // success signal, so they get the tightest rule of all.
+        "/sign-in/email": { window: 60, max: 10 },
+        "/sign-up/email": { window: 60, max: 5 },
+        "/email-otp/request-password-reset": { window: 60, max: 5 },
+        "/email-otp/reset-password": { window: 60, max: 5 },
       },
     },
     advanced: {
@@ -58,12 +94,21 @@ export function createAuth(
         resendStrategy: "rotate",
         disableSignUp: false,
         rateLimit: { window: 60, max: 5 },
+        // With a transport the plugin supplies Better Auth's emailVerification
+        // callback, so a required sign-up sends an `email-verification` code
+        // here and `/api/auth/email-otp/verify-email` confirms it. Without one
+        // there is nothing to send with: Better Auth then reports verification
+        // as unavailable instead of calling a transport that does not exist.
+        overrideDefaultEmailVerification: mailFrom !== null,
         async sendVerificationOTP(input) {
+          // No transport: the endpoint answers 503 before reaching this, and a
+          // code that cannot be delivered is never left behind in D1.
+          if (mailFrom === null) throw new Error("mail_unavailable");
           await sendOTPEmail({
             async send(message) {
               await env.EMAIL.send(message);
             },
-          }, config.emailFrom, input, requestId);
+          }, mailFrom, input, requestId);
         },
       }),
       bearer({ requireSignature: true }),
@@ -71,7 +116,17 @@ export function createAuth(
   });
 }
 
+/** The instance this module builds. Its API surface is inferred from the exact
+ * plugin set above (email OTP, bearer), so consumers import this name rather
+ * than re-describing methods they would then have to keep in step. */
 export type ControlPlaneAuth = ReturnType<typeof createAuth>;
+
+/** The account policy a route needs without the full auth config: whether this
+ * deployment confirms an address before a password account signs in. */
+export interface AuthPolicy {
+  emailVerification: EmailVerificationMode;
+  mailConfigured: boolean;
+}
 
 /**
  * The expired-verification cleanup that `verification.disableCleanup` turns
@@ -90,7 +145,7 @@ export async function deleteExpiredVerifications(auth: ControlPlaneAuth): Promis
 export async function accountSession(request: Request, auth: ControlPlaneAuth) {
   const authorization = request.headers.get("authorization");
   const match = authorization?.match(/^Bearer\s+([^\s]+)$/i);
-  if (!match || match[1].startsWith("omb_install_")) return null;
+  if (!match || match[1].startsWith("omb_install_") || match[1].startsWith("omb_product_ai_")) return null;
 
   return auth.api.getSession({
     headers: new Headers({ authorization: `Bearer ${match[1]}` }),

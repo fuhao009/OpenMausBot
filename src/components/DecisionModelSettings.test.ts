@@ -2,7 +2,7 @@ import { Children, createElement, isValidElement, type ReactElement, type ReactN
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConfigStatus } from "@/state/store";
-import { DecisionModelSettings, deciderFailureText } from "./DecisionModelSettings";
+import { DecisionModelSettings, deciderFailureText, helpersStatusLine } from "./DecisionModelSettings";
 import { Switch } from "./SettingsPrimitives";
 
 const fixture = vi.hoisted(() => ({
@@ -94,6 +94,31 @@ describe("DecisionModelSettings", () => {
     expect(view.master.props.checked).toBe(false);
     expect(view.master.props.disabled).toBe(true);
     expect(view.html).toContain("Save a key below to turn this on.");
+  });
+
+  it("shows the managed account's model with no key card, no provider picker and no key link", () => {
+    fixture.config = status({ provider: "product", product: true, configured: true, enabled: true, jobs: { roomRouting: true } });
+    const view = render();
+    expect(view.html).toContain("your account&#x27;s model");
+    expect(view.html).toContain("Connected");
+    expect(view.html).not.toContain("Cloudflare Workers AI (free tier)");
+    expect(view.html).not.toContain("Jev API key");
+    expect(view.html).not.toContain("OpenRouter");
+    expect(view.html).not.toContain("typesafe.ai");
+    expect(view.provider).toBeUndefined();
+    expect(view.model).toBeUndefined();
+    expect(view.input).toBeUndefined();
+    expect(view.master.props.checked).toBe(true);
+    expect(view.master.props.disabled).toBe(false);
+    expect(view.html).not.toContain("Save a key below to turn this on.");
+  });
+
+  it("reads the helpers status line as the managed account, for decisions and extraction", () => {
+    fixture.config = {
+      decider: { provider: "product", product: true, configured: true, enabled: true, jobs: { roomRouting: true } },
+      helpers: { own: { jev: false, workersAi: false, openrouter: false }, extraction: { provider: "product", product: true, ready: true } },
+    } as ConfigStatus;
+    expect(helpersStatusLine(fixture.config)).toBe("Decisions: your account's model · Extraction: your account's model");
   });
 
   it("offers both providers, with Jev selected for an existing install and no model picker", () => {

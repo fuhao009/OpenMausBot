@@ -6,12 +6,16 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { api, useStore, type Message } from "@/state/store";
+import { isProductWorkspace } from "@/lib/product-workspace";
 import { ASK_PRIMARY_BUTTON, ASK_QUIET_BUTTON } from "./AskCard";
 
 export function HelperKeySuggestion({ threadId, message }: { threadId?: string; message: Message }) {
-  const { dispatch } = useStore();
+  const { state, dispatch } = useStore();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A managed account's helpers run on its own model: there is no helper key to add, so this suggestion has nothing to
+  // offer and is not shown (the server does not write one there either; an imported transcript may still carry it).
+  const productManaged = isProductWorkspace(state.config?.productManaged);
   const declined = message.setupSuggestion?.answer === "notNow";
 
   const notNow = async () => {
@@ -27,6 +31,7 @@ export function HelperKeySuggestion({ threadId, message }: { threadId?: string; 
     }
   };
 
+  if (productManaged) return null;
   return (
     <div data-setup-suggestion="helperKey" className="max-w-[600px] text-[15px] leading-relaxed text-ink">
       <p dir="auto">{t("chat.helperSuggestion.text")}</p>

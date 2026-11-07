@@ -50,8 +50,9 @@ const FAILURE: Partial<Record<DeciderFailure, string>> = {
   unreachable: "The helper model could not be reached. Try again shortly.",
   misconfigured: "That request is outside what the helper model takes.",
   too_large: "That is too large for the helper model. Send less text or a smaller image; trying the same again will not work.",
+  no_balance: "The account's balance cannot cover a helper call right now. Ask the person to check their account balance.",
 };
-const BY: Record<DeciderProvider, string> = { jev: "Jev", workersai: "Cloudflare Workers AI", openrouter: "OpenRouter" };
+const BY: Record<DeciderProvider, string> = { jev: "Jev", workersai: "Cloudflare Workers AI", openrouter: "OpenRouter", product: "your account's model" };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const text = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value : null);

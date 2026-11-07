@@ -4,7 +4,8 @@ import { createServer } from "node:http";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cancelSurvey, CHECKOUT_SOURCES, checkoutDestination, cloudMenuSublabel, createCloudAccountClient, createCloudAccountStore, cloudOrigin, cloudPlanSnapshot, CLOUD_ORIGIN } from "./cloud-account.mjs";
+import { cancelSurvey, CHECKOUT_SOURCES, checkoutDestination, cloudMenuSublabel, createCloudAccountClient, cloudOrigin, cloudPlanSnapshot, CLOUD_ORIGIN } from "./cloud-account.mjs";
+import { createEncryptedRecordStore } from "./encrypted-record-store.mjs";
 
 const accessToken = `omc_${"T".repeat(43)}`;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -620,7 +621,7 @@ test("Cloud records use separate encrypted atomic storage, not plaintext or save
   t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, "cloud-account.bin"); let unlocked = true;
   // The fixture substitutes encryption; it does not use the user's keychain.
-  const store = createCloudAccountStore({ file, encryption: { available: async () => unlocked,
+  const store = createEncryptedRecordStore({ file, encryption: { available: async () => unlocked,
     encrypt: value => Buffer.from(value).map(byte => byte ^ 0x55), decrypt: value => Buffer.from(value).map(byte => byte ^ 0x55).toString() } });
   await store.write({ token: accessToken }); assert.deepEqual(await store.read(), { token: accessToken });
   assert.ok(!(await readFile(file)).toString().includes(accessToken));
@@ -634,13 +635,13 @@ test("a saved Cloud sign-in is read back after a restart with Electron 43's decr
   // Exactly what safeStorage.decryptStringAsync resolves to in Electron 43, not a bare string.
   const electron43 = { available: async () => true, encrypt: async value => Buffer.from(value).map(byte => byte ^ 0x55),
     decrypt: async value => ({ shouldReEncrypt: false, result: Buffer.from(value).map(byte => byte ^ 0x55).toString() }) };
-  await createCloudAccountStore({ file, encryption: electron43 }).write({ token: accessToken });
+  await createEncryptedRecordStore({ file, encryption: electron43 }).write({ token: accessToken });
   // A new store over the same file stands in for the next app launch.
-  assert.deepEqual(await createCloudAccountStore({ file, encryption: electron43 }).read(), { token: accessToken });
+  assert.deepEqual(await createEncryptedRecordStore({ file, encryption: electron43 }).read(), { token: accessToken });
 });
 
 /** Electron 43's safeStorage shape over a one-byte key. `lock.locked` stands in for a locked keychain. */
-const electron43Store = (file, lock = { locked: false }, decrypt) => createCloudAccountStore({ file, encryption: { available: async () => !lock.locked,
+const electron43Store = (file, lock = { locked: false }, decrypt) => createEncryptedRecordStore({ file, encryption: { available: async () => !lock.locked,
   encrypt: async value => Buffer.from(value).map(byte => byte ^ 0x55),
   decrypt: decrypt ?? (async value => ({ shouldReEncrypt: false, result: Buffer.from(value).map(byte => byte ^ 0x55).toString() })) } });
 const savedSignIn = f => ({ origin: f.origin, token: accessToken, expiresAt: f.now + 86400_000, device: { id: "fixture-device" }, account: { id: "fixture-account", email: "person@example.test" } });
@@ -695,7 +696,7 @@ test("a decrypt answer in a shape this app does not know is never taken for an u
 test("cancelling during the encrypted write queues deletion after it and cannot restore the grant", async t => {
   const directory = await mkdtemp(join(tmpdir(), "omb-cloud-cancel-")); t.after(() => rm(directory, { recursive: true, force: true }));
   let release, writing = false; const gate = new Promise(resolve => { release = resolve; });
-  const store = createCloudAccountStore({ file: join(directory, "cloud-account.bin"), encryption: { available: async () => true,
+  const store = createEncryptedRecordStore({ file: join(directory, "cloud-account.bin"), encryption: { available: async () => true,
     encrypt: async value => { writing = true; await gate; return Buffer.from(value); }, decrypt: value => value.toString() } });
   const f = await fixture(t, { store }); await f.client.begin(); f.approved = true; f.tick(); await until(() => writing);
   const cancellation = f.client.cancel(); release(); await cancellation; await until(() => f.revoked);

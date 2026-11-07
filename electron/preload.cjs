@@ -127,6 +127,38 @@ const bridge = {
   platform: process.platform,
   /** This app's version, and whether this page is this app's own (served by this computer, not a server from the Server menu). */
   app: { version: appVersion, ownPage: isLocalPage },
+  // A managed product build's workspace: the person's own account state and
+  // history, never an account bearer, model token, upstream address or data
+  // directory. Arguments are text only; main re-checks the exact page and
+  // holds no long-lived permission in this bridge.
+  productAccount: isLocalPage && process.argv.includes("--omb-product-managed=1") ? {
+    state: () => ipcRenderer.invoke("product-account:state"),
+    requestCode: (email) => ipcRenderer.invoke("product-account:request-code", typeof email === "string" ? email.slice(0, 254) : ""),
+    verifyCode: (email, code) => ipcRenderer.invoke("product-account:verify-code",
+      typeof email === "string" ? email.slice(0, 254) : "", typeof code === "string" ? code.slice(0, 8) : ""),
+    methods: () => ipcRenderer.invoke("product-account:methods"),
+    signInWithPassword: (email, password) => ipcRenderer.invoke("product-account:sign-in-password",
+      typeof email === "string" ? email.slice(0, 254) : "", typeof password === "string" ? password.slice(0, 128) : ""),
+    signUp: (email, password) => ipcRenderer.invoke("product-account:sign-up",
+      typeof email === "string" ? email.slice(0, 254) : "", typeof password === "string" ? password.slice(0, 128) : ""),
+    confirmEmail: (email, code, password) => ipcRenderer.invoke("product-account:confirm-email",
+      typeof email === "string" ? email.slice(0, 254) : "", typeof code === "string" ? code.slice(0, 8) : "",
+      typeof password === "string" ? password.slice(0, 128) : ""),
+    requestPasswordReset: (email) => ipcRenderer.invoke("product-account:request-password-reset",
+      typeof email === "string" ? email.slice(0, 254) : ""),
+    resetPassword: (email, code, password) => ipcRenderer.invoke("product-account:reset-password",
+      typeof email === "string" ? email.slice(0, 254) : "", typeof code === "string" ? code.slice(0, 8) : "",
+      typeof password === "string" ? password.slice(0, 128) : ""),
+    refresh: () => ipcRenderer.invoke("product-account:refresh"),
+    ledger: (cursor) => ipcRenderer.invoke("product-account:ledger", ...(cursor === undefined ? [] : [typeof cursor === "string" ? cursor.slice(0, 256) : ""])),
+    signOut: () => ipcRenderer.invoke("product-account:sign-out"),
+    onState: (cb) => {
+      if (typeof cb !== "function") return () => {};
+      const handler = (_event, state) => cb(state);
+      ipcRenderer.on("product-account:state-changed", handler);
+      return () => ipcRenderer.removeListener("product-account:state-changed", handler);
+    },
+  } : undefined,
   // Safe on a cloud page: the person chooses in a native menu, or a circle of the rail main listed (only for this app's
   // page and a hosted Cloud's, never addresses), and only from their click; no saved-list reads, host files or secrets.
   workspaces: {
@@ -612,6 +644,7 @@ const bridge = {
     },
   },
 };
+if (process.argv.includes("--omb-product-managed=1")) delete bridge.updater;
 
 contextBridge.exposeInMainWorld(
   "ogb",

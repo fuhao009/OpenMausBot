@@ -1,3 +1,5 @@
+import type { EncryptedRecordStore } from "./encrypted-record-store.mjs";
+
 /** Remove from list's answer: done (`removed`), refused by the Admin now, the Cloud no longer theirs (`gone`), an Admin
  * without it (`unsupported`), or no answer (`failed`). */
 export type CloudRemoveOutcome = "removed" | "refused" | "gone" | "unsupported" | "failed";
@@ -226,19 +228,6 @@ export declare const CLOUD_CANCEL_ANSWERS: readonly CloudCancelAnswer[];
 export declare function cancelSurvey(input: unknown): { answer: CloudCancelAnswer; expected?: string; improve?: string } | null;
 export declare function checkoutDestination(value: unknown, options?: { fixture?: boolean; staging?: boolean }): string | null;
 export declare function cloudOrigin(value?: string, fixture?: boolean): string;
-export interface CloudAccountStore {
-  read(): Promise<unknown>;
-  write(value: unknown): Promise<void>;
-}
-export declare function createCloudAccountStore(options: {
-  file: string;
-  encryption: {
-    available(): boolean | Promise<boolean>;
-    encrypt(value: string): Buffer | Promise<Buffer>;
-    /** A string, or Electron 43's { shouldReEncrypt, result } (safeStorage.decryptStringAsync). */
-    decrypt(value: Buffer): string | { result: string } | Promise<string | { result: string }>;
-  };
-}): CloudAccountStore;
 export interface CloudAccountClient {
   state(): CloudAccountState;
   start(): Promise<CloudAccountState>;
@@ -331,7 +320,7 @@ export interface CloudAccountClient {
   close(): void;
 }
 export declare function createCloudAccountClient(options: {
-  store: CloudAccountStore;
+  store: EncryptedRecordStore;
   openBrowser(url: string): Promise<unknown>;
   platform: string;
   deviceName: string;

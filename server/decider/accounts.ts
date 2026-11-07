@@ -56,8 +56,10 @@ export function openrouterAccount(cfg: AppConfig, draft?: string): HelperAccount
   return key ? { provider: "openrouter", token: key.token, api: cfg.decider?.openrouterBaseUrl?.trim() || OPENROUTER_DEFAULT_BASE_URL, included: false, keySource: key.source } : null;
 }
 
-/** On and usable: the helper models' one switch. An included relay is on unless switched off; an own key once switched on. */
+/** On and usable: the helper models' one switch. The managed account needs no local key, so it is on unless the person
+ * switched helpers off; an included relay is on unless switched off; an own key once switched on. */
 export function helpersOn(cfg: AppConfig, account: HelperAccount | null): boolean {
   if (!account || cfg.decider?.provider === "off") return false;
+  if (account.provider === "product") return cfg.decider?.enabled !== false;
   return account.included ? cfg.decider?.enabled !== false : cfg.decider?.enabled === true;
 }

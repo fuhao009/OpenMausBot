@@ -48,13 +48,28 @@ export interface EndpointAccount {
   zoneId: string;
 }
 
-export interface ControlPlaneConfig {
+/** `required` means a password sign-up must be confirmed by an emailed code
+ * before it signs in; `off` signs up and in without any mail. */
+export type EmailVerificationMode = "required" | "off";
+
+export interface AuthConfig {
   authBaseURL: string;
   allowedOrigins: ReadonlySet<string>;
+  /** The sender address for account email, or null when this deployment names
+   * no sender at all (mail is then unconfigured and verification is off). */
+  emailFrom: string | null;
+  /** `required` needs a working mail transport; `off` never sends mail and
+   * needs none. */
+  emailVerification: EmailVerificationMode;
+  /** True only when a sender address and a mail transport are both present:
+   * the one switch every emailed code (sign-in, verification, reset) uses. */
+  mailConfigured: boolean;
+}
+
+export interface ControlPlaneConfig extends AuthConfig {
   capacity: CapacityConfig;
   /** The primary account, from CLOUDFLARE_ACCOUNT_ID and friends. */
   cloudflare: EndpointAccount;
-  emailFrom: string;
   /** Every usable account, primary first, then CLOUDFLARE_ENDPOINT_ACCOUNTS
    * in order. */
   endpointAccounts: readonly EndpointAccount[];
@@ -276,13 +291,38 @@ export function readEndpointAccounts(
   return { accounts, issues };
 }
 
-export function readConfig(env: Env): ControlPlaneConfig {
+export function readAuthConfig(env: Env): AuthConfig {
   if (!secretSchema.safeParse(env.BETTER_AUTH_SECRET).success) {
     throw new Error("BETTER_AUTH_SECRET must contain at least 32 characters");
   }
 
-  const emailFrom = emailSchema.safeParse(env.EMAIL_FROM);
-  if (!emailFrom.success) throw new Error("EMAIL_FROM must be a valid email address");
+  // A deployment without mail is a supported mode, not a typo: EMAIL_FROM is
+  // optional, and a transport is whatever the EMAIL binding provides.
+  const rawFrom = typeof env.EMAIL_FROM === "string" ? env.EMAIL_FROM.trim() : "";
+  let emailFrom: string | null = null;
+  if (rawFrom !== "") {
+    const parsed = emailSchema.safeParse(rawFrom);
+    if (!parsed.success) throw new Error("EMAIL_FROM must be a valid email address");
+    emailFrom = parsed.data;
+  }
+  const mailConfigured = emailFrom !== null && typeof env.EMAIL?.send === "function";
+
+  const declared = typeof env.AUTH_EMAIL_VERIFICATION === "string"
+    ? env.AUTH_EMAIL_VERIFICATION.trim().toLowerCase()
+    : "";
+  if (declared !== "" && declared !== "required" && declared !== "off") {
+    throw new Error("AUTH_EMAIL_VERIFICATION must be `required` or `off`");
+  }
+  const emailVerification: EmailVerificationMode = declared === "required"
+    ? "required"
+    : declared === "off"
+      ? "off"
+      : mailConfigured ? "required" : "off";
+  // Asking for emailed verification without a way to send is a broken
+  // deployment: refuse rather than silently requiring a code nobody gets.
+  if (emailVerification === "required" && !mailConfigured) {
+    throw new Error("AUTH_EMAIL_VERIFICATION=required needs EMAIL_FROM and the EMAIL binding");
+  }
 
   const authBaseURL = exactHTTPSOrigin(env.BETTER_AUTH_URL, "BETTER_AUTH_URL");
   const origins = originsSchema.safeParse(env.ALLOWED_ORIGINS);
@@ -295,6 +335,11 @@ export function readConfig(env: Env): ControlPlaneConfig {
   }
   const allowedOrigins = new Set(values.map((value) => exactHTTPSOrigin(value, "ALLOWED_ORIGINS")));
   allowedOrigins.add(authBaseURL);
+  return { authBaseURL, allowedOrigins, emailFrom, emailVerification, mailConfigured };
+}
+
+export function readConfig(env: Env): ControlPlaneConfig {
+  const auth = readAuthConfig(env);
 
   if (!cloudflareResourceIdSchema.safeParse(env.CLOUDFLARE_ACCOUNT_ID).success) {
     throw new Error("CLOUDFLARE_ACCOUNT_ID must be a 32-character Cloudflare ID");
@@ -302,7 +347,8 @@ export function readConfig(env: Env): ControlPlaneConfig {
   if (!cloudflareResourceIdSchema.safeParse(env.CLOUDFLARE_ZONE_ID).success) {
     throw new Error("CLOUDFLARE_ZONE_ID must be a 32-character Cloudflare ID");
   }
-  if (!cloudflareTokenSchema.safeParse(env.CLOUDFLARE_API_TOKEN).success) {
+  const apiToken = cloudflareTokenSchema.safeParse(env.CLOUDFLARE_API_TOKEN);
+  if (!apiToken.success) {
     throw new Error("CLOUDFLARE_API_TOKEN is missing or invalid");
   }
   const hostSuffix = z.string().min(1).max(218).safeParse(env.COMPANION_HOST_SUFFIX);
@@ -314,7 +360,7 @@ export function readConfig(env: Env): ControlPlaneConfig {
   const capacity = readCapacityConfig(vars);
   const primary: EndpointAccount = {
     accountId: env.CLOUDFLARE_ACCOUNT_ID.toLowerCase(),
-    apiToken: env.CLOUDFLARE_API_TOKEN,
+    apiToken: apiToken.data,
     companionHostSuffix: hostnameSuffix(hostSuffix.data),
     dnsRecordLimit: capacity.dnsRecordLimit,
     minAppVersion: null,
@@ -325,11 +371,9 @@ export function readConfig(env: Env): ControlPlaneConfig {
   const extra = readEndpointAccounts(vars, primary);
 
   return {
-    authBaseURL,
-    allowedOrigins,
+    ...auth,
     capacity,
     cloudflare: primary,
-    emailFrom: emailFrom.data,
     endpointAccounts: [primary, ...extra.accounts],
     endpointAccountIssues: extra.issues,
   };

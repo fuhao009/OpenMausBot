@@ -88,7 +88,15 @@
     "control-plane:types": "pnpm --filter @openmausbot/control-plane types",
     "control-plane:check": "pnpm --filter @openmausbot/control-plane check",
     "control-plane:test": "pnpm --filter @openmausbot/control-plane test",
-    "control-plane:dry-run": "pnpm --filter @openmausbot/control-plane dry-run"
+    "control-plane:dry-run": "pnpm --filter @openmausbot/control-plane dry-run",
+    "product:package": "node scripts/package-product.mjs",
+    "product:deploy": "node scripts/deploy-product-service.mjs",
+    "gateway:init": "node scripts/local-gateway.mjs init",
+    "gateway:start": "node scripts/local-gateway.mjs start",
+    "gateway:status": "node scripts/local-gateway.mjs status",
+    "gateway:stop": "node scripts/local-gateway.mjs stop",
+    "gateway:service": "node scripts/local-gateway.mjs service",
+    "gateway:operator": "node scripts/local-gateway.mjs operator"
   },
   "dependencies": {
     "@1password/sdk": "0.5.0",

@@ -5,13 +5,35 @@ installation ownership, and per-installation managed companion endpoints. It
 does **not** store or move local bots, chats, desktop SQLite state, prompts, or
 tool output.
 
+Authentication and `/healthz` require only the authentication URL, secret,
+mail binding and sender, allowed origins, and D1. Tunnel credentials are
+validated separately when a tunnel mutation is requested; missing tunnel
+configuration returns `503 endpoint_unavailable` without disabling account
+sign-in. Authentication cleanup runs independently of tunnel maintenance.
+Tunnel deployments must still provision their Cloudflare API secrets and add
+their names to `secrets.required` in the deployment configuration before
+publishing; these are not prerequisites for authentication-only deployments.
+
 ## What is included
 
-- Better Auth 1.7.7 with email OTP, signed bearer sessions, hashed OTP storage,
-  and D1-backed IP plus recipient rate limits.
+- Better Auth 1.7.7 with email/password accounts and optional emailed codes,
+  signed bearer sessions, hashed OTP storage, and D1-backed IP plus recipient
+  rate limits. Passwords are hashed by Better Auth's own scrypt hasher (it uses
+  `node:crypto`, which Workers supports); no plaintext password is logged,
+  returned or stored, and the same stable error contract hides whether an
+  address or a password was wrong (`invalid_credentials`).
 - A Cloudflare Email Sending binding that produces both HTML and plain-text OTP
   messages. Authentication responses remain generic even when delivery fails;
   email addresses, OTPs, secrets, and provider errors are never logged.
+- `AUTH_EMAIL_VERIFICATION` decides whether a new password account must confirm
+  its address with an emailed code before it can sign in: `required` (the
+  default wherever `EMAIL_FROM` and the `EMAIL` binding both exist) or `off`.
+  With `off` a deployment needs no mail at all: password sign-up and sign-in
+  work, `/v1/auth/methods` reports `emailCode.enabled: false`, and every
+  `/api/auth/email-otp/*` path answers `503 email_unavailable`. Requesting
+  `required` without a transport is a configuration error, never a silent
+  requirement for a code nobody can receive. Public sign-up starts every
+  account with no AI permission and no balance; an operator grants both.
 - Owner-scoped desktop installations and independently revocable
   `omb_install_…` credentials. Account bearer tokens are never accepted as
   installation credentials, or vice versa.
@@ -50,14 +72,21 @@ tunnel and DNS IDs would make operator cleanup impossible. `0011` drops
 `account.issuer` and its unique index: `0001` created them for Better Auth
 1.7.1, and from 1.7.3 Better Auth never writes the column, so it would refuse
 any new account row. Apply `0011` before deploying a Worker on Better Auth
-1.7.7.
+1.7.7. `0012` adds the hosted account-AI tables (balance, short-lived model
+credentials, per-request reservations, and the operator audit); it has already
+been applied, so it is immutable history. `0013` renames that schema's amount
+columns from micro-USD to micro-points with `ALTER TABLE ... RENAME COLUMN`,
+which rewrites the table CHECKs and trigger bodies in place: a point is the
+product's own service credit (1 point = 1,000,000 micro-points), not a
+currency, and no stored value is rescaled.
 
 ## API surface
 
 | Method | Path | Authentication |
 | --- | --- | --- |
 | `GET` | `/healthz` | none |
-| any | `/api/auth/*` | Better Auth |
+| `GET` | `/v1/auth/methods` | none (password policy and whether email codes exist) |
+| any | `/api/auth/*` | Better Auth (email/password plus emailed codes where configured) |
 | `GET` | `/v1/me` | account bearer |
 | `GET`, `POST` | `/v1/installations` | account bearer |
 | `POST` | `/v1/installations/:id/credentials/rotate` | owning account bearer |
@@ -67,6 +96,18 @@ any new account row. Apply `0011` before deploying a Worker on Better Auth
 | `POST` | `/v1/installations/self/push/register` | installation credential |
 | `POST` | `/v1/installations/self/push/unregister` | installation credential |
 | `POST` | `/v1/installations/self/push/send` | installation credential |
+| `GET` | `/v1/account/ai` | account bearer |
+| `POST` | `/v1/account/ai/tokens` | account bearer |
+| `DELETE` | `/v1/account/ai/tokens/:id` | owning account bearer |
+| `GET` | `/v1/account/ai/ledger` | account bearer |
+| `GET` | `/v1/ai/models` | model credential |
+| `POST` | `/v1/ai/chat/completions` | model credential |
+| `POST` | `/v1/ai/responses` | model credential |
+| `GET` | `/v1/operator/ai/account?email=` | operator account bearer |
+| `POST` | `/v1/operator/ai/account` | operator account bearer |
+| `POST` | `/v1/operator/ai/balance` | operator account bearer |
+| `GET` | `/v1/operator/ai/requests?userId=` | operator account bearer |
+| `POST` | `/v1/operator/ai/requests/:id/settle` | operator account bearer |
 
 Installation registration requires a stable `clientInstanceId`, a display
 `name`, and a `platform` of `darwin`, `windows`, or `linux`; `appVersion` is
@@ -84,6 +125,81 @@ signed-in desktop can rotate ahead of time. `/v1/installations/self` rejects
 expired credentials and records both credential use and installation
 `lastSeenAt`. Rotations are serialized with a one-minute cooldown, so concurrent
 requests cannot both return credentials while one invalidates the other.
+
+### Hosted account AI
+
+Public e-mail registration creates an account with no AI permission and no
+balance. An operator opens AI, and funds it, with `scripts/account-ai-admin.mjs`
+(see "Operator setup" below); the desktop then receives a 15-minute
+model credential instead of a model key. Status priority is fixed: never opened
+is `pending`, opened then disabled is `suspended`, an enabled account on an
+unusable deployment is `unavailable`, a balance below one full reservation is
+`insufficient_balance`, and only then `ready`. The model catalog is published
+only where it can be used, and `GET /v1/ai/models` is free.
+
+Model credentials contain a random lookup ID plus 32 random bytes; only a
+SHA-256 digest is stored. Each credential is bound to the account, the Better
+Auth session that minted it, and one device ID, and it stops working as soon as
+that session is signed out or the account is disabled. A device keeps at most
+two live credentials so a renewal can hand off, and an account at most ten
+devices.
+
+Operator routes require `session.user.id` in `AI_OPERATOR_USER_IDS`; an e-mail
+domain or a client-supplied flag never grants that. Every mutation carries a
+UUID `operationId` and a reason, is idempotent on replay, and conflicts when the
+same ID arrives with different values. Amounts are micro-points of the
+product's own service credit (1 point = 1,000,000 micro-points); points are not
+a currency and are never derived from upstream billed money. Grants are
+additive, and a balance is never overwritten.
+
+Upstream configuration is deployment-only, never user input:
+
+| Name | Kind | Meaning |
+| --- | --- | --- |
+| `AI_UPSTREAM_BASE_URL` | var | exact HTTPS API base, optionally with a path; no credentials, query, or fragment |
+| `AI_UPSTREAM_API_KEY` | secret | bearer for that upstream |
+| `AI_DEFAULT_MODEL` | var | public ID of the enabled model new selections start from |
+| `AI_MODELS` | var (JSON) | operator-verified catalog, each entry adding `upstreamModel`, `chatMaxTokensField` (chat only), and `enabled` |
+| `AI_OPERATOR_USER_IDS` | var (JSON) | account user IDs allowed to use the operator routes |
+
+A deployment with these unset still signs accounts in; its accounts read
+`unavailable` and no request reaches an upstream. Prices are operator-set
+micro-points per million tokens (`inputMicroPointsPerMillion`,
+`cachedInputMicroPointsPerMillion`, `outputMicroPointsPerMillion`); a missing
+cached-input price is normalized to the input price rather than treated as a
+discount. A model stays disabled until its
+context, output, tool/vision support, and `usage` reporting have been verified
+against the pinned upstream.
+
+Operator setup: deploy first with `AI_OPERATOR_USER_IDS=[]`, sign in with
+`node scripts/account-ai-admin.mjs whoami --origin https://your-worker --operator-email you@example.com`,
+put the printed user ID in `AI_OPERATOR_USER_IDS`, redeploy, then use `lookup`,
+`enable`, and `grant`. The script reads the OTP from the terminal without
+echoing it, keeps the signed bearer in memory (or takes `OMB_OPERATOR_TOKEN`
+for unattended runs), never retries a mutation, and never prints a token.
+
+For an operator-owned deployment of this Worker (separate account, D1, origin,
+and sender; tunnelling off), `node scripts/deploy-product-service.mjs` writes a
+generated Wrangler config and runs migration/deploy with the two secrets in one
+call; `--dry-run` compiles only. It refuses an origin or upstream on the
+upstream project's domains and needs `CLOUDFLARE_ACCOUNT_ID`,
+`OMB_PRODUCT_SERVICE_URL`, `OMB_PRODUCT_D1_ID`, and `EMAIL_FROM` in both modes.
+See [Shipping the hosted product build](../../docs/product-release.md).
+
+Inference goes to exactly two paths (`/v1/ai/chat/completions` and
+`/v1/ai/responses`) on the one upstream named by the deployment; the client
+never chooses a URL or a key. A request is authenticated before its body is
+read, its body is capped at 48 MiB, and its top-level fields, `n`, output cap,
+remote storage, background mode, and tools (local functions only) are checked
+before anything is reserved. Each call reserves its worst-case cost from the
+balance, forwards once, and settles the upstream's real `usage`; a request whose
+usage is missing, malformed, over the reserved bound, or cut off mid-stream is
+kept in `review` — never charged at the maximum and never given away — for an
+operator to settle. Errors use `{ "error": { "code", "type", "message" } }` with
+`ai_token_invalid`, `ai_not_enabled`, `ai_suspended`, `model_not_allowed`,
+`insufficient_balance`, `ai_busy`, `ai_unavailable`, `invalid_request`,
+`request_too_large`, and `upstream_error`; upstream bodies, prompts, and tokens
+are never returned or logged.
 
 ### Managed endpoint contract
 

@@ -3150,3 +3150,40 @@ button:disabled.bg-danger {
 .trace-step-box { background: color-mix(in srgb, #8b7cf6 14%, var(--color-card)); border-color: color-mix(in srgb, #8b7cf6 30%, var(--color-card)); }
 .trace-step-ink { color: color-mix(in srgb, #7c6cf0 85%, var(--color-ink)); }
 .trace-tool-ink { color: color-mix(in srgb, #1f9a8c 80%, var(--color-ink)); }
+
+/* ── Product workspace layout ───────────────────────────────────────────────
+   A managed account's three columns: the 260px bot list, a chat that keeps at
+   least 420px, and the 340px work panel. From 800px the list is 240px and the
+   panel is a drawer over the chat; below 800px both are exclusive full-height
+   drawers, so the chat alone fills the window. The panel's own inner height is
+   the browser's own: nothing here may squeeze the composer or overflow. */
+[data-product-chat] {
+  min-width: 0;
+}
+@media (min-width: 1200px) {
+  [data-product-chat] {
+    min-width: 420px;
+  }
+}
+/* The Activity and Computer panels draw their own side-panel chrome (a fixed width, a resize edge, an entrance) for
+   the ordinary layout. Hosted here they are the panel's whole body: full width, no resize edge, no second animation,
+   and no inline width to spill out of the 340px column. */
+[data-product-work-panel] > div > aside {
+  position: static !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0;
+  height: 100%;
+  border-left: 0;
+  box-shadow: none;
+  animation: none;
+}
+[data-product-work-panel] > div > aside > [role="separator"] {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-product-work-panel],
+  [data-product-work-scrim] {
+    animation: none;
+  }
+}

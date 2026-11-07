@@ -3,7 +3,7 @@ import { useAdvancedMode } from "@/lib/interface-mode";
 import { PHONE_LAYOUT, useMediaQuery } from "@/lib/use-media-query";
 import { ThreadLinkContext } from "@/components/ThreadLinkMenu";
 import { useShowThreads } from "@/lib/thread-preferences";
-import { AlertTriangle, ChevronLeft, ChevronRight, Copy, Monitor, RefreshCw, Reply, Square, Webhook } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Copy, ListChecks, Monitor, RefreshCw, Reply, Square, Webhook } from "lucide-react";
 import { WorkingDots } from "@/components/WorkingIndicator";
 import { ACTION_ICON, ChatBusyContext, CopyButton, MESSAGE_ROW, MessageActions, messageActionClass, ReplyAction, type MessageMenuItem } from "@/components/MessageActions";
 import { copyText } from "@/lib/copy-text";
@@ -95,6 +95,8 @@ import { RenameTitle } from "./RenameTitle"; import { ChatHeadRole, chiefOfStaff
 import { BotActivityPicker } from "./TaskPicker"; import { ChatHeadPill } from "./ChatHeadPill";
 import { ELEVATED_FLOAT, ELEVATED_HOVER } from "./elevated";
 import { ModelPicker } from "./ModelPicker";
+import { isProductWorkspace } from "@/lib/product-workspace";
+import { productAccountNotice, useProductAccount } from "@/lib/use-product-account";
 import { ChatHeaderMenu, ChatMoreMenu } from "./ChatMoreMenu"; import { TeamOwnHelperHeader, TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine";
 import { useChatFindRequests } from "@/lib/chat-find";
 import { CitationSelectionToolbar, SentCitations } from "./CitationUI";
@@ -181,6 +183,7 @@ export function ErrorRow({
   action,
   setupInstance,
   claudeUpdateInstance,
+  managed = false,
 }: {
   message: string;
   headline?: string;
@@ -188,6 +191,8 @@ export function ErrorRow({
   action?: { label: string; onClick: () => void } | null;
   setupInstance?: InstanceInfo;
   claudeUpdateInstance?: InstanceInfo;
+  /** A product account: its AI is the account's, so no key, engine sign-in or plan link is offered for it. */
+  managed?: boolean;
 }) {
   const { capabilities, ready } = useDesktopCapabilities();
   const failedPermissions = missingMacCuaPermissions(message);
@@ -199,7 +204,7 @@ export function ErrorRow({
     ? macCuaPermissionMessage(currentPermissions)
     : null;
   const headline = macCuaReason ?? plainHeadline ?? message;
-  const usageUrl = action ? null : message.includes("subscription_sharing_usage_limit_exceeded") ? CHATGPT_USAGE_URL : codexUsageLimitReached(message) ? CODEX_USAGE_URL : null;
+  const usageUrl = action || managed ? null : message.includes("subscription_sharing_usage_limit_exceeded") ? CHATGPT_USAGE_URL : codexUsageLimitReached(message) ? CODEX_USAGE_URL : null;
   return (
     <div className="flex justify-start">
       <div className="w-fit max-w-[min(var(--chat-bubble-max),var(--chat-bubble-pct))] rounded-xl border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[14px] text-danger">
@@ -280,21 +285,25 @@ export function FailedTurnRow({ tool, engine, onRetry, botId, threadId }: {
   botId?: string;
   threadId?: string;
 }) {
+  const product = isProductWorkspace(useStore().state.config?.productManaged);
   const resume = useLimitResetContinue(botId, threadId, tool.limitResetsAt);
   if (tool.place && botId) return <PlaceFailedRow place={tool.place} botId={botId} threadId={threadId} onRetry={onRetry} />;
-  const credit = trialCreditKind(failedTurnCause(tool.name) ?? "");
+  // A product account has no trial credit to run out of: its only refusal is the account's own state.
+  const credit = product ? null : trialCreditKind(failedTurnCause(tool.name) ?? "");
   if (credit) return <TrialCreditFailedRow kind={credit} onRetry={onRetry} />;
   const cause = failedTurnCause(tool.name) ?? tool.name;
   if (tool.partial) return <PartlyDoneRow cause={cause} onRetry={onRetry} />;
-  const signedOut = signedOutEngine(tool, engine);
+  // A managed account's refusals are its account's: nothing here asks for an engine sign-in, an engine update or a key.
+  const signedOut = product ? null : signedOutEngine(tool, engine);
   return (
     <ErrorRow
       message={cause}
       headline={signedOut ? t("chat.error.signedOut", { name: signedOut.displayName }) : plainErrorLine(cause)}
       onRetry={onRetry}
       action={resume}
-      setupInstance={tool.setup ? engine : undefined}
-      claudeUpdateInstance={tool.claudeUpdate ? claudeUpdateTarget(engine) : undefined}
+      managed={product}
+      setupInstance={product ? undefined : tool.setup ? engine : undefined}
+      claudeUpdateInstance={product ? undefined : tool.claudeUpdate ? claudeUpdateTarget(engine) : undefined}
     />
   );
 }
@@ -820,6 +829,11 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
   const { state, dispatch } = useStore();
   const showThreads = useShowThreads();
   const remoteClient = window.ogb?.remoteClient?.active === true;
+  // A managed product account: no engine or key is offered anywhere in this chat, its model is the account's, and the
+  // header carries the work panel's two real entries. The bridge covers the window before the server's config arrives.
+  const product = isProductWorkspace(state.config?.productManaged);
+  const productAccount = useProductAccount();
+  const productNotice = product ? productAccountNotice(productAccount) : null;
   const { dragProps: headerDragProps, noDragStyle: headerNoDragStyle } = useCaptionChrome();
   const composerDockRef = useRef<HTMLDivElement>(null);
   const composerDock = useComposerDockPad(composerDockRef);
@@ -1005,7 +1019,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
 
   return (
     <ThreadLinkContext value={threadLink}>
-    <main className="relative flex h-full min-w-0 flex-1 flex-col bg-app">
+    <main data-product-chat={product ? "" : undefined} className="relative flex h-full min-w-0 flex-1 flex-col bg-app">
       <CallOverlay bot={bot} />
       <GlassScrollFrame className="flex-1 [--glass-tint:var(--color-app)]">
       {/* z-[25]: above the room set-up card (z-20), below the CallOverlay (z-30). */}
@@ -1114,9 +1128,24 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
           <EngineLimitNotice engine={bot.modelSelection?.instanceId} />
           {/* The model and the bot's computer stay in view in both modes; Simple mode moves only ⋯ into the bot panel. */}
           {!phone && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} />}
+          {product && <button
+            type="button"
+            data-product-work-entry="tasks"
+            aria-pressed={state.activityOpen}
+            onClick={() => dispatch({ type: "toggleActivity" })}
+            className={cn(
+              "relative flex size-8 items-center justify-center rounded-full transition-colors hover:bg-ink/[0.06]",
+              state.activityOpen ? "text-accent" : "text-ink-secondary hover:text-ink",
+            )}
+            title={t("product.workPanel.tasks")} aria-label={t("product.workPanel.tasks")}
+          >
+            <ListChecks size={18} aria-hidden="true" />
+          </button>}
           <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />
           {!phoneMenu && <button
             data-tour="computer"
+            data-product-work-entry="computer"
+            aria-pressed={product ? state.computerOpen : undefined}
             onClick={(event) => { if (!state.computerOpen) rememberComputerPanelOpen({ botId: bot.id, opener: event.currentTarget, tabs: event.detail === 0 }); dispatch({ type: "toggleComputer" }); }}
             className={cn(
               "relative",
@@ -1142,6 +1171,15 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
 
       <ChatErrorBanner message={state.error} onDismiss={() => dispatch({ type: "error", message: null })} />
       <ChatNotice notice={state.notice} />
+      {product && productNotice && productNotice.tone !== "success" && (
+        // The account's own state: pending, suspended, out of balance or unreachable. Never a key or engine prompt.
+        <div data-product-chat-notice={productNotice.tone} role="status" className={cn(
+          "mx-5 mb-2 rounded-lg border px-3 py-2 text-[12px] leading-5",
+          productNotice.tone === "error" ? "border-danger/30 bg-danger/10 text-danger"
+            : productNotice.tone === "warning" ? "border-warning/35 bg-warning/10 text-ink"
+              : "border-hairline/40 bg-inset text-ink-secondary",
+        )}>{t(productNotice.key)}</div>
+      )}
 
       <PinnedBanner
         bot={bot}

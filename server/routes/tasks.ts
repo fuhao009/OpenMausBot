@@ -5,7 +5,7 @@ import { validateBotCwd } from "../bot-cwd.ts";
 import type { ModelSelection, ProviderInstance } from "../contracts.ts";
 import type { Coordinator } from "../coordinator.ts";
 import type { Handoffs } from "../delta-context.ts";
-import type { hostedModelPolicy } from "../hosted-models.ts";
+import type { ManagedModelPolicy } from "../hosted-models.ts";
 import type { PhoneSecretSubmissionRegistry } from "../phone-secret.ts";
 import { ownerOrAdmin, type RequestAuth } from "../request-auth.ts";
 import type { RoutineManager } from "../routines.ts";
@@ -20,8 +20,6 @@ import { PASS, type RouteHandler } from "./table.ts";
 import { sawThread } from "../thread-presence.ts";
 import { readThreadNotifications } from "./notifications.ts";
 
-type HostedModels = NonNullable<ReturnType<typeof hostedModelPolicy>>;
-
 export interface TaskRouteDeps {
   store: Pick<Store,
     | "bot" | "bots" | "taskByThread" | "project" | "projectBotForTask" | "patchTask" | "patchProject" | "tasks"
@@ -34,7 +32,7 @@ export interface TaskRouteDeps {
   /** A shared company workspace: Full access comes only from its operator. */
   hostedWorkspace: boolean;
   hostedFullAccessRefusal: string;
-  hostedModels: Pick<HostedModels, "resetTask"> | null;
+  hostedModels: Pick<ManagedModelPolicy, "resetTask"> | null;
   routines(): Pick<RoutineManager, "isActiveThread"> | null;
   coordinator: Pick<Coordinator, "cancelDirect">;
   handoffs: Pick<Handoffs, "forget">;

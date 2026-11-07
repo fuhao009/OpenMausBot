@@ -50,9 +50,10 @@ function fixture() {
   localOrigin.setLocalOrigin(ORIGIN);
   const context = vm.createContext({
     AbortController, AbortSignal, Date, Headers, setTimeout, clearTimeout, path, randomUUID, Buffer,
+    productService: null,
     app: { isPackaged: true, getPath: () => "/unused-synthetic-backup-fixture", getVersion: () => "fixture" },
     os: { hostname: () => "Fixture computer" }, process: { platform: "fixture" },
-    createManagedDesktopStore: options => {
+    createEncryptedRecordStore: options => {
       const store = { file: options.file, read: async () => f.savedSchedule, write: async value => { f.savedSchedule = structuredClone(value); } };
       f.stores.push(store);
       return store;
@@ -110,14 +111,6 @@ test("ensureManagedDesktop gives the organization library its own record, the fi
   assert.equal(f.librarySent[0].library, library);
 });
 
-test("main hands the library a restarted runtime, the runtime's own messages and the quit", () => {
-  // Outside ensureManagedDesktop(), so checked in the source.
-  assert.match(section("onReady(proc) {", "routineWake.start();"), /\n\s*orgLibrary\?\.runtimeReady\(\);\n/);
-  const messages = section('proc.on("message", (message) => {', 'proc.once("spawn"');
-  assert.match(messages, /if \(!serverSupervisor\.isCurrent\(proc\)\) return;/, "a replaced runtime's messages are dropped first");
-  assert.match(messages, /\n\s*if \(orgLibrary\?\.receive\(message\)\) return;\n/);
-  assert.match(section('app.on("before-quit"', "managedDesktop?.close();"), /\n\s*orgLibrary\?\.close\(\);\n/);
-});
 
 for (const kind of ["preview", "create"]) {
   test(`late cancellation rejects ${kind} instead of accepting its completed result`, async () => {

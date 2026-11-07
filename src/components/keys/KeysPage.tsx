@@ -6,7 +6,7 @@ import { scrollParent, scrollWithin } from "@/lib/scroll-within";
 import { t } from "@/lib/i18n";
 import { BoatOfferPanel } from "../BoatOffer";
 import { LmStudioServer, OtherOpenAiCompatServers } from "../OpenAiCompatServers";
-import { KEY_CATALOG, KEY_SECTIONS, keyMatches, savedState, type KeyEntry, type KeyId, type KeySectionId } from "./key-catalog";
+import { KEY_CATALOG, KEY_SECTIONS, keyEntry, keyMatches, savedState, type KeyEntry, type KeyId, type KeySectionId } from "./key-catalog";
 import { finishKeyFocus, useKeyFocus, type KeyFocusRequest } from "./key-focus";
 import { AnthropicEveryClaudeBot, OpenAiCompatUrl, OpenCodeProviderKeys, VpsConnection } from "./KeyPanels";
 import { KEY_ROW, KeyRow, MaskedKey, RowHeading, type KeyStatus } from "./KeyRow";
@@ -117,11 +117,14 @@ function landOn(page: HTMLElement | null, request: KeyFocusRequest, section: Key
   return true;
 }
 
-export function KeysPage() {
+/** `sections`: which kinds of credential this page offers. A managed account's workspace keeps third-party app and
+ * computer credentials and has no provider keys, so it narrows the page rather than hiding the whole thing. */
+export function KeysPage({ sections: only }: { sections?: ReadonlySet<KeySectionId> } = {}) {
   const { state } = useStore();
   const [query, setQuery] = useState("");
+  const offered = only ? KEY_SECTIONS.filter((section) => only.has(section.id)) : KEY_SECTIONS;
   const [open, setOpen] = useState<ReadonlySet<KeySectionId>>(() => new Set(
-    KEY_SECTIONS.filter((section) => section.id === "ai" || KEY_CATALOG.some((entry) => entry.section === section.id && connected(entry, state.config)))
+    offered.filter((section) => section.id === "ai" || KEY_CATALOG.some((entry) => entry.section === section.id && connected(entry, state.config)))
       .map((section) => section.id),
   ));
   const pageRef = useRef<HTMLDivElement>(null);
@@ -130,7 +133,8 @@ export function KeysPage() {
 
   useEffect(() => {
     if (!focus) return;
-    const section = KEY_CATALOG.find((entry) => entry.id === focus.row)?.section ?? "ai";
+    const found = KEY_CATALOG.find((entry) => entry.id === focus.row);
+    const section = found && (!only || only.has(found.section)) ? found.section : offered[0]?.id ?? "ai";
     setQuery("");
     setOpen((current) => current.has(section) ? current : new Set([...current, section]));
     let frame = 0;
@@ -143,8 +147,10 @@ export function KeysPage() {
     return () => window.cancelAnimationFrame(frame);
   }, [focus]);
 
-  const rows = KEY_CATALOG.filter((entry) => keyMatches(entry, q));
-  const sections = KEY_SECTIONS.flatMap((section) => {
+  // A row that borrows another section's key appears only where that key does: a managed account has no provider key to
+  // borrow from, so its "uses this key" rows would point at a row this page does not show.
+  const rows = KEY_CATALOG.filter((entry) => (!only || only.has(entry.section)) && (!entry.uses || !only || only.has(keyEntry(entry.uses).section)) && keyMatches(entry, q));
+  const sections = offered.flatMap((section) => {
     const own = rows.filter((entry) => entry.section === section.id);
     return own.length > 0 ? [{ id: section.id, rows: own }] : [];
   });

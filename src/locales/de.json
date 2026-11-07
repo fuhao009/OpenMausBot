@@ -2785,5 +2785,7 @@
   "botAccess.overview.botCount.other": "{count} Bots",
   "botAccess.overview.noBotsForPerson": "{name} hat noch keine Bots.",
   "botAccess.overview.allPeople": "Alle Personen",
-  "botAccess.overview.toastRemoved": "{bot}: {name} entfernt"
+  "botAccess.overview.toastRemoved": "{bot}: {name} entfernt",
+  "server.product.welcome": "Hi! Ich bin MausBot. Ich helfe dir bei deinen Bots, Routinen und Aufgaben. Schreib mir, wenn du so weit bist, und ich übernehme.",
+  "server.product.accessChanged": "Der KI-Zugang des Kontos hat sich geändert. Aktualisiere deinen Kontostatus."
 }

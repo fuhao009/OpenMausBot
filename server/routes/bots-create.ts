@@ -6,7 +6,7 @@ import { parseVisibility } from "../bot-visibility.ts";
 import type { createCloudRoutineAuthors } from "../cloud-lending.ts";
 import type { AppConfig } from "../config.ts";
 import type { ModelSelection } from "../contracts.ts";
-import type { hostedModelPolicy } from "../hosted-models.ts";
+import type { ManagedModelPolicy } from "../hosted-models.ts";
 import { MAX_MCP_SERVERS, mcpServerNameError } from "../mcp-registry.ts";
 import { journalMemoryWrite } from "../memory-journal.ts";
 import { resolveBotCreationDefaults } from "../new-bot-defaults.ts";
@@ -32,7 +32,8 @@ export interface BotCreateRouteDeps {
   desktopManaged: boolean;
   maxWorkspaceBots: number;
   cloudOwnerKey: string | null;
-  hostedModels: ReturnType<typeof hostedModelPolicy>;
+  /** A managed model catalog (Company assignments or the product account's gateway models): it owns the choice. */
+  hostedModels: Pick<ManagedModelPolicy, "allows" | "error"> | null;
   cloudRoutineAuthors: ReturnType<typeof createCloudRoutineAuthors> | null;
   routines(): RoutineManager | null;
   storedAvatarExists(avatarUrl: string): boolean;

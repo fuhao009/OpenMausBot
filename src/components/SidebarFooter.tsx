@@ -3,6 +3,7 @@ import { useRef } from "react";
 import { cn } from "@/lib/cn";
 import type { SidebarDensity } from "@/lib/sidebar-preferences";
 import { useStore } from "@/state/store";
+import { isProductWorkspace } from "@/lib/product-workspace";
 
 import { AccountMoveStatus, useAccountMoveLine } from "./AccountMove";
 import { CloudRoomCard } from "./CloudRoomCard";
@@ -27,6 +28,8 @@ export function SidebarPlaceStatus({ place, className }: { place: WorkspacePlace
 
 function SimpleSidebarFooter({ owner, archived }: { owner: string | null; archived?: ArchivedBots }) {
   const { state } = useStore();
+  // A managed account has no Cloud plan of its own to buy, move to or read usage from.
+  const productManaged = isProductWorkspace(state.config?.productManaged);
   const place = useSimplePlace();
   const account = useSimpleAccount(place, owner, archived);
   const move = useAccountMoveLine(state.config?.cloudHome === true);
@@ -35,8 +38,8 @@ function SimpleSidebarFooter({ owner, archived }: { owner: string | null; archiv
   const openAccount = () => footer.current?.querySelector("[data-sidebar-account]")?.closest("button")?.click();
   return (
     <div ref={footer} data-sidebar-footer="simple" className="px-4 pb-4 pt-2">
-      <CloudRoomCard />
-      <CloudUsageCard />
+      {!productManaged && <CloudRoomCard />}
+      {!productManaged && <CloudUsageCard />}
       <SidebarPlaceStatus place={place} className="mb-2 px-1" />
       <AccountMoveStatus kind={move.kind} place={move.place} retry={move.retry} onOpen={openAccount} className="ps-1" />
       <div className="flex items-center gap-2 not-first:mt-2">
@@ -56,7 +59,8 @@ export function SidebarFooter({ density, simple = false, owner = null, archived,
   toolsCollapsed: boolean;
   onToggleTools?: () => void;
 }) {
-  const { dispatch } = useStore();
+  const { state, dispatch } = useStore();
+  const productManaged = isProductWorkspace(state.config?.productManaged);
   if (simple) return <SimpleSidebarFooter owner={owner} archived={archived} />;
   return (
     <div className={cn("pb-3 pt-2", density === "icons" ? "flex flex-col items-center gap-1 px-2" : "px-3")}>
@@ -71,8 +75,8 @@ export function SidebarFooter({ density, simple = false, owner = null, archived,
         </>
       ) : (
         <>
-          <CloudRoomCard />
-          <CloudUsageCard />
+          {!productManaged && <CloudRoomCard />}
+          {!productManaged && <CloudUsageCard />}
           <div className="flex items-center gap-1 not-first:mt-3">
             <div className="min-w-0 flex-1">
               <SidebarProfileMenu />

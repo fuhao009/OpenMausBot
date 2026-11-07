@@ -26,6 +26,7 @@ const FAILURES: Record<string, LocaleKey> = {
   overloaded: "decider.error.overloaded",
   malformed: "decider.error.malformed",
   no_key: "decider.error.noKey",
+  no_balance: "decider.error.noBalance",
   misconfigured: "decider.error.misconfigured",
 };
 
@@ -55,8 +56,9 @@ const WORKERS_AI_FAILURES: Record<string, LocaleKey> = {
   malformed: "decider.workersAi.error.malformed",
 };
 
-const BY: Record<"jev" | "workersai" | "openrouter", LocaleKey> = {
+const BY: Record<"jev" | "workersai" | "openrouter" | "product", LocaleKey> = {
   jev: "decider.status.byJev", workersai: "decider.status.byWorkersAi", openrouter: "decider.status.byOpenRouter",
+  product: "decider.status.byProduct",
 };
 
 /** Who decides and who reads, in a word each: the person's own key, the Cloud plan's, or nothing yet. */
@@ -96,6 +98,7 @@ const COMING_SOON: LocaleKey[] = ["decider.jobs.browserClicks", "decider.jobs.to
 export function DecisionModelSettings() {
   const { state, dispatch } = useStore();
   const decider = state.config?.decider;
+  const managed = decider?.product === true || decider?.provider === "product";
   const provider: Provider = decider?.provider === "openrouter" ? "openrouter" : "jev";
   const openrouter = provider === "openrouter";
   const configured = decider?.configured ?? false;
@@ -206,8 +209,19 @@ export function DecisionModelSettings() {
         <p className="text-[13px] leading-relaxed text-ink-secondary">{t("decider.intro")}</p>
         <p role="status" data-testid="helpers-status" className="text-[13px] font-medium text-ink">{helpersStatusLine(state.config)}</p>
       </section>
-      <WorkersAiKeyCard failureText={(result) => deciderFailureText(result, false, "workersai")} />
-      <SettingRow title={t("decider.provider.label")}>
+      {managed ? (
+        <Card title={t("decider.status.byProduct")}>
+          <div role="status" className="flex items-center gap-2 text-[13px] text-ink-secondary">
+            <span className={cn("size-1.5 rounded-full", configured ? "bg-success" : "bg-raised-hover")} />
+            <span className={configured ? "text-success" : undefined}>
+              {configured ? t("decider.status.connected") : t("decider.status.notConnected")}
+            </span>
+          </div>
+        </Card>
+      ) : (
+        <WorkersAiKeyCard failureText={(result) => deciderFailureText(result, false, "workersai")} />
+      )}
+      {!managed && <SettingRow title={t("decider.provider.label")}>
         <Select className="w-48"
           data-testid="decider-provider"
           value={provider}
@@ -218,7 +232,7 @@ export function DecisionModelSettings() {
           <option value="jev">{t("decider.provider.jev")}</option>
           <option value="openrouter">{t("decider.provider.openrouter")}</option>
         </Select>
-      </SettingRow>
+      </SettingRow>}
       {openrouter && (
         <SettingRow title={t("decider.model.label")} subtitle={models?.source === "builtin" ? t("decider.model.builtinNote") : undefined}>
           <Select className="w-64 max-w-full"
@@ -247,7 +261,7 @@ export function DecisionModelSettings() {
       )}
       <SettingRow
         title={t(openrouter ? "decider.openrouter.master" : "decider.master")}
-        subtitle={configured ? undefined : t(openrouter ? "decider.masterNeedsKey.openrouter" : "decider.masterNeedsKey")}
+        subtitle={configured ? undefined : managed ? undefined : t(openrouter ? "decider.masterNeedsKey.openrouter" : "decider.masterNeedsKey")}
       >
         <Switch
           data-testid="decider-master"
@@ -259,7 +273,7 @@ export function DecisionModelSettings() {
         />
       </SettingRow>
 
-      <Card title={t(openrouter ? "decider.openrouter.key.label" : "decider.key.label")}>
+      {!managed && <Card title={t(openrouter ? "decider.openrouter.key.label" : "decider.key.label")}>
         <div role="status" className="mb-2 flex items-center gap-2 text-[13px] text-ink-secondary">
           <span className={cn("size-1.5 rounded-full", configured ? "bg-success" : "bg-raised-hover")} />
           <span className={configured ? "text-success" : undefined}>
@@ -339,7 +353,7 @@ export function DecisionModelSettings() {
             <ExternalLink size={11} aria-hidden="true" />
           </a>
         )}
-      </Card>
+      </Card>}
 
       <Card title={t("decider.jobs.title")}>
         <ul className="flex flex-col">

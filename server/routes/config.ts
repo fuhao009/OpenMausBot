@@ -70,6 +70,7 @@ export interface ConfigRouteDeps {
   sharedComputers: Pick<SharedComputers, "close">;
   sharedComputerControl: Pick<SharedComputerControl, "close">;
   hostedModels: boolean;
+  productManaged?: boolean;
   cloudHome: boolean;
   lendingEnabled(): boolean;
   providerConfigs(): InstanceConfigMap;
@@ -118,6 +119,9 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
     }
     if ((method === "PUT" || method === "PATCH") && path === "/api/config") {
       const body = await readBody(req);
+      if (deps.productManaged && ["instances", "anthropic", "openai", "openrouter", "openaiCompat", "xai", "mistral", "cerebras", "groq", "greenference", "meta", "deepseek", "opencodeGo", "decider", "helpers", "defaultModelSelection", "productAi", "productManaged"].some(key => Object.hasOwn(body, key))) {
+        return json(res, 403, { error: "product_models_managed" });
+      }
       if (hostedModels && ["instances", "anthropic", "openai", "openrouter", "openaiCompat", "xai", "mistral", "cerebras", "groq", "greenference", "meta", "opencodeGo"].some(key => Object.hasOwn(body, key))) return json(res, 403, { error: HOSTED_PROVIDER_SETTINGS_ERROR });
       const patch = parseConfigPatch(body);
       if (patch.profile && ownProfile) {

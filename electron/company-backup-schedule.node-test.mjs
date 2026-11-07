@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createCompanyBackupSchedule } from "./company-backup-schedule.mjs";
-import { createManagedDesktopStore } from "./managed-desktop.mjs";
+import { createEncryptedRecordStore } from "./encrypted-record-store.mjs";
 
 const DAY = 24 * 60 * 60_000, HOUR = DAY / 24;
 const ENABLE = { enabled: true, confirmation: "BACK UP THIS WORKSPACE DAILY" };
@@ -155,8 +155,8 @@ test("a saved schedule this computer can no longer decrypt is removed, and turni
   const encryption = { available: async () => true, encrypt: async text => Buffer.from(text).map(byte => byte ^ 0x33),
     decrypt: async () => { throw new Error("Error while decrypting the ciphertext provided to safeStorage.decryptString."); } };
   const saved = { version: 2, scope: "fixture-portal:org:email:device:workspace", nextBackupAt: 1_800_000_000_000 + DAY };
-  await createManagedDesktopStore({ file, encryption }).write(saved);
-  const f = fixture(saved); const real = createManagedDesktopStore({ file, encryption }); f.read = () => real.read();
+  await createEncryptedRecordStore({ file, encryption }).write(saved);
+  const f = fixture(saved); const real = createEncryptedRecordStore({ file, encryption }); f.read = () => real.read();
   await f.scheduler.start();
   assert.deepEqual(f.scheduler.state(), { enabled: false, status: "off", message: REMOVED });
   assert.deepEqual(f.writes, [null]); assert.equal(f.timers.size, 0); assert.equal(f.calls.length, 0);
@@ -166,7 +166,7 @@ test("a saved schedule this computer can no longer decrypt is removed, and turni
 test("a locked keychain never removes the saved schedule: it stays on, is read again sooner then each minute, until it opens", async () => {
   const original = fixture(); await original.scheduler.configure(ENABLE);
   const f = fixture(original.saved), stored = f.saved; let locked = true, reads = 0;
-  f.read = async () => { reads++; if (locked) throw new Error("Your company connection could not be read. Unlock your system keychain and try again."); return stored; };
+  f.read = async () => { reads++; if (locked) throw new Error("The saved record could not be read. Unlock your system keychain and try again."); return stored; };
   await f.scheduler.start();
   assert.deepEqual(f.scheduler.state(), { enabled: true, status: "paused", message: WAITING });
   assert.equal(f.saved, stored); assert.deepEqual(f.writes, []);
@@ -186,7 +186,7 @@ test("a locked keychain never removes the saved schedule: it stays on, is read a
 test("turning daily backups off while the saved schedule is locked removes it, and nothing reads it again", async () => {
   const original = fixture(); await original.scheduler.configure(ENABLE);
   const f = fixture(original.saved);
-  f.read = async () => { throw new Error("Your company connection could not be read. Unlock your system keychain and try again."); };
+  f.read = async () => { throw new Error("The saved record could not be read. Unlock your system keychain and try again."); };
   await f.scheduler.start();
   assert.equal(f.scheduler.state().enabled, true);
   assert.deepEqual(await f.scheduler.configure({ enabled: false }), { enabled: false, status: "off" });
@@ -197,7 +197,7 @@ test("turning daily backups off while the saved schedule is locked removes it, a
 test("a locked schedule that opens later never uploads an overdue backup at once: it shows first, then waits", async () => {
   const original = fixture(); await original.scheduler.configure(ENABLE);
   const f = fixture(original.saved), stored = f.saved; let locked = true;
-  f.read = async () => { if (locked) throw new Error("Your company connection could not be read. Unlock your system keychain and try again."); return stored; };
+  f.read = async () => { if (locked) throw new Error("The saved record could not be read. Unlock your system keychain and try again."); return stored; };
   await f.scheduler.start();
   f.now += 2 * DAY; locked = false; await f.fire();
   assert.equal(f.calls.length, 0, "nothing uploads the moment the schedule opens");

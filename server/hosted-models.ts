@@ -5,12 +5,56 @@ import { writeFileAtomic } from "./atomic.ts";
 import { cloudHomeConfigured } from "./cloud-home.ts";
 import { hostedWorkspaceConfiguration } from "./enterprise.ts";
 import type { InstanceConfigMap, ModelSelection, ProviderInstance } from "./contracts.ts";
-import type { Store } from "./store.ts";
+import type { Store, TaskPatch } from "./store.ts";
 
 export const HOSTED_MODEL_POLICY_HEADER = "X-Omb-Hosted-Model-Policy";
 export const HOSTED_MODEL_SETUP_ERROR = "No company models are assigned to this workspace. Ask your administrator to enable model access in Admin.";
 export const HOSTED_MODEL_SELECTION_ERROR = "This model is not assigned to this workspace. Choose one of its company models.";
 export const HOSTED_PROVIDER_SETTINGS_ERROR = "Company models and provider accounts are managed in Admin.";
+
+/** The task fields a changed managed model route clears: the old route's continuation cursor and context handles. The
+ * transcript, thread id, title and every other field stay exactly as they were. */
+const RESET_CONTINUATION: TaskPatch = { resumeCursors: {}, lastInstanceId: undefined, rewound: true, lastContextModel: undefined, appliedCompactionId: undefined };
+
+/** The reset a task gets when its route moves: nothing while it stays on the same instance and model. */
+export function modelRouteReset(previous: ModelSelection, next: ModelSelection): TaskPatch {
+  return previous.instanceId !== next.instanceId || previous.model !== next.model ? { ...RESET_CONTINUATION } : {};
+}
+
+/** The store surface a managed catalog reconciles: bots and their thread choices, nothing else. */
+export type ReconcileStore = Pick<Store, "bots" | "tasks" | "patchTask" | "patchBot">;
+
+/** What routing and creation need from a managed model catalog: a Company workspace's assignments today, a product
+ * account's gateway models in the desktop app. Both own the choice of model; neither falls back to a personal engine. */
+export interface ManagedModelPolicy {
+  allows(selection: ModelSelection): boolean;
+  select(previous?: ModelSelection): ModelSelection;
+  resetTask(previous: ModelSelection, next: ModelSelection): TaskPatch;
+  error(): string;
+}
+
+/** Replaces every saved bot and thread choice the policy no longer allows with its default, clearing the continuation
+ * that belonged to the old route. Transcripts, names, titles and visibility are never touched. An empty catalog leaves
+ * every choice empty: no personal engine is ever substituted. */
+export function reconcileModelSelections(
+  policy: Pick<ManagedModelPolicy, "select">,
+  store: ReconcileStore,
+  options: { routeChanged?: boolean } = {},
+): void {
+  for (const bot of store.bots) {
+    const previousDefault = bot.modelSelection;
+    const nextDefault = policy.select(previousDefault);
+    for (const task of store.tasks(bot.id)) {
+      const current = task.modelSelection ?? previousDefault;
+      const next = policy.select(current);
+      const changed = options.routeChanged === true || JSON.stringify(next) !== JSON.stringify(current);
+      if (changed) store.patchTask(bot.id, task.threadId, {
+        ...(task.modelSelection ? { modelSelection: next } : {}), ...RESET_CONTINUATION,
+      });
+    }
+    if (JSON.stringify(previousDefault) !== JSON.stringify(nextDefault)) store.patchBot(bot.id, { modelSelection: nextDefault });
+  }
+}
 const nativeModels = z.array(z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/)).max(100);
 const catalogSchema = z.object({
   anthropic: nativeModels,
@@ -68,9 +112,7 @@ export function hostedModelPolicy(dataDirectory: string, env: NodeJS.ProcessEnv 
   return {
     allows, select,
     resetTask(previous: ModelSelection, next: ModelSelection) {
-      return previous.instanceId !== next.instanceId || previous.model !== next.model
-        ? { resumeCursors: {}, lastInstanceId: undefined, rewound: true, lastContextModel: undefined, appliedCompactionId: undefined }
-        : {};
+      return modelRouteReset(previous, next);
     },
     error: () => Object.values(catalog).some(models => models.length) ? HOSTED_MODEL_SELECTION_ERROR : HOSTED_MODEL_SETUP_ERROR,
     configs(): InstanceConfigMap {
@@ -115,21 +157,8 @@ export function hostedModelPolicy(dataDirectory: string, env: NodeJS.ProcessEnv 
     reconcile(store: Store) {
       const marker = join(dataDirectory, "hosted-model-policy.json");
       const identity = JSON.stringify({ version: 1, admin: hosted.admin.origin, workspace: hosted.workspace });
-      const changedRoute = !existsSync(marker) || readFileSync(marker, "utf8") !== identity;
-      for (const bot of store.bots) {
-        const previousDefault = bot.modelSelection;
-        const nextDefault = select(previousDefault);
-        for (const task of store.tasks(bot.id)) {
-          const current = task.modelSelection ?? previousDefault;
-          const next = select(current);
-          const changed = JSON.stringify(next) !== JSON.stringify(current);
-          if (changed || changedRoute) store.patchTask(bot.id, task.threadId, {
-            ...(task.modelSelection ? { modelSelection: next } : {}), resumeCursors: {}, lastInstanceId: undefined, rewound: true,
-            lastContextModel: undefined, appliedCompactionId: undefined,
-          });
-        }
-        if (JSON.stringify(previousDefault) !== JSON.stringify(nextDefault)) store.patchBot(bot.id, { modelSelection: nextDefault });
-      }
+      const routeChanged = !existsSync(marker) || readFileSync(marker, "utf8") !== identity;
+      reconcileModelSelections({ select }, store, { routeChanged });
       writeFileAtomic(marker, identity, { mode: 0o600 });
     },
   };

@@ -9,6 +9,7 @@ import { ClaudeSignIn } from "./ClaudeSignIn";
 import { RefreshEngines } from "./EngineLibrary";
 import { AppCopyNotice, AppCopySetup } from "./EngineAppCopy";
 import { installCommandFor, noteAppCopySwitch } from "@/state/engine-install";
+import { isProductWorkspace } from "@/lib/product-workspace";
 
 export { installCommandFor };
 import { keyEntry, keyForInstance, type KeyId } from "./keys/key-catalog";
@@ -504,6 +505,16 @@ export function EngineSetup({
   onHost?: boolean;
 }) {
   const { state } = useStore();
+  // A managed account has no engine to install, no account to sign in to and no key to paste: the server refuses all
+  // three, so this card never offers them, wherever an older screen still draws it.
+  if (isProductWorkspace(state.config?.productManaged)) {
+    return (
+      <div data-engine-setup-product className={cn(!unframed && "rounded-xl border border-hairline/40 bg-control/30 p-3", className)}>
+        <div className="text-[13px] font-semibold text-ink">{t("product.modelManaged")}</div>
+        <p className="mt-1 text-[12px] leading-relaxed text-ink-secondary">{t("product.noModel")}</p>
+      </div>
+    );
+  }
   const cloudHome = state.config?.cloudHome === true;
   const install = instance.install;
   const installCommand = installCommandFor(install);

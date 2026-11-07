@@ -2,8 +2,8 @@
 import { app, utilityProcess } from "electron";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
-import path from "node:path";
 import { resolveCompanionEntry } from "./companion-entry.mjs";
+import { createCompanionStorage, sidecarEnvironment } from "./companion-storage.mjs";
 import {
   cleanupCompanionOriginEndpoint,
   companionOriginHealth,
@@ -31,49 +31,37 @@ const entryPoint = (resourcesPath) =>
     exists: fs.existsSync,
   });
 
-const settingsFile = () => path.join(app.getPath("userData"), "companion-settings.json");
+const storage = createCompanionStorage({ userData: () => app.getPath("userData"), busy: () => proc !== null });
 
-function companionSettings() {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(settingsFile(), "utf8"));
-    return { enabled: parsed?.enabled === true, keepAwake: parsed?.keepAwake === true };
-  } catch {
-    return { enabled: false, keepAwake: false };
-  }
+/**
+ * Point this launch's companion settings and the sidecar's paired fleet at one account folder, or null for the app's
+ * own userData. Product main calls this before an account's runtime loads and again only while the sidecar is stopped;
+ * nothing here touches Electron's app paths.
+ */
+export function configureCompanionStorage(root = null) {
+  storage.configure(root);
+}
+
+/** The sidecar's account-local folder, or null to leave the sidecar's own default alone. */
+export function companionSidecarDirectory() {
+  return storage.sidecarDirectory();
 }
 
 /** Anything unreadable is "off": the flag opens a network listener, so it fails closed. */
 export function companionEnabledAtRest() {
-  return companionSettings().enabled;
+  return storage.enabledAtRest();
 }
 
 export function companionKeepAwakeAtRest() {
-  return companionSettings().keepAwake;
+  return storage.keepAwakeAtRest();
 }
-
-function rememberCompanionSettings(patch) {
-  const file = settingsFile();
-  const temporary = `${file}.${process.pid}.tmp`;
-  try {
-    const next = { ...companionSettings(), ...patch };
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(temporary, JSON.stringify(next, null, 2));
-    fs.renameSync(temporary, file);
-  } catch {
-    try {
-      fs.unlinkSync(temporary);
-    } catch {
-    }
-  }
-}
-
 
 export function rememberCompanionEnabled(enabled) {
-  rememberCompanionSettings({ enabled });
+  storage.rememberEnabled(enabled);
 }
 
 export function rememberCompanionKeepAwake(keepAwake) {
-  rememberCompanionSettings({ keepAwake });
+  storage.rememberKeepAwake(keepAwake);
 }
 
 async function control(method, urlPath, body, { timeoutMs = 4_000 } = {}) {
@@ -125,14 +113,16 @@ const serialize = (work) => {
 
 /** Resolves with the panel's state; a failed start is a message, never a thrown error. */
 export function startCompanion(options) {
-  return serialize(() => start(options));
+  // Read once, here: a start that waits its turn must not pick up a later account's folder.
+  const directory = companionSidecarDirectory();
+  return serialize(() => start(options, directory));
 }
 
 export function stopCompanion() {
   return serialize(() => stop());
 }
 
-async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = null, secretPublicKey = null, log }) {
+async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = null, secretPublicKey = null, log }, directory) {
   if (proc) return companionState();
   lastError = null;
   const resolved = entryPoint(resourcesPath);
@@ -159,15 +149,7 @@ async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = nu
   };
 
   // Never inherit an endpoint from the launch environment: main passes one only after verifying the connector.
-  const childEnvironment = { ...process.env };
-  delete childEnvironment.OMB_COMPANION_HOSTED_URL;
-  delete childEnvironment.OMB_COMPANION_INTERNAL_ORIGIN;
-  delete childEnvironment.OMB_PHONE_SECRET_PUBLIC_KEY;
-  if (hostedUrl) childEnvironment.OMB_COMPANION_HOSTED_URL = hostedUrl;
-  childEnvironment.OMB_COMPANION_INTERNAL_ORIGIN = allocatedOrigin.socketPath;
-  if (/^[A-Za-z0-9_-]{87}$/.test(String(secretPublicKey ?? ""))) {
-    childEnvironment.OMB_PHONE_SECRET_PUBLIC_KEY = secretPublicKey;
-  }
+  const childEnvironment = sidecarEnvironment({ base: process.env, hostedUrl, secretPublicKey, internalOrigin: allocatedOrigin.socketPath, directory });
 
   controlToken = randomBytes(32).toString("base64url");
   let child;

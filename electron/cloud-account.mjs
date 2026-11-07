@@ -1,4 +1,5 @@
-import { createManagedDesktopStore, retryDelay, unreadableRecord } from "./managed-desktop.mjs";
+import { unreadableRecord } from "./encrypted-record-store.mjs";
+import { retryDelay } from "./managed-desktop.mjs";
 import { CLOUD_MACHINE_CONNECTABLE, cloudUnreachableText, parseCloudCredit, parseCloudOffer, parseCloudPurchase, parseCloudSummary, parseCloudTeams, parseCloudRoom, parseCloudTrial, parseCloudUsage, parsePairingGrant, parsePublicOffer, withoutTrial } from "./cloud-home.mjs";
 import { CLOUD_ID, CLOUD_SWATCHES, cleanCloudListName, ORGANIZATION_BLOCKS, otherOwnClouds, ownCloud, parseCloudList, parseCloudRenewal, parseOrganizations, releaseVersion } from "./cloud-list.mjs";
 import { planTeam, teamPlan } from "./cloud-team-plan.mjs";
@@ -74,7 +75,6 @@ export function cloudOrigin(value = CLOUD_ORIGIN, fixture = false) {
   }
   return value;
 }
-export const createCloudAccountStore = createManagedDesktopStore;
 // oxlint-disable-next-line no-control-regex
 const text = (value, max) => typeof value === "string" && value.length > 0 && value.length <= max && !/[\x00-\x1f\x7f]/.test(value);
 const timestamp = value => Number.isSafeInteger(value) && value > 0;

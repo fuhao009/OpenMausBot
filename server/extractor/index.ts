@@ -4,20 +4,27 @@
 // both helper models: decider.enabled.
 import type { AppConfig } from "../config.ts";
 import { helpersOn, includedAccount, openrouterAccount, sharedOpenRouterKey, workersAiAccount, type HelperAccount } from "../decider/accounts.ts";
+import { productHelper, productHelperMode } from "../decider/product.ts";
 import type { DeciderFailure } from "../decider/types.ts";
 import { EXTRACT_KEY_CHECK, extractRequestProblem, relayAcceptsExtract } from "./contract.ts";
 import { extractWithOpenRouter, extractWithRelay, OPENROUTER_EXTRACT_MODEL } from "./remote.ts";
+import { extractWithProductHelper } from "../decider/product.ts";
 import type { ExtractBackendRequest, ExtractBackendResult, ExtractInput, ExtractOptions, ExtractResult, ExtractSeam, FieldSchema } from "./types.ts";
 import { extractWithWorkersAi } from "./workers-ai.ts";
 
 export type { ExtractInput, ExtractResult, ExtractSeam, FieldSchema } from "./types.ts";
+export { setProductHelperMode, setProductHelperState, type ProductHelper } from "../decider/product.ts";
 
 export const DEFAULT_EXTRACT_TIMEOUT_MS = 8_000;
 const MIN_TIMEOUT_MS = 50;
 const MAX_TIMEOUT_MS = 30_000;
 
-/** In order: own Workers AI, Cloud's included relay (only for requests it accepts), OpenRouter, nothing. */
+/** In order: the managed account (product mode only), own Workers AI, Cloud's included relay (only for requests it
+ * accepts), OpenRouter, nothing. */
 export function extractorAccount(cfg: AppConfig, request?: { seam: ExtractSeam; fields: FieldSchema; input: ExtractInput }): HelperAccount | null {
+  if (productHelper()) return { provider: "product", token: "", api: "", included: false };
+  // Product mode has no local fallback, with or without an installed callback: extraction waits for the account.
+  if (productHelperMode()) return null;
   const candidates = [workersAiAccount(cfg), includedAccount(), openrouterAccount(cfg)];
   return candidates.find((account): account is HelperAccount =>
     Boolean(account) && !(account!.included && request && !relayAcceptsExtract(request.seam, request.fields, request.input))) ?? null;
@@ -28,9 +35,14 @@ export function extractorReady(cfg: AppConfig): boolean {
 }
 
 /** Settings: which backend reads, never a key. */
-export function describeExtractor(cfg: AppConfig): { provider?: HelperAccount["provider"]; included?: true; ready: boolean } {
+export function describeExtractor(cfg: AppConfig): { provider?: HelperAccount["provider"]; included?: true; product?: true; ready: boolean } {
   const account = extractorAccount(cfg);
-  return { ...(account ? { provider: account.provider } : {}), ...(account?.included ? { included: true as const } : {}), ready: helpersOn(cfg, account) };
+  return {
+    ...(account ? { provider: account.provider } : {}),
+    ...(account?.included ? { included: true as const } : {}),
+    ...(account?.provider === "product" ? { product: true as const } : {}),
+    ready: helpersOn(cfg, account),
+  };
 }
 
 /** The OpenRouter model extraction uses: the decider's own when it is a chat model, else a default one. */
@@ -83,7 +95,10 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
       ...(provider === "openrouter" ? { model: openrouterModel(cfg) } : {}),
       seam, fields, input, referenceDate: today(deps.timeZone?.()), signal: controller.signal, fetch: fetchImpl,
     };
-    const backend = provider === "workersai" ? extractWithWorkersAi : provider === "openrouter" ? extractWithOpenRouter : extractWithRelay;
+    const backend = provider === "product" ? extractWithProductHelper
+      : provider === "workersai" ? extractWithWorkersAi
+      : provider === "openrouter" ? extractWithOpenRouter
+      : extractWithRelay;
     const started = now();
     let outcome: ExtractBackendResult;
     try {
@@ -107,7 +122,7 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
         const cfg = deps.config();
         if (cfg.decider?.provider === "off") return { ok: false, reason: "disabled" };
         const any = extractorAccount(cfg);
-        if (!any) return { ok: false, reason: cfg.decider?.enabled === true ? "no_key" : "disabled" };
+        if (!any) return { ok: false, reason: productHelperMode() || cfg.decider?.enabled === true ? "no_key" : "disabled" };
         if (!helpersOn(cfg, any)) return { ok: false, reason: "disabled" };
         if (seam === "inboxTriage" && cfg.decider?.jobs?.inboxTriage === false) return { ok: false, reason: "job_off" };
         const account = extractorAccount(cfg, { seam, fields, input });

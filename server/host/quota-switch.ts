@@ -2,7 +2,7 @@ import type { ResolvedSender } from "../../shared/wire.ts";
 import type { InstanceConfigMap } from "../contracts.ts";
 import type { DataContext } from "../data-context.ts";
 import type { ProviderRegistry } from "../harness/registry.ts";
-import type { hostedModelPolicy } from "../hosted-models.ts";
+import type { ManagedModelPolicy } from "../hosted-models.ts";
 import { resolvePeerComms, type ApprovalBus } from "../peer-approval.ts";
 import { createQuotaSwitch, type QuotaRequest, type QuotaSwitchDeps } from "../quota-switch.ts";
 import type { BotRecord, Message } from "../store.ts";
@@ -12,7 +12,7 @@ import { resolveYourComputerAsk } from "../your-computer-consent.ts";
 export interface QuotaSwitchHostDeps extends Pick<QuotaSwitchDeps, "store" | "coordinator" | "turnStops" | "takeover"> {
   registry: Pick<ProviderRegistry, "instances" | "access">;
   approvalBus: ApprovalBus;
-  hostedModels: ReturnType<typeof hostedModelPolicy>;
+  hostedModels: Pick<ManagedModelPolicy, "resetTask"> | null;
   providerConfigs(): InstanceConfigMap;
   policyModelRefusal(instance: { instanceId: string; driverKind: string }): string | undefined;
   checkedTaskModelSwitch(

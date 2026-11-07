@@ -28,6 +28,7 @@ import { modelMenuKey, modelMenuPointerMove } from "./model-menu-keys";
 import { offersReasoning, useRefocusAfterPick, variantChoices } from "./model-picker-reasoning";
 import { useAdvancedMode } from "@/lib/interface-mode";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
+import { isProductWorkspace } from "@/lib/product-workspace";
 
 import { t } from "@/lib/i18n";
 import { COMPACT_SQUARE } from "@/lib/compact-chip";
@@ -237,6 +238,9 @@ export function ModelPicker({
   const [scope, setScope] = useState<"bot" | "thread">("thread");
   const advanced = useAdvancedMode();
   const ownerOrAdmin = useOwnerOrAdmin();
+  // A managed account's models are the account's: there is no engine to install, provider to sign in to or key to add,
+  // and the server refuses all three. The picker offers the allowed models and says when none is available.
+  const productMode = isProductWorkspace(state.config?.productManaged);
   // A guest changes only their own conversation's model, never the shared bot's default; thread-only until authority loads.
   const simpleUpdatesBotDefault = ownerOrAdmin === true;
   const [fullView, setFullView] = useState(false);
@@ -702,7 +706,7 @@ export function ModelPicker({
       )}
       <div className="flex min-h-0 min-w-0 flex-1">
         {pickerInstances.length > 0 && <ModelEngineRail instances={pickerInstances} selectedInstance={railInstance} claudeInstance={claudeRailInstance} openaiInstance={openaiRailInstance} onSelect={selectRail}
-          onAddApiKeys={remote ? undefined : openApiKeys} />}
+          onAddApiKeys={remote || productMode ? undefined : openApiKeys} />}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
           {threadId && (
@@ -770,7 +774,8 @@ export function ModelPicker({
                 {railInstance.snapshot.chatgptPlan && railInstance.snapshot.authenticated && (
                   <ChatGptPlanStatus key={railInstance.instanceId} instanceId={railInstance.instanceId} />
                 )}
-                {railInstance.access === "api"
+                {productMode ? <div className="mt-0.5 text-[12px] leading-4 text-ink-tertiary">{t("product.modelManaged")}</div>
+                  : railInstance.access === "api"
                   ? <ApiKeyHint instance={railInstance} />
                   : pane === "custom" && <div className="mt-0.5 text-[12px] leading-4 text-ink-tertiary">{t("model.localHint")}</div>}
               </div>
@@ -796,6 +801,11 @@ export function ModelPicker({
                 <div data-policy-blocked className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-3 pt-1 text-[13px] leading-[18px] text-ink-secondary">
                   <p className="font-medium text-ink">{t("policy.managedBy", { organization: railInstance.policy.organizationName })}</p>
                   <p className="mt-1">{t(railInstance.policy.team ? "policy.teamModelBlocked" : "policy.modelBlocked", { organization: railInstance.policy.organizationName })}</p>
+                </div>
+              ) : blocked && productMode ? (
+                <div data-product-no-model className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-3 pt-1 text-[13px] leading-[18px] text-ink-secondary">
+                  <p className="text-ink">{t("product.noModel")}</p>
+                  <p className="mt-1">{t("product.modelManaged")}</p>
                 </div>
               ) : blocked ? (
                 <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-1">
@@ -900,7 +910,7 @@ export function ModelPicker({
                 />
               )}
 
-              {pane === "main" && offersLocalModels(railInstance, custom.length) && (
+              {pane === "main" && !productMode && offersLocalModels(railInstance, custom.length) && (
                 <button
                   type="button"
                   data-model-local-entry
@@ -925,9 +935,9 @@ export function ModelPicker({
               )}
             </>
           ) : (
-            <div className="px-3.5 py-5 text-[13px] leading-[18px] text-ink-secondary">{t("model.noProviders")}</div>
+            <div className="px-3.5 py-5 text-[13px] leading-[18px] text-ink-secondary">{t(productMode ? "product.noModel" : "model.noProviders")}</div>
           )}
-          {!remote && (
+          {!remote && !productMode && (
             <div className="flex h-9 shrink-0 items-center gap-1 border-t-[0.5px] border-ink/10 px-1.5">
               <button type="button" onClick={openEngines}
                 className="h-7 min-w-0 flex-1 truncate rounded-md px-2 text-left text-[12px] leading-4 text-ink-secondary hover:bg-ink/[0.06] hover:text-ink">
@@ -989,11 +999,12 @@ export function ModelPicker({
               else next.delete(instance.instanceId);
               return next;
             });
-            if (opening) lookForLocalIn(instance);
+            if (opening && !productMode) lookForLocalIn(instance);
           }}
           onSetUp={openFull}
           onCheckAgain={(instance) => refreshModels(instance.instanceId)}
-          onManage={remote ? undefined : openEngines}
+          onManage={remote || productMode ? undefined : openEngines}
+          product={productMode}
           onResetVariant={resetVariant}
         />
       ) : fullPane}

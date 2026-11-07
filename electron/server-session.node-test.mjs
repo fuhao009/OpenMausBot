@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { EventEmitter } from "node:events";
 import { createServer } from "node:net";
 import test from "node:test";
 
@@ -58,17 +58,22 @@ test("no session but the app window's may reach the server, in any spelling of t
     assert.equal(await request(viewer, url), false, url);
   }
   created(defaultSession);
-  assert.equal(defaultSession.hooks.request, undefined, "the app window's own session is never cancelled");
+  assert.equal(defaultSession.hooks.request, null, "the app window's own session is never cancelled");
 });
 
-test("every session main creates gets the guard before it loads anything", () => {
-  const main = readFileSync(new URL("./main.mjs", import.meta.url), "utf8");
-  const install = main.indexOf("installServerSessions({");
-  assert.ok(install > 0);
-  assert.equal(main.indexOf("installServerSessions({", install + 1), -1);
-  assert.ok(main.indexOf("await showHome();", install) > install, "installed before the first window");
-  assert.doesNotMatch(main, /onBeforeSendHeaders/, "the owner header is added in one place");
-  assert.equal(targetsServer(`http://2130706433:${SERVER_PORT}/`, SERVER_PORT), true);
+test("switching account partitions revokes the old owner and unblocks the new owner", async () => {
+  const app = new EventEmitter();
+  const first = fakeSession();
+  const second = fakeSession();
+  installServerSessions({ app, defaultSession: first, serverPort: () => SERVER_PORT, ownerToken: () => "first" });
+  app.emit("session-created", second);
+  assert.equal(await request(second, `http://127.0.0.1:${SERVER_PORT}/`), true);
+  installServerSessions({ app, defaultSession: second, serverPort: () => SERVER_PORT, ownerToken: () => "second" });
+  assert.equal(second.hooks.request, null);
+  assert.equal(first.hooks.headers, null);
+  assert.equal(await request(first, `http://127.0.0.1:${SERVER_PORT}/`), true);
+  assert.equal((await sendHeaders(second, `http://127.0.0.1:${SERVER_PORT}/`))["X-OpenMausBot-Desktop-Owner"], "second");
+  assert.equal(app.listenerCount("session-created"), 1);
 });
 
 test("the server hears about every port this app listens on, and about new ones as they open", async () => {

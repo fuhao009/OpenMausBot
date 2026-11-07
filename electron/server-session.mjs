@@ -27,11 +27,20 @@ export function targetsServer(url, serverPort) {
   }
 }
 
+const sessionOwners = new WeakMap();
+
 /**
  * `ownerToken()` is the desktop capability, or null while there is none to send. Chromium adds the header below
  * JavaScript, on http: and ws: alike, so a shell using curl cannot impersonate the person at the desktop.
  */
 export function installServerSessions({ app, defaultSession, serverPort, ownerToken }) {
+  const previous = sessionOwners.get(app);
+  if (previous) {
+    app.removeListener("session-created", previous.listener);
+    previous.session.webRequest.onBeforeSendHeaders(null);
+    previous.session.webRequest.onBeforeRequest((details, callback) => callback({ cancel: targetsServer(details.url, serverPort()) }));
+  }
+  defaultSession.webRequest.onBeforeRequest(null);
   defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     const token = ownerToken();
     let owns = false;
@@ -42,10 +51,12 @@ export function installServerSessions({ app, defaultSession, serverPort, ownerTo
     } catch {}
     callback({ requestHeaders: owns ? { ...details.requestHeaders, [DESKTOP_MUTATION_HEADER]: token } : details.requestHeaders });
   });
-  app.on("session-created", (created) => {
+  const listener = (created) => {
     if (created === defaultSession) return;
     created.webRequest.onBeforeRequest((details, callback) => callback({ cancel: targetsServer(details.url, serverPort()) }));
-  });
+  };
+  app.on("session-created", listener);
+  sessionOwners.set(app, { listener, session: defaultSession });
 }
 
 const ownPorts = new Set();

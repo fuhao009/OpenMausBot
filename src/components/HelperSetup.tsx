@@ -7,6 +7,7 @@ import { t } from "@/lib/i18n";
 import { phonePairingSettingsAction } from "@/lib/phone-pairing";
 import type { LocaleKey } from "@/locales";
 import { useStore, type Action } from "@/state/store";
+import { isProductWorkspace } from "@/lib/product-workspace";
 import { engineReady } from "./EngineLibrary";
 import { ConnectAiDialog } from "./onboarding/ConnectAi";
 import { useWelcomeAi } from "./onboarding/welcome-ai";
@@ -20,9 +21,10 @@ const STEPS: Record<SetupStep, { label: LocaleKey; icon: LucideIcon }> = {
 };
 
 /** Each step opens the app's own flow for it. */
-export function setupAction(step: SetupStep): Action {
+export function setupAction(step: SetupStep, productManaged = false): Action {
   switch (step) {
-    case "ai": return { type: "toggleAppSettings", open: true, section: "engines" };
+    // A managed account's AI is the account's; there is no engine page to open, only its own account page.
+    case "ai": return { type: "toggleAppSettings", open: true, section: productManaged ? "account" : "engines" };
     case "bots": return { type: "newBot" };
     case "apps": return { type: "togglePlugins", open: true, surface: "apps" };
     case "phone": return phonePairingSettingsAction();
@@ -33,13 +35,16 @@ export function setupAction(step: SetupStep): Action {
 /** What is left to set up, under MausBot's intro on a new install (Advanced mode). */
 export function HelperSetup() {
   const { state, dispatch } = useStore();
-  const steps = setupSteps({
+  const productManaged = isProductWorkspace(state.config?.productManaged);
+  const collected = setupSteps({
     aiReady: state.instances.some(engineReady),
     ownBots: state.bots.filter((bot) => !bot.hidden && !bot.defaultBot).length,
     onCloud: state.config?.cloudHome === true,
     team: Boolean(state.config?.team),
     remote: typeof window !== "undefined" && window.ogb?.remoteClient?.active === true,
   });
+  // No managed-model step (there is nothing to install) and no Cloud step (this build is not the personal Cloud's).
+  const steps = productManaged ? collected.filter((step) => step !== "ai" && step !== "cloud") : collected;
   if (!steps.length) return null;
   return (
     <div role="group" aria-label={t("helperIntro.setup")} data-helper-setup="" className="flex max-w-full flex-col items-start gap-1.5">
@@ -50,7 +55,7 @@ export function HelperSetup() {
           return (
             <button key={step} type="button" data-helper-step={step} onClick={() => {
               if (step === "cloud") track("onboarding_cloud", { action: "start_trial" });
-              dispatch(setupAction(step));
+              dispatch(setupAction(step, productManaged));
             }}
               className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-accent/20">
               <Icon size={14} aria-hidden="true" className="text-accent" />{t(label)}
@@ -82,16 +87,19 @@ export function chipAction(chip: Exclude<IntroChip, "ai">): Action {
 
 function IntroConnectAi({ onClose }: { onClose: () => void }) {
   const { state } = useStore();
+  if (isProductWorkspace(state.config?.productManaged)) return null;
   return <ConnectAiDialog tested={useWelcomeAi(state.instances, true)} onClose={onClose} />;
 }
 
 /** What is still missing, as chips under MausBot's follow-up (Simple mode): at most INTRO_CHIPS, and one that was tapped
  * leaves for the next. */
 export function IntroChips({ chips }: { chips: readonly IntroChip[] }) {
-  const { dispatch } = useStore();
+  const { state, dispatch } = useStore();
+  const productManaged = isProductWorkspace(state.config?.productManaged);
+  const offered = productManaged ? chips.filter((chip) => chip !== "ai" && chip !== "cloud") : chips;
   const [tapped, setTapped] = useState<ReadonlySet<IntroChip>>(new Set());
   const [connecting, setConnecting] = useState(false);
-  const shown = chips.filter((chip) => !tapped.has(chip)).slice(0, INTRO_CHIPS);
+  const shown = offered.filter((chip) => !tapped.has(chip)).slice(0, INTRO_CHIPS);
   const tap = (chip: IntroChip) => {
     setTapped((now) => new Set([...now, chip]));
     if (chip === "ai") return setConnecting(true);

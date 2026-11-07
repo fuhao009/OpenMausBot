@@ -1,4 +1,5 @@
-import { retryDelay, unreadableRecord } from "./managed-desktop.mjs";
+import { unreadableRecord } from "./encrypted-record-store.mjs";
+import { retryDelay } from "./managed-desktop.mjs";
 
 const DAY = 24 * 60 * 60_000;
 const RETRY = 60 * 60_000;

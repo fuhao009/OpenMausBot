@@ -5,6 +5,7 @@ import { isLoopback } from "../provider-key-check.ts";
 import { lmStudioV1Catalog } from "./local-inject.ts";
 import { isContextName, isOllama, serveWithWindow } from "./ollama-context.ts";
 import { createOpenAIChatRuntime } from "./openai-chat.ts";
+import { pinnedTransport } from "./pinned-trust.ts";
 import {
   freeDefault, freeFallbackCatalog, freeLabel, freeToolModels, freeToolsFirst, isOpenRouterOrigin, openRouterFreeTier,
   withOpenRouterTurns, type OpenRouterModelRow,
@@ -68,6 +69,9 @@ export interface OpenAICompatConfig {
   managedModels?: string[];
   /** How long a turn waits for the next piece of a reply before giving up; unset follows the server's default. */
   replyWaitMinutes?: number;
+  /** Operator-chosen protocol per model id. A listed model starts on that API with or without tools and never
+   * negotiates to the other one; unlisted models keep the automatic route. */
+  modelProtocols?: Record<string, "chat" | "responses">;
 }
 
 export const MAX_REPLY_WAIT_MINUTES = 60;
@@ -112,6 +116,12 @@ function decodeConfig(raw: unknown): OpenAICompatConfig {
   const config = (raw ?? {}) as Record<string, unknown>;
   if (config.tools !== undefined && typeof config.tools !== "boolean") throw new Error("tools must be a boolean");
   if (config.managedModels !== undefined && (!Array.isArray(config.managedModels) || !config.managedModels.length || config.managedModels.some(model => typeof model !== "string" || !model.trim()))) throw new Error("Invalid managed models.");
+  const protocols = config.modelProtocols === undefined ? undefined : config.modelProtocols;
+  if (protocols !== undefined && (!protocols || typeof protocols !== "object" || Array.isArray(protocols))) throw new Error("modelProtocols must map model ids to \"chat\" or \"responses\"");
+  if (protocols) for (const [model, protocol] of Object.entries(protocols)) {
+    if (!model.trim()) throw new Error("modelProtocols needs a model id for every entry");
+    if (protocol !== "chat" && protocol !== "responses") throw new Error(`modelProtocols["${model}"] must be "chat" or "responses"`);
+  }
   const ownKey = typeof config.apiKeyEnv === "string" && OWN_KEY_ENVS.has(config.apiKeyEnv);
   if (config.catalog !== undefined && config.catalog !== "openai" && config.catalog !== "lmstudio") throw new Error("catalog must be \"openai\" or \"lmstudio\"");
   if (config.replyWaitMinutes !== undefined && !isReplyWait(config.replyWaitMinutes)) throw new Error(`replyWaitMinutes must be a whole number from 1 to ${MAX_REPLY_WAIT_MINUTES}`);
@@ -120,6 +130,7 @@ function decodeConfig(raw: unknown): OpenAICompatConfig {
     ...(config.tools !== undefined ? { tools: config.tools as boolean } : {}),
     ...(config.managedModels ? { managedModels: config.managedModels as string[] } : {}),
     ...(isReplyWait(config.replyWaitMinutes) ? { replyWaitMinutes: config.replyWaitMinutes } : {}),
+    ...(protocols ? { modelProtocols: { ...(protocols as Record<string, "chat" | "responses">) } } : {}),
     url: (typeof config.url === "string" && config.url ? config.url : envUrl || "https://openrouter.ai/api/v1")
       .replace(/\/+$/, ""),
     apiKeyEnv: typeof config.apiKeyEnv === "string" && config.apiKeyEnv
@@ -155,16 +166,25 @@ export const OpenAICompatDriver: ProviderDriver<OpenAICompatConfig> = {
 
   async create(input) {
     const { config } = input;
+    // A managed credential is read per request and is the only source: a product build must not fall back to a stray
+    // environment key or to its (empty) instance environment.
+    const managed = input.requestCredential;
+    // A parent-pinned certificate applies to this deployment's own origin only, and every request this instance makes
+    // goes through that transport; unset means the process fetch, exactly as before.
+    const pinnedFetch = input.requestTrust ? pinnedTransport(input.requestTrust, config.url) : undefined;
+    const transport = pinnedFetch ?? fetch;
     // An instance naming its own key variable reads only that one: the workspace key must not reach its host.
     const ownKeyVariable = config.apiKeyEnv !== DEFAULT_KEY_ENV;
-    const apiKey =
+    const apiKey = managed ? "" :
       config.key ??
       input.environment[config.apiKeyEnv] ??
       (ownKeyVariable ? undefined : input.environment[DEFAULT_KEY_ENV]) ??
       process.env[config.apiKeyEnv] ??
       (ownKeyVariable ? undefined : process.env[DEFAULT_KEY_ENV]) ??
       "";
-    const missingKey = !ownKeyVariable || OWN_KEY_ENVS.has(config.apiKeyEnv)
+    const managedMessage = "The account's AI access is not available right now. Check your account status, then try again.";
+    const missingKey = managed ? managedMessage
+      : !ownKeyVariable || OWN_KEY_ENVS.has(config.apiKeyEnv)
       ? "No API key — open Settings → API keys."
       : `no API key — set ${config.apiKeyEnv} or add it to the instance config`;
     const seeded = config.catalog === "openai" ? OPENAI_MODELS : DEFAULT_MODELS;
@@ -189,7 +209,7 @@ export const OpenAICompatDriver: ProviderDriver<OpenAICompatConfig> = {
         const nativeUrl = config.catalog === "lmstudio" ? loopbackLmStudioV1Url(config.url) : null;
         if (nativeUrl) {
           try {
-            const native = await fetch(nativeUrl, {
+            const native = await transport(nativeUrl, {
               headers: { authorization: `Bearer ${apiKey}` },
               signal: AbortSignal.timeout(8_000),
             });
@@ -216,7 +236,7 @@ export const OpenAICompatDriver: ProviderDriver<OpenAICompatConfig> = {
             // Native LM Studio catalog unavailable; try OpenAI-compatible /models below.
           }
         }
-        const response = await fetch(`${config.url}/models`, {
+        const response = await transport(`${config.url}/models`, {
           headers: { authorization: `Bearer ${apiKey}` },
           signal: AbortSignal.timeout(8_000),
         });
@@ -253,7 +273,7 @@ export const OpenAICompatDriver: ProviderDriver<OpenAICompatConfig> = {
             url.pathname = url.pathname.replace(/\/v1\/?$/, "").replace(/\/$/, "") + "/props";
             url.searchParams.set("model", String(selected.id));
             url.searchParams.set("autoload", "false");
-            const props = await fetch(url, { redirect: "error", headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(3_000) });
+            const props = await transport(url, { redirect: "error", headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(3_000) });
             if (!props.ok) continue;
             const json = await props.json() as { default_generation_settings?: { n_ctx?: unknown } };
             const window = positiveTokens(json.default_generation_settings?.n_ctx);
@@ -278,8 +298,8 @@ export const OpenAICompatDriver: ProviderDriver<OpenAICompatConfig> = {
 
     const origin = onThisNetwork(config.url) ? config.url.replace(/\/v1$/, "") : null;
     const servedModel = origin ? async (model: string) => {
-      if (!await isOllama(origin)) return model;
-      const served = await serveWithWindow(origin, model);
+      if (!await isOllama(origin, transport)) return model;
+      const served = await serveWithWindow(origin, model, transport);
       const option = served.window ? catalog.options.find((entry) => entry.id === model) : undefined;
       if (option) option.contextWindow = served.window;
       return served.model;
@@ -288,8 +308,11 @@ export const OpenAICompatDriver: ProviderDriver<OpenAICompatConfig> = {
     const runtime = createOpenAIChatRuntime({
       input,
       driverKind: DRIVER_KIND,
+      ...(pinnedFetch ? { fetchImpl: pinnedFetch } : {}),
       ...(servedModel ? { servedModel } : {}),
       apiKey,
+      ...(managed ? { requestCredential: managed } : {}),
+      ...(config.modelProtocols ? { modelProtocols: config.modelProtocols } : {}),
       apiUrl: config.url,
       tools: config.tools,
       computerUse: true,

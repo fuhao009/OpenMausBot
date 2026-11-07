@@ -14,6 +14,11 @@ model CLI, creates Pepper, and prints the backend, preview, and local test-page
 URLs. Open **only** the printed preview URL. Ctrl-C closes its native browsers,
 UI and harness, then removes its temporary data; the server log remains.
 
+The launcher permits only the printed preview host and port in the disposable
+server's browser egress allowlist, so its local test page can be opened without
+allowing other loopback services. The recovery hook matches the live stream's
+URL pathname, including streams with viewport or resume query parameters.
+
 1. The panel contains two browser-chrome rows and a live blank page. There is
    no “coming next” card. While the bot has the browser, nothing is sent until
    you interact or press **Take control**; hovering never takes it.

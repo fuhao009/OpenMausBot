@@ -1,5 +1,6 @@
 import { chmod, lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { verifyProductApp, isProductResourceTree } from "./product-release.mjs";
 import { LICENSE_FILES } from "./cua-linux-release.mjs";
 import {
   executableTarget,
@@ -110,10 +111,22 @@ async function thinMacPlatformTools(resources, arch) {
 // unsafe for a root-owned executable path after DEB/AppImage installation, so
 // repair and revalidate the exact tree after resources are copied and before
 // either artifact target is assembled.
+
+// The packaged .app is named after the build's productName: the upstream
+// distribution ships "OpenMausBot.app", while a managed product build ships
+// "OpenMausBot Product.app". Prefer electron-builder's own resolution, then
+// the context's product filename, and keep the upstream name only as the
+// fallback for bare unit fixtures.
+function macResourcesDir(context) {
+  const productFilename = context.packager?.appInfo?.productFilename;
+  const appName = `${productFilename || "OpenMausBot"}.app`;
+  return path.join(context.appOutDir, appName, "Contents", "Resources");
+}
+
 export default async function afterPack(context) {
   const resources = context.packager?.getResourcesDir?.(context.appOutDir) ?? (
     context.electronPlatformName === "darwin"
-      ? path.join(context.appOutDir, "OpenMausBot.app", "Contents", "Resources")
+      ? macResourcesDir(context)
       : path.join(context.appOutDir, "resources")
   );
   await validateCloudflared(resources, context.electronPlatformName, Boolean(context.packager));
@@ -131,6 +144,14 @@ export default async function afterPack(context) {
   }
   await validateDuckdb(resources, context.electronPlatformName, arch, Boolean(context.packager));
   if (context.electronPlatformName === "darwin") await thinMacPlatformTools(resources, arch);
+
+  // A managed product build carries product-service.json; its identity must be
+  // right before signing, and the upstream update feed must not survive. A
+  // normal build ships no such resource and is untouched here.
+  if (await isProductResourceTree(resources)) {
+    const appDir = context.electronPlatformName === "darwin" ? path.dirname(path.dirname(resources)) : path.dirname(resources);
+    await verifyProductApp({ appDir, resourcesDir: resources, removeFeed: true });
+  }
 
   if (context.electronPlatformName !== "linux") return;
 

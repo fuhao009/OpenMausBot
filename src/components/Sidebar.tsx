@@ -1,7 +1,7 @@
 import { OrganizationIdentity } from "./OrganizationIdentity";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch } from "react";
 import { createPortal } from "react-dom";
-import { Activity, Archive, Bot as BotIcon, Check, ChevronRight, ClipboardCopy, Crown, FolderPlus, Library, Loader2, MessageSquarePlus, MoreHorizontal, Pencil, Phone, Pin, PinOff, Plus, Search, TextQuote, Trash2, Users, X } from "lucide-react";
+import { Activity, Archive, Bot as BotIcon, Check, ChevronRight, ClipboardCopy, Crown, FolderPlus, Library, Loader2, MessageSquarePlus, MoreHorizontal, Pencil, Phone, Pin, PinOff, Plus, Puzzle, Search, TextQuote, Trash2, Users, X, Zap } from "lucide-react";
 import { api, useStore, formatTime, visibleMessages, currentTaskBot, botOpensTo, openBot, openThread, type Action, type AppState, type Bot, type BotProject, type Group, type InstanceInfo, type Message } from "@/state/store";
 import { approvalModeFor } from "../../shared/approval-mode";
 import { liveActivityLabel } from "@/lib/live-activity";
@@ -67,7 +67,11 @@ import { SidebarFooter } from "./SidebarFooter";
 import { SidebarPhoneBar } from "./SidebarPhoneBar";
 import { PhoneHero } from "./SidebarPhoneHero";
 import { SidebarProfileMenu } from "./SidebarProfileMenu";
-import { PHONE_LAYOUT, useMediaQuery } from "@/lib/use-media-query";
+import { PHONE_LAYOUT, PRODUCT_MID_LAYOUT, useMediaQuery } from "@/lib/use-media-query";
+import { isProductWorkspace } from "@/lib/product-workspace";
+import { formatPointsMicros, useProductAccount } from "@/lib/use-product-account";
+import type { ProductAccountState } from "../../shared/product-account";
+import { productName } from "@/lib/brand";
 import { GlassBar, GlassScrollFrame, GlassScroller } from "./GlassScrollFrame";
 import { DesktopWorkspaceSwitcher, endCloudHowTo } from "./DesktopWorkspaceSwitcher"; import { PlaceTint } from "./PlaceTint"; import { ChromeRailToggle } from "./ChromeRailToggle";
 import { useCloudOwner } from "./CloudOwner";
@@ -918,12 +922,78 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
   );
 });
 
+/** The product sidebar's foot: the verified account, the point balance the gateway holds, and one way into Settings → Account.
+ * No plan card, usage upsell or update row: a managed workspace's credit is its account points balance, and it has no
+ * purchase step. The account's own MausBot sits above the list, so nothing here competes with the bots. */
+function ProductSidebarFooter({ account }: { account: ProductAccountState }) {
+  const { state, dispatch } = useStore();
+  const email = account.user?.email ?? "";
+  const ai = account.ai;
+  const balance = ai ? formatPointsMicros(ai.availableMicroPoints) : null;
+  const label = [email, balance === null ? null : `${t("product.balance")} ${balance}`].filter(Boolean).join(" · ");
+  return (
+    <div data-sidebar-product-account className="px-3 pb-3 pt-2">
+      {/* Routines and the app store stay one click away: the account column keeps them as two quiet icons, not the
+          ordinary footer's Cloud plan cards and workspace tools. */}
+      <div className="mb-1.5 flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => dispatch({ type: "showRoutines", view: "list" })}
+          aria-pressed={state.activeView === "routines"}
+          title={t("sidebar.nav.automations")}
+          aria-label={t("sidebar.nav.automations")}
+          className="flex size-8 items-center justify-center rounded-lg text-ink-secondary hover:bg-raised/60 hover:text-ink"
+        >
+          <Zap size={16} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() => dispatch({ type: "togglePlugins", open: true })}
+          aria-pressed={state.pluginsOpen}
+          title={t("sidebar.nav.apps")}
+          aria-label={t("sidebar.nav.apps")}
+          className="flex size-8 items-center justify-center rounded-lg text-ink-secondary hover:bg-raised/60 hover:text-ink"
+        >
+          <Puzzle size={16} aria-hidden="true" />
+        </button>
+      </div>
+      <button
+        data-product-account-open
+        type="button"
+        onClick={() => dispatch({ type: "toggleAppSettings", open: true, section: "account" })}
+        title={label || t("product.account")}
+        aria-label={label ? `${t("product.account")}: ${label}` : t("product.account")}
+        className={cn(
+          "flex w-full min-w-0 items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors",
+          "hover:bg-raised/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+        )}
+      >
+        <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-full bg-raised text-[13px] font-semibold text-ink">
+          {email ? email.slice(0, 1).toUpperCase() : "·"}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col leading-4">
+          <span data-sidebar-product-email className="truncate text-[13px] font-medium text-ink">{email || t("product.account")}</span>
+          <span data-sidebar-product-balance className="truncate text-[12px] tabular-nums text-ink-secondary">
+            {ai
+              ? `${t("product.balance")} ${formatPointsMicros(ai.availableMicroPoints)}`
+              : t(account.runtime === "starting" ? "product.starting" : "product.pending")}
+          </span>
+        </span>
+      </button>
+    </div>
+  );
+}
+
 export function Sidebar({ open, onClose, collapseToIcons = false }: {
   open: boolean;
   onClose: () => void;
   collapseToIcons?: boolean;
 }) {
   const { state, dispatch } = useStore();
+  // A managed product workspace: fixed two/three-column widths, no workspace switcher or Cloud upsell in the sidebar,
+  // and one account line with its balance at the foot. Every ordinary layout below is left exactly as it was.
+  const product = isProductWorkspace(state.config?.productManaged);
+  const productAccount = useProductAccount();
   const now = useRelativeNow();
   const teamPeople = useTeamPeople();
   const cloudOwner = useCloudOwner(state.config?.cloudHome === true);
@@ -932,6 +1002,10 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
   const remoteClient = window.ogb?.remoteClient?.active === true;
   const { capabilities } = useDesktopCapabilities();
   const phone = useMediaQuery(PHONE_LAYOUT, false);
+  // The product list is an off-canvas drawer below 800px: it needs its own close control, and while it is shut it must
+  // be out of the tab order and the accessibility tree rather than merely translated away.
+  const productMid = useMediaQuery(PRODUCT_MID_LAYOUT, true);
+  const productDrawer = product && !productMid;
   const importReturnRef = useRef<HTMLButtonElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const [confirm, setConfirm] = useState<{ kind: BotConfirmKind; bot: Bot } | null>(null);
@@ -988,10 +1062,12 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
   } | null>(null);
   const [query, setQuery] = useState("");
   const storedDensity = useSidebarDensity();
-  const density = collapseToIcons ? "icons" : storedDensity;
-  const simple = !advanced && density !== "icons";
+  const density = collapseToIcons || product ? "comfortable" : storedDensity;
+  // A product account's list is always the plain list of bots and threads — never the tile grid or the search pill that
+  // simple mode swaps in — because its default bot is pinned above the list and the rest of the bots follow as rows.
+  const simple = !advanced && density !== "icons" && !product;
   const simpleDesk = simple && !phone;
-  const rail = !advanced && density === "icons";
+  const rail = !advanced && density === "icons" && !product;
   const sidePanelOpen = state.computerOpen || state.inspectorOpen;
   const sizing = useSidebarWidth({ simple: !advanced, sidePanelOpen, sidebarRef });
   const [searchOpen, setSearchOpen] = useState(false);
@@ -1106,7 +1182,12 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
     );
   const visibleGroups = state.groups.filter((g) => !q || g.name.toLowerCase().includes(q) || g.tasks?.some((task) => task.title.toLowerCase().includes(q)));
   const viewerEmail = useViewerEmail();
-  const parts = partitionSidebarBots(botDrag.preview(matchingBots), { universalPins, viewerEmail, welcoming: useWelcomingBot() });
+  // A product account's own MausBot is pinned above the list, not left among the bots where a long list buries it. It is
+  // taken out of the partitioned set, so no section, pin or tile lists it a second time.
+  const productDefault = product ? myDefaultBot(matchingBots, viewerEmail) : undefined;
+  const parts = partitionSidebarBots(botDrag.preview(
+    productDefault ? matchingBots.filter((bot) => bot.id !== productDefault.id) : matchingBots,
+  ), { universalPins, viewerEmail, welcoming: useWelcomingBot() });
   const {
     primary,
     unsectionedChief,
@@ -1193,7 +1274,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
             <span className="flex-1">{advanced ? t("sidebar.newBot") : t("sidebar.newBotSimple")}</span>
             {advanced && <ShortcutHint id="new-bot" />}
           </button>
-          <button
+          {!product && <button
             onClick={() => {
               setPlusOpen(false);
               setNewRoom(true);
@@ -1203,15 +1284,15 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
           >
             <Users size={16} className="text-ink-secondary" />
             {t("sidebar.newChannel.title")}
-          </button>
-          {advanced && !remoteClient && teamSettingsAllowed !== false && <button
+          </button>}
+          {advanced && !product && !remoteClient && teamSettingsAllowed !== false && <button
             onClick={() => { setPlusOpen(false); setNewTeam(true); }}
             role="menuitem"
             className={plusItem}
           >
             <FolderPlus size={16} className="text-ink-secondary" /> {t("team.create")}
           </button>}
-          {!remoteClient && <>
+          {!remoteClient && !product && <>
           <button
             onClick={() => { setPlusOpen(false); setTeamLibraryOpen(true); }}
             role="menuitem"
@@ -1244,8 +1325,11 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
   return (
     <aside
       ref={sidebarRef}
+      id="product-bot-list"
       tabIndex={-1}
       aria-label={t("sidebar.aria")}
+      aria-hidden={productDrawer && !open ? true : undefined}
+      inert={productDrawer && !open}
       data-native-view-overlay
       data-sidebar
       onClick={(event) => {
@@ -1255,14 +1339,28 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
       style={{ "--sidebar-width": `${sizing.width}px` } as CSSProperties}
       className={cn(
         "relative flex h-full shrink-0 flex-col border-r-[0.5px] border-edge bg-panel max-md:[--scroll-fade-surface:var(--color-app)]",
-        sizing.resizing && !sizing.snapping ? "transition-none" : "transition-[width] duration-200 motion-reduce:transition-none",
-        density === "icons" ? rail ? "w-[92px]" : "w-[80px]" : advanced ? "w-[320px] md:w-[var(--sidebar-width)]" : "w-[280px] md:w-[var(--sidebar-width)]",
-        sidePanelOpen ? advanced ? "md:max-w-[320px]" : "md:max-w-[280px]" : "md:max-w-[calc(100vw-320px)]",
-        // max-md: rather than an md: cancel: Tailwind v4 emits the native `translate`, and any value but `none` makes
-        // this a containing block for its `fixed` descendants.
-        "max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-full max-md:bg-app",
-        "max-md:transition-transform max-md:duration-200",
-        open ? "max-md:translate-x-0" : "max-md:-translate-x-full",
+        !product && (sizing.resizing && !sizing.snapping ? "transition-none" : "transition-[width] duration-200 motion-reduce:transition-none"),
+        product
+          // The product's fixed widths: 260 beside a 340px panel from 1200px, 240 from 800px, and below 800 a drawer
+          // exclusive with the work panel. Never the resizable rail.
+          ? cn(
+              "w-[280px] max-[799.98px]:absolute max-[799.98px]:inset-y-0 max-[799.98px]:left-0 max-[799.98px]:z-50 max-[799.98px]:w-[min(280px,85vw)] max-[799.98px]:bg-panel max-[799.98px]:shadow-xl",
+              "min-[800px]:w-[240px] min-[1200px]:w-[260px]",
+              // Closed is instant: narrowing the window into the drawer band must never show a panel caught half-way out.
+              // Only opening slides, and reduced motion skips that too.
+              open
+                ? "max-[799.98px]:translate-x-0 max-[799.98px]:transition-transform max-[799.98px]:duration-200 motion-reduce:max-[799.98px]:transition-none"
+                : "max-[799.98px]:-translate-x-full max-[799.98px]:transition-none",
+            )
+          : cn(
+              density === "icons" ? rail ? "w-[92px]" : "w-[80px]" : advanced ? "w-[320px] md:w-[var(--sidebar-width)]" : "w-[280px] md:w-[var(--sidebar-width)]",
+              sidePanelOpen ? advanced ? "md:max-w-[320px]" : "md:max-w-[280px]" : "md:max-w-[calc(100vw-320px)]",
+              // max-md: rather than an md: cancel: Tailwind v4 emits the native `translate`, and any value but `none` makes
+              // this a containing block for its `fixed` descendants.
+              "max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-full max-md:bg-app",
+              "max-md:transition-transform max-md:duration-200",
+              open ? "max-md:translate-x-0" : "max-md:-translate-x-full",
+            ),
       )}
     >
       <GlassScrollFrame className="flex-1" fade><PlaceTint />
@@ -1294,7 +1392,10 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
           <div data-sidebar-top-slot className={cn("@container/sidebar-top flex min-w-0 flex-1 items-center", simple && "justify-end")}>
             {!simple && <div data-sidebar-top-spacer className="min-w-0 flex-1 @min-[96px]/sidebar-top:min-w-6" />}
             <div data-sidebar-top-switcher className={simple ? "flex min-w-0 items-center" : "flex min-w-0 max-w-[140px] items-center"}>
-              <DesktopWorkspaceSwitcher inline pill={simple} cloudHome={state.config?.cloudHome === true} place={state.config?.team?.name} owner={cloudOwner} howTo={state.cloudHowTo} onMenuClosed={endHowTo} />
+              {product
+                // The account's own space has one name and no place to switch to.
+                ? <span data-sidebar-product-brand className="truncate text-[14px] font-semibold text-ink">{productName()}</span>
+                : <DesktopWorkspaceSwitcher inline pill={simple} cloudHome={state.config?.cloudHome === true} place={state.config?.team?.name} owner={cloudOwner} howTo={state.cloudHowTo} onMenuClosed={endHowTo} />}
             </div>
           </div>
         ))}
@@ -1362,11 +1463,21 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
             )}
           </div>}
           {plusControl}
+          {productDrawer && <button
+            type="button"
+            data-sidebar-drawer-close
+            onClick={onClose}
+            aria-label={t("common.close")}
+            title={t("common.close")}
+            className="ml-1 flex size-8 shrink-0 items-center justify-center rounded-full text-ink-secondary hover:bg-raised hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            <X size={18} strokeWidth={1.5} aria-hidden="true" />
+          </button>}
         </div>}
       </div>
 
-      {density === "icons" && !rail && <DesktopWorkspaceSwitcher compact cloudHome={state.config?.cloudHome === true} place={state.config?.team?.name} owner={cloudOwner} howTo={state.cloudHowTo} onMenuClosed={endHowTo} />}
-      <OrganizationIdentity compact={density === "icons"} />
+      {!product && density === "icons" && !rail && <DesktopWorkspaceSwitcher compact cloudHome={state.config?.cloudHome === true} place={state.config?.team?.name} owner={cloudOwner} howTo={state.cloudHowTo} onMenuClosed={endHowTo} />}
+      {!product && <OrganizationIdentity compact={density === "icons"} />}
       {phone ? null : simple ? searchShown && <SidebarSearchPill query={query} onQuery={setQuery} onClose={closeSearch} /> : <div className={cn("pt-1 pb-3", density === "icons" ? "hidden" : "px-3")}>
         <div className={cn("flex h-8 items-center gap-2 rounded-full px-3 focus-within:ring-focus", ELEVATED_CONTROL)}>
           <Search size={15} className="shrink-0 text-ink-secondary" />
@@ -1425,7 +1536,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
       {simpleDesk && !tiles && <SidebarNoBots />}
       </GlassBar>
 
-      {!collapseToIcons && !phone && <SidebarResizeHandle sizing={sizing} sidebarRef={sidebarRef} avatars={density === "icons"} avatarsWidth={rail ? 92 : 80}
+      {!product && !collapseToIcons && !phone && <SidebarResizeHandle sizing={sizing} sidebarRef={sidebarRef} avatars={density === "icons"} avatarsWidth={rail ? 92 : 80}
         onAvatars={(avatars) => setSidebarDensity(avatars ? "icons" : "comfortable")} style={windowNoDragStyle} />}
 
       <GlassScroller className={rail ? "[scrollbar-gutter:stable_both-edges]" : simpleDesk ? "px-3" : "px-2"}>
@@ -1433,6 +1544,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
           {matchingBots.length === 0 && visibleGroups.length === 0 && q && q.length < MIN_QUERY && (
             <div className="px-3 py-6 text-center text-[13px] text-ink-secondary">{t("sidebar.noMatch", { query })}</div>
           )}
+          {productDefault && <div data-sidebar-product-default className="mb-1.5"><BotListItem {...botRow(productDefault)} /></div>}
           {!q && <NeedsYouButton compact={rail} />}{!q && <SidebarPeople compact={rail} />}
           {unsectionedChief && (phone ? (
             <PhoneHero bot={unsectionedChief} selected={botRow(unsectionedChief).selected} onOpen={() => openBot(dispatch, unsectionedChief, showThreads)} onMenu={setMenu} />
@@ -1565,7 +1677,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
         iconOnly={density === "icons"}
       />
 
-      {rail ? <SimpleRailFooter
+      {product ? <ProductSidebarFooter account={productAccount} /> : rail ? <SimpleRailFooter
         owner={cloudOwner}
         archived={archivedEntry}
       /> : phone ? <SidebarPhoneBar query={query} onQuery={setQuery} /> : <SidebarFooter density={density} simple={simpleDesk} owner={cloudOwner} archived={archivedEntry} toolsCollapsed={sectionCollapsed(TOOLS_SECTION_ID)} onToggleTools={layoutInteractive ? () => toggleSection(TOOLS_SECTION_ID) : undefined} />}

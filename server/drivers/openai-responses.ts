@@ -24,6 +24,12 @@ export function noRouteLeft(provider: string): string {
   return `This model can only use tools through OpenAI's Responses API, and this API address or key can't reach it. Choose another model. Provider: ${provider.slice(0, 300)}`;
 }
 
+/** A model the operator pinned to one API has no other paid route to move to; say which route refused it. */
+export function pinnedRouteRefused(protocol: "chat" | "responses", provider: string): string {
+  const route = protocol === "responses" ? "the Responses API" : "Chat Completions";
+  return `This model is set to use ${route}, and the provider refused the request there. Choose another model or ask the operator to change its protocol. Provider: ${provider.slice(0, 300)}`;
+}
+
 export function isOpenAIAddress(apiUrl: string): boolean {
   let url: URL;
   try { url = new URL(apiUrl); } catch { return false; }
@@ -32,16 +38,31 @@ export function isOpenAIAddress(apiUrl: string): boolean {
 }
 
 /** Each model only moves forward (chat, responses, chat-reasoning-off), so a resend can never loop. A call without tools
- * never meets the refusal and stays on Chat Completions. */
-export function createModelRoutes(apiUrl: string) {
+ * never meets the refusal and stays on Chat Completions. A model pinned to a protocol by the operator starts there,
+ * with or without tools, and never moves to the other API: a pinned model is one whose paid route was chosen. */
+export function createModelRoutes(apiUrl: string, modelProtocols?: Readonly<Record<string, "chat" | "responses">>) {
   const servesResponses = isOpenAIAddress(apiUrl);
   const routes = new Map<string, ModelRoute>();
+  const pinned = new Map<string, "chat" | "responses">();
+  for (const [model, protocol] of Object.entries(modelProtocols ?? {})) pinned.set(model, protocol);
   const noSummaries = new Set<string>();
   return {
-    routeFor: (model: string, hasTools: boolean): ModelRoute => hasTools ? routes.get(model) ?? "chat" : "chat",
+    routeFor: (model: string, hasTools: boolean): ModelRoute =>
+      pinned.has(model) || hasTools ? pinned.get(model) ?? routes.get(model) ?? "chat" : "chat",
     summaries: (model: string) => !noSummaries.has(model),
+    /** The operator's protocol for this model, or undefined when it negotiates. */
+    pinnedProtocol: (model: string): "chat" | "responses" | undefined => pinned.get(model),
     /** False when the model has nothing left to try. */
     advance(model: string, refusal: RouteRefusal): boolean {
+      if (pinned.has(model)) {
+        // A pinned route is the only one the operator pays for; a refusal asks for the other API, not for a guess.
+        if (refusal === "summaries-refused") {
+          if (noSummaries.has(model)) return false;
+          noSummaries.add(model);
+          return true;
+        }
+        return false;
+      }
       const route = routes.get(model) ?? "chat";
       if (refusal === "summaries-refused") {
         if (noSummaries.has(model)) return false;

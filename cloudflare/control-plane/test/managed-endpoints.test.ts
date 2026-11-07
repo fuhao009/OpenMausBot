@@ -1448,12 +1448,12 @@ describe("managed companion endpoints", () => {
     const cloudflare = new FakeCloudflare();
     const worker = createWorker(cloudflare.fetch);
     const invalidEnv: Env = { ...env, CLOUDFLARE_API_TOKEN: "too-short" };
-    const request = new Request(`${BASE_URL}/healthz`);
+    const request = new Request(`${BASE_URL}/v1/installations/self/endpoint`, { method: "POST" });
     const ctx = createExecutionContext();
     const response = await worker.fetch(request, invalidEnv, ctx);
     await waitOnExecutionContext(ctx);
     expect(response.status).toBe(503);
-    expect(await response.text()).toBe('{"error":"misconfigured"}');
+    expect(await response.text()).toBe('{"error":"endpoint_unavailable"}');
     expect(cloudflare.calls).toHaveLength(0);
   });
 });

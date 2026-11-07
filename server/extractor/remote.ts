@@ -101,6 +101,16 @@ export function openrouterExtractBody(request: Pick<ExtractBackendRequest, "fiel
   };
 }
 
+/** The same request as one text prompt, for a helper that takes text rather than messages; its answer is read by the
+ * same parser. Images are not carried: a text call cannot see them. */
+export function extractorHelperPrompt(request: Pick<ExtractBackendRequest, "fields" | "input" | "referenceDate">): string {
+  return [
+    SYSTEM_PROMPT,
+    JSON.stringify({ today: request.referenceDate, fields: request.fields, input: request.input.text ?? "" }),
+    `Reply with one JSON object of this shape: ${JSON.stringify(openrouterExtractSchema(request.fields))}`,
+  ].join("\n\n");
+}
+
 export async function extractWithOpenRouter(request: ExtractBackendRequest): Promise<ExtractBackendResult> {
   const url = openrouterEndpoint(request.baseUrl);
   if (!url) return { ok: false, reason: "misconfigured" };

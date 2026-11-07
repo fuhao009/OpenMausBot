@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
 import { CLOUD_ORIGIN, STAGING_CLOUD_ORIGIN, checkoutDestination, cloudOrigin, cloudTarget, createCloudAccountClient } from "./cloud-account.mjs";
 
 const accessToken = `omc_${"S".repeat(43)}`;
@@ -67,14 +66,3 @@ test("a staging client talks only to the staging Admin, says it is staging, and 
   try { assert.equal("staging" in (await production.start()), false, "production states never carry the marker"); } finally { production.close(); }
 });
 
-test("main keeps each Admin's sign-in, saved servers, Files state and Cloud name in their own files, and gives the client the chosen Admin", () => {
-  const main = readFileSync(new URL("./main.mjs", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  assert.match(main, /function environmentsFile\(\) \{\n  return path\.join\(app\.getPath\("userData"\), cloudTarget\(process\.env\)\.environments\);/);
-  assert.match(main, /stateDir: cloudTarget\(process\.env\)\.sync,/);
-  assert.match(main, /lookFile\(\(\) => path\.join\(app\.getPath\("userData"\), cloudTarget\(process\.env\)\.look\), fs\)/);
-  for (const name of ['"environments.json"', '"cloud-home-look.json"']) assert.equal(main.includes(name), false, `no fixed ${name}`);
-  const ensure = main.slice(main.indexOf("function ensureCloudAccount() {"), main.indexOf("\n}\n", main.indexOf("function ensureCloudAccount() {")));
-  assert.match(ensure, /createCloudAccountStore\(\{ file: path\.join\(app\.getPath\("userData"\), cloudTarget\(process\.env\)\.file\)/);
-  assert.match(ensure, /origin: cloudTarget\(process\.env\)\.origin,/);
-  assert.equal(main.includes('"cloud-account.bin"'), false, "no second, fixed token file");
-});

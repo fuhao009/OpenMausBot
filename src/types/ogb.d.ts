@@ -116,6 +116,7 @@ const __APP_VERSION__: string;
 
   interface Window {
     ogb?: {
+      productAccount?: import("../../shared/product-account").ProductAccountBridge;
       platform: NodeJS.Platform;
       /** This app's own version, and whether this page is this app's own: false on a server added in the Server menu,
        * whose page carries that server's version. Absent in desktop builds before it. */

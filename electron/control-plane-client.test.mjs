@@ -1,3 +1,8 @@
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createServer } from "node:https";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 
 import { describe, expect, it, vi } from "vitest";
@@ -8,6 +13,28 @@ import {
   normalizeAccountEmail,
   normalizeControlPlaneURL,
 } from "./control-plane-client.mjs";
+
+/** A throwaway certificate for 127.0.0.1, or null where openssl is absent. */
+function certificate(altName = "IP:127.0.0.1", commonName = "127.0.0.1") {
+  const directory = mkdtempSync(join(tmpdir(), "omb-client-ca-"));
+  try {
+    const made = spawnSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2",
+      "-keyout", join(directory, "key.pem"), "-out", join(directory, "cert.pem"),
+      "-subj", `/CN=${commonName}`, "-addext", `subjectAltName=${altName}`], { stdio: "pipe" });
+    if (made.status !== 0) return null;
+    return { pem: readFileSync(join(directory, "cert.pem"), "utf8"), key: readFileSync(join(directory, "key.pem"), "utf8") };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+/** A real TLS server on 127.0.0.1, so the client's own handshake is exercised. */
+async function startTls(fixture, handler) {
+  const server = createServer({ key: fixture.key, cert: fixture.pem }, handler);
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const origin = `https://127.0.0.1:${server.address().port}`;
+  return { origin, close: () => { server.closeAllConnections(); server.close(); } };
+}
 
 const ACCOUNT = `signed.${"a".repeat(40)}`;
 const INSTALL = `omb_install_${"a".repeat(22)}.${"b".repeat(43)}`;
@@ -75,6 +102,32 @@ describe("control-plane desktop client", () => {
     await expect(client.me(ACCOUNT)).rejects.toMatchObject({ code: "invalid_response" });
   });
 
+  it("uses a pinned transport for its own origin when a certificate is bundled", async () => {
+    const fixture = certificate();
+    if (!fixture) return;
+    // A certificate for another host is refused at construction, never used loosely.
+    const elsewhere = certificate("DNS:accounts.example", "accounts.example");
+    if (elsewhere) {
+      expect(() => createControlPlaneClient({ baseURL: "https://accounts.openmausbot.com", ca: elsewhere.pem })).toThrow(ControlPlaneError);
+    }
+    expect(() => createControlPlaneClient({ baseURL: "https://accounts.openmausbot.com", ca: "not a certificate" })).toThrow(ControlPlaneError);
+
+    const server = await startTls(fixture, (request, response) => {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ ok: true, service: "openmausbot-control-plane" }));
+    });
+    try {
+      // No NODE_EXTRA_CA_CERTS and no global trust change: the bundled
+      // certificate is the only reason this self-signed server verifies.
+      const client = createControlPlaneClient({ baseURL: server.origin, ca: fixture.pem });
+      await expect(client.health()).resolves.toBe(true);
+      // The same bundle cannot be pointed at a sibling host through the client.
+      expect(() => createControlPlaneClient({ baseURL: server.origin.replace("127.0.0.1", "localhost"), ca: fixture.pem })).toThrow(ControlPlaneError);
+    } finally {
+      server.close();
+    }
+  });
+
   it("requires the exact healthy control-plane identity before onboarding", async () => {
     const timeoutSignal = vi.fn(() => new AbortController().signal);
     const fetchImpl = vi
@@ -119,6 +172,70 @@ describe("control-plane desktop client", () => {
       user: { id: "user-1", email: "ada@example.com" },
     });
     expect(JSON.stringify(fetchImpl.mock.calls)).not.toContain("raw-database-token-must-not-be-used");
+  });
+
+  it("signs up and in with a password, keeping only the signed bearer", async () => {
+    const seen = [];
+    const fetchImpl = vi.fn(async (url, init) => {
+      seen.push({ url, body: init.body === undefined ? null : JSON.parse(init.body), origin: init.headers.get("origin") });
+      if (url.endsWith("/api/auth/sign-up/email")) {
+        // A deployment that requires confirmation creates the account but
+        // withholds the session: no set-auth-token header at all.
+        return jsonResponse({ token: null, user: { id: "user-1", email: "ada@example.com" } });
+      }
+      if (url.endsWith("/api/auth/sign-in/email")) {
+        return jsonResponse(
+          { token: "raw-database-token", user: { id: "user-1", email: "ada@example.com" } },
+          { headers: { "set-auth-token": ACCOUNT } },
+        );
+      }
+      return jsonResponse({ password: { enabled: true, minLength: 10, maxLength: 128 }, emailCode: { enabled: false }, emailVerification: "off" });
+    });
+    const client = createControlPlaneClient({ baseURL: "https://accounts.openmausbot.com", fetchImpl });
+
+    await expect(client.signUpWithPassword(" Ada@Example.com ", "correct horse battery")).resolves.toEqual({
+      accountToken: null,
+      user: { id: "user-1", email: "ada@example.com" },
+    });
+    await expect(client.signInWithPassword("ada@example.com", "correct horse battery")).resolves.toEqual({
+      accountToken: ACCOUNT,
+      user: { id: "user-1", email: "ada@example.com" },
+    });
+    await expect(client.authMethods()).resolves.toEqual({
+      password: { enabled: true, minLength: 10, maxLength: 128 },
+      emailCode: { enabled: false },
+      emailVerification: "off",
+    });
+
+    expect(seen.find((entry) => entry.url.endsWith("/sign-up/email")).body)
+      .toEqual({ email: "ada@example.com", password: "correct horse battery", name: "ada" });
+    expect(seen.find((entry) => entry.url.endsWith("/sign-in/email")).body)
+      .toEqual({ email: "ada@example.com", password: "correct horse battery" });
+    // Better Auth mutations carry the trusted origin (Better Auth 1.7 CSRF
+    // rule); the public discovery read does not need it.
+    const mutations = seen.filter((entry) => entry.url.includes("/api/auth/"));
+    expect(mutations).toHaveLength(2);
+    expect(mutations.every((entry) => entry.origin === "https://accounts.openmausbot.com")).toBe(true);
+  });
+
+  it("refuses a malformed password answer instead of treating it as signed in", async () => {
+    const fetchImpl = vi.fn(async (url) => {
+      if (url.endsWith("/api/auth/sign-in/email")) {
+        // No set-auth-token: the raw JSON token is never an acceptable bearer.
+        return jsonResponse({ token: "raw-database-token", user: { id: "user-1", email: "ada@example.com" } });
+      }
+      return jsonResponse({ password: { enabled: true, minLength: 1, maxLength: 4 }, emailCode: { enabled: true }, emailVerification: "irrelevant" });
+    });
+    const client = createControlPlaneClient({ baseURL: "https://accounts.openmausbot.com", fetchImpl });
+
+    await expect(client.signInWithPassword("ada@example.com", "correct horse battery")).rejects.toMatchObject({
+      code: "invalid_response",
+    });
+    await expect(client.authMethods()).rejects.toMatchObject({ code: "invalid_response" });
+    await expect(client.signUpWithPassword("not-an-email", "correct horse battery")).rejects.toMatchObject({
+      code: "invalid_email",
+    });
+    await expect(client.signInWithPassword("ada@example.com", "")).rejects.toMatchObject({ code: "invalid_password" });
   });
 
   it("identifies native Better Auth mutations with the trusted control-plane origin", async () => {
@@ -390,5 +507,172 @@ describe("control-plane desktop client", () => {
       code: "endpoint_capacity",
       retryAfterMs: 0,
     });
+  });
+
+  it("reads the account's AI status without inventing a catalog", async () => {
+    const status = {
+      state: "ready",
+      unit: "points",
+      availableMicroPoints: 3_000,
+      reservedMicroPoints: 1_200,
+      defaultModel: "fixture/model",
+      models: [{
+        id: "fixture/model",
+        label: "Fixture",
+        protocol: "responses",
+        pricingVersion: "2026-11-01",
+        inputMicroPointsPerMillion: 2_000_000,
+        cachedInputMicroPointsPerMillion: 500_000,
+        outputMicroPointsPerMillion: 4_000_000,
+        maxContextTokens: 1_000,
+        maxOutputTokens: 100,
+      }],
+    };
+    const fetchImpl = vi.fn(async (url, init) => {
+      expect(url).toBe("https://accounts.openmausbot.com/v1/account/ai");
+      expect(init.headers.get("authorization")).toBe(`Bearer ${ACCOUNT}`);
+      return jsonResponse(status);
+    });
+    const client = createControlPlaneClient({ baseURL: "https://accounts.openmausbot.com", fetchImpl });
+    await expect(client.aiStatus(ACCOUNT)).resolves.toEqual(status);
+    await expect(client.aiStatus(undefined)).rejects.toMatchObject({ code: "signed_out", status: 401 });
+  });
+
+  it("rejects malformed prices, protocols and totals instead of displaying them", async () => {
+    const base = {
+      state: "ready",
+      unit: "points",
+      availableMicroPoints: 0,
+      reservedMicroPoints: 0,
+      defaultModel: "m",
+      models: [{
+        id: "m",
+        label: "M",
+        protocol: "chat",
+        pricingVersion: "v1",
+        inputMicroPointsPerMillion: 1,
+        cachedInputMicroPointsPerMillion: 0,
+        outputMicroPointsPerMillion: 1,
+        maxContextTokens: 1,
+        maxOutputTokens: 1,
+      }],
+    };
+    const cases = [
+      { ...base, state: "trial" },
+      { ...base, unit: "USD" },
+      { ...base, availableMicroPoints: "0" },
+      { ...base, availableMicroPoints: -1 },
+      { ...base, reservedMicroPoints: 1.5 },
+      { ...base, models: [{ ...base.models[0], protocol: "embeddings" }] },
+      { ...base, models: [{ ...base.models[0], inputMicroPointsPerMillion: -2 }] },
+      { ...base, models: [{ ...base.models[0], maxContextTokens: 0 }] },
+      { ...base, models: "none" },
+      { ...base, defaultModel: 7 },
+    ];
+    for (const payload of cases) {
+      const client = createControlPlaneClient({
+        baseURL: "https://accounts.openmausbot.com",
+        fetchImpl: vi.fn(async () => jsonResponse(payload)),
+      });
+      await expect(client.aiStatus(ACCOUNT), JSON.stringify(payload)).rejects.toMatchObject({ code: "invalid_response" });
+    }
+  });
+
+  it("issues one short-lived model credential per call for this device", async () => {
+    const credential = `omb_product_ai_${"d".repeat(22)}.${"e".repeat(43)}`;
+    const tokenId = "33333333-3333-4333-8333-333333333333";
+    const fetchImpl = vi.fn(async (url, init) => {
+      expect(url).toBe("https://accounts.openmausbot.com/v1/account/ai/tokens");
+      expect(init.method).toBe("POST");
+      expect(JSON.parse(init.body)).toEqual({ deviceId: INSTALL_ID });
+      return jsonResponse({ id: tokenId, token: credential, expiresAt: 1_800_000_000_000 }, { status: 201 });
+    });
+    const client = createControlPlaneClient({ baseURL: "https://accounts.openmausbot.com", fetchImpl });
+    await expect(client.createAiToken(ACCOUNT, INSTALL_ID)).resolves.toEqual({
+      id: tokenId,
+      token: credential,
+      expiresAt: 1_800_000_000_000,
+    });
+    await expect(client.createAiToken(ACCOUNT, "not-a-device")).rejects.toMatchObject({ code: "invalid_request" });
+  });
+
+  it("refuses a credential response that is not exactly what was promised", async () => {
+    const valid = { id: "33333333-3333-4333-8333-333333333333", token: `omb_product_ai_${"d".repeat(22)}.${"e".repeat(43)}`, expiresAt: 1 };
+    for (const [payload, status] of [
+      [{ ...valid, token: "omb_install_aaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, 201],
+      [{ ...valid, id: "not-a-uuid" }, 201],
+      [{ ...valid, expiresAt: 0 }, 201],
+      [valid, 200],
+      [{ id: valid.id }, 201],
+    ]) {
+      const client = createControlPlaneClient({
+        baseURL: "https://accounts.openmausbot.com",
+        fetchImpl: vi.fn(async () => jsonResponse(payload, { status })),
+      });
+      await expect(client.createAiToken(ACCOUNT, INSTALL_ID)).rejects.toMatchObject({ code: "invalid_response" });
+    }
+  });
+
+  it("keeps a non-usable account's refusal as the gateway's own code", async () => {
+    const client = createControlPlaneClient({
+      baseURL: "https://accounts.openmausbot.com",
+      fetchImpl: vi.fn(async () => jsonResponse({ error: "insufficient_balance" }, { status: 402 })),
+    });
+    await expect(client.createAiToken(ACCOUNT, INSTALL_ID)).rejects.toMatchObject({
+      code: "insufficient_balance",
+      status: 402,
+    });
+  });
+
+  it("revokes a model credential idempotently and never another account's", async () => {
+    const tokenId = "33333333-3333-4333-8333-333333333333";
+    const fetchImpl = vi.fn(async (url, init) => {
+      expect(url).toBe(`https://accounts.openmausbot.com/v1/account/ai/tokens/${tokenId}`);
+      expect(init.method).toBe("DELETE");
+      return new Response(null, { status: 204 });
+    });
+    const client = createControlPlaneClient({ baseURL: "https://accounts.openmausbot.com", fetchImpl });
+    await expect(client.revokeAiToken(ACCOUNT, tokenId)).resolves.toBeUndefined();
+    await expect(client.revokeAiToken(ACCOUNT, "someone-else")).rejects.toMatchObject({ code: "invalid_request" });
+  });
+
+  it("pages the ledger with an opaque cursor and rejects a malformed page", async () => {
+    const page = {
+      items: [
+        { id: "req-1", kind: "request", createdAt: 20, model: "m", state: "review", reservedMicroPoints: 2_400 },
+        { id: "op-1", kind: "grant", createdAt: 10, amountMicroPoints: 1_000_000, reason: "welcome" },
+      ],
+      nextCursor: "eyJjcmVhdGVkQXQiOjEwLCJpZCI6Im9wLTEifQ",
+    };
+    const fetchImpl = vi.fn(async (url, init) => {
+      expect(url).toBe("https://accounts.openmausbot.com/v1/account/ai/ledger?cursor=eyJhIjoxfQ");
+      expect(init.headers.get("authorization")).toBe(`Bearer ${ACCOUNT}`);
+      return jsonResponse(page);
+    });
+    const client = createControlPlaneClient({ baseURL: "https://accounts.openmausbot.com", fetchImpl });
+    await expect(client.aiLedger(ACCOUNT, "eyJhIjoxfQ")).resolves.toEqual(page);
+
+    const plain = createControlPlaneClient({
+      baseURL: "https://accounts.openmausbot.com",
+      fetchImpl: vi.fn(async (url) => {
+        expect(url).toBe("https://accounts.openmausbot.com/v1/account/ai/ledger");
+        return jsonResponse({ items: [], nextCursor: null });
+      }),
+    });
+    await expect(plain.aiLedger(ACCOUNT)).resolves.toEqual({ items: [], nextCursor: null });
+
+    for (const payload of [
+      { items: [], nextCursor: 3 },
+      { items: [{ id: "x", kind: "refund", createdAt: 1 }], nextCursor: null },
+      { items: [{ id: "x", kind: "grant", createdAt: -1 }], nextCursor: null },
+      { items: [{ id: "x", kind: "grant", createdAt: 1, amountMicroPoints: 2.5 }], nextCursor: null },
+      { items: "none", nextCursor: null },
+    ]) {
+      const broken = createControlPlaneClient({
+        baseURL: "https://accounts.openmausbot.com",
+        fetchImpl: vi.fn(async () => jsonResponse(payload)),
+      });
+      await expect(broken.aiLedger(ACCOUNT), JSON.stringify(payload)).rejects.toMatchObject({ code: "invalid_response" });
+    }
   });
 });

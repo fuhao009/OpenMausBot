@@ -23,7 +23,19 @@ export type LocalComputerConnection = {
   platform: "darwin" | "linux" | "win32";
   generation?: string;
   scope: "local-computer";
+  /** The driver's daemon endpoint, when the descriptor names one separately from its arguments. */
+  socketPath?: string;
 };
+
+/** The driver's own daemon endpoint, named on the command line. macOS standalone is started as bare `mcp`, which makes the
+ * driver look for its daemon under the home it happens to inherit; a desk whose home is not the one the daemon runs under
+ * then gets a driver that answers nothing at all. The descriptor already names the endpoint, so pass it. Windows embedded
+ * and Linux descriptors name theirs in their own argv, which is left exactly as declared. */
+function driverArgs(connection: LocalComputerConnection): string[] {
+  const { args, socketPath } = connection;
+  if (connection.platform !== "darwin" || socketPath === undefined || args[0] !== "mcp" || args.includes("--socket") || args.includes("--direct")) return args;
+  return [...args, "--socket", socketPath];
+}
 
 /** `journal`: the bridge records each computer call for saved steps. */
 export function gatedLocalComputer(
@@ -40,7 +52,7 @@ export function gatedLocalComputer(
       // Packaged, execPath is Electron: without this the MCP client relaunches OMB instead of the headless gate.
       ELECTRON_RUN_AS_NODE: "1",
       OMB_CUA_COMMAND: connection.command,
-      OMB_CUA_ARGS: JSON.stringify(connection.args),
+      OMB_CUA_ARGS: JSON.stringify(driverArgs(connection)),
       OMB_CUA_PLATFORM: connection.platform,
       OMB_CONTROL_URL: control.url,
       OMB_CONTROL_TOKEN: control.token,
@@ -127,6 +139,7 @@ function decodeLegacyDescriptor(
     env: env as Record<string, string>,
     platform: supportedPlatform,
     scope: "local-computer",
+    socketPath: value.socketPath,
   };
 }
 

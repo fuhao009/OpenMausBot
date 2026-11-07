@@ -5,6 +5,11 @@ choose a patch, minor, or custom version. It opens a tiny version-bump PR;
 merging that PR automatically starts **Release** and assembles a draft from the
 exact merge commit. Review and publish the draft when it is ready.
 
+The managed product build (own app id, own service origin, no upstream update
+feed) is packaged and deployed by its own scripts; see
+[Shipping the hosted product build](product-release.md). It does not use the
+flows below and must not publish to these releases.
+
 The existing **Actions → Release → Run workflow** button remains available for
 reruns and recovery. It
 builds macOS (arm64 + x64, signed, notarized, stapled), Windows, and Ubuntu

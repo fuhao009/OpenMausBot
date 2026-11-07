@@ -2,6 +2,7 @@ import { Info, RefreshCw } from "lucide-react";
 import { statusActivity } from "@/lib/activity-runs";
 import { t } from "@/lib/i18n";
 import { useStore, type Message } from "@/state/store";
+import { isProductWorkspace } from "@/lib/product-workspace";
 import { bugReportFixedText } from "./BugReportNote";
 import { CancelledTurnRow } from "./CancelledTurnRow";
 import { FirstReplyRescueRow } from "./FirstReplyRescueRow";
@@ -9,7 +10,9 @@ import { FirstReplyRescueRow } from "./FirstReplyRescueRow";
 const pill = "rounded-full border border-hairline/40 px-2.5 py-1 text-[13px] text-ink hover:bg-raised";
 
 export function StatusActivityRow({ message }: { message: Message }) {
-  const { dispatch } = useStore();
+  const { state, dispatch } = useStore();
+  // A managed account's AI is refused by its own account, not by a missing sign-in: the way out is the account page.
+  const productManaged = isProductWorkspace(state.config?.productManaged);
   const status = statusActivity(message);
   if (!status) return null;
   if (status.kind === "stopped") return <CancelledTurnRow name={message.tool?.name} />;
@@ -23,9 +26,9 @@ export function StatusActivityRow({ message }: { message: Message }) {
           <Icon size={13} aria-hidden="true" className="mt-0.5 shrink-0" />
           <span className="min-w-0 break-words">{status.text}</span>
         </span>
-        <button type="button" className={pill} title={t("chat.notice.signInHint")}
-          onClick={() => dispatch({ type: "toggleAppSettings", open: true, section: "engines" })}>
-          {t("chat.notice.signIn")}
+        <button type="button" className={pill} title={t(productManaged ? "product.accountHint" : "chat.notice.signInHint")}
+          onClick={() => dispatch({ type: "toggleAppSettings", open: true, section: productManaged ? "account" : "engines" })}>
+          {t(productManaged ? "product.accountSection" : "chat.notice.signIn")}
         </button>
       </div>
     );

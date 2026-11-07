@@ -113,6 +113,28 @@ describe("ProviderRegistry", () => {
     expect(f.snapshot).toMatchObject({ state: "unavailable", reason: "boom at create" });
   });
 
+  it("binds a supplied runtime credential to each instance, and passes none without it", async () => {
+    const seen: Array<{ instanceId: string; environment: Record<string, string>; credential?: () => { apiKey: string; expiresAt: number } }> = [];
+    const fake = makeFakeDriver();
+    const create = fake.driver.create.bind(fake.driver);
+    fake.driver.create = async (input) => {
+      seen.push({ instanceId: input.instanceId, environment: input.environment, ...(input.requestCredential ? { credential: input.requestCredential } : {}) });
+      return create(input);
+    };
+    const registry = new ProviderRegistry([fake.driver]);
+    await registry.load({ product: { driver: "fake", environment: { KEY: "fixture" } } }, undefined, {
+      requestCredential: (instanceId) => ({ apiKey: `token-for-${instanceId}`, expiresAt: 1_000 }),
+    });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.instanceId).toBe("product");
+    expect(seen[0]!.environment).toEqual({ KEY: "fixture" });
+    expect(seen[0]!.credential?.()).toEqual({ apiKey: "token-for-product", expiresAt: 1_000 });
+
+    seen.length = 0;
+    await registry.load({ plain: { driver: "fake" } });
+    expect(seen[0]!.credential).toBeUndefined();
+  });
+
   it("creates instances concurrently while keeping config order and failure isolation", async () => {
     const first = makeFakeDriver({ kind: "first" });
     const second = makeFakeDriver({ kind: "second" });

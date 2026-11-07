@@ -153,6 +153,12 @@ The [Connected Apps OAuth fixture](connected-apps-oauth.md) checks blocked-popup
 recovery, safe authorization links and abandoned-account retries through real
 renderer components and isolated HTTP routes.
 
+The [product account fixture](product-account.md) runs the real app against the
+real account Worker locally: emailed sign-in, operator enable/grant, an exact
+billed hello, a real MCP file write behind approval, account isolation, and the
+three viewport sizes. It needs no operator domain, Cloudflare account or model
+key.
+
 The [desktop server connection smoke](desktop-server-connection.md) mounts the
 real Settings connection component in disposable Electron windows.
 

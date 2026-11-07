@@ -1,5 +1,6 @@
-/** workersai: Cloudflare's Clef on Workers AI, Jev-compatible. */
-export type DeciderProvider = "jev" | "workersai" | "openrouter";
+/** workersai: Cloudflare's Clef on Workers AI, Jev-compatible. product: the managed account's own model, registered by
+ * the parent as `product-ai` (product mode only). */
+export type DeciderProvider = "jev" | "workersai" | "openrouter" | "product";
 
 /** chat: a chat model asked for strict JSON; decisions: OpenRouter's Decisions API (output modality `decisions`). */
 export type OpenRouterApi = "chat" | "decisions";
@@ -28,6 +29,8 @@ export type DeciderFailure =
   | "overloaded"
   /** 413: the request is over what the relay or the model takes. Never retried: it would be refused again. */
   | "too_large"
+  /** 402 on the managed account: its available balance cannot cover another helper call. */
+  | "no_balance"
   | "http_error"
   | "malformed";
 

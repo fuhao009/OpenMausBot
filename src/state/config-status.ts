@@ -2,6 +2,7 @@
 import type { EffortLevel, LiveSettings } from "../../shared/wire";
 import type { OnboardingStatus } from "@/lib/onboarding";
 import type { ModelSelection } from "./store";
+import type { ProductAiState } from "../../shared/product-account";
 
 /** A saved credential: whether it is set and, for admins, its last four characters. The key itself never comes back. */
 export interface SavedKey { configured: boolean; last4?: string }
@@ -10,6 +11,8 @@ export type NestedKeyName = "ttsKey" | "fishAudioKey" | "jevApiKey" | "openroute
 
 /** GET /api/config — configured flags only; secrets are never echoed. */
 export interface ConfigStatus {
+  productManaged?: boolean;
+  productAi?: ProductAiState;
   /** The workspace's banner picture (GET /api/workspace/banner), by a version that changes with it; null without one. */
   workspaceBanner?: import("@/lib/place-banner").BannerSummary | null;
   xai?: SavedKey;
@@ -83,13 +86,15 @@ export interface ConfigStatus {
    * saved. OpenRouter only: `keySource` says which key is in use (its own, or
    * the one under Settings → API keys); `sharedKey`: that one is on file. */
   decider?: {
-    provider: "jev" | "workersai" | "openrouter";
+    provider: "jev" | "workersai" | "openrouter" | "product";
     /** The OpenRouter model in use; present only while OpenRouter is the provider. */
     model?: string;
     configured: boolean;
     keySource?: "own" | "shared";
     sharedKey?: boolean;
     included?: boolean;
+    /** The managed account's own model serves decisions and extraction. */
+    product?: boolean;
     enabled: boolean;
     jobs: { roomRouting: boolean };
   };
@@ -98,7 +103,7 @@ export interface ConfigStatus {
     own: { jev: boolean; workersAi: boolean; openrouter: boolean };
     sharedKey?: boolean;
     workersAiAccountId?: string;
-    extraction: { provider?: "jev" | "workersai" | "openrouter"; included?: boolean; ready: boolean };
+    extraction: { provider?: "jev" | "workersai" | "openrouter" | "product"; included?: boolean; product?: boolean; ready: boolean };
   };
   /** Live calls (OpenAI GPT-Live): configured-or-not, never the key. */
   live?: LiveSettings;

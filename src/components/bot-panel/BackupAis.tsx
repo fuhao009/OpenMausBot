@@ -11,6 +11,7 @@ import { shortModelLabel } from "@/lib/model-friendly";
 import { modelName, providerName, simpleModelMenu } from "@/lib/simple-model-menu";
 import { usePopoverDismiss } from "@/hooks/use-popover-dismiss";
 import { useStore, type Bot, type InstanceInfo } from "@/state/store";
+import { isProductWorkspace } from "@/lib/product-workspace";
 import { useMenuMotion } from "../MenuMotion";
 import { modelMenuKey, modelMenuPointerMove } from "../model-menu-keys";
 import { SIMPLE_POPOVER_WIDTH } from "../ModelPicker";
@@ -39,6 +40,9 @@ function BackupChooser({ bot, current, exclude, onPick, label, title, buttonRef,
   "data-panel-action"?: string;
 }) {
   const { state, dispatch, refreshInstances, refreshModels } = useStore();
+  // A managed account has one route to one upstream: there is no second provider to fail over to, and the server
+  // refuses a chain that names one.
+  const productMode = isProductWorkspace(state.config?.productManaged);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -103,6 +107,7 @@ function BackupChooser({ bot, current, exclude, onPick, label, title, buttonRef,
   };
   const manage = () => {
     close(false);
+    if (productMode) return;
     dispatch({ type: "toggleAppSettings", open: true, section: "engines" });
   };
 
@@ -195,7 +200,8 @@ function BackupChooser({ bot, current, exclude, onPick, label, title, buttonRef,
             })}
             onSetUp={manage}
             onCheckAgain={checkAgain}
-            onManage={manage}
+            onManage={productMode ? undefined : manage}
+            product={productMode}
           />
         </div>,
         document.body,
@@ -206,6 +212,7 @@ function BackupChooser({ bot, current, exclude, onPick, label, title, buttonRef,
 
 export function BackupAis({ bot, onChange }: { bot: Bot; onChange: (fallback: Backup[]) => void }) {
   const { state } = useStore();
+  const productMode = isProductWorkspace(state.config?.productManaged);
   const chain = bot.fallback ?? [];
   const addRef = useRef<HTMLButtonElement>(null);
   const others = (except: number | null) =>
@@ -224,7 +231,7 @@ export function BackupAis({ bot, onChange }: { bot: Bot; onChange: (fallback: Ba
           <RowIcon icon={LifeBuoy} />
           <RowText title={t("botPanel.backups.title")} />
         </div>
-        <p className="-mt-1 pl-[38px] text-[13px] leading-[1.35] text-ink-secondary">{t("botPanel.backups.hint", { name: bot.name })}</p>
+        <p className="-mt-1 pl-[38px] text-[13px] leading-[1.35] text-ink-secondary">{t(productMode ? "product.backupsNote" : "botPanel.backups.hint", { name: bot.name })}</p>
         {chain.length > 0 && (
           <ol aria-label={t("botPanel.backups.title")} className="flex flex-col gap-1 pl-[38px]">
             {chain.map((entry, index) => {
@@ -262,7 +269,7 @@ export function BackupAis({ bot, onChange }: { bot: Bot; onChange: (fallback: Ba
             })}
           </ol>
         )}
-        {chain.length < MAX_BACKUPS && (
+        {!productMode && chain.length < MAX_BACKUPS && (
           <div className="pl-[38px]">
             <BackupChooser
               bot={bot}

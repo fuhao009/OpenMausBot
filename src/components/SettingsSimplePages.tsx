@@ -196,12 +196,17 @@ function ServerUpdatesRow() {
   );
 }
 
-export function SimpleUpdatesPage({ remoteActive }: { remoteActive: boolean }) {
+export function SimpleUpdatesPage({ remoteActive, productManaged = false }: { remoteActive: boolean; productManaged?: boolean }) {
   return (
     <SettingsGroup block="updates">
       <SettingsRows>
-        {window.ogb?.updater ? <UpdatesRow title={versionTitle()} /> : <ServerUpdatesRow />}
-        <UpdatesConsentRow />
+        {productManaged ? (
+          <div data-product-updates className="flex flex-col gap-0.5 px-4 py-2.5">
+            <div className="text-[14px] font-normal leading-5 text-ink">{versionTitle()}</div>
+            <div className="text-[13px] leading-[18px] text-ink-secondary">{t("product.updates.administrator")}</div>
+          </div>
+        ) : window.ogb?.updater ? <UpdatesRow title={versionTitle()} /> : <ServerUpdatesRow />}
+        {!productManaged && <UpdatesConsentRow />}
         {!remoteActive && <ReplayTourRow />}
         <DiagnosticsRow simple />
       </SettingsRows>

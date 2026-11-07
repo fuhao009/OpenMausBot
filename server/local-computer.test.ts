@@ -112,6 +112,24 @@ describe("local computer descriptor contract", () => {
     const gated = gatedLocalComputer({ command: "/trusted/cua-driver", args: ["mcp"], env: { ELECTRON_RUN_AS_NODE: "0" }, platform: "darwin", scope: "local-computer" }, { url: "http://127.0.0.1:1234/control", token: "fixture-token" });
     expect(gated.env.ELECTRON_RUN_AS_NODE).toBe("1");
   });
+  it("names the descriptor's own daemon endpoint, so a driver started under another home still finds it", () => {
+    const control = { url: "http://127.0.0.1:1234/control", token: "fixture-token" };
+    const darwin = (extra: { args?: string[]; socketPath?: string }) => gatedLocalComputer({ command: "/trusted/cua-driver", args: ["mcp"], env: {}, platform: "darwin", scope: "local-computer", ...extra }, control);
+    // macOS standalone: the descriptor starts the driver as bare `mcp` and names its socket separately.
+    expect(JSON.parse(darwin({ socketPath: "/trusted/driver.sock" }).env.OMB_CUA_ARGS!)).toEqual(["mcp", "--socket", "/trusted/driver.sock"]);
+    // An argv that already names its endpoint, or owns the runtime directly, is passed through untouched.
+    for (const args of [["mcp", "--embedded", "--socket", "/trusted/driver.sock"], ["mcp", "--direct"]]) {
+      expect(JSON.parse(darwin({ args, socketPath: "/trusted/driver.sock" }).env.OMB_CUA_ARGS!)).toEqual(args);
+    }
+    // A descriptor with no endpoint of its own keeps exactly the argv it declared.
+    expect(JSON.parse(darwin({}).env.OMB_CUA_ARGS!)).toEqual(["mcp"]);
+    // Every other platform's descriptor declares its own argv; none of it is rewritten here.
+    for (const platform of ["win32", "linux"] as const) {
+      const args = ["mcp", "--embedded", "--socket", "/trusted/driver.sock"];
+      const gated = gatedLocalComputer({ command: "/trusted/cua-driver", args, env: {}, platform, scope: "local-computer", socketPath: "/trusted/driver.sock" }, control);
+      expect(JSON.parse(gated.env.OMB_CUA_ARGS!)).toEqual(args);
+    }
+  });
   it("stays synchronized with the Electron producer", () => {
     expect(DRIVER_FILE_IDENTITY_KEYS).toEqual([...ELECTRON_DRIVER_FILE_IDENTITY_KEYS]);
     expect(REQUIRED_LINUX_TOOLS).toEqual([...ELECTRON_REQUIRED_TOOLS]);
@@ -328,6 +346,7 @@ describe("local computer descriptor", () => {
       env: { CUA_DRIVER_EMBEDDED: "1" },
       platform: "win32",
       scope: "local-computer",
+      socketPath: "\\\\.\\pipe\\cua-driver",
     });
   });
 

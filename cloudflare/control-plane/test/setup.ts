@@ -34,6 +34,13 @@ afterEach(async () => {
     env.DB.prepare("DELETE FROM managed_endpoint_account_capacity"),
     env.DB.prepare("DELETE FROM installation_credentials"),
     env.DB.prepare("DELETE FROM installations"),
+    // Account AI rows hold no ON DELETE CASCADE: settled charges and review
+    // reservations must outlive a token revocation or a signed-out session.
+    // Delete them explicitly, before the account rows they reference.
+    env.DB.prepare("DELETE FROM account_ai_adjustments"),
+    env.DB.prepare("DELETE FROM account_ai_requests"),
+    env.DB.prepare("DELETE FROM account_ai_tokens"),
+    env.DB.prepare("DELETE FROM account_ai_balances"),
     env.DB.prepare('DELETE FROM "session"'),
     env.DB.prepare('DELETE FROM "account"'),
     env.DB.prepare('DELETE FROM "verification"'),

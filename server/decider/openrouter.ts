@@ -105,6 +105,16 @@ export function openrouterRequestBody(state: unknown, questions: Record<string, 
   };
 }
 
+/** The same turn as one prompt, for a helper that takes text rather than messages (the managed account's model);
+ * its answer is read by the same parser. */
+export function openrouterDeciderPrompt(state: unknown, questions: Record<string, DeciderQuestion>): string {
+  return [
+    SYSTEM_PROMPT,
+    JSON.stringify({ state, questions: jevRequestBody(state, questions).questions }),
+    `Reply with one JSON object in this schema: ${JSON.stringify(openrouterSchema(questions))}`,
+  ].join("\n\n");
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 

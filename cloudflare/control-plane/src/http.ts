@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { ControlPlaneConfig } from "./config";
+import type { AuthConfig } from "./config";
 
 export const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
@@ -32,18 +32,22 @@ export function errorResponse(status: number, code: string): Response {
   return json({ error: code }, status);
 }
 
-function validateDeclaredBodyLength(request: Request) {
+function validateDeclaredBodyLength(request: Request, maxBytes: number) {
   const contentLength = request.headers.get("content-length");
   if (contentLength !== null) {
+    if (!/^\d+$/.test(contentLength)) throw new HTTPError(400, "invalid_request");
     const declared = Number(contentLength);
     if (!Number.isSafeInteger(declared) || declared < 0) throw new HTTPError(400, "invalid_request");
-    if (declared > MAX_API_BODY_BYTES) throw new HTTPError(413, "request_too_large");
+    if (declared > maxBytes) throw new HTTPError(413, "request_too_large");
   }
 }
 
-async function readBoundedBody(request: Request): Promise<Uint8Array<ArrayBuffer>> {
-  validateDeclaredBodyLength(request);
-  if (!request.body) return new Uint8Array();
+async function readBoundedBody(request: Request, maxBytes = MAX_API_BODY_BYTES): Promise<Uint8Array<ArrayBuffer>> {
+  validateDeclaredBodyLength(request, maxBytes);
+  if (!request.body) {
+    if (Number(request.headers.get("content-length") ?? 0) !== 0) throw new HTTPError(400, "invalid_request");
+    return new Uint8Array();
+  }
 
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -53,7 +57,7 @@ async function readBoundedBody(request: Request): Promise<Uint8Array<ArrayBuffer
       const { done, value } = await reader.read();
       if (done) break;
       length += value.byteLength;
-      if (length > MAX_API_BODY_BYTES) {
+      if (length > maxBytes) {
         await reader.cancel();
         throw new HTTPError(413, "request_too_large");
       }
@@ -62,6 +66,8 @@ async function readBoundedBody(request: Request): Promise<Uint8Array<ArrayBuffer
   } finally {
     reader.releaseLock();
   }
+  const declared = request.headers.get("content-length");
+  if (declared !== null && Number(declared) !== length) throw new HTTPError(400, "invalid_request");
 
   const bytes = new Uint8Array(length);
   let offset = 0;
@@ -72,9 +78,9 @@ async function readBoundedBody(request: Request): Promise<Uint8Array<ArrayBuffer
   return bytes;
 }
 
-export async function withBoundedRequestBody(request: Request): Promise<Request> {
+export async function withBoundedRequestBody(request: Request, maxBytes = MAX_API_BODY_BYTES): Promise<Request> {
   if (BODYLESS_METHODS.has(request.method.toUpperCase())) return request;
-  const bytes = await readBoundedBody(request);
+  const bytes = await readBoundedBody(request, maxBytes);
   if (!request.body) return request;
 
   const headers = new Headers(request.headers);
@@ -97,10 +103,10 @@ function parseJSONBytes(bytes: Uint8Array): JSONValue {
   }
 }
 
-export async function readBoundedJSON(request: Request): Promise<JSONValue> {
+export async function readBoundedJSON(request: Request, maxBytes = MAX_API_BODY_BYTES): Promise<JSONValue> {
   requireJSONMediaType(request);
   if (!request.body) throw new HTTPError(400, "invalid_request");
-  return parseJSONBytes(await readBoundedBody(request));
+  return parseJSONBytes(await readBoundedBody(request, maxBytes));
 }
 
 /** For a route whose JSON body is optional: no body, or an empty one, is
@@ -119,13 +125,13 @@ function appendVary(headers: Headers, name: string) {
   headers.set("vary", current.join(", "));
 }
 
-function requestOriginAllowed(request: Request, config: ControlPlaneConfig): string | null {
+function requestOriginAllowed(request: Request, config: AuthConfig): string | null {
   const origin = request.headers.get("origin");
   if (!origin) return null;
   return config.allowedOrigins.has(origin) ? origin : null;
 }
 
-export function preflight(request: Request, config: ControlPlaneConfig): Response {
+export function preflight(request: Request, config: AuthConfig): Response {
   const origin = requestOriginAllowed(request, config);
   if (!origin) return errorResponse(403, "origin_not_allowed");
 
@@ -156,7 +162,7 @@ export function preflight(request: Request, config: ControlPlaneConfig): Respons
 export function secureResponse(
   response: Response,
   request: Request,
-  config: ControlPlaneConfig | null,
+  config: AuthConfig | null,
   requestId: string,
 ): Response {
   const headers = new Headers(response.headers);

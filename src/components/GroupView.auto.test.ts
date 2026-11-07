@@ -68,6 +68,10 @@ describe("routed-by line", () => {
     expect(renderToStaticMarkup(createElement(RoutedByLine, { routedBy: { provider: "openrouter", probability: 0.81 } }))).toContain("Picked by OpenRouter · 81%");
   });
 
+  it("names the account's own model in product mode", () => {
+    expect(renderToStaticMarkup(createElement(RoutedByLine, { routedBy: { provider: "product", probability: 0.9 } }))).toContain("Picked by your account&#x27;s model · 90%");
+  });
+
   it("appears under a Jev-routed reply only", () => {
     const reply = (id: string, extra: Partial<Message> = {}): Message =>
       ({ id, role: "bot", kind: "text", text: `reply ${id}`, at: 1_000, from: { botId: "theo", name: "Theo", color: "green" }, ...extra });

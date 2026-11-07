@@ -6,7 +6,7 @@ import { type LocaleKey } from "@/locales";
 import { t } from "@/lib/i18n";
 import { AdminOnly } from "./AdminOnly";
 import { KeysPage } from "./keys/KeysPage";
-import { KEY_CATALOG, keyMatches, keySection, type KeyEntry } from "./keys/key-catalog";
+import { KEY_CATALOG, keyEntry, keyMatches, keySection, type KeyEntry } from "./keys/key-catalog";
 import { openKeySettings, useKeyFocus } from "./keys/key-focus";
 import { AnalyticsRow } from "./AnalyticsRow";
 import { UpdatesConsentRow } from "./UpdatesConsent";
@@ -37,7 +37,7 @@ import { OrganizationSettings } from "./OrganizationSettings";
 import { CloudAccountSettings } from "./CloudAccountSettings";
 import { ProSettingsCard } from "./ProIntroduction";
 import { CloudUsageSettings } from "./CloudUsageMeter";
-import { Card, SettingsGroup, SIMPLE_BUTTONS } from "./SettingsPrimitives";
+import { Card, SettingsDisclosureRow, SIMPLE_BUTTONS } from "./SettingsPrimitives";
 import { shortcutLabel } from "./ShortcutHint";
 import { UsageSection } from "./UsageSection";
 import { SkillsSection } from "./SkillsSection";
@@ -66,6 +66,9 @@ import { Select } from "./Select";
 import { SavedStepsRow } from "./SavedStepsRow";
 import { BrowserProfilesRow, ColorUserBubblesRow, AdvancedModeRow, ExperimentalFeaturesRow, LanguageRow, NewBotEffortRow, PinnedCirclesRow, ReplayTourRow, RunCardRow, FollowUpRow, SendKeyRow, ShowThreadsRow, ToolCallsRow, UniversalPinsRow, UpdatesRow } from "./AppSettingsRows";
 import { SIMPLE_ADVANCED_ONLY, SimpleAiPage, SimpleBillingPage, SimpleComputerPage, SimpleGeneralPage, SimpleLooksPage, SimpleUpdatesPage, type Disclose, type SimpleDisclosureId } from "./SettingsSimplePages";
+import { ProductAccountSettings } from "./ProductAccountSettings";
+import { isProductWorkspace } from "@/lib/product-workspace";
+import type { KeySectionId } from "./keys/key-catalog";
 
 // labelKey, not a label: t() reads the active pack when called, so a label resolved at module scope would freeze the
 // boot language.
@@ -98,6 +101,7 @@ export const SECTIONS: Array<{
   { id: "logins", group: "computers", labelKey: "settings.section.logins", icon: LockKeyhole, keywords: ["logins", "login", "passwords", "password", "sign in", "2fa", "one-time code", "totp", "fill_login", "1password", "vault"] },
   { id: "cloudAccount", group: "account", labelKey: "settings.section.cloudAccount", icon: Cloud, keywords: ["cloud", "my cloud", "account", "personal", "sign in", "pro", "subscription", "billing", "sync", "send", "this computer", "bots", "logins", "1password"] },
   { id: "organization", group: "account", labelKey: "settings.section.organization", icon: Building2, keywords: ["company", "organization", "organisation", "sign in", "enroll", "managed", "models", "disconnect"] },
+  { id: "account", group: "account", labelKey: "product.accountSection", icon: Coins, keywords: ["account", "balance", "credit", "email", "sign in", "sign out", "models", "prices", "ledger", "charges", "requests", "review"] },
   { id: "usage", group: "account", labelKey: "settings.section.usage", icon: Coins, keywords: ["tokens", "cost", "billing", "plan", "quota", "remaining", "weekly", "5-hour", "model", "used"] },
   { id: "backups", group: "account", labelKey: "settings.section.backups", icon: Archive, keywords: ["export", "import", "restore", "full backup", "password", "recovery"] },
   { id: "import", group: "account", labelKey: "settings.section.import", icon: Download, keywords: ["import", "grok", "grok bot", "x.ai", "cursor", "claude code", "codex", "gemini", "skills", "mcp", "tools", "bring"] },
@@ -119,6 +123,8 @@ export type SimpleSettingsPage = {
 export const SIMPLE_PAGES: SimpleSettingsPage[] = [
   { id: "general", labelKey: "settings.section.general", icon: Settings, sections: ["general", "appearance", "people", "import", "organization", "activity"],
     keywords: ["account", "theme", "looks", "open at login", "startup", "analytics", "advanced mode"] },
+  { id: "account", labelKey: "product.accountSection", icon: Coins, sections: ["account"],
+    keywords: ["account", "balance", "credit", "charges", "ledger", "review", "email", "sign out", "models", "prices"] },
   { id: "botAccess", labelKey: "settings.section.botAccess", icon: Users, sections: ["botAccess"] },
   { id: "ai", labelKey: "settings.group.ai", icon: Sparkles, sections: ["engines", "connections"] },
   { id: "computer", labelKey: "settings.simple.page.computer", icon: Monitor, sections: ["companion", "desktopWorkspaces", "computer", "logins"] },
@@ -129,6 +135,12 @@ export const SIMPLE_PAGES: SimpleSettingsPage[] = [
 
 export const SIMPLE_HIDDEN_SECTIONS: readonly AppSettingsSection[] = ["backups", "experimental", "workspaces", "skills", "decisionModel"];
 
+/** Pages a managed account has no use for: its AI is the account's, its Cloud and servers belong to no one here, and
+ * its provider keys and model providers would only offer a setup the server refuses. */
+export const PRODUCT_HIDDEN_SECTIONS: readonly AppSettingsSection[] = [
+  "engines", "decisionModel", "organization", "cloudAccount", "desktopWorkspaces", "workspaces",
+];
+
 
 export const SIMPLE_FOLDED: Partial<Record<AppSettingsSection, SimpleDisclosureId>> = {
   connections: "ai-keys",
@@ -136,10 +148,21 @@ export const SIMPLE_FOLDED: Partial<Record<AppSettingsSection, SimpleDisclosureI
   desktopWorkspaces: "computer-elsewhere",
 };
 
-export function simpleSettingsPages(available: ReadonlySet<AppSettingsSection>, open: AppSettingsSection): SimpleSettingsPage[] {
+export function simpleSettingsPages(
+  available: ReadonlySet<AppSettingsSection>,
+  open: AppSettingsSection,
+  { productManaged = false }: { productManaged?: boolean } = {},
+): SimpleSettingsPage[] {
+  // A managed account has no model providers to set up, so its "AI" page would hold only the credentials of other apps;
+  // that page is named for what it is instead, and the account's own page joins Usage & billing.
   const pages = SIMPLE_PAGES
+    .filter((page) => !productManaged || page.id !== "ai")
     .map((page) => ({ ...page, sections: page.sections.filter((id) => available.has(id)) }))
     .filter((page) => page.sections.length > 0);
+  if (productManaged && available.has("connections")) {
+    pages.push({ id: "connections", labelKey: "settings.section.connections", icon: KeyRound, sections: ["connections"],
+      keywords: ["keys", "api", "apps", "composio", "logins", "computers", "voice"] });
+  }
   const hidden = SIMPLE_HIDDEN_SECTIONS.includes(open) && available.has(open) ? SECTIONS.find((entry) => entry.id === open) : undefined;
   if (hidden) pages.push({ id: hidden.id, labelKey: hidden.labelKey, icon: hidden.icon, sections: [hidden.id] });
   return pages;
@@ -155,23 +178,28 @@ export function revealSettingsBlock(
   if (block) scrollWithin(scroller, block);
 }
 
-function simplePageMatches(page: SimpleSettingsPage, query: string): boolean {
+function simplePageMatches(page: SimpleSettingsPage, query: string, keySections?: ReadonlySet<KeySectionId>): boolean {
   if (!query) return true;
   if ([t(page.labelKey), ...page.keywords ?? []].some((part) => part.toLowerCase().includes(query))) return true;
   return page.sections.some((id) => {
     const entry = SECTIONS.find((candidate) => candidate.id === id);
-    return entry ? sectionMatches(entry, query) : false;
+    return entry ? sectionMatches(entry, query, keySections) : false;
   });
 }
 
-export function sectionMatches(section: (typeof SECTIONS)[number], query: string): boolean {
+export function sectionMatches(section: (typeof SECTIONS)[number], query: string, keySections?: ReadonlySet<KeySectionId>): boolean {
   if (!query) return true;
-  if (section.id === "connections" && KEY_CATALOG.some((entry) => keyMatches(entry, query))) return true;
+  if (section.id === "connections" && KEY_CATALOG.some((entry) => (!keySections || keySections.has(entry.section)) && keyMatches(entry, query))) return true;
   return [t(section.labelKey), ...section.keywords].some((part) => part.toLowerCase().includes(query));
 }
 
-export function keySearchResults(query: string): KeyEntry[] {
-  return query ? KEY_CATALOG.filter((entry) => keyMatches(entry, query)).slice(0, 8) : [];
+export function keySearchResults(query: string, sections?: ReadonlySet<KeySectionId>): KeyEntry[] {
+  return query
+    ? KEY_CATALOG
+      .filter((entry) => (!sections || (sections.has(entry.section) && (!entry.uses || sections.has(keyEntry(entry.uses).section))))
+        && keyMatches(entry, query))
+      .slice(0, 8)
+    : [];
 }
 
 export const openKeyResult = (entry: KeyEntry) => entry.uses ? openKeySettings(entry.uses, entry.id) : openKeySettings(entry.id);
@@ -180,11 +208,19 @@ export function SettingsModal() {
   const { state, dispatch } = useStore();
   const advanced = useAdvancedMode();
   const remoteActive = window.ogb?.remoteClient?.active === true;
+  const productManaged = isProductWorkspace(state.config?.productManaged);
+  // A managed account's AI is the account's: its engines, provider keys and decision model have no page here, and its
+  // Cloud and server switching belongs elsewhere. Third-party app and computer credentials stay reachable (Apps owns
+  // their OAuth flows; the keys page keeps only those sections).
+  const productKeySections: ReadonlySet<KeySectionId> | undefined = productManaged ? new Set<KeySectionId>(["apps", "computers", "voice"]) : undefined;
   const requested = state.appSettingsSection;
+  // A page this build has no use for is answered at once, before the redirect below settles into another one, so the
+  // person never sees a provider list they cannot use.
+  const asked: AppSettingsSection = productManaged && PRODUCT_HIDDEN_SECTIONS.includes(requested) ? "account" : requested;
   const section: AppSettingsSection =
-    (remoteActive && !["appearance", "desktopWorkspaces"].includes(requested)) || requested === "remote"
+    (remoteActive && !["appearance", "desktopWorkspaces"].includes(asked)) || asked === "remote"
       ? "companion"
-      : advanced && requested === "updates" ? "general" : requested;
+      : advanced && asked === "updates" ? "general" : asked;
   const dialogRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchFirst = useRef(advanced);
@@ -200,13 +236,15 @@ export function SettingsModal() {
     .filter((entry) => entry.id !== "workspaces" || workspacesAvailable(state.config))
     .filter((entry) => entry.id !== "people" || (!window.ogb && state.config?.cloudHome !== true))
     .filter((entry) => entry.id !== "activity" || (!window.ogb && ownerOrAdmin === true))
-    .filter((entry) => entry.id !== "botAccess" || (Boolean(state.config?.team) && ownerOrAdmin === true));
+    .filter((entry) => entry.id !== "botAccess" || (Boolean(state.config?.team) && ownerOrAdmin === true))
+    .filter((entry) => !productManaged || !PRODUCT_HIDDEN_SECTIONS.includes(entry.id))
+    .filter((entry) => productManaged || entry.id !== "account");
   const availableSections = baseSections.filter((entry) => entry.id !== "skills" || skillsLibraryEnabled(state.config));
-  const visibleSections = availableSections.filter((entry) => sectionMatches(entry, q));
+  const visibleSections = availableSections.filter((entry) => sectionMatches(entry, q, productKeySections));
 
   const simpleAvailable = new Set<AppSettingsSection>([...availableSections.map((entry) => entry.id), ...(remoteActive ? [] : ["updates" as const])]);
-  const simplePages = advanced ? [] : simpleSettingsPages(simpleAvailable, section);
-  const visiblePages = simplePages.filter((page) => simplePageMatches(page, q));
+  const simplePages = advanced ? [] : simpleSettingsPages(simpleAvailable, section, { productManaged });
+  const visiblePages = simplePages.filter((page) => simplePageMatches(page, q, productKeySections));
   const currentPage = simplePages.find((page) => page.sections.includes(section));
 
   const sectionLabelKey = advanced
@@ -232,7 +270,7 @@ export function SettingsModal() {
   const [looks, setLooks] = useState(false);
   const [reveal, setReveal] = useState<string | null>(null);
   const advancedMatches = advanced || !q ? [] : SIMPLE_ADVANCED_ONLY.filter((key) => t(key).toLowerCase().includes(q));
-  const keyResults = remoteActive || !availableSections.some((entry) => entry.id === "connections") ? [] : keySearchResults(q);
+  const keyResults = remoteActive || !availableSections.some((entry) => entry.id === "connections") ? [] : keySearchResults(q, productKeySections);
   const keyResultButtons = (className: string) => keyResults.map((entry) => (
     <button key={entry.id} type="button" data-settings-key-result={entry.id} className={className}
       onClick={() => { setQuery(""); setLooks(false); dispatch(openKeyResult(entry)); }}>
@@ -338,8 +376,8 @@ export function SettingsModal() {
             <DefaultBotSidebarRow />
             <TalkShortcutRow />
 
-            <ProSettingsCard />
-            <CloudUsageSettings />
+            {!productManaged && <ProSettingsCard />}
+            {!productManaged && <CloudUsageSettings />}
             <Card title={t("settings.profile.title")} subtitle={t("settings.profile.sharedSubtitle")}>
               <ProfileFields />
             </Card>
@@ -367,7 +405,9 @@ export function SettingsModal() {
             <PinnedPanelsSettings />
 
             {!remoteActive && <ReplayTourRow />}
-            <UpdatesRow />
+            {productManaged
+              ? <Card title={t("settings.updates.title")} subtitle={t("product.updates.administrator")} />
+              : <UpdatesRow />}
             <DiagnosticsRow />
           </>
         );
@@ -400,7 +440,9 @@ export function SettingsModal() {
       case "experimental":
         return <ExperimentalFeaturesRow />;
       case "connections":
-        return <AdminOnly><KeysPage /></AdminOnly>;
+        return <AdminOnly><KeysPage sections={productKeySections} /></AdminOnly>;
+      case "account":
+        return <ProductAccountSettings />;
       case "decisionModel": return <AdminOnly><DecisionModelSettings /></AdminOnly>;
       case "engines": return <AdminOnly><EnginesSettings /></AdminOnly>;
       case "backups": return <AdminOnly><WorkspaceBackupSettings /><CompanyBackupSettings /></AdminOnly>;
@@ -412,7 +454,10 @@ export function SettingsModal() {
       case "logins":
         return <LoginsSettings />;
       case "usage":
-        return <AdminOnly note="settings.adminOnly.usage"><UsageSection /></AdminOnly>;
+        return <>
+          {productManaged && <Card title={t("product.localUsage")} subtitle={t("product.localUsageNote")} />}
+          <AdminOnly note="settings.adminOnly.usage"><UsageSection /></AdminOnly>
+        </>;
       case "skills":
         return skillsLibraryEnabled(state.config) ? <SkillsSection /> : null;
       case "people":
@@ -436,8 +481,15 @@ export function SettingsModal() {
         : <SimpleGeneralPage has={has} peopleOpen={section === "people"} onLooks={() => setLooks(true)} />;
       case "ai": return <SimpleAiPage has={has} disclose={disclose} connections={renderSection("connections")} />;
       case "computer": return <SimpleComputerPage has={has} remoteAccess={remoteAccess} servers={renderSection("desktopWorkspaces")} disclose={disclose} />;
-      case "billing": return <SimpleBillingPage has={has} disclose={disclose} cloudAccount={renderSection("cloudAccount")} />;
-      case "updates": return <SimpleUpdatesPage remoteActive={remoteActive} />;
+      case "billing": return productManaged
+        ? has("usage") && (
+          <SettingsDisclosureRow title={t("product.localUsage")} {...disclose("billing-limits")}>
+            <p className="px-4 pb-1 text-[12px] leading-4 text-ink-secondary">{t("product.localUsageNote")}</p>
+            <AdminOnly note="settings.adminOnly.usage"><UsageSection /></AdminOnly>
+          </SettingsDisclosureRow>
+        )
+        : <SimpleBillingPage has={has} disclose={disclose} cloudAccount={renderSection("cloudAccount")} />;
+      case "updates": return <SimpleUpdatesPage remoteActive={remoteActive} productManaged={productManaged} />;
       default:
         return page.sections.map((id) => <section key={id} data-settings-block={id} className="flex scroll-mt-4 flex-col gap-4">{renderSection(id)}</section>);
     }

@@ -8,6 +8,7 @@ import {
 import { jevBackend } from "./jev.ts";
 import { appendDeciderLog, stateHash } from "./log.ts";
 import { OPENROUTER_DEFAULT_API, OPENROUTER_DEFAULT_MODEL, openrouterBackend } from "./openrouter.ts";
+import { productDeciderBackend, productHelper, productHelperMode } from "./product.ts";
 import { KEY_CHECK_QUESTION, KEY_CHECK_STATE, relayAccepts, relaySeam } from "./relay.ts";
 import type {
   Answers, AskOptions, BackendResult, ChoiceAnswer, ChoiceQuestion, DeciderBackend, DeciderFailure, DeciderJob,
@@ -18,13 +19,14 @@ import { workersAiBackend } from "./workers-ai.ts";
 
 export { DECIDER_JOBS } from "./types.ts";
 export { deciderOpenRouterKey } from "./accounts.ts";
+export { productHelper, productHelperFailure, productHelperMode, setProductHelperMode, setProductHelperState, type ProductHelper } from "./product.ts";
 
 export const DEFAULT_DECIDER_TIMEOUT_MS = 1_500;
 export const KEY_CHECK_TIMEOUT_MS = 10_000;
 const MIN_TIMEOUT_MS = 50;
 const MAX_TIMEOUT_MS = 30_000;
 
-const BACKENDS: Record<DeciderProvider, DeciderBackend> = { jev: jevBackend, workersai: workersAiBackend, openrouter: openrouterBackend };
+const BACKENDS: Record<DeciderProvider, DeciderBackend> = { jev: jevBackend, workersai: workersAiBackend, openrouter: openrouterBackend, product: productDeciderBackend };
 
 type DeciderConfig = NonNullable<AppConfig["decider"]>;
 
@@ -42,9 +44,19 @@ export function deciderApi(cfg: AppConfig): OpenRouterApi {
   return cfg.decider.openrouterApi === "decisions" ? "decisions" : "chat";
 }
 
-/** In order: the person's own Jev key, their own Workers AI key (Clef), Cloud's included relay (only for seams it
- * accepts), the OpenRouter LLM fallback, nothing. */
+/** The managed account's own model, when the parent installed it: the only helper backend in product mode, where the
+ * person has no local key. */
+function productAccount(): HelperAccount | null {
+  return productHelper() ? { provider: "product", token: "", api: "", included: false } : null;
+}
+
+/** In order: the managed account (product mode only), the person's own Jev key, their own Workers AI key (Clef),
+ * Cloud's included relay (only for seams it accepts), the OpenRouter LLM fallback, nothing. */
 export function deciderAccount(cfg: AppConfig, seam?: DeciderSeam): HelperAccount | null {
+  const product = productAccount();
+  if (product) return product;
+  // Product mode has no local fallback, with or without an installed callback: helpers wait for the account.
+  if (productHelperMode()) return null;
   const jev = jevAccount(cfg);
   const candidates = [jev, workersAiAccount(cfg), jev?.included ? null : includedAccount(), openrouterAccount(cfg)];
   return candidates.find((account): account is HelperAccount => Boolean(account) && !(account!.included && seam && !relaySeam(seam))) ?? null;
@@ -88,6 +100,7 @@ export function describeDecider(cfg: AppConfig) {
     ...(account?.keySource ? { keySource: account.keySource } : {}),
     ...(provider === "openrouter" && deciderSharedKeyUsable(cfg) ? { sharedKey: true as const } : {}),
     ...(account?.included ? { included: true as const } : {}),
+    ...(provider === "product" ? { product: true as const } : {}),
     enabled: deciderEnabled(cfg),
     jobs: { roomRouting: deciderJobOn(cfg, "roomRouting") },
   };
@@ -140,6 +153,7 @@ export const DECIDER_KEY_REJECTED: Record<DeciderProvider, string> = {
   jev: "Jev rejected this key. Check it at typesafe.ai and paste it again.",
   workersai: "Cloudflare rejected this token. Check that it has Workers AI permission and belongs to this account ID.",
   openrouter: "OpenRouter rejected this key. Check it at openrouter.ai/keys and paste it again.",
+  product: "Your account's AI access refused this check. Refresh your account status, then try again.",
 };
 
 /** The key a save brings, to be tested before it is kept: Jev's, then Workers AI's, then OpenRouter's. */
@@ -172,8 +186,11 @@ export function deciderPatchKey(
 /** The account a key check uses: a draft at the provider named (else the old provider choice), or the one in use. */
 function checkAccount(cfg: AppConfig, input: { key?: string; provider?: DeciderProvider; accountId?: string }): HelperAccount | null {
   const draft = input.key?.trim();
-  if (!draft && !input.provider) return deciderAccount(cfg, "keyCheck");
+  if (!draft) {
+    if (!input.provider || input.provider === "product") return deciderAccount(cfg, "keyCheck");
+  }
   const provider = input.provider ?? draftProvider(cfg);
+  if (provider === "product") return productAccount();
   if (provider === "workersai") return workersAiAccount(cfg, { token: draft, accountId: input.accountId });
   if (provider === "openrouter") return openrouterAccount(cfg, draft);
   return jevAccount(cfg, draft) ?? includedAccount();
@@ -219,6 +236,9 @@ export function createDecider(deps: DeciderDeps): Decider {
   function gate(cfg: AppConfig, seam: DeciderSeam): DeciderFailure | null {
     if (cfg.decider?.provider === "off") return "disabled";
     if (seam === "keyCheck") return null;
+    // Product mode's only helper backend is the account's; without it helpers wait for the account rather than
+    // report themselves switched off.
+    if (productHelperMode() && !productHelper()) return "no_key";
     if (!deciderConfigured(cfg)) return cfg.decider?.enabled === true ? "no_key" : "disabled";
     if (!deciderEnabled(cfg)) return "disabled";
     if (isJob(seam) && !deciderJobOn(cfg, seam)) return "job_off";

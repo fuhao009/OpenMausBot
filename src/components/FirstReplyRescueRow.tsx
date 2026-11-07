@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n";
 import { useAdvancedMode } from "@/lib/interface-mode";
 import { useLiveTurn } from "@/lib/stop-turn";
 import { useStore } from "@/state/store";
+import { isProductWorkspace } from "@/lib/product-workspace";
 import type { FirstReplyRescue } from "../../shared/first-reply-rescue";
 
 const pill = "rounded-full border border-hairline/40 px-2.5 py-1 text-[13px] text-ink hover:bg-raised";
@@ -29,6 +30,7 @@ export function FirstReplyRescueRow({ rescue, text, at }: { rescue: FirstReplyRe
   // Where this bot's AI is chosen: the bot panel in Simple mode, the chat header in Advanced. A room's header and a
   // remote client's Advanced header have no model chip.
   const remote = window.ogb?.remoteClient?.active === true;
+  const productManaged = isProductWorkspace(state.config?.productManaged);
   const canSwitch = live && !rescue.groupId && !(advanced && remote);
   const switchAi = () => {
     requestAiSwitch({ botId: rescue.botId, threadId: rescue.threadId, turnId: rescue.turnId, requestMessageId: rescue.requestMessageId, place: advanced ? "header" : "panel" });
@@ -47,9 +49,9 @@ export function FirstReplyRescueRow({ rescue, text, at }: { rescue: FirstReplyRe
               {t("chat.rescue.switchAi")}
             </button>
           )}
-          <button type="button" className={pill} title={t("chat.rescue.connectHint")}
-            onClick={() => dispatch({ type: "toggleAppSettings", open: true, section: "engines" })}>
-            {t("chat.rescue.connect")}
+          <button type="button" className={pill} title={t(productManaged ? "product.accountHint" : "chat.rescue.connectHint")}
+            onClick={() => dispatch({ type: "toggleAppSettings", open: true, section: productManaged ? "account" : "engines" })}>
+            {t(productManaged ? "product.accountSection" : "chat.rescue.connect")}
           </button>
         </span>
       )}

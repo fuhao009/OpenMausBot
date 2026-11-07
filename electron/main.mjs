@@ -4,8 +4,21 @@ import { randomBytes, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildErrorPage, desktopViewerErrorPage } from "./error-pages.mjs";
+import { resolveProductService } from "./product-service.mjs";
+import { createProductAccountService } from "./product-account.mjs";
+import { createEncryptedRecordStore } from "./encrypted-record-store.mjs";
+import { createProductAccountWindow } from "./product-account-window.mjs";
+import { installProductAccountIpc } from "./product-account-ipc.mjs";
+import { productVerificationEntry } from "./product-verification-entry.mjs";
+const productFixture = productVerificationEntry();
+if (productFixture) {
+  app.setPath("userData", productFixture.userData);
+  app.setPath("sessionData", productFixture.userData);
+  app.setAppLogsPath(path.join(productFixture.root, "logs"));
+  process.env.OMB_PRODUCT_SERVICE_URL = productFixture.origin;
+}
 import { startCua, stopCua, registerCuaIpc, requestComputerUse, setCuaStateListener, grantLocalComputer } from "./cua.mjs";
 import { createAndroidDeviceController } from "./android-device.mjs";
 import { finishSpeech, speechBusy, startSpeech, stopSpeech } from "./speech.mjs";
@@ -93,8 +106,8 @@ import { createComputerSharing, isHomeFolder, validateSharedFolders } from "./co
 import { createHostScreenLease } from "./host-screen-lease.mjs";
 import { acquireDataDirLease } from "./data-dir-lease.mjs";
 import { switchLocalEnvironment } from "./environment-switch.mjs";
-import { createManagedDesktopClient, createManagedDesktopRelay, createManagedDesktopStore } from "./managed-desktop.mjs";
-import { CHECKOUT_SOURCES, cloudMenuSublabel, cloudTarget, createCloudAccountClient, createCloudAccountStore } from "./cloud-account.mjs";
+import { createManagedDesktopClient, createManagedDesktopRelay } from "./managed-desktop.mjs";
+import { CHECKOUT_SOURCES, cloudMenuSublabel, cloudTarget, createCloudAccountClient } from "./cloud-account.mjs";
 import { installCloudPlanIpc } from "./cloud-plan-ipc.mjs";
 import { cloudLinkOpensSheet, colorDotIcons, createCloudLook, createCloudReadyNotice, installCloudBuy, lookFile } from "./cloud-buy.mjs";
 import { createTrialNotices } from "./cloud-trial-notice.mjs";
@@ -268,6 +281,12 @@ let secureCredentialState = null;
 let desktopDataDirLease = null;
 // The folder this process leases; environmentsState.activeId can name a remote server instead.
 let runningDataDir = null;
+let productService = null;
+let productAccount = null;
+let productAccountRoot = null;
+let productAccountKey = null;
+let productAuthWindow = null;
+let productRuntimeGeneration = 0;
 let localSwitchInFlight = false;
 let managedDesktop = null;
 let cloudAccount = null, updatesConsent = null, desktopPrefs = null, ownHome = null, twoPlaces = null, windowFrameMade = null;
@@ -302,6 +321,10 @@ const serverSupervisor = createServerSupervisor({
     serverReady = true;
     serverStartConflictOnly = false;
     slog(`server ready pid=${proc.pid} port=${SERVER_PORT}`);
+    if (productService) {
+      routineWake.start();
+      return;
+    }
     void readCloudOfferBrand();
     syncManagedComposioCredentials(); includedX.serverStarted(); includedPages.serverStarted(); railChanged();
     reportOwnListeners(proc);
@@ -335,6 +358,10 @@ const serverSupervisor = createServerSupervisor({
 });
 
 function desktopDataDir() {
+  if (productService) {
+    if (!productAccountRoot) throw new Error("product_account_required");
+    return path.join(productAccountRoot, "workspace");
+  }
   // An empty OMB_DATA_DIR falls back here too; server/config.ts would not, so the child gets this path.
   return process.env.OMB_DATA_DIR || path.join(app.getPath("home"), ".openmausbot");
 }
@@ -360,7 +387,7 @@ let phoneSecretIdentity = null;
 let desktopRemoteAccess = null;
 let desktopCompanionRelay = null;
 
-const CREDENTIALS_FILE = path.join(app.getPath("userData"), "credentials.bin");
+let CREDENTIALS_FILE = path.join(app.getPath("userData"), "credentials.bin");
 
 /** True when the store could not be read, which is not the same as nothing saved. */
 let credentialStoreUnavailable = false;
@@ -449,6 +476,7 @@ async function secureWorkspaceConfig() {
 }
 
 function composioBrokerUrl() {
+  if (productService) return "";
   return managedComposioBrokerUrl(process.env.OMB_COMPOSIO_BROKER_URL, app.isPackaged);
 }
 
@@ -469,6 +497,7 @@ import {
   companionRevoke,
   companionRunning,
   companionState,
+  configureCompanionStorage,
   rememberCompanionEnabled,
   rememberCompanionKeepAwake,
   setCompanionHostedUrl,
@@ -511,7 +540,7 @@ const routineWake = createRoutineWakeHold({
     }
   },
   blocker: powerSaveBlocker,
-  settings: () => routineWakeSettings(app.getPath("userData")),
+  settings: () => routineWakeSettings(productAccountRoot ?? app.getPath("userData")),
   log: (line) => slog(line),
 });
 
@@ -622,7 +651,7 @@ function ensureManagedCompanionConnector() {
     }),
     guardianEntry: resolveManagedCompanionGuardian({ appPath: app.getAppPath() }),
     runtimeExecutable: process.execPath,
-    runtimeRoot: path.join(app.getPath("userData"), "managed-companion-tunnel"),
+    runtimeRoot: path.join(productAccountRoot ?? app.getPath("userData"), "managed-companion-tunnel"),
     onChange: (status) => {
       slog(`managed companion connection ${status.status}`);
       if (!companionDesiredThisLaunch) return;
@@ -824,7 +853,7 @@ function ensureCloudAccount() {
   if (cloudAccount) return cloudAccount;
   if (!app.isPackaged || desktopRemoteAccess) throw new Error("MausBot Cloud sign-in requires the local desktop app.");
   cloudAccount = createCloudAccountClient({
-    store: createCloudAccountStore({ file: path.join(app.getPath("userData"), cloudTarget(process.env).file), encryption: {
+    store: createEncryptedRecordStore({ file: path.join(app.getPath("userData"), cloudTarget(process.env).file), encryption: {
       available: async () => (await safeStorage.isAsyncEncryptionAvailable()) &&
         (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"),
       encrypt: value => safeStorage.encryptStringAsync(value), decrypt: value => safeStorage.decryptStringAsync(value),
@@ -913,10 +942,10 @@ function ensureManagedDesktop() {
     encrypt: value => safeStorage.encryptStringAsync(value),
     decrypt: value => safeStorage.decryptStringAsync(value),
   };
-  const store = createManagedDesktopStore({ file: path.join(app.getPath("userData"), "company-connection.bin"), encryption });
+  const store = createEncryptedRecordStore({ file: path.join(app.getPath("userData"), "company-connection.bin"), encryption });
   orgLibrary = createOrgLibrary({
     dataDir: path.join(desktopDataDir(), "org-library"),
-    store: createManagedDesktopStore({ file: path.join(app.getPath("userData"), "company-library.bin"), encryption }),
+    store: createEncryptedRecordStore({ file: path.join(app.getPath("userData"), "company-library.bin"), encryption }),
     fetchBytes: (route, maxBytes, options) => managedDesktop.fetchLibraryBytes(route, maxBytes, options),
     relay: library => managedDesktopRelay.sendLibrary(serverProc, library),
     appVersion: app.getVersion(),
@@ -949,7 +978,7 @@ function ensureManagedDesktop() {
     },
   });
   companyBackupSchedule = createCompanyBackupSchedule({
-    store: createManagedDesktopStore({ file: path.join(app.getPath("userData"), "company-backup-schedule.bin"), encryption }),
+    store: createEncryptedRecordStore({ file: path.join(app.getPath("userData"), "company-backup-schedule.bin"), encryption }),
     scope: companyBackupScope,
     run: async (signal, scope) => {
       if (companyBackupController || preparedCompanyRestore || companyRestoreCommitting || desktopShutdownStarted) throw companyBackupDeferred();
@@ -1134,9 +1163,10 @@ function receivePhoneSecretSave(proc, rawMessage) {
 async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmentDir(environmentsState, desktopDataDir())) {
   if (desktopShutdownStarted) return { proc: null, abort: true };
   const { entry, compileCacheDir } = serverChildLaunch({
-    resourcesPath: process.resourcesPath,
-    userData: app.getPath("userData"),
+    resourcesPath: app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), "dist-resources"),
+    userData: productAccountRoot ?? app.getPath("userData"),
   });
+  const childEntry = productService && !app.isPackaged ? path.join(app.getAppPath(), "dist-server", "index.js") : entry;
   const childEnv = managedComposioChildEnvironment(composioBrokerUrl(), secureCredentials, {
     ...process.env,
     // The parent owns the data-dir lease; a child only validates it, so fallback-port children never replace it.
@@ -1145,23 +1175,30 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
     // Fail-closed until this process sends the private connection; never a descriptor inherited from the shell.
     OMB_DESKTOP_PARENT: "1",
     OMB_DESKTOP_LAUNCH_ID: desktopLaunchId,
-    OMB_STATIC_DIR: path.join(process.resourcesPath, "ui"),
+    OMB_STATIC_DIR: app.isPackaged ? path.join(process.resourcesPath, "ui") : path.join(app.getAppPath(), "dist"),
     OMB_RESOURCES_PATH: process.resourcesPath,
     OMB_SKILLS_DIR: path.join(process.resourcesPath, "skills"),
     OMB_PORT: String(port),
     OMB_APP_VERSION: app.getVersion(),
-    OMB_USER_DATA: app.getPath("userData"),
+    OMB_USER_DATA: productAccountRoot ?? app.getPath("userData"),
+    ...(productService ? { OMB_PRODUCT_MANAGED: "1", OMB_PRODUCT_ACCOUNT_KEY: productAccountKey } : {}),
     ...(secureCredentials.composioApiKey
       ? { COMPOSIO_API_KEY: secureCredentials.composioApiKey }
       : {}),
     OMB_CREDENTIAL_STORE: credentialStoreUnavailable ? "unavailable" : "ok",
     ...workspaceCredentialEnv(secureCredentials),
   });
+  if (productService) {
+    for (const key of Object.keys(childEnv)) {
+      if (/^(ANTHROPIC_|OPENAI_|OPENROUTER_|XAI_|GROQ_|CEREBRAS_|MISTRAL_|DEEPSEEK_|AI_UPSTREAM_|AI_OPERATOR_|OMB_OPERATOR_|OMB_CLOUD_|OMB_COMPANY_|OPENMAUSBOT_PRODUCT_AI_TOKEN$)/.test(key)) delete childEnv[key];
+    }
+    delete childEnv.OMB_PRODUCT_SERVICE_URL;
+  }
   delete childEnv.OMB_BROWSER_CONNECTION;
   delete childEnv.OMB_SERVER_COMPILE_CACHE;
   if (compileCacheDir) childEnv.OMB_SERVER_COMPILE_CACHE = compileCacheDir;
-  slog(`fork ${entry} port=${port}`);
-  const proc = utilityProcess.fork(entry, [], {
+  slog(`fork ${childEntry} port=${port}`);
+  const proc = utilityProcess.fork(childEntry, [], {
     env: childEnv,
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -1201,6 +1238,7 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
     slog(`exited code=${code}`);
   });
   serverSupervisor.watch(proc);
+  if (productService) serverProc = proc;
   const identity = await pollServerIdentity({
     port,
     pid: () => proc.pid,
@@ -1255,7 +1293,7 @@ const displayMediaGuard = createDisplayMediaGuard();
 let displayMediaRequestCount = 0;
 
 function rendererOrigin() {
-  return new URL(app.isPackaged || desktopRemoteAccess ? `http://127.0.0.1:${SERVER_PORT}` : DEV_URL).origin;
+  return new URL(productService || app.isPackaged || desktopRemoteAccess ? `http://127.0.0.1:${SERVER_PORT}` : DEV_URL).origin;
 }
 
 function respondToDisplayMediaRequest(callback, response) {
@@ -1538,6 +1576,10 @@ async function offerComputerSharing(win) {
 }
 
 function environmentsFile() {
+  if (productService) {
+    if (!productAccountRoot) throw new Error("product_account_required");
+    return path.join(productAccountRoot, "environments.json");
+  }
   return path.join(app.getPath("userData"), cloudTarget(process.env).environments);
 }
 
@@ -1548,6 +1590,13 @@ function activeOrigin() {
 }
 
 function refreshApplicationMenu() {
+  if (productService) {
+    Menu.setApplicationMenu(Menu.buildFromTemplate([
+      ...(process.platform === "darwin" ? [{ role: "appMenu" }] : []),
+      { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" },
+    ]));
+    return;
+  }
   Menu.setApplicationMenu(
     buildApplicationMenu({
       environments: environmentsState.environments,
@@ -1574,6 +1623,7 @@ function persistEnvironments(next) {
 }
 
 async function workspaceMenuAction(action) {
+  if (productService) throw new Error("product_workspace_managed");
   try { await action(); } catch (error) {
     await dialog.showMessageBox({ type: "error", message: "Could not update servers", detail: error.message });
   }
@@ -2029,10 +2079,11 @@ function createWindow({ deferNavigation = false } = {}) {
     autoHideMenuBar: process.platform !== "darwin",
     ...windowChromeOptions(process.platform, windowFrameMade = desktopPrefs?.windowFrame() !== false),
     webPreferences: {
+      ...(productAccountKey ? { partition: `persist:product-${productAccountKey}` } : {}),
       contextIsolation: true,
       preload: path.join(__dirname, "preload.cjs"),
       additionalArguments: [...desktopCompanionRendererArguments(rendererOrigin(), desktopRemoteAccess),
-        ...(app.isPackaged && !desktopRemoteAccess ? ["--omb-company-desktop=1"] : []), `--omb-app-version=${app.getVersion()}`],
+        ...(productService ? ["--omb-product-managed=1"] : app.isPackaged && !desktopRemoteAccess ? ["--omb-company-desktop=1"] : []), `--omb-app-version=${app.getVersion()}`],
     },
   });
   mainWindow = win; hiddenStart = false; chromeRail.attach(win);
@@ -2249,7 +2300,7 @@ function createWindow({ deferNavigation = false } = {}) {
     win.loadURL(serverReady ? `http://127.0.0.1:${SERVER_PORT}` : buildErrorPage({ allPortsOccupied: serverStartConflictOnly, logDir: LOG_DIR }));
   } else if (remote) {
     void win.loadURL(remote.origin).catch(() => {});
-  } else if (app.isPackaged) {
+  } else if (app.isPackaged || productService) {
     win.loadURL(serverReady ? `http://127.0.0.1:${SERVER_PORT}` : buildErrorPage({ allPortsOccupied: serverStartConflictOnly, logDir: LOG_DIR }));
   } else {
     win.loadURL(DEV_URL);
@@ -2447,7 +2498,7 @@ ipcMain.handle("companion:keep-awake", localOnly("companion:keep-awake", async (
 }));
 ipcMain.handle("routines:wake-state", localOnly("routines:wake-state", () => routineWake.poll()));
 ipcMain.handle("routines:keep-awake", localOnly("routines:keep-awake", async (_event, enabled) => {
-  rememberRoutineWake(app.getPath("userData"), Boolean(enabled));
+  rememberRoutineWake(productAccountRoot ?? app.getPath("userData"), Boolean(enabled));
   return routineWake.poll();
 }));
 ipcMain.handle("companion:refresh-tailscale", localOnly("companion:refresh-tailscale", () => refreshDesktopCompanionTailscale()));
@@ -2537,7 +2588,10 @@ const workspaceOnly = (handler) => (event, ...args) => {
   if (!workspaceSenderAllowed(event, mainWindow?.webContents, environmentsState, rendererOrigin())) throw new Error("These controls are only available in the main desktop window");
   return handler(event, ...args);
 };
-const localWorkspaceOnly = (channel, handler) => localOnly(channel, workspaceOnly(handler));
+const localWorkspaceOnly = (channel, handler) => localOnly(channel, workspaceOnly((...args) => {
+  if (productService && /^(environments:|organization:|cloud-account:|cloud-plan:)/.test(channel)) throw new Error("product_workspace_managed");
+  return handler(...args);
+}));
 // No renderer-supplied address, token, paid flag or callback can choose an account or activate Pro.
 for (const method of ["state", "begin", "signInAgain", "reopen", "cancel", "refresh", "signOut", "openDashboard", "offer"]) {
   ipcMain.handle(`cloud-account:${method}`, localWorkspaceOnly(`cloud-account:${method}`, () => ensureCloudAccount()[method]()));
@@ -2887,7 +2941,124 @@ setCuaStateListener((connection) => {
   });
 });
 
+async function startProductDesktop() {
+  configureCompanionStorage();
+  serverReady = false;
+  serverSupervisor.pause();
+  refreshApplicationMenu();
+  registerDesktopPrefs({ ipcMain,
+    prefs: new Proxy({}, { get: (_target, key) => (...args) => {
+      if (!desktopPrefs || !productAccountRoot) throw new Error("product_account_required");
+      return desktopPrefs[key](...args);
+    } }),
+    page: event => mainWindow && event.sender === mainWindow.webContents && event.senderFrame === mainWindow.webContents.mainFrame && senderIsLocal(event) ? "local" : null,
+    cloudOffered: async () => false,
+    languageChanged: language => mainWindow?.webContents.send("desktop-language:changed", language),
+  });
+  if (app.isPackaged) app.setAsDefaultProtocolClient("openmausbot-product");
+  const encryption = {
+    available: async () => await safeStorage.isAsyncEncryptionAvailable() &&
+      (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"),
+    encrypt: value => safeStorage.encryptStringAsync(value),
+    decrypt: value => safeStorage.decryptStringAsync(value),
+  };
+  const authUrl = pathToFileURL(path.join(app.isPackaged ? path.join(process.resourcesPath, "ui") : path.join(app.getAppPath(), "dist"), "product-account.html")).href;
+  let accountIpc;
+  let closingAuth = false;
+  const openAuth = () => {
+    if (productAuthWindow && !productAuthWindow.window.isDestroyed()) { productAuthWindow.window.show(); return; }
+    productAuthWindow = createProductAccountWindow({ BrowserWindow, url: authUrl, iconPath: APP_ICON,
+      onClose: () => { if (!closingAuth && !mainWindow) app.quit(); } });
+  };
+  productAccount = createProductAccountService({
+    origin: productService.origin,
+    ca: productService.ca,
+    client: createControlPlaneClient({ baseURL: productService.origin, ca: productService.ca }),
+    store: createEncryptedRecordStore({ file: path.join(app.getPath("userData"), "product-account.bin"), encryption }),
+    startRuntime: async ({ generation, accountKey }) => {
+      if (serverProc || desktopDataDirLease) throw new Error("product_runtime_owned");
+      productRuntimeGeneration = generation;
+      productAccountKey = accountKey;
+      productAccountRoot = path.join(app.getPath("userData"), "product-accounts", accountKey);
+      configureCompanionStorage(productAccountRoot);
+      await fs.promises.mkdir(path.join(productAccountRoot, "workspace"), { recursive: true, mode: 0o700 });
+      CREDENTIALS_FILE = path.join(productAccountRoot, "credentials.bin");
+      environmentsState = { environments: [], activeId: LOCAL_ID };
+      runningDataDir = desktopDataDir();
+      desktopDataDirLease = acquireDataDirLease(runningDataDir);
+      secureCredentials = await loadSecureCredentials();
+      secureCredentialState = createSecureCredentialState(secureCredentials, saveSecureCredentials, { writable: !credentialStoreUnavailable });
+      desktopPrefs = createDesktopPrefs(jsonFile(path.join(productAccountRoot, "desktop-prefs.json")));
+      const accountSession = session.fromPartition(`persist:product-${accountKey}`);
+      installServerSessions({ app, defaultSession: accountSession, serverPort: () => SERVER_PORT, ownerToken: () => serverReady ? desktopMutationToken : null });
+      serverSupervisor.resume();
+      if (!await startServerPackaged()) throw new Error("product_runtime_start_failed");
+      setLocalOrigin(rendererOrigin());
+      appPermissions = appPermissionHandlers({ rendererOrigin, mainContents: () => mainWindow?.webContents ?? null,
+        cloudHomeOrigin: () => null, cloudHomeRestoring: () => null, activeRemoteOrigin: () => null,
+        activeRemoteMicrophone: () => false, askRemoteMicrophone, homeOrigin: rendererOrigin });
+      accountSession.setPermissionRequestHandler(appPermissions.request);
+      accountSession.setPermissionCheckHandler(appPermissions.check);
+      cuaReady = productFixture
+        ? Promise.resolve({ mode: "unavailable", reason: "fixture_computer_permission_not_granted" })
+        : startCua().catch(() => ({ mode: "unavailable", reason: "computer_unavailable" }));
+      createWindow();
+      closingAuth = true;
+      productAuthWindow?.close();
+      productAuthWindow = null;
+      closingAuth = false;
+    },
+    stopRuntime: async ({ generation }) => {
+      if (generation !== productRuntimeGeneration) return;
+      serverSupervisor.pause();
+      routineWake.stop();
+      mainWindow?.destroy(); mainWindow = null;
+      await stopDesktopCompanion({ remember: false });
+      computerSharing?.close();
+      desktopWorkspaceManager?.close?.();
+      desktopViewerWindow?.destroy(); desktopViewerWindow = null;
+      const proc = serverProc;
+      await stopCua();
+      if (!await stopUtilityServer(proc)) throw new Error("product_runtime_stop_failed");
+      desktopDataDirLease?.release(); desktopDataDirLease = null;
+      serverProc = null; serverReady = false; runningDataDir = null;
+      secureCredentials = {}; secureCredentialState = null;
+      configureCompanionStorage();
+      managedCompanionConnector = null;
+      phoneSecretIdentity = null;
+      productAccountRoot = null; productAccountKey = null;
+    },
+    applyCapability: async ({ generation, accountKey, state, connection }) => {
+      if (generation !== productRuntimeGeneration || (connection && accountKey !== productAccountKey)) throw new Error("product_capability_stale");
+      if (!serverProc && !connection) return;
+      await managedDesktopRelay.sendProductAi(serverProc, { state, connection });
+    },
+    onState: state => {
+      accountIpc?.publish(state);
+      if (state.auth === "signed_out") {
+        serverSupervisor.pause(); routineWake.stop();
+        mainWindow?.destroy(); mainWindow = null;
+        if (!desktopShutdownStarted) openAuth();
+      }
+    },
+  });
+  accountIpc = installProductAccountIpc({ ipcMain, service: productAccount,
+    authWindow: () => productAuthWindow, workspaceWindow: () => mainWindow,
+    workspaceDocumentUrl: () => `${rendererOrigin()}/` });
+  registerCuaIpc(); androidDevice.registerIpc(ipcMain);
+  openAuth();
+  await productAccount.restore();
+  app.on("activate", () => { if (mainWindow) mainWindow.show(); else openAuth(); });
+}
+
 app.whenReady().then(async () => {
+  try {
+    productService = await resolveProductService({ isPackaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath, fixtureOrigin: productFixture?.origin });
+  } catch {
+    dialog.showErrorBox("OpenMausBot", "The product service configuration is missing or invalid.");
+    app.quit(); return;
+  }
+  if (productService) { await startProductDesktop(); return; }
   await evictStartupCacheOnce({
     userData: app.getPath("userData"),
     currentVersion: app.getVersion(),
@@ -3191,6 +3362,7 @@ process.once("SIGTERM", requestSignalQuit);
 app.on("before-quit", (e) => {
   talk.close();
   desktopShutdownStarted = true;
+  void productAccount?.dispose();
   startupScreen?.dispose();
   companyBackupSchedule?.close();
   orgLibrary?.close();

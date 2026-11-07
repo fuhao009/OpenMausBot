@@ -2,6 +2,12 @@
 BETTER_AUTH_URL=https://auth.openmausbot.test
 BETTER_AUTH_SECRET=replace-with-at-least-32-random-bytes
 CLOUDFLARE_API_TOKEN=replace-with-a-scoped-cloudflare-api-token
+# Emailed codes and password-confirmation. `required` (the default with a
+# sender below) emails an 8-digit code; `off` runs password accounts with no
+# mail at all, and every /api/auth/email-otp/* path then answers 503
+# email_unavailable. `required` without EMAIL_FROM and an EMAIL binding is a
+# configuration error.
+AUTH_EMAIL_VERIFICATION=required
 EMAIL_FROM=noreply@openmausbot.test
 ALLOWED_ORIGINS=https://app.openmausbot.test
 CLOUDFLARE_ACCOUNT_ID=00000000000000000000000000000000
@@ -12,3 +18,12 @@ COMPANION_HOST_SUFFIX=openmausbot.test
 # declares (its vars and secrets.required). To try one locally, uncomment
 # CLOUDFLARE_ENDPOINT_ACCOUNTS in wrangler.jsonc without committing it, with
 # test IDs and "apiTokenSecret": "CLOUDFLARE_API_TOKEN".
+
+# Hosted account AI (README "Hosted account AI"). All optional: without them
+# accounts sign in and read `unavailable`. They must also be declared as vars
+# (or secrets) in wrangler.jsonc before `wrangler dev` will read them here.
+# AI_UPSTREAM_BASE_URL=https://upstream.example.test/v1
+# AI_UPSTREAM_API_KEY=replace-with-the-upstream-key
+# AI_DEFAULT_MODEL=model-one
+# AI_MODELS=[{"id":"model-one","label":"Model One","protocol":"chat","pricingVersion":"v1","inputMicroPointsPerMillion":2000000,"cachedInputMicroPointsPerMillion":500000,"outputMicroPointsPerMillion":4000000,"maxContextTokens":128000,"maxOutputTokens":8192,"upstreamModel":"vendor/model-one","chatMaxTokensField":"max_tokens","enabled":true}]
+# AI_OPERATOR_USER_IDS=[]

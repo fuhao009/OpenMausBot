@@ -1,5 +1,6 @@
 import { t } from "@/lib/i18n";
 import { roomQueueLabel, roomThreadQueue } from "@/lib/room-threads";
+import type { LocaleKey } from "@/locales";
 import type { Bot, Group, Message } from "@/state/store";
 
 const nameIn = (members: Bot[]) => (botId: string) => members.find((member) => member.id === botId)?.name;
@@ -24,11 +25,17 @@ export function roomMemberQueueTitle(group: Group, members: Bot[], bot: Bot): st
   return entry ? t("room.queue.member", { name: bot.name, status: roomQueueLabel(entry, nameIn(members)) }) : undefined;
 }
 
+const BY_LABEL: Record<string, LocaleKey> = {
+  openrouter: "room.routedBy.openrouter",
+  workersai: "room.routedBy.workersai",
+  product: "room.routedBy.product",
+};
+
 export function RoutedByLine({ routedBy }: { routedBy: NonNullable<Message["routedBy"]> }) {
   const percent = Math.round(Math.min(1, Math.max(0, routedBy.probability)) * 100);
   return (
     <div data-testid="routed-by" className="mt-1 px-1 text-[11px] text-ink-secondary">
-      {t(routedBy.provider === "openrouter" ? "room.routedBy.openrouter" : routedBy.provider === "workersai" ? "room.routedBy.workersai" : "room.routedBy", { percent: String(percent) })}
+      {t(BY_LABEL[routedBy.provider] ?? "room.routedBy", { percent: String(percent) })}
     </div>
   );
 }

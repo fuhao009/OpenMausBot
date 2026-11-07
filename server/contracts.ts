@@ -492,12 +492,32 @@ export function qualifiedModelLabel(
   return `${id}${decorate(qualifier)}`;
 }
 
+/** A model credential read immediately before each request, so a rotated token is used by the next request and no
+ * driver keeps a copy. Throws when the account may not make a new model call; never serialized into AppConfig or wire. */
+export type RequestCredential = () => { apiKey: string; expiresAt: number };
+
+/** A deployment's own public certificate, pinned to the exact origin its parent talks to (the managed product
+ * gateway). Supplied by that parent at create time only: it is never part of AppConfig, an environment variable or
+ * process-wide TLS state, and a driver refuses it for any other origin. */
+export interface RequestTrust {
+  /** The exact HTTPS origin this certificate belongs to. */
+  origin: string;
+  /** One public PEM certificate: a CA root, or the self-signed leaf of a local deployment. */
+  ca: string;
+}
+
 export interface DriverCreateInput<Config> {
   instanceId: InstanceId;
   displayName: string | undefined;
   environment: Record<string, string>;
   enabled: boolean;
   config: Config;
+  /** Supplied only by a parent that owns a short-lived credential (the managed product gateway); every other caller
+   * keeps the fixed environment/config key. */
+  requestCredential?: RequestCredential;
+  /** Supplied only by a parent that pins its deployment's certificate; the driver then verifies this instance's own
+   * origin against that certificate beside the platform roots. */
+  requestTrust?: RequestTrust;
 }
 
 export interface TextGenerationUsage {

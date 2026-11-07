@@ -47,6 +47,9 @@ its trigger when dismissed. It captures
 `.omb-scratch/verify-evidence/team-lifecycle.png` before deletion.
 New lifecycle labels use the existing string catalog; untranslated packs fall
 back to the English labels without changing or regenerating other translations.
+The lifecycle driver dismisses the optional Boat credit notice through its
+visible **Dismiss for good** button before continuing, including after reloads;
+it does not click through an overlay or change the production notice policy.
 
 The canvas renderer check uses that same isolated full-app launcher. It seeds
 two Chiefs, two specialists with different model defaults, an empty team, and

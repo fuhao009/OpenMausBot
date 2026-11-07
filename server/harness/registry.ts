@@ -46,6 +46,14 @@ function withServerInstall(install: AnyProviderDriver["install"], npmPresent: bo
 
 type InstallStandalone = (release: StandaloneRelease, options: { baseDir?: string }) => Promise<StandaloneInstalled>;
 
+/** Runtime inputs of a load that must never be stored in an instance config: a short-lived model credential, read by
+ * the driver immediately before each request and bound to the instance being created. */
+export interface RegistryRuntime {
+  requestCredential?: (instanceId: InstanceId) => { apiKey: string; expiresAt: number };
+  /** A parent-pinned certificate for the instance's own origin (the managed product gateway). */
+  requestTrust?: (instanceId: InstanceId) => { origin: string; ca: string } | undefined;
+}
+
 /** Installed; `useCli` when the copy this engine's CLI finds does not start and it should run the app's own copy instead. */
 export type InstallResult = true | { useCli: string };
 
@@ -130,11 +138,11 @@ export class ProviderRegistry {
     this.driversByKind = new Map(drivers.map((d) => [d.driverKind, d]));
   }
 
-  async load(configs: InstanceConfigMap, decorate?: (instance: ProviderInstance) => ProviderInstance) {
+  async load(configs: InstanceConfigMap, decorate?: (instance: ProviderInstance) => ProviderInstance, runtime?: RegistryRuntime) {
     const slots = [...this.byId.keys()];
     const loaded = await Promise.all(
       Object.entries(configs).map(async ([instanceId, entry]) => {
-        const ready = await this.createEntry(instanceId, entry, decorate);
+        const ready = await this.createEntry(instanceId, entry, decorate, runtime);
         this.byId.set(instanceId, ready);
         return ready;
       }),
@@ -153,6 +161,7 @@ export class ProviderRegistry {
     instanceId: InstanceId,
     entry: InstanceConfigMap[string],
     decorate?: (instance: ProviderInstance) => ProviderInstance,
+    runtime?: RegistryRuntime,
   ): Promise<RegistryEntry> {
     await this.dispose(instanceId);
     const driver = this.driversByKind.get(entry.driver);
@@ -174,12 +183,17 @@ export class ProviderRegistry {
       // The RAW config: decodeConfig fills in the driver default, which would flag every instance as overridden.
       const rawCli = cliOfRaw(entry.config);
       if (rawCli) this.cliByInstance.set(instanceId, rawCli);
+      // Only a parent that supplies it: the credential itself stays in memory and never enters the config envelope.
+      const requestCredential = runtime?.requestCredential;
+      const requestTrust = runtime?.requestTrust?.(instanceId);
       const live = withLocalContext(withUnaskedStops(withEngineHomes(withEngineMemory(await driver.create({
         instanceId,
         displayName: entry.displayName ?? driver.metadata.displayName,
         environment: entry.environment ?? {},
         enabled: entry.enabled ?? true,
         config,
+        ...(requestCredential ? { requestCredential: () => requestCredential(instanceId) } : {}),
+        ...(requestTrust ? { requestTrust } : {}),
       })))));
       this.shareSnapshot(live);
       return { instanceId, live: decorate ? decorate(live) : live };

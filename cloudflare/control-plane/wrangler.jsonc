@@ -14,6 +14,11 @@
   ],
   "vars": {
     "BETTER_AUTH_URL": "https://accounts.openmausbot.com",
+    // Password accounts sign in with the password itself; this decides whether
+    // a new sign-up must also confirm its address with an emailed code.
+    // `required` needs EMAIL_FROM and the EMAIL binding; `off` needs neither and
+    // makes every /api/auth/email-otp/* path answer 503 email_unavailable.
+    "AUTH_EMAIL_VERIFICATION": "required",
     "EMAIL_FROM": "noreply@openmausbot.com",
     "ALLOWED_ORIGINS": "",
     "CLOUDFLARE_ACCOUNT_ID": "0c92969a82eb9e173b013a7e7a02333d",
@@ -74,7 +79,7 @@
     "HIGHLEVEL_SCOPES": "contacts.readonly contacts.write opportunities.readonly opportunities.write conversations.readonly locations.readonly calendars.readonly calendars/events.readonly users.readonly"
   },
   "secrets": {
-    "required": ["BETTER_AUTH_SECRET", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_MAUSBOT_SI"]
+    "required": ["BETTER_AUTH_SECRET"]
   },
   "d1_databases": [
     {

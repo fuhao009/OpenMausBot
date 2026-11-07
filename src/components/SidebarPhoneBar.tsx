@@ -3,6 +3,7 @@ import { FolderOpen, LayoutGrid, Puzzle, Search, UsersRound, X, Zap } from "luci
 import { useCloudFilesReady } from "@/lib/cloud-files";
 import { t } from "@/lib/i18n";
 import { useStore } from "@/state/store";
+import { isProductWorkspace } from "@/lib/product-workspace";
 
 import { CloudRoomCard } from "./CloudRoomCard";
 import { CloudUsageCard } from "./CloudUsageMeter";
@@ -13,6 +14,7 @@ import { UpdateIndicator } from "./UpdateIndicator";
 /** The phone's bottom bar: a round button for the tools that are rows in the desktop sidebar, and a search pill. */
 export function SidebarPhoneBar({ query, onQuery }: { query: string; onQuery: (query: string) => void }) {
   const { state, dispatch } = useStore();
+  const productManaged = isProductWorkspace(state.config?.productManaged);
   const automationsNeedYou = useAutomationsNeedYou();
   const filesReady = useCloudFilesReady();
   const items: SidebarMenuItem[] = [
@@ -48,8 +50,8 @@ export function SidebarPhoneBar({ query, onQuery }: { query: string; onQuery: (q
   ];
   return (
     <div data-sidebar-phone-bar className="px-3 pb-3 pt-1">
-      <CloudRoomCard />
-      <CloudUsageCard />
+      {!productManaged && <CloudRoomCard />}
+      {!productManaged && <CloudUsageCard />}
       <div className="flex items-center gap-2 not-first:mt-2">
         <SidebarPopoverMenu
           items={items}

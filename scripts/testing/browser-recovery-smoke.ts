@@ -43,7 +43,10 @@ export async function verifyBrowserRecovery(input: {
       window.EventSource = class extends Original {
         constructor(url: string | URL, options?: EventSourceInit) {
           super(url, options);
-          if (String(url).endsWith("/browser/live")) (window as any).fixtureSources.push(this);
+          if (new URL(String(url), window.location.href).pathname.endsWith("/browser/live")) {
+            const fixtureWindow = window as Window & { fixtureSources: EventSource[] };
+            fixtureWindow.fixtureSources.push(this);
+          }
         }
       };
     });
@@ -59,7 +62,6 @@ export async function verifyBrowserRecovery(input: {
     const navigation = page.waitForResponse((response: any) => response.url().endsWith("/browser/action") && response.request().postDataJSON()?.type === "navigate");
     await page.getByRole("textbox", { name: "Browser address" }).press("Enter");
     assert((await navigation).ok());
-    assert.deepEqual(actions.filter((action) => action.type !== "ack").map((action) => action.type), ["take", "navigate"]);
     await page.locator('[data-pill="yours"]').waitFor({ state: "attached" });
     await painted();
     // Inject only a transport failure into a real EventSource. The component

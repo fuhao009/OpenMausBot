@@ -5,6 +5,7 @@ import { writeFileAtomic } from "./atomic.ts";
 import { DEFAULT_BOT_COLOR, DEFAULT_BOT_NAME, defaultBotPerson } from "../shared/default-bot.ts";
 import { takeImportName } from "../shared/import-name.ts";
 import type { BotRecord, Message, Store } from "./store.ts";
+import { serverLine } from "./server-lines.ts";
 
 export type DefaultBotStore = Pick<Store, "bots" | "bot" | "createBot" | "patchBot" | "appendMessage" | "messagesFor" | "createTask" | "setChiefOfStaff">;
 
@@ -83,14 +84,23 @@ export function seededMausBot(bots: readonly BotRecord[]): BotRecord | undefined
 
 /** Puts the intro where its person sees it next: in its open conversation while nobody has written there, else at the
  * top of a new one, so no earlier message moves. */
-function introduce(store: DefaultBotStore, bot: BotRecord, team?: string | null): void {
+function introduce(store: DefaultBotStore, bot: BotRecord, team?: string | null, intro?: DefaultBotIntro): void {
   const untouched = !store.messagesFor(bot.threadId).some((message) => message.role === "user");
   const threadId = untouched ? bot.threadId : store.createTask(bot.id, `What ${bot.name} can do`)?.threadId;
-  if (threadId) store.appendMessage(threadId, helperIntroMessage(bot, team));
+  if (threadId) store.appendMessage(threadId, intro?.(bot) ?? helperIntroMessage(bot, team));
 }
 
 /** The first message a new MausBot says instead of its intro. */
 export type DefaultBotIntro = (bot: BotRecord) => Omit<Message, "id" | "at">;
+
+export function productWelcomeText(language?: string): string {
+  return serverLine(language, "server.product.welcome");
+}
+
+/** The intro a product-managed workspace gives its MausBot; it never triggers helper-followup.ts. */
+export function productWelcomeMessage(language?: string): Omit<Message, "id" | "at"> {
+  return { role: "bot", kind: "text", text: productWelcomeText(language) };
+}
 
 /** A new MausBot, with its intro as its first message. On a Team Cloud it is its member's alone. */
 export function createDefaultBot(store: DefaultBotStore, options: { person?: string; team?: string | null; chief?: (id: string) => void; intro?: DefaultBotIntro } = {}): BotRecord {
@@ -110,8 +120,9 @@ export function createDefaultBot(store: DefaultBotStore, options: { person?: str
 /** Makes sure this place (no `person`) or this Team Cloud member has had its MausBot once: the one it has, the new
  * install's own adopted, or a new one. A MausBot that is gone is never made again. Two marked ones keep the oldest. A
  * place with no Chief of Staff at all gets MausBot as its Chief, so someone keeps an eye on the day; one that has a
- * Chief keeps it. */
-export function ensureDefaultBot(store: DefaultBotStore, options: { dataDir: string; person?: string; team?: string | null }): BotRecord | null {
+ * Chief keeps it. `chief: false` opts out of making it the place's Chief (a product workspace starts with one ordinary
+ * bot); existing callers keep the default. */
+export function ensureDefaultBot(store: DefaultBotStore, options: { dataDir: string; person?: string; team?: string | null; intro?: DefaultBotIntro; chief?: boolean }): BotRecord | null {
   const person = options.person?.trim().toLowerCase() ?? "";
   const marked = store.bots.filter((bot) => bot.defaultBot && defaultBotPerson(bot) === person)
     .sort((a, b) => a.createdAt - b.createdAt);
@@ -122,14 +133,15 @@ export function ensureDefaultBot(store: DefaultBotStore, options: { dataDir: str
   }
   if (Object.hasOwn(ledger(options.dataDir), person)) return null;
   const adoptable = person ? undefined : seededMausBot(store.bots);
-  const chief = !person && !store.bots.some((bot) => bot.chiefOfStaff && !bot.hidden) ? (id: string) => store.setChiefOfStaff(id) : undefined;
+  const chief = options.chief !== false && !person && !store.bots.some((bot) => bot.chiefOfStaff && !bot.hidden)
+    ? (id: string) => store.setChiefOfStaff(id) : undefined;
   let bot: BotRecord;
   if (adoptable) {
     bot = store.patchBot(adoptable.id, { defaultBot: {}, ...(adoptable.color === STARTER_COLOR ? { color: DEFAULT_BOT_COLOR } : {}) }) ?? adoptable;
     chief?.(bot.id);
-    introduce(store, bot, options.team);
+    introduce(store, bot, options.team, options.intro);
   } else {
-    bot = createDefaultBot(store, { person, team: options.team, chief });
+    bot = createDefaultBot(store, { person, team: options.team, chief, ...(options.intro ? { intro: options.intro } : {}) });
   }
   remember(options.dataDir, person, bot.id);
   return bot;

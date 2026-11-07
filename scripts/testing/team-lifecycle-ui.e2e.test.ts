@@ -47,6 +47,10 @@ if (!enabled) console.log("skipping team lifecycle UI e2e: set OMB_UI_E2E=1 to i
       return `@${matches[0][0]}`;
     };
     const click = async (name: string) => {
+      const snapshot = await ui("snapshot");
+      if (String(snapshot.snapshot).includes('complementary "$50 of Boat credit for you"')) {
+        await ui("click", "--ref", await target("Dismiss for good", ["button"]));
+      }
       try { return await ui("click", "--ref", await target(name, ["button", "checkbox", "menuitem"])); }
       catch (error) { throw new Error(`Click ${name}: ${error}\n${(await ui("snapshot")).snapshot}`); }
     };

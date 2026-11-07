@@ -10,7 +10,7 @@ import type { AppConfig } from "../config.ts";
 import type { ModelSelection } from "../contracts.ts";
 import type { createApprovalModeSupport } from "../harness-capabilities.ts";
 import type { ProviderRegistry } from "../harness/registry.ts";
-import type { hostedModelPolicy } from "../hosted-models.ts";
+import type { ManagedModelPolicy } from "../hosted-models.ts";
 import { profileSnapshot } from "../profile-revision.ts";
 import { recordProfileChange } from "../profile-versions.ts";
 import type { RequestAuth } from "../request-auth.ts";
@@ -29,7 +29,7 @@ export interface BotSettingsRouteDeps {
   commandAllowlistDrivers: ReadonlySet<string>;
   cloudHome: boolean;
   cloudOwnerProfileFields: readonly ("name" | "title" | "description" | "soul" | "notifications")[];
-  hostedModels: ReturnType<typeof hostedModelPolicy>;
+  hostedModels: Pick<ManagedModelPolicy, "resetTask"> | null;
   supportsApprovalMode: ReturnType<typeof createApprovalModeSupport>;
   directTurnBots: { get(threadId: string): BotRecord | undefined };
   broadcast(payload: Record<string, unknown>): void;

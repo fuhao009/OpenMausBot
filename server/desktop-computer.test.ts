@@ -42,7 +42,7 @@ describe("this computer, only for the desktop app's own server", () => {
   it("uses the connection the app hands over, and follows each change it sends", () => {
     const desktop = createDesktopComputer({ platform: "darwin" });
     expect(desktop.receive({ type: DESKTOP_COMPUTER_GRANT, connection: READY })).toBe(true);
-    expect(desktop.connection()).toEqual({ command: "/fixture/cua-driver", args: ["mcp"], env: {}, platform: "darwin", scope: "local-computer" });
+    expect(desktop.connection()).toEqual({ command: "/fixture/cua-driver", args: ["mcp"], env: {}, platform: "darwin", scope: "local-computer", socketPath: "/fixture/cua.sock" });
     const reason = "embedded host failed: Screen Recording required; grant access in System Settings and restart OpenMausBot";
     expect(desktop.receive({ type: DESKTOP_COMPUTER_GRANT, connection: { mode: "unavailable", reason } })).toBe(true);
     expect(desktop.connection()).toBeNull();

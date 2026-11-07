@@ -19,7 +19,7 @@ import { isValidSshAlias, type AppConfig } from "../config.ts";
 import type { ModelSelection } from "../contracts.ts";
 import type { createApprovalModeSupport } from "../harness-capabilities.ts";
 import type { ProviderRegistry } from "../harness/registry.ts";
-import type { hostedModelPolicy } from "../hosted-models.ts";
+import type { ManagedModelPolicy } from "../hosted-models.ts";
 import { MAX_MCP_SERVERS, mcpServerNameError } from "../mcp-registry.ts";
 import type { MemoryUpkeep } from "../memory-upkeep.ts";
 import { phoneAppsFor } from "../phones/access.ts";
@@ -45,7 +45,7 @@ export interface BotPatchRouteDeps {
   browserLive: Pick<BrowserLive, "closeForBot">;
   memoryUpkeep: Pick<MemoryUpkeep, "dropBot">;
   cacheKeepWarm: Pick<CacheKeepWarm, "refresh">;
-  hostedModels: ReturnType<typeof hostedModelPolicy>;
+  hostedModels: Pick<ManagedModelPolicy, "resetTask"> | null;
   supportsApprovalMode: ReturnType<typeof createApprovalModeSupport>;
   routines(): RoutineManager | null;
   activeVpsThreads: { has(botId: string): boolean };

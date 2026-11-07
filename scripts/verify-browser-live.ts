@@ -26,6 +26,11 @@ try {
       },
     }],
   });
+  const egress = await fetch(`${fixture.info.url}/api/config`, {
+    method: "PATCH", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ browserEngine: { egress: { allow: [new URL(ui.previewUrl).host] } } }),
+  });
+  if (!egress.ok) throw new Error(`Fixture browser egress configuration failed: ${egress.status}`);
   console.log(JSON.stringify({ ...fixture.info, botId: bots[0].id, previewUrl: ui.previewUrl, testPage: new URL("/__browser-test-page", ui.previewUrl).href }, null, 2));
   if (process.argv.includes("--recovery")) {
     const { verifyBrowserRecovery } = await import("./testing/browser-recovery-smoke.ts");

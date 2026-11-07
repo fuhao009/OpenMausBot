@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, Loader2, Menu } from "lucide-react";
 import { CLOUD_LINK_SETTINGS, openBot, StoreProvider, useStore } from "@/state/store";
 import { useShowThreads } from "@/lib/thread-preferences";
@@ -15,7 +15,7 @@ import { parseComputerHelp } from "@/lib/computer-control";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatView } from "@/components/ChatView";
 import { GroupView } from "@/components/GroupView";
-import { SIDEBAR_AND_PANEL_FIT, SIDEBAR_INLINE, TWO_SIDE_PANELS_FIT, useMediaQuery } from "@/lib/use-media-query";
+import { PRODUCT_MID_LAYOUT, SIDEBAR_AND_PANEL_FIT, SIDEBAR_INLINE, TWO_SIDE_PANELS_FIT, useMediaQuery } from "@/lib/use-media-query";
 import { preloadConnectedApps } from "@/lib/connected-apps";
 import {
   ActivityPanel, BotSettingsDialog, CloudAddDialog, ComputerPanel, FilesView, InspectorPanel, KeyboardShortcutsModal, LocalVmWorkspace,
@@ -53,6 +53,10 @@ import { EmptyChatShell } from "@/components/onboarding/EmptyChatShell";
 import { cloudFirstRun, cloudWelcomeVisible, useCloudWelcome } from "@/lib/cloud-welcome";
 import { engineReady } from "@/components/EngineLibrary";
 import { CommandPalette } from "@/components/CommandPalette";
+import { ProductAccountGate } from "@/components/ProductAccountGate";
+import { WorkPanel } from "@/components/WorkPanel";
+import { isProductWorkspace } from "@/lib/product-workspace";
+import { useProductAccount } from "@/lib/use-product-account";
 import { t } from "@/lib/i18n";
 import { shouldOpenKeyboardShortcuts } from "@/lib/keyboard-shortcuts";
 import { effectiveLanguage, useLanguageChoice, usePageLanguage } from "@/lib/language-preference";
@@ -89,6 +93,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   const twoSidePanelsFit = useMediaQuery(TWO_SIDE_PANELS_FIT, true);
   const sidebarAndPanelFit = useMediaQuery(SIDEBAR_AND_PANEL_FIT, true);
   const sidebarInline = useMediaQuery(SIDEBAR_INLINE, false);
+  const productMid = useMediaQuery(PRODUCT_MID_LAYOUT, true);
   useEffect(() => {
     if (!window.ogb?.environments) return;
     const open = (computerId?: string | null) => {
@@ -139,20 +144,42 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   const previousViewRef = useRef(state.activeView);
   const calendarOriginRef = useRef<"chat" | "team-map" | "web-panel">("chat");
   const loading = loadingLine({ connected: state.connected, hydrated: state.hydrated === true, developer: import.meta.env.DEV });
+  // A managed product workspace: no engine picker, no personal key, and no first-run tour in front of the chat. The
+  // bridge is what a packaged account build has before the workspace server reports its config, so it also covers the
+  // starting window instead of showing the ordinary onboarding under it.
+  const product = isProductWorkspace(state.config?.productManaged);
+  const account = useProductAccount();
   const group = state.groups.find((g) => g.id === state.selectedId);
-  const chiefStep = useChiefStepOpen();
+  const chiefStep = useChiefStepOpen() && !product;
   const bot = group || chiefStep ? undefined : (state.bots.find((b) => b.id === state.selectedId) ?? state.bots[0]);
   const notificationFeed = useNotificationFeed() && !remoteClient;
   const advanced = useAdvancedMode();
   const roomPanelOpen = useRoomPanelShown({ group, state, simple: !advanced && !remoteClient });
   const sidePanelOpen = (Boolean(bot) && (state.settingsOpen || state.computerOpen || state.inspectorOpen || state.activityOpen)) || roomPanelOpen || (notificationFeed && state.notificationsOpen) || inboxShown;
-  const collapseSidebar = sidePanelOpen && !sidebarAndPanelFit;
+  // The product layout fixes the sidebar at 260/240 so the chat keeps its 420px beside the 340px work panel; collapsing it
+  // to a rail below 1280 would take that width back out of the chat.
+  const collapseSidebar = !product && sidePanelOpen && !sidebarAndPanelFit;
   const calendarFocus = state.activeView === "routines" && state.routinesFocus.view === "calendar";
 
+  // A product account never picks an engine: an empty engine list is its normal state, not a setup step. The gate below
+  // owns the signed-out screen, so a signed-in workspace is always allowed to reach its chat.
   const noEngines =
+    !product &&
     state.connected &&
     state.instances.length > 0 &&
     !state.instances.some((i) => i.snapshot.state === "available");
+  const productGate = product && account.auth !== "signed_in";
+  // Below 800px the product's bot list and its work panel are two full-screen drawers over the chat, so only one is ever
+  // open: opening either closes the other.
+  const productDrawer = product && !productMid;
+  useEffect(() => {
+    if (productDrawer && (state.activityOpen || state.computerOpen)) setDrawerOpen(false);
+  }, [productDrawer, state.activityOpen, state.computerOpen]);
+  const openProductDrawer = useCallback(() => {
+    if (state.activityOpen) dispatch({ type: "toggleActivity", open: false });
+    if (state.computerOpen) dispatch({ type: "toggleComputer", open: false });
+    setDrawerOpen(true);
+  }, [dispatch, state.activityOpen, state.computerOpen]);
   const cloudSignIn = cloudSignInDue(viewer, state, engineReady);
   const cloudIntent = useCloudIntent();
   const cloudAsk = cloudIntentShown(cloudIntentDue({
@@ -163,7 +190,9 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   const welcome = useCloudWelcome();
   const welcomeOnScreen = cloudWelcomeVisible({ viewer, connected: state.connected, enginesKnown: state.instances.length > 0, onboarding: state.config?.onboarding }, welcome)
     && state.activeView === "chat" && !(!remoteClient && localVmWorkspaceBotId);
-  const firstRun = cloudFirstRun({ welcome: welcomeOnScreen, intent: cloudAsk, signIn: cloudSignIn || cloudJobWaiting });
+  // The account is the product's whole first run: its welcome, intent and engine sign-in belong to MausBot Cloud's
+  // onboarding, which a managed workspace never shows.
+  const firstRun = product ? null : cloudFirstRun({ welcome: welcomeOnScreen, intent: cloudAsk, signIn: cloudSignIn || cloudJobWaiting });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -302,53 +331,81 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   }, [dispatch]);
 
   const framed = windowFramed(capabilities);
+  // Closing the bot list puts focus back where it belongs even when its own button is not drawn at this width (the list
+  // is inline from 800px): the chat's composer, else the chat itself.
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false);
+    requestAnimationFrame(() => {
+      const button = menuButtonRef.current;
+      if (button && button.getClientRects().length > 0) {
+        button.focus({ preventScroll: true });
+        return;
+      }
+      const target = document.querySelector<HTMLElement>('[data-product-chat] textarea, [data-product-chat] [data-tour="composer"] textarea, [data-product-chat]')
+        ?? document.querySelector<HTMLElement>("[data-tour=composer] textarea");
+      target?.focus({ preventScroll: true });
+    });
+  }, []);
+  // MausBot Cloud's strips and notices sell a service this account does not use, and its update banner offers the
+  // original project's feed; a managed workspace keeps only the connection line it actually needs.
   const strips = <>
-    <UpdateBanner sidebarIndicator={framed || (!calendarFocus && (sidebarInline || drawerOpen))} />
-    <CloudAsleepStrip />
+    {!product && <UpdateBanner sidebarIndicator={framed || (!calendarFocus && (sidebarInline || drawerOpen))} />}
+    {!product && <CloudAsleepStrip />}
     <LiveConnectionStrip connected={state.connected} hydrated={state.hydrated === true} />
-    <CloudSendStrip cloudHome={state.config?.cloudHome === true} />
-    <HomeLine />
-    <AppNotices quiet={paletteOpen || drawerOpen || Boolean(localVmWorkspaceBotId)} viewer={viewer} />
+    {!product && <CloudSendStrip cloudHome={state.config?.cloudHome === true} />}
+    {!product && <HomeLine />}
+    {!product && <AppNotices quiet={paletteOpen || drawerOpen || Boolean(localVmWorkspaceBotId)} viewer={viewer} />}
   </>;
   return (
     <div className={cn("flex h-full flex-col", framed && "bg-frame")}>
       <WindowFrameBar />
       {!framed && strips}
       <div className="relative flex min-h-0 flex-1">
-      {!calendarFocus && <button
+      {!calendarFocus && !productGate && <button
         type="button"
         ref={menuButtonRef}
-        aria-label="Open bot list"
+        aria-label={t("sidebar.aria")}
         aria-expanded={drawerOpen}
-        onClick={() => setDrawerOpen(true)}
-        className="absolute left-3 top-3 z-30 rounded-md p-1.5 text-ink-secondary hover:bg-raised hover:text-ink max-md:flex max-md:size-9 max-md:items-center max-md:justify-center max-md:rounded-full max-md:border max-md:border-hairline max-md:bg-card max-md:p-0 max-md:text-ink md:hidden"
+        aria-controls="product-bot-list"
+        onClick={productDrawer ? openProductDrawer : () => setDrawerOpen(true)}
+        className={cn(
+          "absolute left-3 top-3 z-30 text-ink-secondary hover:bg-raised hover:text-ink",
+          // The product layout keeps the list behind this button as a drawer up to 800px; below the md breakpoint it is
+          // the ordinary round phone button, and above it a quiet control of its own.
+          productDrawer
+            ? "hidden size-9 items-center justify-center rounded-full border border-hairline bg-card p-0 text-ink max-[799.98px]:flex"
+            : "rounded-md p-1.5 max-md:flex max-md:size-9 max-md:items-center max-md:justify-center max-md:rounded-full max-md:border max-md:border-hairline max-md:bg-card max-md:p-0 max-md:text-ink md:hidden",
+        )}
       >
-        <Menu size={18} className="max-md:hidden" />
-        <ChevronLeft size={20} aria-hidden="true" className="hidden max-md:block" />
+        <Menu size={18} className={cn(!productDrawer && "max-md:hidden")} />
+        <ChevronLeft size={20} aria-hidden="true" className={cn(!productDrawer ? "hidden max-md:block" : "hidden")} />
       </button>}
       {drawerOpen && !calendarFocus && (
         <div
           aria-hidden
-          onMouseDown={(e) => e.target === e.currentTarget && setDrawerOpen(false)}
-          className="absolute inset-0 z-30 bg-black/50 md:hidden"
+          data-sidebar-drawer-scrim
+          onMouseDown={(e) => e.target === e.currentTarget && closeDrawer()}
+          className={cn(
+            "absolute inset-0 bg-black/50",
+            productDrawer ? "z-40 max-[799.98px]:block min-[800px]:hidden" : "z-30 md:hidden",
+          )}
         />
       )}
-      {!calendarFocus && <PlacesRail />}
+      {!calendarFocus && !product && <PlacesRail />}
       {/* A framed window shows the app, its sidebar and the chat or page, as one square pane under the top bar and beside
           the window's rail, running to the window's right and bottom edges. */}
       <div data-window-card={framed ? "" : undefined}
         className={framed ? "relative flex min-w-0 flex-1 flex-col overflow-hidden bg-app" : "contents"}>
       {framed && strips}
       <div className={framed ? "relative flex min-h-0 flex-1" : "contents"}>
-      {!calendarFocus && <Sidebar
+      {!calendarFocus && !productGate && <Sidebar
         collapseToIcons={collapseSidebar}
         open={drawerOpen}
-        onClose={() => {
-          setDrawerOpen(false);
-          menuButtonRef.current?.focus();
-        }}
+        onClose={closeDrawer}
       />}
-      {state.activeView === "team-map" ? (
+      {productGate ? (
+        <ProductAccountGate />
+      ) : state.activeView === "team-map" ? (
         <TeamMapPage />
       ) : state.activeView === "files" ? (
         <FilesView />
@@ -363,6 +420,12 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
           onClose={() => setLocalVmWorkspaceBotId(null)}
           onOpenComputer={openComputerFromWorkspace}
         />
+      ) : product && !bot && !group ? (
+        <main data-product-waiting={account.runtime} className="relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-app text-ink-secondary">
+          <WindowDragStrip />
+          {(account.runtime === "starting" || state.hydrated !== true) && <Loader2 size={20} className="animate-spin" />}
+          <div className="text-[14px]">{t(account.runtime === "starting" || state.hydrated !== true ? "product.starting" : "product.pending")}</div>
+        </main>
       ) : firstRun === "welcome" ? (
         <CloudWelcome />
       ) : firstRun === "intent" ? (
@@ -396,7 +459,14 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
           ? <RemoteAgentSettingsPanel bot={bot} overlay={state.computerOpen && !twoSidePanelsFit} />
           : <BotSettingsDialog key={`settings:${bot.id}`} bot={bot} overlay={(state.inspectorOpen || state.computerOpen || (notificationFeed && state.notificationsOpen)) && !twoSidePanelsFit} />
       )}
-      {state.computerOpen && bot && (
+      {product && bot && (state.activityOpen || state.computerOpen) && (
+        <WorkPanel
+          key={`work:${bot.id}`}
+          bot={bot}
+          onOpenVmWorkspace={openLocalVmWorkspace}
+        />
+      )}
+      {!product && state.computerOpen && bot && (
         remoteClient ? (
           <RemoteDesktopPanel key={`computer:${bot.id}`} bot={bot} />
         ) : (
@@ -411,7 +481,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
         <RoomPanel key={`room:${group.id}`} group={group} overlay={notificationFeed && state.notificationsOpen && !twoSidePanelsFit} />
       )}
       {!remoteClient && state.inspectorOpen && bot && <InspectorPanel key={bot.threadId} bot={bot} />}
-      {!remoteClient && state.activityOpen && bot && <ActivityPanel key={`activity:${bot.id}`} bot={bot} />}
+      {!product && !remoteClient && state.activityOpen && bot && <ActivityPanel key={`activity:${bot.id}`} bot={bot} />}
       {inboxShown && <InboxPanel />}
       {notificationFeed && !calendarFocus && state.notificationsOpen && <NotificationsPanel />}
       {notificationFeed && !calendarFocus && <NotificationRail />}
@@ -420,7 +490,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
       {state.appSettingsOpen && <SettingsModal />}
       {cloudAddOpened.current && <CloudAddDialog />}
       <CloudHowTo />
-      <CloudSetup viewer={viewer} welcomeShown={welcomeOnScreen} />
+      {!product && <CloudSetup viewer={viewer} welcomeShown={welcomeOnScreen} />}
       <WelcomeKeeper viewer={viewer} />
       {state.pluginsOpen && <PluginsPanel />}
       {state.shortcutsOpen && (
@@ -447,6 +517,13 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   );
 }
 
+/** MausBot Cloud's own onboarding, welcomes and tours never stand in a managed account's way: the account gate and the
+ * default bot are the whole first run there. Ordinary source and self-hosted builds are untouched. */
+function ProductSetupGate({ children }: { children: ReactNode }) {
+  const { state } = useStore();
+  return isProductWorkspace(state.config?.productManaged) ? null : <>{children}</>;
+}
+
 function Application() {
   useEffect(() => {
     initAnalytics();
@@ -458,12 +535,14 @@ function Application() {
         <ThreadRefsProvider>
           <Shell viewer={viewer} />
         </ThreadRefsProvider>
-        <WelcomeGate viewer={viewer} />
-        <MausBotWelcome viewer={viewer} />
+        <ProductSetupGate>
+          <WelcomeGate viewer={viewer} />
+          <MausBotWelcome viewer={viewer} />
+          <GuidedTour />
+          <FirstConversationTour quiet={spotlightsQuiet(viewer)} />
+        </ProductSetupGate>
         <CloudTimeZoneSync viewer={viewer} />
-        <GuidedTour />
         <LiveCallHost />
-        <FirstConversationTour quiet={spotlightsQuiet(viewer)} />
       </StoreProvider>
     </DesktopCapabilitiesProvider>
   );

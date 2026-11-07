@@ -1,5 +1,9 @@
+import { createPinnedHttpsFetch } from "./product-ca.mjs";
+
 const INSTALLATION_CREDENTIAL =
   /^omb_install_[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
+const PRODUCT_AI_CREDENTIAL =
+  /^omb_product_ai_[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
 const INSTALLATION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CLIENT_INSTANCE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
@@ -194,15 +198,177 @@ function validatedEndpoint(value) {
   return { url: url.origin };
 }
 
+const AI_STATES = new Set([
+  "pending",
+  "ready",
+  "insufficient_balance",
+  "suspended",
+  "unavailable",
+]);
+const MODEL_PROTOCOLS = new Set(["chat", "responses"]);
+const LEDGER_KINDS = new Set(["request", "enable", "disable", "grant", "settle"]);
+const LEDGER_STATES = new Set(["reserved", "streaming", "review", "settled"]);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const microPoints = (value) => Number.isSafeInteger(value) && value >= 0;
+const positiveInteger = (value) => Number.isSafeInteger(value) && value > 0;
+const boundedText = (value, maximum) =>
+  typeof value === "string" && value.length >= 1 && value.length <= maximum;
+
+/** Prices, context ceilings and totals are all safe integers on the wire; a
+ * malformed one rejects the whole status rather than displaying a wrong price. */
+function validatedProductModel(value) {
+  const model = plainObject(value);
+  if (
+    !model ||
+    !boundedText(model.id, 128) ||
+    !boundedText(model.label, 200) ||
+    !MODEL_PROTOCOLS.has(model.protocol) ||
+    !boundedText(model.pricingVersion, 64) ||
+    !microPoints(model.inputMicroPointsPerMillion) ||
+    !microPoints(model.cachedInputMicroPointsPerMillion) ||
+    !microPoints(model.outputMicroPointsPerMillion) ||
+    !positiveInteger(model.maxContextTokens) ||
+    !positiveInteger(model.maxOutputTokens)
+  ) {
+    return null;
+  }
+  return {
+    id: model.id,
+    label: model.label,
+    protocol: model.protocol,
+    pricingVersion: model.pricingVersion,
+    inputMicroPointsPerMillion: model.inputMicroPointsPerMillion,
+    cachedInputMicroPointsPerMillion: model.cachedInputMicroPointsPerMillion,
+    outputMicroPointsPerMillion: model.outputMicroPointsPerMillion,
+    maxContextTokens: model.maxContextTokens,
+    maxOutputTokens: model.maxOutputTokens,
+  };
+}
+
+function validatedAiStatus(value) {
+  const status = plainObject(value);
+  if (
+    !status ||
+    !AI_STATES.has(status.state) ||
+    status.unit !== "points" ||
+    !microPoints(status.availableMicroPoints) ||
+    !microPoints(status.reservedMicroPoints) ||
+    !(status.defaultModel === null || boundedText(status.defaultModel, 128)) ||
+    !Array.isArray(status.models) ||
+    status.models.length > 200
+  ) {
+    return null;
+  }
+  const models = status.models.map(validatedProductModel);
+  if (models.some((model) => model === null)) return null;
+  return {
+    state: status.state,
+    unit: "points",
+    availableMicroPoints: status.availableMicroPoints,
+    reservedMicroPoints: status.reservedMicroPoints,
+    defaultModel: status.defaultModel,
+    models,
+  };
+}
+
+/** Unknown new fields are ignored for forward compatibility; a malformed known
+ * field rejects the page so a charge is never displayed from partial data. */
+function validatedLedgerEntry(value) {
+  const entry = plainObject(value);
+  if (
+    !entry ||
+    !boundedText(entry.id, 128) ||
+    !LEDGER_KINDS.has(entry.kind) ||
+    !microPoints(entry.createdAt)
+  ) {
+    return null;
+  }
+  const optionalText = (key, maximum) =>
+    entry[key] === undefined ? null : boundedText(entry[key], maximum) ? entry[key] : undefined;
+  const optionalAmount = (key) =>
+    entry[key] === undefined ? null : microPoints(entry[key]) ? entry[key] : undefined;
+  const model = optionalText("model", 128);
+  const state = entry.state === undefined ? null : LEDGER_STATES.has(entry.state) ? entry.state : undefined;
+  const reason = optionalText("reason", 500);
+  const fields = {
+    amountMicroPoints: optionalAmount("amountMicroPoints"),
+    reservedMicroPoints: optionalAmount("reservedMicroPoints"),
+    chargedMicroPoints: optionalAmount("chargedMicroPoints"),
+    inputTokens: optionalAmount("inputTokens"),
+    cachedInputTokens: optionalAmount("cachedInputTokens"),
+    outputTokens: optionalAmount("outputTokens"),
+  };
+  if (model === undefined || state === undefined || reason === undefined) return null;
+  if (Object.values(fields).some((field) => field === undefined)) return null;
+  const result = { id: entry.id, kind: entry.kind, createdAt: entry.createdAt };
+  if (model !== null) result.model = model;
+  if (state !== null) result.state = state;
+  for (const [key, field] of Object.entries(fields)) if (field !== null) result[key] = field;
+  if (reason !== null) result.reason = reason;
+  return result;
+}
+
+function validatedLedgerPage(value) {
+  const page = plainObject(value);
+  if (
+    !page ||
+    !Array.isArray(page.items) ||
+    page.items.length > 50 ||
+    !(page.nextCursor === null || boundedText(page.nextCursor, 256))
+  ) {
+    return null;
+  }
+  const items = page.items.map(validatedLedgerEntry);
+  if (items.some((item) => item === null)) return null;
+  return { items, nextCursor: page.nextCursor };
+}
+
+/** An 8-digit emailed code, or "" when the input is not one. */
+function normalizeOTP(value) {
+  const input = stringValue(value);
+  if (input === null || input.length > 32) return "";
+  const otp = input.replaceAll(/\s|-/g, "");
+  return /^\d{8}$/.test(otp) ? otp : "";
+}
+
+/**
+ * A Better Auth sign-up/sign-in answer. The JSON `token` is its raw database
+ * token and never leaves this module; only the signed bearer from
+ * `set-auth-token` may cross the API boundary. A null token means the server
+ * created no session (verification pending), which is a valid sign-up answer.
+ */
+function credentialResult(response, payload, email) {
+  const user = validatedUser(plainObject(payload)?.user);
+  if (!user || user.email !== email) throw new ControlPlaneError("invalid_response", response.status);
+  const raw = response.headers.get("set-auth-token");
+  if (raw === null) return { accountToken: null, user };
+  const accountToken = boundedSecret(raw);
+  if (!accountToken) throw new ControlPlaneError("invalid_response", response.status);
+  return { accountToken, user };
+}
+
 export function createControlPlaneClient({
   baseURL,
-  fetchImpl = globalThis.fetch,
+  ca = null,
+  fetchImpl,
   timeoutSignal = (milliseconds) => AbortSignal.timeout(milliseconds),
   timeoutMs = 15_000,
   healthTimeoutMs = 3_000,
 }) {
   const origin = normalizeControlPlaneURL(baseURL);
   if (!origin) throw new ControlPlaneError("control_plane_unavailable");
+  // A pinned deployment trusts its own public certificate for this origin
+  // only: hostname and chain checks stay on, redirects stay refused, and no
+  // other origin or process-wide TLS setting is touched.
+  let transport = fetchImpl ?? globalThis.fetch;
+  if (!fetchImpl && ca !== null) {
+    try {
+      transport = createPinnedHttpsFetch({ origin, ca });
+    } catch {
+      throw new ControlPlaneError("control_plane_unavailable");
+    }
+  }
 
   const request = async (
     path,
@@ -225,7 +391,7 @@ export function createControlPlaneClient({
         signal: timeoutSignal(deadlineMs),
       };
       if (body !== undefined) init.body = JSON.stringify(body);
-      response = await fetchImpl(`${origin}${path}`, init);
+      response = await transport(`${origin}${path}`, init);
     } catch {
       throw new ControlPlaneError("network_unavailable");
     }
@@ -313,12 +479,169 @@ export function createControlPlaneClient({
       return { accountToken, user };
     },
 
+    /** Which ways in this deployment offers (password always; emailed codes
+     * only with a mail transport). Public and account-free. */
+    async authMethods() {
+      const { payload } = await request("/v1/auth/methods");
+      const methods = plainObject(payload);
+      const password = plainObject(methods?.password);
+      const emailCode = plainObject(methods?.emailCode);
+      if (
+        !methods ||
+        password?.enabled !== true ||
+        !Number.isSafeInteger(password.minLength) ||
+        !Number.isSafeInteger(password.maxLength) ||
+        password.minLength < 8 ||
+        password.maxLength > 256 ||
+        typeof emailCode?.enabled !== "boolean" ||
+        (methods.emailVerification !== "required" && methods.emailVerification !== "off")
+      ) {
+        throw new ControlPlaneError("invalid_response");
+      }
+      return {
+        password: { enabled: true, minLength: password.minLength, maxLength: password.maxLength },
+        emailCode: { enabled: emailCode.enabled },
+        emailVerification: methods.emailVerification,
+      };
+    },
+
+    /** Creates an email/password account. A deployment that requires an emailed
+     * confirmation answers without a session (`accountToken: null`); the caller
+     * then asks for the code. The password is sent once and never stored. */
+    async signUpWithPassword(rawEmail, rawPassword) {
+      const email = normalizeAccountEmail(rawEmail);
+      const password = stringValue(rawPassword);
+      if (!email) throw new ControlPlaneError("invalid_email");
+      if (password === null || password.length < 8 || password.length > 256) {
+        throw new ControlPlaneError("invalid_password");
+      }
+      const { response, payload } = await request("/api/auth/sign-up/email", {
+        method: "POST",
+        body: { email, password, name: email.split("@", 1)[0] },
+      });
+      return credentialResult(response, payload, email);
+    },
+
+    /** Signs in with an existing password. Unverified accounts are refused by
+     * the server with `email_not_verified`, never silently admitted. */
+    async signInWithPassword(rawEmail, rawPassword) {
+      const email = normalizeAccountEmail(rawEmail);
+      const password = stringValue(rawPassword);
+      if (!email) throw new ControlPlaneError("invalid_email");
+      if (password === null || password.length < 1 || password.length > 256) {
+        throw new ControlPlaneError("invalid_password");
+      }
+      const { response, payload } = await request("/api/auth/sign-in/email", {
+        method: "POST",
+        body: { email, password },
+      });
+      const result = credentialResult(response, payload, email);
+      if (!result.accountToken) throw new ControlPlaneError("invalid_response", response.status);
+      return result;
+    },
+
+    /** Confirms an address with the emailed code. No session is created; the
+     * person signs in with the password afterwards. */
+    async verifyEmailOTP(rawEmail, rawOTP) {
+      const email = normalizeAccountEmail(rawEmail);
+      const otp = normalizeOTP(rawOTP);
+      if (!email) throw new ControlPlaneError("invalid_email");
+      if (!otp) throw new ControlPlaneError("invalid_otp");
+      await request("/api/auth/email-otp/verify-email", { method: "POST", body: { email, otp } });
+      return { email };
+    },
+
+    async requestPasswordResetOTP(rawEmail) {
+      const email = normalizeAccountEmail(rawEmail);
+      if (!email) throw new ControlPlaneError("invalid_email");
+      await request("/api/auth/email-otp/request-password-reset", { method: "POST", body: { email } });
+      return { email };
+    },
+
+    async resetPasswordWithOTP(rawEmail, rawOTP, rawPassword) {
+      const email = normalizeAccountEmail(rawEmail);
+      const otp = normalizeOTP(rawOTP);
+      const password = stringValue(rawPassword);
+      if (!email) throw new ControlPlaneError("invalid_email");
+      if (!otp) throw new ControlPlaneError("invalid_otp");
+      if (password === null || password.length < 1 || password.length > 256) {
+        throw new ControlPlaneError("invalid_password");
+      }
+      await request("/api/auth/email-otp/reset-password", { method: "POST", body: { email, otp, password } });
+      return { email };
+    },
+
     async me(accountToken) {
       if (!boundedSecret(accountToken)) throw new ControlPlaneError("signed_out", 401);
       const { payload } = await request("/v1/me", { token: accountToken });
       const user = validatedUser(payload.user);
       if (!user) throw new ControlPlaneError("invalid_response");
       return user;
+    },
+
+    /** The account's own published AI state. `pending`/`suspended` carry no
+     * catalog, so callers must never substitute a local fallback model. */
+    async aiStatus(accountToken) {
+      if (!boundedSecret(accountToken)) throw new ControlPlaneError("signed_out", 401);
+      const { payload } = await request("/v1/account/ai", { token: accountToken });
+      const status = validatedAiStatus(payload);
+      if (!status) throw new ControlPlaneError("invalid_response");
+      return status;
+    },
+
+    /** One short-lived model credential for this device. The raw token is only
+     * returned here; it must never be written next to the login record. */
+    async createAiToken(accountToken, deviceId) {
+      if (!boundedSecret(accountToken)) throw new ControlPlaneError("signed_out", 401);
+      if (typeof deviceId !== "string" || !UUID.test(deviceId)) {
+        throw new ControlPlaneError("invalid_request");
+      }
+      const { response, payload } = await request("/v1/account/ai/tokens", {
+        method: "POST",
+        token: accountToken,
+        body: { deviceId },
+      });
+      const id = stringValue(payload.id);
+      const token = stringValue(payload.token);
+      if (
+        response.status !== 201 ||
+        id === null ||
+        !UUID.test(id) ||
+        token === null ||
+        !PRODUCT_AI_CREDENTIAL.test(token) ||
+        !Number.isSafeInteger(payload.expiresAt) ||
+        payload.expiresAt <= 0
+      ) {
+        throw new ControlPlaneError("invalid_response", response.status);
+      }
+      return { id, token, expiresAt: payload.expiresAt };
+    },
+
+    /** Repeating a revocation is a no-op; an unknown or another account's id is
+     * 404 and must not be retried as a transient failure. */
+    async revokeAiToken(accountToken, tokenId) {
+      if (!boundedSecret(accountToken)) throw new ControlPlaneError("signed_out", 401);
+      if (typeof tokenId !== "string" || !UUID.test(tokenId)) {
+        throw new ControlPlaneError("invalid_request");
+      }
+      await request(`/v1/account/ai/tokens/${encodeURIComponent(tokenId)}`, {
+        method: "DELETE",
+        token: accountToken,
+        allowEmpty: true,
+      });
+    },
+
+    /** The account's own charges and adjustments, newest first. */
+    async aiLedger(accountToken, cursor) {
+      if (!boundedSecret(accountToken)) throw new ControlPlaneError("signed_out", 401);
+      if (cursor !== undefined && (typeof cursor !== "string" || !boundedText(cursor, 256))) {
+        throw new ControlPlaneError("invalid_request");
+      }
+      const query = typeof cursor === "string" && cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+      const { payload } = await request(`/v1/account/ai/ledger${query}`, { token: accountToken });
+      const page = validatedLedgerPage(payload);
+      if (!page) throw new ControlPlaneError("invalid_response");
+      return page;
     },
 
     async listInstallations(accountToken) {

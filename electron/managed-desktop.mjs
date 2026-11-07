@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
-import fs from "node:fs/promises";
-import { constants } from "node:fs";
-import path from "node:path";
+import { unreadableRecord } from "./encrypted-record-store.mjs";
 import { parseOrganizationBranding } from "./organization-branding.mjs";
+import { parseProductAiUpdate } from "./product-account-wire.mjs";
 import { libraryCapability, libraryRouteLimits, parseLibraryPointer } from "./org-library.mjs";
 
 const TOKEN = /^omd_[A-Za-z0-9_-]{43}$/;
@@ -31,18 +30,23 @@ export function parseDesktopPolicy(value) {
     mcp: { allowCustom: mcp.allowCustom, allowlist: [...mcp.allowlist] },
     computers: Object.fromEntries(COMPUTERS.map(key => [key, computers[key]])), remoteAccess };
 }
+const MANAGED_RESULT = "openmausbot:managed-desktop-result";
+const PRODUCT_AI_RESULT = "openmausbot:product-ai-result";
+const COMPANY_RUNTIME_UNAVAILABLE = "Company models could not be connected to the local runtime.";
+const PRODUCT_AI_UNAVAILABLE = "The account's AI could not be connected to the local runtime.";
+
 /** Replies are correlated to the exact owned utility process, not just an id. */
 export function createManagedDesktopRelay({ timeoutMs = 15_000 } = {}) {
   const pending = new Map();
   const settle = (id, error) => {
     const entry = pending.get(id); if (!entry) return;
     pending.delete(id); clearTimeout(entry.timer);
-    if (error) entry.reject(new Error("Company models could not be connected to the local runtime.")); else entry.resolve();
+    if (error) entry.reject(new Error(entry.failure)); else entry.resolve();
   };
-  const post = (proc, message) => new Promise((resolve, reject) => {
+  const post = (proc, message, { resultType = MANAGED_RESULT, failure = COMPANY_RUNTIME_UNAVAILABLE } = {}) => new Promise((resolve, reject) => {
     const requestId = randomUUID();
     const timer = setTimeout(() => settle(requestId, true), timeoutMs); timer.unref?.();
-    pending.set(requestId, { proc, resolve, reject, timer });
+    pending.set(requestId, { proc, resolve, reject, timer, resultType, failure });
     try { proc.postMessage({ ...message, requestId }); }
     catch { settle(requestId, true); }
   });
@@ -59,13 +63,26 @@ export function createManagedDesktopRelay({ timeoutMs = 15_000 } = {}) {
     },
     receive(proc, raw) {
       const message = raw?.data ?? raw;
-      if (message?.type !== "openmausbot:managed-desktop-result") return false;
-      if (pending.get(message.requestId)?.proc === proc && typeof message.ok === "boolean") settle(message.requestId, !message.ok);
+      if (message?.type !== MANAGED_RESULT && message?.type !== PRODUCT_AI_RESULT) return false;
+      const entry = typeof message.requestId === "string" ? pending.get(message.requestId) : undefined;
+      // The answer must come from the exact owned process and be the answer
+      // to the message type it was asked with; a different process, or a
+      // result type it never asked, is swallowed rather than settling it.
+      if (entry?.proc === proc && entry.resultType === message.type && typeof message.ok === "boolean") settle(message.requestId, !message.ok);
       return true;
     },
     sendLibrary(proc, library) {
       if (!proc) return library ? Promise.reject(new Error("The local bot runtime is not available.")) : Promise.resolve();
       return post(proc, { type: "openmausbot:managed-library", library });
+    },
+    /** The account's own model capability; this is the only way one reaches a runtime. */
+    sendProductAi(proc, update) {
+      let payload;
+      try { payload = parseProductAiUpdate(update); }
+      catch (error) { return Promise.reject(error); }
+      if (!proc) return payload.connection ? Promise.reject(new Error("The local bot runtime is not available.")) : Promise.resolve();
+      return post(proc, { type: "openmausbot:product-ai", state: payload.state, connection: payload.connection },
+        { resultType: PRODUCT_AI_RESULT, failure: PRODUCT_AI_UNAVAILABLE });
     },
     rejectProcess(proc) { for (const [id, entry] of pending) if (entry.proc === proc) settle(id, true); },
   };
@@ -79,65 +96,7 @@ export function managedPortalOrigin(value) {
   return url.origin;
 }
 
-/** Electron 43's safeStorage.decryptStringAsync resolves to { shouldReEncrypt, result }; test fakes resolve to the string. */
-export function decryptedText(decrypted) {
-  return typeof decrypted === "string" ? decrypted : decrypted?.result;
-}
-
-/** Never readable: not a small regular file, a key that no longer opens it (Windows reinstall), or not JSON. A locked keychain is never this. */
-export const unreadableRecord = error => error?.code === "unreadable_record";
-const unreadable = message => Object.assign(new Error(message), { code: "unreadable_record" });
 export const retryDelay = attempt => [15_000, 30_000, 60_000][Math.min(attempt, 3) - 1];
-
-/** OS-encrypted; company tokens never go into config.json, backups, renderer storage, environment variables or CLI homes. */
-export function createManagedDesktopStore({ file, encryption }) {
-  let tail = Promise.resolve();
-  const available = async () => {
-    if (!(await encryption.available())) throw new Error("Unlock your system keychain before connecting an organization.");
-  };
-  return {
-    async read() {
-      let handle;
-      try {
-        handle = await fs.open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
-        const stat = await handle.stat();
-        if (!stat.isFile() || stat.size > 64 * 1024) throw unreadable("Invalid company connection record.");
-        await available();
-        const encrypted = await handle.readFile();
-        let text;
-        try { text = decryptedText(await encryption.decrypt(encrypted)); } catch { throw unreadable("This computer can no longer decrypt the record."); }
-        // Not unreadable(): an unknown decrypt shape is this app's mistake, and the record must not be removed.
-        if (typeof text !== "string") throw new Error("Unexpected decrypt result.");
-        try { return JSON.parse(text); } catch { throw unreadable("The record is not JSON."); }
-      } catch (error) {
-        if (error?.code === "ENOENT") return null;
-        throw Object.assign(new Error("Your company connection could not be read. Unlock your system keychain and try again."),
-          unreadableRecord(error) ? { code: error.code } : {});
-      }
-      finally { await handle?.close(); }
-    },
-    write(value) {
-      const operation = tail.catch(() => {}).then(async () => {
-        // Forgetting must work while the keychain is locked; the file is removed in the same queue as pending writes.
-        if (value === null) {
-          try { await fs.unlink(file); } catch (error) { if (error?.code !== "ENOENT") throw error; }
-          return;
-        }
-        await available();
-        await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
-        const temporary = `${file}.${randomUUID()}.tmp`;
-        try {
-          const encrypted = await encryption.encrypt(JSON.stringify(value));
-          const handle = await fs.open(temporary, "wx", 0o600);
-          try { await handle.writeFile(encrypted); await handle.sync(); } finally { await handle.close(); }
-          await fs.rename(temporary, file);
-        } finally { await fs.rm(temporary, { force: true }); }
-      });
-      tail = operation;
-      return operation;
-    },
-  };
-}
 
 export function createManagedDesktopClient({ store, applyConnection, applyPolicy = async () => {}, migrateIdentity = async () => {}, openBrowser, platform, deviceName, appVersion,
   fetch: fetcher = globalThis.fetch, now = Date.now, onState = () => {}, library = null }) {

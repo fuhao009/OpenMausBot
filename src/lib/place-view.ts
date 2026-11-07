@@ -9,6 +9,7 @@ import { useAdvancedMode } from "@/lib/interface-mode";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
 import { openBotSettings } from "@/components/bot-panel/panel-link";
 import { openKeySettings } from "@/components/keys/key-focus";
+import { isProductWorkspace } from "@/lib/product-workspace";
 import type { Action, Bot, ConfigStatus, InstanceInfo } from "@/state/store";
 import type { LocaleKey } from "@/locales";
 import {
@@ -115,8 +116,9 @@ export function openPlaceAction(
   target: { botId: string; threadId?: string; place?: Place },
   dispatch: (action: Action) => void,
 ): boolean {
+  // A managed account has no engines page; its AI is the account's, so the way out of a signed-out AI is that page.
   const appSettings = (section: "engines" | "computer" | "cloudAccount") =>
-    dispatch({ type: "toggleAppSettings", open: true, section });
+    dispatch({ type: "toggleAppSettings", open: true, section: isProductWorkspace() && section === "engines" ? "account" : section });
   switch (id) {
     case "choose-model": openBotSettings(dispatch, "model", { botId: target.botId }); return true;
     case "open-tools": openBotSettings(dispatch, "access", { botId: target.botId, page: "tools" }); return true;

@@ -4,7 +4,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
-import { createManagedDesktopClient, createManagedDesktopRelay, createManagedDesktopStore, managedPortalOrigin, unreadableRecord } from "./managed-desktop.mjs";
+import { createManagedDesktopClient, createManagedDesktopRelay, managedPortalOrigin } from "./managed-desktop.mjs";
+import { createEncryptedRecordStore, unreadableRecord } from "./encrypted-record-store.mjs";
 
 const origin = "https://company.example.test";
 const token = `omd_${"a".repeat(43)}`;
@@ -284,7 +285,7 @@ test("secure record is encrypted, atomic, bounded and does not follow a symlink 
     const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", key, iv);
     const data = Buffer.concat([cipher.update(text), cipher.final()]); return Buffer.concat([iv, cipher.getAuthTag(), data]);
   }, decrypt: async buffer => { const decipher = createDecipheriv("aes-256-gcm", key, buffer.subarray(0, 12)); decipher.setAuthTag(buffer.subarray(12, 28)); return Buffer.concat([decipher.update(buffer.subarray(28)), decipher.final()]).toString("utf8"); } };
-  const file = path.join(root, "connection.bin"), store = createManagedDesktopStore({ file, encryption });
+  const file = path.join(root, "connection.bin"), store = createEncryptedRecordStore({ file, encryption });
   assert.equal(await store.read(), null);
   const saved = grant(); await store.write(saved);
   assert(!(await fs.readFile(file)).includes(token)); assert.deepEqual(await store.read(), saved);
@@ -298,14 +299,14 @@ test("secure record is encrypted, atomic, bounded and does not follow a symlink 
   if (process.platform !== "win32") {
     await store.write(saved);
     const link = path.join(root, "link.bin"); await fs.symlink(file, link);
-    await assert.rejects(createManagedDesktopStore({ file: link, encryption }).read(), /could not be read/);
+    await assert.rejects(createEncryptedRecordStore({ file: link, encryption }).read(), /could not be read/);
     assert.equal((await fs.stat(file)).mode & 0o777, 0o600);
   }
 });
 
 /** Electron 43's safeStorage shape over a one-byte key, counting finished reads. `lock.locked` stands in for a locked keychain. */
 function electron43Store(file, lock = { locked: false }, decrypt) {
-  const store = createManagedDesktopStore({ file, encryption: { available: async () => !lock.locked,
+  const store = createEncryptedRecordStore({ file, encryption: { available: async () => !lock.locked,
     encrypt: async text => Buffer.from(text).map(byte => byte ^ 0x5a),
     decrypt: decrypt ?? (async buffer => ({ shouldReEncrypt: false, result: Buffer.from(buffer).map(byte => byte ^ 0x5a).toString() })) } });
   const counted = { reads: 0, read: () => store.read().finally(() => { counted.reads++; }), write: value => store.write(value) };

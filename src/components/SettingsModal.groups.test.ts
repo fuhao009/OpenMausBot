@@ -102,7 +102,7 @@ describe("Settings rail groups", () => {
     expect(SETTINGS_GROUPS.map((group) => group.id)).toEqual(["you", "ai", "computers", "account"]);
     const ids = SECTIONS.map((entry) => entry.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids).toHaveLength(20); // 16 + the shared Skills library (AI group) + Logins (Devices) + Import and a team's Bot access (Account)
+    expect(ids).toHaveLength(21); // 16 + the shared Skills library (AI group) + Logins (Devices) + Import, a team's Bot access and a managed account's page (Account)
     for (const entry of SECTIONS) expect(SETTINGS_GROUPS.map((group) => group.id)).toContain(entry.group);
   });
 

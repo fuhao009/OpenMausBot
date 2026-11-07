@@ -1,8 +1,10 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import { hostedModelPolicy } from "./hosted-models.ts";
+import { hostedModelPolicy, modelRouteReset } from "./hosted-models.ts";
+import { DATA_DIR } from "./config.ts";
+import { Store } from "./store.ts";
 import { ProviderRegistry } from "./harness/registry.ts";
 import { ClaudeDriver } from "./drivers/claude.ts";
 import { CodexDriver } from "./drivers/codex.ts";
@@ -51,6 +53,47 @@ it.each([{ variant: "high" }, { effort: "high" as const }])("preserves an assign
   expect(selection).toEqual({ instanceId: "opencode", model: "provider/fixture" });
   expect(policy.allows(selection)).toBe(true);
   expect(policy.select(selection)).toEqual(selection);
+});
+
+it("resets a task's continuation only when its managed route actually moves", () => {
+  const same = modelRouteReset({ instanceId: "codex", model: "gpt-fixture" }, { instanceId: "codex", model: "gpt-fixture" });
+  expect(same).toEqual({});
+  expect(modelRouteReset({ instanceId: "codex", model: "gpt-fixture" }, { instanceId: "codex", model: "gpt-other" })).toEqual({
+    resumeCursors: {}, lastInstanceId: undefined, rewound: true, lastContextModel: undefined, appliedCompactionId: undefined,
+  });
+  expect(modelRouteReset({ instanceId: "claude", model: "gpt-fixture" }, { instanceId: "codex", model: "gpt-fixture" })).toEqual({
+    resumeCursors: {}, lastInstanceId: undefined, rewound: true, lastContextModel: undefined, appliedCompactionId: undefined,
+  });
+  const policy = hostedModelPolicy(directory(), env())!;
+  const reset = policy.resetTask({ instanceId: "codex", model: "gpt-fixture" }, { instanceId: "claude", model: "claude-fixture" });
+  expect(reset).toEqual(modelRouteReset({ instanceId: "codex", model: "gpt-fixture" }, { instanceId: "claude", model: "claude-fixture" }));
+});
+
+it("reconciles saved choices without touching names, titles or history, and leaves live continuations alone on an unchanged route", () => {
+  rmSync(DATA_DIR, { recursive: true, force: true });
+  const root = directory(), policy = hostedModelPolicy(root, env())!;
+  const store = new Store(() => ({ instanceId: "claude", model: "claude-fixture" }));
+  const bot = store.createBot({ name: "Jarvis", title: "My helper", modelSelection: { instanceId: "personal", model: "personal-model" } });
+  // Pinned to a route this policy does not assign, so reconciliation must replace it with the policy's default.
+  const pinned = store.createTask(bot.id, "Kept history", false, undefined, undefined, undefined, { instanceId: "codex", model: "removed-model" })!;
+  store.appendMessage(bot.threadId, { role: "user", kind: "text", text: "Remember this line." });
+  const transcript = store.messagesFor(bot.threadId);
+
+  policy.reconcile(store);
+  expect(store.bot(bot.id)).toMatchObject({ name: "Jarvis", title: "My helper", modelSelection: { instanceId: "claude", model: "claude-fixture" } });
+  // Its instance still has an assigned model, so it moves to that model rather than to another engine.
+  expect(store.taskByThread(bot.id, pinned.threadId)).toMatchObject({
+    title: "Kept history", modelSelection: { instanceId: "codex", model: "gpt-fixture" },
+    resumeCursors: {}, rewound: true,
+  });
+  expect(store.messagesFor(bot.threadId)).toEqual(transcript);
+
+  // The same policy again: an allowed choice and its live session must survive an unchanged restart.
+  store.patchTask(bot.id, pinned.threadId, { resumeCursors: { codex: "live" }, lastInstanceId: "codex" });
+  policy.reconcile(store);
+  expect(store.taskByThread(bot.id, pinned.threadId)).toMatchObject({ resumeCursors: { codex: "live" }, lastInstanceId: "codex" });
+  expect(store.messagesFor(bot.threadId)).toEqual(transcript);
+  rmSync(DATA_DIR, { recursive: true, force: true });
 });
 
 it("locks native and OpenRouter instances to assigned catalogs and fixed gateway routes", async () => {

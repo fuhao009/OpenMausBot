@@ -3,6 +3,7 @@ import type {
   DriverCreateInput,
   ModelCatalog,
   ProviderInstance,
+  RequestCredential,
   RuntimeEvent,
   RuntimeEventListener,
   SendTurnInput,
@@ -22,7 +23,7 @@ import { ChatProtocolError, ChatReasoningDetails, ChatToolCalls, object, type Ch
 import { completionError, httpErrorDetail, refusedToolCall, refusedToolCallFailure, rejectsReasoningReplay, rejectsToolsParameter, RejectedToolCallError, UnsupportedChatToolsError, UnsupportedReasoningReplayError, type ProviderBody } from "./openai-chat-refusals.ts";
 import { ChatRepeatGuard } from "./chat-repeat-guard.ts";
 import { TextCallHoldback, textToolCalls } from "./chat-text-tool-calls.ts";
-import { createModelRoutes, ModelRouteRefused, noRouteLeft, readResponsesStream, responsesRequest, routeRefusal, type ModelRoute, type ResponseItem } from "./openai-responses.ts";
+import { createModelRoutes, ModelRouteRefused, noRouteLeft, pinnedRouteRefused, readResponsesStream, responsesRequest, routeRefusal, type ModelRoute, type ResponseItem } from "./openai-responses.ts";
 import { appendNative } from "./native.ts";
 import { classifyError, computeBackoff, interruptibleDelay, RETRY_MAX_ATTEMPTS } from "./retry.ts";
 import { plainFailureMessage } from "./engine-errors.ts"; import { toolFailureMessage } from "./tool-failure.ts";
@@ -95,6 +96,14 @@ interface RuntimeOptions<Config> {
   driverKind: string;
   apiKey: string;
   apiUrl: string;
+  /** Read immediately before each request instead of `apiKey`; the account that owns the credential may refuse a new
+   * call at any time, so the getter throws rather than returning a stale token. */
+  requestCredential?: RequestCredential;
+  /** A parent-pinned certificate transport for this instance's own origin; unset means the process fetch. */
+  fetchImpl?: typeof fetch;
+  /** Operator-chosen protocol per model: a listed model starts on that API with or without tools and never negotiates
+   * to the other one. Unlisted models keep the automatic route. */
+  modelProtocols?: Record<string, "chat" | "responses">;
   models: () => ModelCatalog;
   requestBody(model: string, messages: OpenAIChatMessage[], stream: boolean): Record<string, unknown>;
   httpErrorLabel: string;
@@ -213,6 +222,20 @@ const TEXT_ONLY_SCREENSHOT_NOTE = "[Screenshot not shown: this model cannot see 
 export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>): ProviderInstance {
   const { input } = options;
   const listeners = new Set<RuntimeEventListener>();
+  /** The keys this runtime has sent, newest last: a rotating credential is masked from a reply whichever one it used. */
+  const recentKeys: string[] = [];
+  /** Immediately before each request: a managed credential may refuse a new call at any time, so a throw here fails that
+   * request (and its turn) rather than falling back to a key the account no longer authorizes. The getter is
+   * authoritative: an empty answer is a refusal, never a reason to read the static key or the environment. */
+  const readKey = (): string => {
+    const key = options.requestCredential ? options.requestCredential().apiKey : options.apiKey;
+    if (!key) throw new Error(options.missingKeyError);
+    const seen = recentKeys.indexOf(key);
+    if (seen !== -1) recentKeys.splice(seen, 1);
+    recentKeys.push(key);
+    if (recentKeys.length > 8) recentKeys.shift();
+    return key;
+  };
   const active = new Map<string, {
     abort: AbortController;
     turnId: string;
@@ -224,7 +247,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     ending: boolean;
   }>();
   const reasoningReplayRejected = new Set<string>();
-  const routes = createModelRoutes(options.apiUrl);
+  const routes = createModelRoutes(options.apiUrl, options.modelProtocols);
   /** Beside the messages, not on them, so encrypted reasoning never reaches a Chat Completions body, a log or a handoff. */
   const responseOutputs = new WeakMap<OpenAIChatMessage, ResponseItem[]>();
   const assistantReply = (model: string, completion: Completion, content: string | null, toolCalls?: ChatToolCall[]): OpenAIChatMessage => {
@@ -253,7 +276,15 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
   const watchServer = (everyMs: number, stop: (reason: Error) => void) => {
     let misses = 0;
     const timer = setInterval(() => {
-      fetch(`${options.apiUrl}/models`, { headers: { authorization: `Bearer ${options.apiKey}` }, signal: AbortSignal.timeout(everyMs) })
+      let key: string;
+      try {
+        key = readKey();
+      } catch (error) {
+        stop(asError(error));
+        return;
+      }
+      const liveness = options.fetchImpl ?? fetch;
+      liveness(`${options.apiUrl}/models`, { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(everyMs) })
         .then((response) => { misses = 0; void response.body?.cancel(); })
         .catch(() => {
           if (++misses === LIVENESS_MISSES) stop(new Error(`The model server at ${new URL(options.apiUrl).host} stopped answering, so the reply was stopped.`));
@@ -298,19 +329,24 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
           ...(route === "chat-reasoning-off" ? { reasoning_effort: "none" } : {}),
           ...(tools.length ? { tools } : {}),
         });
-      const send = options.timeoutMs > FETCH_LIMIT_MS ? fetchPastLimit : fetch;
+      // A pinned transport has no undici headers/body limit of its own, so it needs no long-reply fallback.
+      const send = options.fetchImpl ?? (options.timeoutMs > FETCH_LIMIT_MS ? fetchPastLimit : fetch);
+      // One read per request: the header and the rejection/accepted attribution below are the same token, so a rotation
+      // between them can never mark the new one as refused.
+      const apiKey = readKey();
       const response = await send(`${options.apiUrl}/${route === "responses" ? "responses" : "chat/completions"}`, {
         method: "POST",
         ...(messages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === "image_url")) ? { redirect: "error" as const } : {}),
-        headers: { authorization: `Bearer ${options.apiKey}`, "content-type": "application/json" },
+        headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
         body: payload,
         signal: activeSignal,
       });
       const failure = (status: number, body: string): Error => {
         const message = `${options.httpErrorLabel} HTTP ${status}${body ? `: ${httpErrorDetail(body)}` : ""}`;
-        const refused = tools.length ? routeRefusal(route, status, body) : null;
+        // A pinned model's only route can refuse a tool-less call too (a summary, a helper): read that answer as well.
+        const refused = tools.length || routes.pinnedProtocol(model) ? routeRefusal(route, status, body) : null;
         if (refused) return new ModelRouteRefused(refused, message);
-        if (rejectsKey(status, body)) noteKeyRejected(options.apiUrl, options.apiKey);
+        if (rejectsKey(status, body)) noteKeyRejected(options.apiUrl, apiKey);
         if (refusesRequestSize(status, body)) return new RequestTooLargeError(message, Buffer.byteLength(payload));
         if (rejectsToolsParameter(status, body)) return new UnsupportedChatToolsError(message);
         const refusal = refusedToolCall(status, body);
@@ -321,7 +357,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         return new Error(message);
       };
       if (!response.ok) throw failure(response.status, await response.text().catch(() => ""));
-      noteKeyAccepted(options.apiUrl, options.apiKey);
+      noteKeyAccepted(options.apiUrl, apiKey);
       if (route === "responses") {
         const reply = await readResponsesStream(response.body, { reasoning: Boolean(options.reasoning), onBytes: resetIdleTimer, onDelta: (text, kind) => onDelta?.(text, kind), fail: failure });
         activeSignal.throwIfAborted();
@@ -481,7 +517,10 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         }), tools, onUsage);
       } catch (error) {
         if (!(error instanceof ModelRouteRefused) || replied || signal?.aborted) throw error;
-        if (!routes.advance(model, error.refusal)) throw new ChatProtocolError(noRouteLeft(error.message));
+        if (!routes.advance(model, error.refusal)) {
+          const pinned = routes.pinnedProtocol(model);
+          throw new ChatProtocolError(pinned ? pinnedRouteRefused(pinned, error.message) : noRouteLeft(error.message));
+        }
         console.warn(`${options.driverKind}: ${model} answered ${error.refusal}; now on ${routes.routeFor(model, true)}`);
       }
     }
@@ -522,7 +561,10 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
   };
 
   const sendTurn = async (turn: SendTurnInput) => {
-    if (!options.apiKey) throw new Error(options.missingKeyError);
+    // A managed credential may be missing or expired: read it before mounting tools, and fail the turn on its own words.
+    // The per-request reads below stay authoritative, so a token that expires mid-turn stops the next request.
+    if (options.requestCredential) readKey();
+    else if (!options.apiKey) throw new Error(options.missingKeyError);
     if (active.has(turn.threadId)) throw new Error("a turn is already running on this thread");
     if (options.computerUse && (turn.images?.length || turn.integrations?.localComputer || turn.integrations?.browser)) assertImageTransport(options.apiUrl);
 
@@ -533,7 +575,8 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     const retainImages = chatImageBudget();
     for (const message of messages) retainImages(message.content);
     const model = turn.model || options.models().default;
-    const secrets = [options.apiKey].filter((value): value is string => Boolean(value));
+    // Whatever was sent is masked from a reply: a rotating credential is read per request, so the list follows it.
+    const secrets = [options.apiKey, ...recentKeys].filter((value): value is string => Boolean(value));
     for (const integration of Object.values(turn.integrations ?? {})) {
       const entries = object(integration);
       const specs = entries && "command" in entries ? [entries] : Object.values(entries ?? {}).map(object);
@@ -545,7 +588,8 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     }
     const safeText = (text: string) => {
       let safe = text;
-      for (const secret of secrets) if (secret) safe = safe.split(secret).join("[redacted]");
+      // A managed credential is read per request, so the tokens sent since this turn began are masked too.
+      for (const secret of [...secrets, ...recentKeys]) if (secret) safe = safe.split(secret).join("[redacted]");
       return redactSecretsInText(safe);
     };
     const preview = (value: unknown) => toolDetailPreview(JSON.parse(JSON.stringify(value, (_key, part) =>
@@ -638,10 +682,11 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
             const delta = (text: string, streamKind: keyof typeof pending, flush = false) => {
               let combined = pending[streamKind] + text;
               // Mask whole matches before holding a suffix, or "abab" could split at its own repeated prefix.
-              for (const secret of secrets) if (secret) combined = combined.split(secret).join("[redacted]");
+              const secretList = [...secrets, ...recentKeys];
+              for (const secret of secretList) if (secret) combined = combined.split(secret).join("[redacted]");
               let hold = 0;
               // A configured credential can straddle chunks: hold any suffix that could be its prefix.
-              if (!flush) for (const secret of secrets) {
+              if (!flush) for (const secret of secretList) {
                 for (let length = Math.min(secret.length - 1, combined.length); length > hold; length--) {
                   if (combined.endsWith(secret.slice(0, length))) { hold = length; break; }
                 }
@@ -933,8 +978,20 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     },
     ...(options.refreshModels ? { refreshModels: options.refreshModels } : {}),
     snapshot: async () => {
-      if (!options.apiKey) return { state: "unavailable", reason: options.unavailableReason };
-      if (keyRejected(options.apiUrl, options.apiKey)) return { state: "available", authenticated: false, reason: KEY_REJECTED_REASON, version: null };
+      if (!options.requestCredential) {
+        if (!options.apiKey) return { state: "unavailable", reason: options.unavailableReason };
+        if (keyRejected(options.apiUrl, options.apiKey)) return { state: "available", authenticated: false, reason: KEY_REJECTED_REASON, version: null };
+        return { state: "available", authenticated: true, version: null, ...(options.billing ? { billing: options.billing } : {}) };
+      }
+      // A managed credential: readiness is the account's, and reading it is the only way to know whether it may call yet.
+      let key: string;
+      try {
+        key = options.requestCredential().apiKey;
+      } catch (error) {
+        return { state: "unavailable", reason: asError(error).message.slice(0, 300) };
+      }
+      if (!key) return { state: "unavailable", reason: options.unavailableReason };
+      if (keyRejected(options.apiUrl, key)) return { state: "available", authenticated: false, reason: KEY_REJECTED_REASON, version: null };
       return { state: "available", authenticated: true, version: null, ...(options.billing ? { billing: options.billing } : {}) };
     },
     adapter: {

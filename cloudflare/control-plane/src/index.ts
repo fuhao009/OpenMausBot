@@ -1,10 +1,13 @@
 import { z } from "zod";
 
-import { accountSession, createAuth, deleteExpiredVerifications } from "./auth";
-import { readConfig, type ControlPlaneConfig } from "./config";
+import { accountSession, createAuth, deleteExpiredVerifications, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./auth";
+import { readAuthConfig, readConfig, type AuthConfig, type ControlPlaneConfig } from "./config";
 import { errorResponse, HTTPError, json, preflight, secureResponse, withBoundedRequestBody } from "./http";
 import { limitedOTPResponse } from "./otp-rate-limit";
 import type { CloudflareFetch } from "./cloudflare-api";
+import { routeAccountAi } from "./account-ai";
+import { routeAiGateway } from "./ai-gateway";
+import { recoverStaleRequests } from "./ai-wallet";
 import {
   cleanupEndpointForInstallation,
   deleteManagedEndpoint,
@@ -30,9 +33,20 @@ import {
   rotateInstallationCredential,
 } from "./installations";
 
+function routeError(pathname: string, status: number, code: string): Response {
+  return pathname.startsWith("/v1/ai/")
+    ? json({ error: { code, type: "api_error", message: code } }, status)
+    : errorResponse(status, code);
+}
+
 const SIGN_IN_OTP_PATH = "/api/auth/sign-in/email-otp";
 const ROTATE_ROUTE = /^\/v1\/installations\/([^/]+)\/credentials\/rotate$/;
 const INSTALLATION_ROUTE = /^\/v1\/installations\/([^/]+)$/;
+
+function endpointConfig(env: Env): ControlPlaneConfig {
+  try { return readConfig(env); }
+  catch { throw new HTTPError(503, "endpoint_unavailable"); }
+}
 
 const BETTER_AUTH_ERROR_CODES = new Map([
   ["INVALID_EMAIL", "invalid_email"],
@@ -41,6 +55,18 @@ const BETTER_AUTH_ERROR_CODES = new Map([
   ["TOO_MANY_ATTEMPTS", "rate_limited"],
   ["USER_NOT_FOUND", "invalid_otp"],
   ["VALIDATION_ERROR", "invalid_request"],
+  // Password accounts. A wrong password and an unknown address share one
+  // answer so the form cannot be used to enumerate accounts.
+  ["INVALID_EMAIL_OR_PASSWORD", "invalid_credentials"],
+  ["INVALID_PASSWORD", "invalid_credentials"],
+  ["CREDENTIAL_ACCOUNT_NOT_FOUND", "invalid_credentials"],
+  ["EMAIL_NOT_VERIFIED", "email_not_verified"],
+  ["USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL", "email_taken"],
+  ["USER_ALREADY_EXISTS", "email_taken"],
+  ["PASSWORD_TOO_SHORT", "password_too_short"],
+  ["PASSWORD_TOO_LONG", "password_too_long"],
+  ["FAILED_TO_CREATE_USER", "sign_up_unavailable"],
+  ["FAILED_TO_CREATE_SESSION", "sign_in_unavailable"],
 ]);
 const betterAuthErrorSchema = z.object({ code: z.string() }).loose();
 
@@ -75,7 +101,7 @@ async function route(
   request: Request,
   env: Env,
   ctx: ExecutionContext,
-  config: ControlPlaneConfig,
+  config: AuthConfig,
   requestId: string,
   cloudflareFetch: CloudflareFetch,
   apnsFetch: typeof fetch,
@@ -85,6 +111,15 @@ async function route(
   if (request.method === "OPTIONS") return preflight(request, config);
 
   if (url.pathname.startsWith("/api/auth/")) {
+    // Emailed codes are only offered where a transport exists. Without one the
+    // answers name the missing capability instead of pretending a mail went out
+    // or leaving an undeliverable code in D1. Password routes stay available.
+    if (!config.mailConfigured
+      && (url.pathname.startsWith("/api/auth/email-otp/")
+        || url.pathname === SIGN_IN_OTP_PATH
+        || url.pathname === "/api/auth/forget-password/email-otp")) {
+      return errorResponse(503, "email_unavailable");
+    }
     const limited = await limitedOTPResponse(request, env);
     if (limited) return limited;
     const auth = createAuth(env, ctx, config, requestId);
@@ -110,6 +145,20 @@ async function route(
   }
 
   const auth = createAuth(env, ctx, config, requestId);
+  const accountAi = await routeAccountAi(request, env, auth, config);
+  if (accountAi) return accountAi;
+
+  // Public and unauthenticated on purpose: the sign-in page has to know which
+  // ways in this deployment offers before it draws a form. It names no account,
+  // key or mail address.
+  if (request.method === "GET" && url.pathname === "/v1/auth/methods") {
+    return json({
+      password: { enabled: true, minLength: PASSWORD_MIN_LENGTH, maxLength: PASSWORD_MAX_LENGTH },
+      emailCode: { enabled: config.mailConfigured },
+      emailVerification: config.emailVerification,
+    });
+  }
+
   if (request.method === "GET" && url.pathname === "/v1/me") {
     const session = await accountSession(request, auth);
     if (!session) throw new HTTPError(401, "unauthorized");
@@ -134,10 +183,10 @@ async function route(
   if (url.pathname === "/v1/installations/self/endpoint") {
     if (request.method === "GET") return getManagedEndpoint(request, env);
     if (request.method === "POST") {
-      return provisionManagedEndpoint(request, env, config, cloudflareFetch, requestId);
+      return provisionManagedEndpoint(request, env, endpointConfig(env), cloudflareFetch, requestId);
     }
     if (request.method === "DELETE") {
-      return deleteManagedEndpoint(request, env, config, cloudflareFetch, requestId);
+      return deleteManagedEndpoint(request, env, endpointConfig(env), cloudflareFetch, requestId);
     }
   }
 
@@ -173,13 +222,13 @@ async function route(
   const installation = url.pathname.match(INSTALLATION_ROUTE);
   if (request.method === "DELETE" && installation) {
     const response = await revokeInstallation(request, installation[1], env, auth);
-    ctx.waitUntil(cleanupEndpointForInstallation(
+    ctx.waitUntil(Promise.resolve().then(() => cleanupEndpointForInstallation(
       env,
-      config,
+      endpointConfig(env),
       installation[1],
       cloudflareFetch,
       requestId,
-    ).catch(() => {
+    )).catch(() => {
       console.error(JSON.stringify({
         message: "revoked installation endpoint cleanup scheduling failed",
         requestId,
@@ -195,22 +244,20 @@ export function createWorker(
   cloudflareFetch: CloudflareFetch = fetch,
   apnsFetch: typeof fetch = fetch,
   highLevelFetch: typeof fetch = fetch,
+  aiFetch: typeof fetch = fetch,
 ) {
   return {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
       const requestId = crypto.randomUUID();
       const url = new URL(request.url);
       if (request.method === "GET" && url.pathname === "/healthz") {
-        let healthConfig: ControlPlaneConfig;
         try {
-          healthConfig = readConfig(env);
+          readAuthConfig(env);
         } catch {
           return secureResponse(errorResponse(503, "misconfigured"), request, null, requestId);
         }
-        // `ok` keeps meaning "this Worker is correctly configured"; desktops
-        // gate hosted sign-in on it. Provider capacity is reported beside it
-        // so a full quota never hides sign-in, recovery, or local pairing.
-        const capacity = await capacityHealth(env, healthConfig, ctx).catch(() => null);
+        let capacity = null;
+        try { capacity = await capacityHealth(env, readConfig(env), ctx); } catch {}
         return secureResponse(json({
           ok: true,
           service: "openmausbot-control-plane",
@@ -218,18 +265,23 @@ export function createWorker(
         }), request, null, requestId);
       }
 
-      let config: ControlPlaneConfig | null = null;
+      let config: AuthConfig | null = null;
       try {
-        config = readConfig(env);
+        config = readAuthConfig(env);
         const origin = request.headers.get("origin");
         // HighLevel sends the person's browser to the callback: a top-level
         // navigation that may carry any Origin (or `null` after a cross-site
         // redirect) and never one of ours. It is a public GET like /healthz.
         const publicNavigation = request.method === "GET" && url.pathname === HIGHLEVEL_CALLBACK_PATH;
         if (origin && !publicNavigation && !config.allowedOrigins.has(origin)) {
-          return secureResponse(errorResponse(403, "origin_not_allowed"), request, config, requestId);
+          return secureResponse(routeError(url.pathname, 403, "origin_not_allowed"), request, config, requestId);
         }
-        const boundedRequest = await withBoundedRequestBody(request);
+        if (url.pathname.startsWith("/v1/ai/") && request.method !== "OPTIONS") {
+          const response = await routeAiGateway(request, env, aiFetch);
+          return secureResponse(response ?? routeError(url.pathname, 404, "not_found"), request, config, requestId);
+        }
+        const ownsBody = url.pathname.startsWith("/v1/account/ai") || url.pathname.startsWith("/v1/operator/ai/");
+        const boundedRequest = ownsBody ? request : await withBoundedRequestBody(request);
         return secureResponse(
           await route(boundedRequest, env, ctx, config, requestId, cloudflareFetch, apnsFetch, highLevelFetch),
           request,
@@ -238,14 +290,24 @@ export function createWorker(
         );
       } catch (error) {
         if (error instanceof HTTPError) {
-          return secureResponse(errorResponse(error.status, error.code), request, config, requestId);
+          return secureResponse(routeError(url.pathname, error.status, error.code), request, config, requestId);
         }
         console.error(JSON.stringify({ message: "request failed", requestId }));
-        return secureResponse(errorResponse(500, "internal_error"), request, config, requestId);
+        return secureResponse(routeError(url.pathname, url.pathname.startsWith("/v1/ai/") ? 503 : 500,
+          url.pathname.startsWith("/v1/ai/") ? "ai_unavailable" : "internal_error"), request, config, requestId);
       }
     },
     scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
       const requestId = crypto.randomUUID();
+      ctx.waitUntil(recoverStaleRequests(env).catch(() => {
+        console.error(JSON.stringify({ message: "AI reservation recovery failed", requestId, errorCode: "ai_internal" }));
+      }));
+      ctx.waitUntil(Promise.resolve().then(() => deleteExpiredVerifications(createAuth(env, ctx, readAuthConfig(env), requestId))).catch(() => {
+        console.error(JSON.stringify({ message: "expired verification sweep failed", requestId, errorCode: "auth_internal" }));
+      }));
+      ctx.waitUntil(sweepHighLevelFlows(env, requestId).catch(() => {
+        console.error(JSON.stringify({ message: "highlevel flow sweep failed", requestId, errorCode: "highlevel_internal" }));
+      }));
       ctx.waitUntil((async () => {
         let config: ControlPlaneConfig;
         try {
@@ -287,15 +349,6 @@ export function createWorker(
             message: "managed endpoint account check failed",
             requestId,
             errorCode: "endpoint_internal",
-          }));
-        }
-        try {
-          await sweepHighLevelFlows(env, requestId);
-        } catch {
-          console.error(JSON.stringify({
-            message: "highlevel flow sweep failed",
-            requestId,
-            errorCode: "highlevel_internal",
           }));
         }
       })());

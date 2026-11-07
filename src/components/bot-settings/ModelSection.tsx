@@ -7,10 +7,14 @@ import { ProposalStatus } from "./ProposalStatus";
 import { ThreadModelsLine } from "../ThreadModelsLine";
 import { t } from "@/lib/i18n";
 import { Select } from "../Select";
+import { isProductWorkspace } from "@/lib/product-workspace";
 
 export function ModelSection({ bot }: { bot: Bot }) {
   const { state, dispatch } = useStore();
   const { draft } = useBotEditor();
+  // A managed account has one route to one upstream: there is no second provider to fail over to, and the workspace's
+  // own usage is not what bills, so neither row is offered here.
+  const productManaged = isProductWorkspace(state.config?.productManaged);
   const modelVariants = state.instances.find((instance) => instance.instanceId === bot.modelSelection.instanceId)?.capabilities?.modelVariants;
   return (
     <div className="flex flex-col gap-4">
@@ -46,8 +50,8 @@ export function ModelSection({ bot }: { bot: Bot }) {
           </div>
         }
       />
-      {!draft && <FallbackChain bot={bot} onChange={(fallback) => dispatch({ type: "updateBot", botId: bot.id, patch: { fallback } })} />}
-      {!draft && state.config?.cacheKeepWarm && (
+      {!draft && !productManaged && <FallbackChain bot={bot} onChange={(fallback) => dispatch({ type: "updateBot", botId: bot.id, patch: { fallback } })} />}
+      {!draft && !productManaged && state.config?.cacheKeepWarm && (
         <KeepWarmRow bot={bot} workspaceOn={state.config.cacheKeepWarm.enabled}
           onChange={(cacheKeepWarm) => dispatch({ type: "updateBot", botId: bot.id, patch: { cacheKeepWarm } })} />
       )}
