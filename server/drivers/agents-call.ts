@@ -189,6 +189,10 @@ export async function callTool(called: string, input: Json, context: ToolCallCon
   const member = agentsCallMember(name, args);
   const { botId: BOT_ID, threadId: THREAD_ID, depth: DEPTH } = context;
   const { api, apiResponse } = context.client;
+  if (name === "execution_connector") {
+    const { ok, body } = await apiResponse("/api/internal/execution-connectors", { method: "POST", body: JSON.stringify(args) });
+    return { text: JSON.stringify(body), ...(!ok ? { isError: true } : {}) };
+  }
   if (name === "vm_exec") {
     const { ok, body } = await apiResponse("/api/internal/vm-exec", {
       method: "POST",

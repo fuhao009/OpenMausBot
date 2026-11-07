@@ -41,6 +41,43 @@ checks (for Cloudflare Access, a service token's `CF-Access-Client-Id` and
 `CF-Access-Client-Secret`), or paste your `claude mcp add --transport http …
 --header "…"` command and fill in the values it took from your terminal.
 
+### Claude Code, Codex and OMP execution
+
+The Apps panel's **Execution tools** section connects these CLIs without changing
+the chat model. Choose **This computer** or **Execution server**, select the bots
+allowed to use it, and explicitly consent before **Connect and check**. Local
+connections require the tool to be installed and signed in on the execution
+computer. OMP's check establishes CLI availability, not upstream model access.
+Shared hosts do not expose another person's local CLI account.
+
+Authorized bots can use `execution_connector` to list connections, start tasks,
+read results and cancel tasks. The panel also provides task submission and status.
+Permission requests and questions appear there for the owner to approve, deny or
+answer; a bot cannot approve its own execution. Removing a bot's grant cancels its
+active tasks. Disconnect revokes grants and stops active tasks without signing out
+the external CLI. Connections are saved privately but return disconnected after
+a server restart; connect and check again before allowing more work.
+
+Execution servers run independently of the desktop and model gateway:
+
+```sh
+OMB_EXECUTION_SERVICE_CONFIG=/private/account.json pnpm execution:service
+```
+
+The operator supplies a private, account-owned mode-0600 JSON file containing
+`account`, a random `token` of at least 32 characters, `isolatedAccount: true`,
+`home` equal to the process's `HOME`, and an absolute `root`. Optional `port`
+defaults to 47831; optional `cli` maps `claude`, `codex` and `omp` to installed
+commands. Use a dedicated OS user or container and separate HOME for each account:
+different working directories alone do not isolate CLI credentials or processes.
+The service binds loopback; expose it through an HTTPS reverse proxy on the
+execution server. Enter its HTTPS origin and token in the desktop connection form.
+HTTP is accepted only on loopback for isolated local verification. Tokens are not
+returned in connection listings, and local CLI credentials are not uploaded.
+
+This setup does not deploy a production execution node or install/sign in CLIs
+automatically. The development computer is not registered as a production node.
+
 ### Whop
 
 In Plugins, find **Whop** alongside Gmail, Slack and the other apps and click **Connect**. The built-in card

@@ -167,6 +167,11 @@ const START_THREAD_SELF_ID = "Leave out, or use your own bot ID. For teammates u
 
 const TOOL_DEFINITIONS = [
   {
+    name: "execution_connector",
+    description: "Run a coding task with an owner-connected Claude Code, Codex or OMP executor. List granted connectors first; start returns a task id, status reads results and pending owner approvals, cancel stops it. Never approve on the person's behalf; ask them to review Apps → Execution connectors.",
+    inputSchema: { type: "object", additionalProperties: false, properties: { action: { type: "string", enum: ["list", "start", "status", "cancel"] }, connectorId: { type: "string" }, taskId: { type: "string" }, prompt: { type: "string", maxLength: 100000 } }, required: ["action"] },
+  },
+  {
     name: "create_options_card",
     description:
       "Show the person a native card with 2-6 choices in this Watcher conversation. The card is passive: a click returns the selected words as a reply and never authorizes or performs an external action. Use it for Watcher's review and draft-selection steps, then wait for the person's response.",

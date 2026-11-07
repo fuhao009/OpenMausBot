@@ -330,6 +330,9 @@ export async function launchVerificationServer(
 
   const log = openSync(logPath, "a", 0o600);
   const childEnv = verificationServerEnvironment(parentEnv, dataDir, port);
+  childEnv.OMB_EXECUTION_CLAUDE_CLI = FAKE_CLI;
+  childEnv.OMB_EXECUTION_CODEX_CLI = fileURLToPath(new URL("../server/testing/fake-codex-app-server.ts", import.meta.url));
+  childEnv.OMB_EXECUTION_OMP_CLI = fileURLToPath(new URL("../server/testing/fake-acp-cli.ts", import.meta.url));
   // Opt-in live Local VM fixture: keep the temporary home and fake engine,
   // granting only the explicitly selected machine connection and static UI.
   if (localVm) Object.assign(childEnv, {

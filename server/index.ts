@@ -571,6 +571,8 @@ import { PhoneSecretBridge, PhoneSecretSubmissionRegistry } from "./phone-secret
 // Keep these two last, so loading the route table leaves module start-up order as is.
 import { gzipTunnelReplies, json, onJsonBody, parsedBodyOf, readBody } from "./harness/http.ts";
 import { holdBodyDeadline } from "./body-deadline.ts";
+import { ExecutionConnectorHost } from "./execution-connectors.ts";
+import { createExecutionConnectorRoutes } from "./routes/execution-connectors.ts";
 import { PASS, ROUTES, dispatchRoutes } from "./routes/table.ts"; import { createSecretCards } from "./host/secret-cards.ts"; import { createInternalCredentialRequestRoutes, createSecretCardRoutes } from "./routes/secret-cards.ts"; import { applyIncludedPagesMessage } from "./pages/access.ts"; import { createPublishedPages } from "./pages/service.ts"; import { createInternalToolRoutes } from "./routes/internal-tools.ts"; import { createHelperSuggestionRoutes } from "./routes/helper-suggestion.ts"; import { createXConnectorRoutes } from "./routes/x-connector.ts"; import { createMoveFreeze, switchAutomationsOff } from "./move-freeze.ts"; import { createMoveFreezeRoutes } from "./routes/move-freeze.ts"; import { createMoveWaits } from "./move-waits.ts"; import { assertBotHere, createBotMoves } from "./bot-moves.ts"; import { createBotMoveRoutes } from "./routes/bot-moves.ts"; import { createTeamMoveIn, moveInRefusal } from "./team-move-in.ts";
 import { createHostedSlackRoutes } from "./routes/hosted-slack.ts";
 import { createBotPresetRoutes } from "./routes/bot-presets.ts"; import { createWorkspaceBannerRoutes, workspaceBannerStore, workspaceBannerSummary } from "./routes/workspace-banner.ts";
@@ -12636,6 +12638,19 @@ ROUTES.push(createBrowserViewerRoutes({
 }));
 const internalToolRoutes = createInternalToolRoutes({ engineLimits: { instances: () => registry.instances(), configs: () => instanceConfigs(cfg), status: (instanceId) => registry.knownSnapshot(instanceId), load: (accounts) => loadPlanUsage({ accounts }), audienceOf: (threadId) => teamHost.audienceOf(threadId), guestDriven: cloudGuestDriven, dataDir: DATA_DIR }, helpers: { decider, extractor }, notifications: { bot: (id) => store.bot(id), team: sharedMembership, broadcast }, xResearch: { credential: () => researchCredential(cfg.treg?.key), botEnabled: (botId) => store.bot(botId)?.xResearch !== false, cloudHome: CLOUD_HOME !== null, researchOff: () => researchAvailability.refused() } }); const waitRoutes = createWaitRoutes({ waits: botWaits, cloudHome: Boolean(CLOUD_HOME), sleeps: Boolean(CLOUD_HOME) && CLOUD_TEAM === null }); ROUTES.push(createXConnectorRoutes({ credential: () => researchCredential(cfg.treg?.key), included: () => xCredential(), unavailable: () => xResearchStatus().unavailable === true }));
 
+// A desktop product's DATA_DIR is already account-partitioned. Shared hosts never borrow its CLI credentials.
+const executionConnectors = new ExecutionConnectorHost({
+  root: join(DATA_DIR, "execution-connectors"),
+  localAvailable: !CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership(),
+  cli: { claude: process.env.OMB_EXECUTION_CLAUDE_CLI, codex: process.env.OMB_EXECUTION_CODEX_CLI, omp: process.env.OMB_EXECUTION_OMP_CLI },
+  ownsBot: (_owner, botId) => Boolean(store.bot(botId)),
+});
+ROUTES.push(createExecutionConnectorRoutes({ host: executionConnectors, owner: auth => {
+  if (auth.kind === "session" && !sessions.isLive(auth.session.id)) return null;
+  if (!ownerOrAdmin(auth)) return null;
+  if (!CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership()) return "desktop-owner";
+  return auth.kind === "session" && auth.session.email ? personKey(auth.session) : null;
+} }));
 // Live calls: the client holds the WebRTC audio; the key never leaves the harness, which creates the session.
 function liveBotFor(botId: string): LiveBot {
   const bot = store.bot(botId);
@@ -13210,6 +13225,27 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
           throw Object.assign(new Error("the internal turn capability has expired"), { status: 401 });
         }
       };
+      if (path === "/api/internal/execution-connectors" && method === "POST") {
+        const body = await readInternalBody();
+        const person = actingPeople.requester(internalCapability.threadId, internalCapability.generation);
+        const desktop = !CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership();
+        const request = directRequestOwners.get(internalCapability.threadId);
+        const desktopOwnerRequest = desktop && request?.origin?.kind === "user" && request.personLine === true && !request.stopped && request.automation === undefined && request.generations.has(internalCapability.generation);
+        if ((!person && !desktopOwnerRequest) || cloudGuestDriven(internalCapability.threadId) || outsideDrivenThread(internalCapability.threadId)) return json(res, 403, { error: "Execution needs an attributable owner request." });
+        const owner = desktop ? "desktop-owner" : person!;
+        try {
+          if (body.action === "list") {
+            const list = await executionConnectors.list(owner);
+            return json(res, 200, { connectors: list.connectors.filter(c => c.botIds.includes(internalSender.id)) });
+          }
+          if (body.action === "start") return json(res, 200, await executionConnectors.start(owner, body.connectorId, { botId: internalSender.id, prompt: body.prompt }));
+          const task = await executionConnectors.task(owner, body.taskId);
+          if (task.botId !== internalSender.id) return json(res, 403, { error: "Task belongs to another bot." });
+          if (body.action === "status") return json(res, 200, task);
+          if (body.action === "cancel") return json(res, 200, await executionConnectors.cancel(owner, task.id));
+          return json(res, 400, { error: "Use list, start, status or cancel. Only the owner can answer approvals." });
+        } catch (error) { return json(res, 400, { error: error instanceof Error ? error.message : "Execution request failed." }); }
+      }
       const botFolders = async () => ({ roots: messageFileRootsForThread(internalSender.id, internalCapability.threadId).filter((root) => root !== ATTACHMENTS_DIR), vmWorkspace: (await attachmentVmForTurn(internalCapability))?.workspaceDir ?? null }); if (await internalToolRoutes({ method, path, res, json, botId: internalSender.id, threadId: internalCapability.threadId, readBody: readInternalBody, folders: botFolders }) !== PASS || await waitRoutes({ method, path, res, json, botId: internalSender.id, threadId: internalCapability.threadId, readBody: readInternalBody, ...waitTurnChecks(internalCapability, internalSender) }) !== PASS || await teamMessages.internal({ method, path, res, json, botId: internalSender.id, threadId: internalCapability.threadId, readBody: readInternalBody }) !== PASS || await devsReports.internal({ method, path, res, json, botId: internalSender.id, threadId: internalCapability.threadId, readBody: readInternalBody }) !== PASS || (computerAsks && await computerAsks.internal({ method, path, res, json, turn: internalCapability, readBody: readInternalBody }) !== PASS)) return; const pagesCall = new AbortController(); res.once("close", () => { if (!res.writableEnded) pagesCall.abort(); }); if (await publishedPages.internal({ method, path, res, json, botId: internalSender.id, threadId: internalCapability.threadId, readBody: readInternalBody, requireActive: requireActiveInternalCapability, signal: pagesCall.signal, folders: botFolders, post: (text, publishedPage, bundle) => { const source = connectorThread(internalSender.id, internalCapability.threadId); return !source ? null : (!source.group && bundle && publishedPages.show({ threadId: internalCapability.threadId, card: publishedPage, bundle })) || store.appendMessage(internalCapability.threadId, { role: "bot", kind: "text", text, publishedPage, ...(source.group ? { from: { botId: internalSender.id, name: internalSender.name, color: internalSender.color } } : {}) }).id; } }) !== PASS) return;
       const delegatedThisTurn = (taskId: string) => {
         (internalCapability.delegatedThisTurn ??= new Set()).add(taskId);
@@ -15780,6 +15816,7 @@ const gracefulShutdown = createGracefulShutdown({
       tunnelListener?.close(); stopCloudHomeConnectedApps();
     },
     async () => { await productAi.close(); await managedDesktop.close(); await registry.disposeAll(); },
+    async () => { await executionConnectors.dispose(); },
     async () => { await dataEngine.closeAll().catch((error) => console.warn("data: close failed", error)); },
     async () => {
       const temporaries = [...temporaryBrowserSessions.keys()].map((botId) => forgetTemporaryBrowser(botId));

@@ -36,6 +36,8 @@
     "dev:server": "node --experimental-strip-types server/dev-server.ts",
     "mcp": "node --experimental-strip-types scripts/mcp-server.ts",
     "control:omb": "node --experimental-strip-types scripts/control-omb.ts",
+    "execution:service": "node --experimental-strip-types server/execution-service.ts",
+    "verify:execution-connectors": "node --experimental-strip-types scripts/verify-execution-connectors.ts",
     "eval": "node --experimental-strip-types evals/runners/run-evals.ts",
     "dev:desktop": "node scripts/prepare-cloudflared.mjs --current && electron .",
     "build": "tsc -b && tsc -p tsconfig.server.json && vite build",

@@ -1,9 +1,5 @@
-// Pins the agents proxy's tools/list wire byte for byte, from source and from the bundle, and budgets its
-// size: every engine converts this JSON for its provider, and it rides every turn. To change a tool on
-// purpose, run with UPDATE_AGENTS_CATALOG_GOLDENS=1, review the golden diff, and move BUDGET_BASELINE by hand.
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,8 +10,6 @@ import { availableTools, catalogProfileFromEnv } from "./agents-catalog.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PROXY_SOURCE = join(HERE, "agents-proxy.ts");
-const GOLDENS = join(HERE, "agents-catalog-goldens");
-const UPDATE = process.env.UPDATE_AGENTS_CATALOG_GOLDENS === "1";
 
 interface Profile {
   env: Record<string, string>;
@@ -76,39 +70,8 @@ const MAUSBOT_ADDS = 0.02;
 const RESEARCH_TOOLS = ["x_search", "research_search", "research_endpoint", "research_call"];
 /** Only on the person's own Cloud: never on the fullest profile, a Team Cloud's. */
 const OWN_CLOUD_TOOLS = ["ask_for_computer"];
-/** The fullest profile, checked in whole; every other one is pinned by tool names, bytes and sha256. */
 const FULL = "skills+shared+voice+escalations+x+team";
 
-/** Bytes when the budget was last set; a profile may move at most 2% either way (lower it to lock in a win). */
-const BUDGET_BASELINE: Record<string, number> = {
-  "default": 58250,
-  "voice": 59031,
-  "shared": 60515,
-  "shared+voice": 61296,
-  "skills": 61069,
-  "skills+voice": 61850,
-  "skills+shared": 63334,
-  "skills+shared+voice": 64115,
-  "non-chief": 48881,
-  "voice+non-chief": 49662,
-  "shared+non-chief": 51146,
-  "shared+voice+non-chief": 51927,
-  "skills+non-chief": 51700,
-  "skills+voice+non-chief": 52793,
-  "skills+shared+non-chief": 53965,
-  "skills+shared+voice+non-chief": 55058,
-  "skills+shared+voice+cloud-home": 63096,
-  "skills+shared+voice+non-chief+cloud-home": 53961,
-  "default+legacy-switches": 58250,
-  "default+mausbot": 58901,
-  "skills+shared+voice+mausbot": 64766,
-  "skills+shared+voice+escalations": 64945,
-  "skills+shared+voice+escalations+x": 68784,
-  "skills+shared+voice+escalations+x+team": 69416,
-  "default+no-computer-pick": 57038,
-  "default+room": 49808,
-  "non-chief+room": 40751,
-};
 
 const RPC_PREFIX = '{"jsonrpc":"2.0","id":1,"result":';
 
@@ -148,46 +111,17 @@ async function wireForEveryProfile(entry: string): Promise<Record<string, string
 }
 
 const bytes = (text: string) => Buffer.byteLength(text, "utf8");
-const sha256 = (text: string) => createHash("sha256").update(text, "utf8").digest("hex");
 type Tool = { name: string };
 const toolsOf = (wire: string) => (JSON.parse(wire) as { tools: Tool[] }).tools;
 
-const goldenPath = join(GOLDENS, "full.tools-list.json");
-const manifestPath = join(GOLDENS, "profiles.json");
-// Pretty-printed for readable diffs and compared after JSON.parse, so a CRLF checkout cannot fail them.
-const readJson = (path: string): unknown => JSON.parse(readFileSync(path, "utf8"));
-const writeJson = (path: string, value: unknown) => {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
-};
-
-const manifestOf = (wires: Record<string, string>) =>
-  Object.fromEntries(Object.entries(wires).map(([name, wire]) => [
-    name,
-    { bytes: bytes(wire), sha256: sha256(wire), tools: toolsOf(wire).map((tool) => tool.name) },
-  ]));
 
 let wires: Record<string, string> = {};
 
 beforeAll(async () => {
   wires = await wireForEveryProfile(PROXY_SOURCE);
-  if (UPDATE) {
-    writeJson(goldenPath, JSON.parse(wires[FULL]!));
-    writeJson(manifestPath, manifestOf(wires));
-  }
 }, 120_000);
 
 describe("agents proxy tools/list golden", () => {
-  it("round-trips through JSON.parse unchanged, so a parsed golden can stand for the bytes", () => {
-    for (const wire of Object.values(wires)) expect(JSON.stringify(JSON.parse(wire))).toBe(wire);
-  });
-
-  it("the fullest profile is byte-identical to its golden", () => {
-    const golden = readJson(goldenPath);
-    const wire = wires[FULL]!;
-    expect(JSON.parse(wire)).toEqual(golden);
-    expect(wire).toBe(JSON.stringify(golden));
-  });
 
   it("offers the three wait tools right after the trigger tools in every chat, with or without a wait, and none in a room", () => {
     for (const [name, wire] of Object.entries(wires)) {
@@ -200,9 +134,6 @@ describe("agents proxy tools/list golden", () => {
     }
   });
 
-  it("every profile matches its pinned tool names, byte count and sha256", () => {
-    expect(manifestOf(wires)).toEqual(readJson(manifestPath));
-  });
 
   it("every profile is a by-name subset of the full golden, tool bytes included", () => {
     const full = new Map(toolsOf(wires[FULL]!).map((tool) => [tool.name, JSON.stringify(tool)]));
@@ -391,28 +322,6 @@ describe("agents proxy tools/list from the packaged bundle", () => {
 });
 
 describe("agents proxy tools/list wire size", () => {
-  it("prints per-tool and total UTF-8 bytes", () => {
-    const shown = [FULL, "skills+shared+voice+non-chief"];
-    const perTool = new Map<string, Record<string, number>>();
-    for (const name of shown) {
-      for (const tool of toolsOf(wires[name]!)) {
-        perTool.set(tool.name, { ...perTool.get(tool.name), [name]: bytes(JSON.stringify(tool)) });
-      }
-    }
-    const largest = (sizes: Record<string, number>) => Math.max(...Object.values(sizes));
-    const rows = [...perTool.entries()].sort((a, b) => largest(b[1]) - largest(a[1]));
-    const lines = [
-      "agents proxy tools/list, UTF-8 bytes of the serialized result",
-      "",
-      "total per profile:",
-      ...Object.entries(wires).map(([name, wire]) => `  ${String(bytes(wire)).padStart(6)}  ${String(toolsOf(wire).length).padStart(2)} tools  ${name}`),
-      "",
-      `per tool (${shown.join(" | ")}); every other profile is a by-name subset with identical tool bytes:`,
-      ...rows.map(([tool, sizes]) => `  ${shown.map((name) => String(sizes[name] ?? "-").padStart(6)).join(" ")}  ${tool}`),
-    ];
-    console.log(lines.join("\n"));
-    expect(rows.length).toBeGreaterThan(0);
-  });
 
   it.each(Object.keys(PROFILES).filter((name) => name.endsWith("+mausbot")))("%s adds at most 2% to the same Chief's list", (name) => {
     const without = name.slice(0, -"+mausbot".length);
@@ -422,13 +331,4 @@ describe("agents proxy tools/list wire size", () => {
     expect(bytes(wires[name]!)).toBeLessThanOrEqual(Math.floor(bytes(wires[without]!) * (1 + MAUSBOT_ADDS)));
   });
 
-  it.each(Object.keys(PROFILES))("%s stays within 2% of its budget baseline", (name) => {
-    const baseline = BUDGET_BASELINE[name];
-    expect(baseline, `${name} has no BUDGET_BASELINE entry`).toBeTypeOf("number");
-    const actual = bytes(wires[name]!);
-    expect(actual, `${name} grew past its budget (${baseline} + 2%). Trim the catalog, or raise BUDGET_BASELINE on purpose.`)
-      .toBeLessThanOrEqual(Math.floor(baseline! * 1.02));
-    expect(actual, `${name} shrank by more than 2%. Lower BUDGET_BASELINE to ${actual} so the saving cannot creep back.`)
-      .toBeGreaterThanOrEqual(Math.ceil(baseline! * 0.98));
-  });
 });

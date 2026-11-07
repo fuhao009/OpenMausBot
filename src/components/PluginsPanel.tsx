@@ -29,6 +29,7 @@ import { BotAvatar } from "./Avatar";
 import { SidebarPopoverMenu } from "./SidebarPopoverMenu";
 import { appCategoryLabel, CATEGORY_SECTION_SIZE, catalogSections, connectorDescription, inCategory, rankCategories } from "@/lib/app-catalog";
 import { McpServersPanel } from "./McpServersPanel";
+import { ExecutionConnectorsSection } from "./ExecutionConnectorsSection";
 import { HOSTED_MCP_APPS, type HostedApp, type HostedConnections } from "@/lib/hosted-mcp-apps";
 import { HighLevelCard } from "./HighLevelCard";
 import { PostizCard } from "./PostizCard";
@@ -156,6 +157,8 @@ export function PluginsPanel() {
   const [highLevelConnected, setHighLevelConnected] = useState<boolean | null>(null);
   const [xConnected, setXConnected] = useState<boolean | null>(null);
   const [postizConnected, setPostizConnected] = useState<boolean | null>(null);
+  const [executionConnected, setExecutionConnected] = useState(false);
+  const [executionConnectedCount, setExecutionConnectedCount] = useState(0);
 
   const polls = useRef(new Map<string, () => void>());
   const statusGenerations = useRef(new Map<string, number>());
@@ -411,7 +414,7 @@ export function PluginsPanel() {
     .sort((a, b) => Number(isConnected(b.card.slug)) - Number(isConnected(a.card.slug)) || a.index - b.index)
     .map(({ card }) => card);
   const connectedHosted = HOSTED_MCP_APPS.filter((app) => hostedConnected?.[app.id]);
-  const connectedCount = Object.values(status).filter(hasActiveConnection).length + connectedHosted.length + Number(highLevelConnected === true) + Number(xConnected === true) + Number(postizConnected === true);
+  const connectedCount = Object.values(status).filter(hasActiveConnection).length + connectedHosted.length + Number(highLevelConnected === true) + Number(xConnected === true) + Number(postizConnected === true) + executionConnectedCount;
   const connectedEmptyCopy = connectedInventoryCopy(inventoryPhase);
   const close = () => dispatch({ type: "togglePlugins", open: false });
   const setupNotice = connectorSetupNotice({ configured, stale, setup, remoteClient });
@@ -648,6 +651,7 @@ export function PluginsPanel() {
             </div>
           )}
           {error && <div role="alert" className="mb-3 rounded-xl bg-danger/10 px-3 py-2 text-[12px] text-danger">{typeof error === "string" ? error : t(error.key)}</div>}
+          {filter !== "mcp" && category === null && <ExecutionConnectorsSection search={search} connectedOnly={filter === "connected"} onConnections={setExecutionConnected} onConnectedCount={setExecutionConnectedCount} />}
 
           {filter !== "mcp" && (
             <div data-apps-grid className="@container flex flex-col gap-7 pt-1">
@@ -703,7 +707,7 @@ export function PluginsPanel() {
                         </button>
                       </div>
                     )}
-                    {cards !== null && allShown.length === 0 && !nativeCardsShown && sections.length <= 1 && (
+                    {cards !== null && allShown.length === 0 && !nativeCardsShown && !(category === null && executionConnected) && sections.length <= 1 && (
                       <div className="flex min-h-40 flex-col items-center justify-center text-center">
                         <div className="text-[14px] font-medium text-ink">
                           {filter === "connected" ? connectedEmptyCopy.title : t("connectors.noAppsFound")}

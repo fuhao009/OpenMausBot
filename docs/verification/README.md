@@ -39,6 +39,21 @@ pnpm control:omb doctor --url http://127.0.0.1:PORT
 Mutating commands refuse silent port discovery. This prevents a verification
 recipe from sending messages to the user's running app by accident.
 
+## Execution connectors
+
+`pnpm verify:execution-connectors` launches a disposable verification server and
+an authenticated loopback execution service with repository-owned fake Claude,
+Codex and ACP CLIs. It checks local tasks, actual bot MCP dispatch, remote tasks,
+native approval/denial decisions, cancellation, stale approval rejection and
+disconnection. It never uses a personal CLI login or a production server.
+Run `pnpm exec vitest run server/execution-connectors.test.ts` for lifecycle
+regressions, and `pnpm typecheck` for the shared frontend/backend contract.
+
+For the actual Apps surface, use the isolated connected-apps preview with this
+fixture: connect a tool with explicit consent and a selected bot, submit a task,
+check its output, revoke the bot grant, and confirm task submission is disabled.
+Production HTTPS reachability and real provider billing are outside this fixture.
+
 ## Drive
 
 Use only mapped, tested commands:
