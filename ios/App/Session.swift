@@ -72,6 +72,7 @@ final class Session: ObservableObject {
     /// Pairing can be opened while another computer remains connected. The
     /// working session is only replaced after the new credential commits.
     @Published private(set) var pairingRequested = false
+    @Published private(set) var accountLoginRequested = false
     /// Views with sensitive input observe this value so an explicit runtime
     /// disconnect clears the field even when the selected connection itself
     /// has not changed.
@@ -491,6 +492,72 @@ final class Session: ObservableObject {
     func endPairing() {
         pairingRequested = false
         consumePairingInvite()
+    }
+
+    func beginAccountLogin() {
+        accountLoginRequested = true
+    }
+
+    func endAccountLogin() {
+        accountLoginRequested = false
+    }
+
+    /// Bind this phone to every desktop already signed into the same Hezuo
+    /// account. The account session token is the credential; no pairing code
+    /// is created or redeemed.
+    func connectWithAccount(
+        signIn: AccountGateway.SignIn,
+        hosts: [AccountGateway.DesktopHost],
+        caPem: String? = nil
+    ) throws {
+        guard !hosts.isEmpty else {
+            throw APIError.transport(AccountGateway.noDesktops)
+        }
+        let firstPairing = registry.connections.isEmpty
+        var updatedRegistry = registry
+        var storedHosts: [Connection] = []
+        for host in hosts {
+            guard var stored = AccountGateway.connection(origin: signIn.origin, host: host, caPem: caPem) else {
+                continue
+            }
+            if let existing = registry.matchingConnection(for: stored) {
+                stored.id = existing.id
+            }
+            try Keychain.save(signIn.token, for: stored.id)
+            updatedRegistry.upsert(stored)
+            storedHosts.append(stored)
+        }
+        guard let active = storedHosts.last else {
+            throw APIError.transport("None of this account's computers could be used from this phone.")
+        }
+        _ = updatedRegistry.select(id: active.id)
+        CompanionPairingCommitSequence.persist {
+            if firstPairing {
+                UserDefaults.standard.set(
+                    true,
+                    forKey: CompanionOnboardingPreferences.pendingNotificationOnboardingKey
+                )
+            }
+        } saveConnection: {
+            OpenMausSharedConnectionStore.saveRegistry(updatedRegistry)
+        }
+
+        stopActiveRuntime()
+        pairingInvite = CompanionPairingInvitePolicy.nextInvite(
+            current: pairingInvite,
+            after: .pairingSucceeded
+        )
+        pairingRequested = false
+        accountLoginRequested = false
+        registry = updatedRegistry
+        connections = registry.connections
+        self.connection = active
+        self.token = signIn.token
+        self.rotation = CandidateRotation(endpoints: active.orderedEndpoints)
+        self.client = CompanionClient(connection: active, token: signIn.token)
+        self.state = CompanionState()
+        restorePending = false
+        connect()
     }
 
     func consumePairingInvite() {

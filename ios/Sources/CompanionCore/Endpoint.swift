@@ -125,9 +125,11 @@ public struct CompanionEndpoint: Codable, Hashable, Sendable {
               components.user == nil,
               components.password == nil,
               components.query == nil,
-              components.fragment == nil,
-              components.path.isEmpty || components.path == "/"
+              components.fragment == nil
         else { return nil }
+        let path = components.path
+        let gatewayPath = isGatewayCompanionPath(path)
+        guard path.isEmpty || path == "/" || gatewayPath else { return nil }
 
         switch kind {
         case .hosted:
@@ -140,9 +142,22 @@ public struct CompanionEndpoint: Codable, Hashable, Sendable {
 
         components.scheme = scheme
         components.host = host.lowercased()
-        components.path = ""
+        if gatewayPath {
+            var retained = path
+            while retained.hasSuffix("/") { retained.removeLast() }
+            components.path = retained
+        } else {
+            components.path = ""
+        }
         if let port = components.port, !(1...65_535).contains(port) { return nil }
         return components.url?.absoluteString
+    }
+
+    public static func isGatewayCompanionPath(_ path: String) -> Bool {
+        var normalized = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        while normalized.hasSuffix("/") && normalized != "/" { normalized.removeLast() }
+        let pattern = #"^/v1/companion/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"#
+        return normalized.range(of: pattern, options: .regularExpression) != nil
     }
 
     private static func canonicalDNSHost(_ host: String) -> String {

@@ -49,6 +49,7 @@ import {
 } from "./local-gateway/service.mjs";
 import { AccountLookupError, d1DatabaseFiles, findAccountByEmail } from "./local-gateway/operator-bootstrap.mjs";
 import { GATEWAY_D1_IDENTITY, assertLegacyGatewayRetired, migrateGatewayIdentity } from "./local-gateway/identity-migration.mjs";
+import { createCompanionRelay, createGatewayFront } from "./local-gateway/companion-relay.mjs";
 
 import { DEFAULT_DATA_DIR, DEFAULT_PORT, DEFAULT_MAX_OUTPUT_TOKENS, EMAIL, SECRET_FILES, UsageError, RefusalError, fail, readPrivateFile, writePrivateFile, secretPath, hasSecret, exactHTTPSOrigin, gatewayOrigin, certificateFor, trustGatewayCertificate, readGatewayConfig, writeConfig, envValue, seededModels, resolveGatewayConfig } from "./local-gateway/config.mjs";
 export { UsageError, RefusalError, exactHTTPSOrigin, gatewayOrigin, trustGatewayCertificate, readGatewayConfig, resolveGatewayConfig };
@@ -377,7 +378,7 @@ function gatewayRequest(url, certPath, { method = "GET", path: requestPath } = {
   });
 }
 
-function runtimeOptions({ runtime, config, port, script, mail, bindings }) {
+function runtimeOptions({ runtime, config, port, script, mail, bindings, host = null }) {
   const certificate = certificateFor(config);
   const workers = [{
     name: "hezuo-local-gateway",
@@ -402,7 +403,7 @@ function runtimeOptions({ runtime, config, port, script, mail, bindings }) {
     });
   }
   return runtime.convertV4MiniflareOptions({
-    host: config.host === "localhost" ? "127.0.0.1" : config.host.replace(/^\[|\]$/g, ""),
+    host: host ?? (config.host === "localhost" ? "127.0.0.1" : config.host.replace(/^\[|\]$/g, "")),
     port,
     https: true,
     httpsKey: readFileSync(certificate.keyPath, "utf8"),
@@ -517,12 +518,17 @@ export async function startLocalGateway({ config, configPath = null, log = () =>
     throw new UsageError(`migrations remain unapplied: ${migrations.pending.join(", ")}; refusing to serve a partial schema`);
   }
 
+  // The Worker stays on loopback. The public origin is a Node TLS front that
+  // serves the companion relay and dispatches everything else to Miniflare, so
+  // a phone can reach the owner's desktop without Cloudflare or Tailscale.
   const mf = new runtime.Miniflare(runtimeOptions({
-    runtime, config: effective, port: effective.port, script, mail, bindings,
+    runtime, config: effective, port: 0, host: "127.0.0.1", script, mail, bindings,
   }));
   let closed = false;
   let maintenanceTimer;
   let maintenance;
+  let front;
+  let relay;
   const runScheduled = () => {
     if (closed) return Promise.reject(new Error("Gateway is closed"));
     if (maintenance) return maintenance;
@@ -537,8 +543,27 @@ export async function startLocalGateway({ config, configPath = null, log = () =>
     await mf.ready;
     const liveDb = await mf.getD1Database("DB");
     if (migrations.pending.length > 0) fail("the live runtime still reports pending migrations; refusing to serve a partial schema");
-    trustGatewayCertificate(certificateFor(effective).certPath);
-    const health = await gatewayRequest(`${origin}/healthz`, certificateFor(effective).certPath);
+    const certificate = certificateFor(effective);
+    const workerFetch = (path, init = {}) => mf.dispatchFetch(new URL(path, origin).href, init);
+    relay = createCompanionRelay({ workerFetch });
+    const bindHost = effective.host === "localhost" ? "127.0.0.1" : effective.host.replace(/^\[|\]$/g, "");
+    front = createGatewayFront({
+      origin,
+      host: bindHost,
+      port: effective.port,
+      cert: readFileSync(certificate.certPath, "utf8"),
+      key: readFileSync(certificate.keyPath, "utf8"),
+      dispatchFetch: (request) => mf.dispatchFetch(request),
+      relay,
+    });
+    try {
+      await front.listen();
+    } catch (error) {
+      relay.close();
+      throw error;
+    }
+    trustGatewayCertificate(certificate.certPath);
+    const health = await gatewayRequest(`${origin}/healthz`, certificate.certPath);
     if (!health.ok) throw new UsageError(`the Worker answered /healthz with ${health.status}; check the gateway configuration`);
     await runScheduled();
     maintenanceTimer = setInterval(() => {
@@ -555,7 +580,7 @@ export async function startLocalGateway({ config, configPath = null, log = () =>
       defaultModel: effective.defaultModel,
       operatorIds: effective.operatorIds ?? [],
     };
-    const certificate = certificateFor(effective).certPath;
+    const certificatePath = certificate.certPath;
     writeRuntime(effective, {
       pid: process.pid,
       origin,
@@ -563,7 +588,7 @@ export async function startLocalGateway({ config, configPath = null, log = () =>
       configPath: configPathOf(effective),
       startedAt: new Date().toISOString(),
       capabilities,
-      certificate,
+      certificate: certificatePath,
       migrations: { applied: migrations.applied.length + migrations.ran.length, pending: migrations.pending.length },
     });
     return {
@@ -571,7 +596,7 @@ export async function startLocalGateway({ config, configPath = null, log = () =>
       port: effective.port,
       config: effective,
       configPath,
-      certificate,
+      certificate: certificatePath,
       migrations,
       capabilities,
       db: () => liveDb,
@@ -592,6 +617,7 @@ export async function startLocalGateway({ config, configPath = null, log = () =>
             unlinkSync(runtimeFile(effective.dataDir));
           } catch { /* never written, or already gone */ }
         }
+        try { await front?.close(); } catch { /* already closed */ }
         await mf.dispose();
       },
     };

@@ -52,15 +52,15 @@ import androidx.compose.ui.unit.sp
 object OnboardingCopy {
     const val WELCOME_TITLE = "Take your bots with you"
     const val WELCOME_SUBTITLE =
-        "Open chats, approve actions, and send new work from your phone."
+        "Sign in with the same Hezuo account you use on your computer. Open chats, approve actions, and send new work from your phone."
     const val WELCOME_CONNECT = "Connect my computer"
     const val NOT_NOW = "Not now"
 
     const val UNPAIRED_HOME_TITLE = "Connect when you're ready"
     const val UNPAIRED_HOME_BODY =
-        "Pair this phone with OpenMausBot to see your chats and respond to your bots."
+        "Sign in with the same Hezuo account you use on your computer to see your chats and respond to your bots."
     const val UNPAIRED_HOME_HINT =
-        "On your computer, open OpenMausBot → Settings → Phone."
+        "On your computer, open Hezuo and sign in. Then enter that account and your account gateway address here."
     const val UNPAIRED_HOME_CONNECT = "Connect computer"
 
     const val NOTIFICATIONS_TITLE = "Stay in the loop"

@@ -98,6 +98,29 @@ class ConnectionTest {
         ).forEach { (url, kind, priority) ->
             assertNull(CompanionEndpoint.create(url, kind, priority), "$kind accepted $url at $priority")
         }
+
+        val gatewayId = "12345678-1234-4234-8234-123456789abc"
+        val gateway = assertNotNull(
+            CompanionEndpoint.create(
+                "https://gateway.example/v1/companion/$gatewayId",
+                CompanionEndpointKind.HOSTED,
+                0,
+            ),
+        )
+        assertEquals("https://gateway.example/v1/companion/$gatewayId", gateway.url)
+        assertNull(
+            CompanionEndpoint.create("https://gateway.example/v1/companion/not-a-uuid", CompanionEndpointKind.HOSTED, 0),
+        )
+        assertNull(
+            CompanionEndpoint.create("https://gateway.example/v1/other/$gatewayId", CompanionEndpointKind.HOSTED, 0),
+        )
+        assertNull(
+            CompanionEndpoint.create(
+                "https://gateway.example/v1/companion/$gatewayId/extra",
+                CompanionEndpointKind.HOSTED,
+                0,
+            ),
+        )
     }
 
     @Test

@@ -375,3 +375,28 @@ rollback, uninstall the new service first and restore the complete offline
 backup and old checkout together before reinstalling the old service. Never
 restore only the config or run the backup as a second gateway.
 
+
+
+## Phone access
+
+The desktop Hezuo and the native phone app connect by signing into the **same
+Hezuo account** on this gateway. After the phone signs in, it can reach each
+desktop installation already registered to that account at:
+
+```
+https://<public-host>:<port>/v1/companion/<installation-id>
+```
+
+No pairing code, QR code, or iOS handoff code is required for this path, and
+it does not use a Cloudflare tunnel or Tailscale.
+
+A phone cannot reach a loopback origin. Start the gateway with `--host` and
+`--public-host` set to an address the phone can resolve, and give the phone
+that HTTPS origin. For a generated certificate, paste the gateway CA
+(`<data-dir>/tls/gateway-cert.pem`) into the phone app's optional certificate
+field, or install that CA on the phone. Desktop sign-in on the same machine
+still uses the bundled or pinned CA described above.
+
+The phone holds an account session only. It does not create a desktop
+installation, and the companion surface it receives is the existing
+client-equivalent API — not an admin session.

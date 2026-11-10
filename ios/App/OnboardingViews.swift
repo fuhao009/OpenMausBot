@@ -128,13 +128,13 @@ struct UnpairedHomeView: View {
                     VStack(spacing: 8) {
                         Text("Connect when you're ready")
                             .font(.title2.bold())
-                        Text("Pair this device with OpenMausBot to see your chats and respond to your bots.")
+                        Text("Sign in with the same Hezuo account you use on your computer to see your chats and respond to your bots.")
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    Text("On your computer, open OpenMausBot → Settings → Phone.")
+                    Text("On your computer, open Hezuo and sign in. Then enter that account and your account gateway address here.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

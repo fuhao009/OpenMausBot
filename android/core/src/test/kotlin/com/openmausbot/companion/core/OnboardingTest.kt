@@ -33,6 +33,7 @@ class OnboardingTest {
         hasSeenWelcome: Boolean,
         pairingRequested: Boolean = false,
         hasPendingPairingInvite: Boolean = false,
+        accountLoginRequested: Boolean = false,
         notificationOnboardingPending: Boolean = false,
         hasSeenNotificationPrompt: Boolean = false,
         notificationAuthorization: NotificationAuthorizationState =
@@ -43,6 +44,7 @@ class OnboardingTest {
             hasSeenWelcome = hasSeenWelcome,
             pairingRequested = pairingRequested,
             hasPendingPairingInvite = hasPendingPairingInvite,
+            accountLoginRequested = accountLoginRequested,
             notificationOnboardingPending = notificationOnboardingPending,
             hasSeenNotificationPrompt = hasSeenNotificationPrompt,
             notificationAuthorization = notificationAuthorization,
@@ -288,6 +290,40 @@ class OnboardingTest {
      * The whole table, so a rewrite of [OnboardingRouter] that happens to keep
      * the cases above passing cannot quietly move a state nobody named.
      */
+
+    @Test
+    fun accountLoginIsTheDefaultConnectPath() {
+        assertEquals(
+            OnboardingRoute.ACCOUNT_LOGIN,
+            route(
+                OnboardingPairingState.UNPAIRED,
+                hasSeenWelcome = true,
+                accountLoginRequested = true,
+            ),
+        )
+        assertEquals(
+            OnboardingRoute.ACCOUNT_LOGIN,
+            route(
+                OnboardingPairingState.PAIRED,
+                hasSeenWelcome = true,
+                accountLoginRequested = true,
+            ),
+        )
+    }
+
+    @Test
+    fun aLeftoverPairingDeepLinkStillOutranksAccountLogin() {
+        assertEquals(
+            OnboardingRoute.PAIRING,
+            route(
+                OnboardingPairingState.UNPAIRED,
+                hasSeenWelcome = true,
+                hasPendingPairingInvite = true,
+                accountLoginRequested = true,
+            ),
+        )
+    }
+
     @Test
     fun everyCombinationOfTheThreeUnpairedInputsIsAccountedFor() {
         val expected = mapOf(

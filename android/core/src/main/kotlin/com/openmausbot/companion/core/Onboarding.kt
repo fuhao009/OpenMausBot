@@ -21,6 +21,7 @@ enum class OnboardingPairingState {
 
 enum class OnboardingRoute {
     WELCOME,
+    ACCOUNT_LOGIN,
     PAIRING,
     UNPAIRED_HOME,
     NOTIFICATION_PROMPT,
@@ -111,6 +112,8 @@ data class OnboardingContext(
     val hasSeenWelcome: Boolean,
     val pairingRequested: Boolean = false,
     val hasPendingPairingInvite: Boolean = false,
+    /** Opened from welcome, unpaired home, or Settings — not from a pairing code. */
+    val accountLoginRequested: Boolean = false,
     /**
      * Written only when a new pairing commits. People who were already paired
      * do not receive first-pair education merely because they updated the app.
@@ -130,9 +133,10 @@ object OnboardingRouter {
 
         OnboardingPairingState.PAIRED ->
             if (context.pairingRequested || context.hasPendingPairingInvite) {
-                // Adding a computer deliberately overlays pairing over a live
-                // session. The old computer is not replaced until commit.
+                // Leftover deep-link pairing still overlays a live session.
                 OnboardingRoute.PAIRING
+            } else if (context.accountLoginRequested) {
+                OnboardingRoute.ACCOUNT_LOGIN
             } else if (context.notificationOnboardingPending &&
                 !context.hasSeenNotificationPrompt &&
                 context.notificationAuthorization == NotificationAuthorizationState.NOT_DETERMINED
@@ -144,7 +148,10 @@ object OnboardingRouter {
 
         OnboardingPairingState.UNPAIRED ->
             if (context.pairingRequested || context.hasPendingPairingInvite) {
+                // A leftover pairing deep link still opens the pairing form.
                 OnboardingRoute.PAIRING
+            } else if (context.accountLoginRequested) {
+                OnboardingRoute.ACCOUNT_LOGIN
             } else if (context.hasSeenWelcome) {
                 OnboardingRoute.UNPAIRED_HOME
             } else {

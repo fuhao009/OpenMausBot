@@ -11,6 +11,7 @@ import { createAddressWatcher } from "./advertise-watch.ts";
 import { createControlServer, hostCandidates, initialControlToken } from "./control.ts";
 import { createConnectedDeviceTracker } from "./connected-devices.ts";
 import { DeviceRegistry } from "./devices.ts";
+import { createAccountAuthenticator, readProductAccountTrust } from "./account-session.ts";
 import { companionEndpointCandidates, hostedCompanionUrl } from "./endpoints.ts";
 import { lanAddresses, refreshTailnetName, tailnetName, tailscaleAddress } from "./listener.ts";
 import {
@@ -128,11 +129,21 @@ const service = (): ServiceInfo => ({
 });
 
 const connectedDevices = createConnectedDeviceTracker();
+const accountAuth = createAccountAuthenticator({
+  trust: () => readProductAccountTrust(process.env.OMB_PRODUCT_ACCOUNT_TRUST),
+});
+
 const proxy = createProxyHandler({
     harnessPort: HARNESS_PORT,
     mutationToken: parentPort ? () => mutationToken : undefined,
     // Also stamps lastSeenAt.
-    authenticate: (token) => devices.authenticate(token),
+    authenticate: async (token) => {
+      const paired = devices.authenticate(token);
+      if (paired) return paired;
+      const trustFile = process.env.OMB_PRODUCT_ACCOUNT_TRUST;
+      if (!trustFile) return null;
+      return accountAuth(token);
+    },
     redeem: (code, deviceName, pairRequestId) => devices.redeem(code, deviceName, pairRequestId),
     serverName: machineName,
     hosts: () => hostCandidates(),

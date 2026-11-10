@@ -91,6 +91,8 @@ data class CompanionEndpoint private constructor(
         const val MAX_URL_BYTES = 2_048
         const val MAX_PRIORITY = 1_000_000
         const val DEFAULT_COMPANION_PORT = 8810
+        private val GATEWAY_COMPANION_PATH =
+            Regex("^/v1/companion/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
         fun create(url: String, kind: CompanionEndpointKind, priority: Int): CompanionEndpoint? {
             if (priority !in 0..MAX_PRIORITY) return null
@@ -145,10 +147,12 @@ data class CompanionEndpoint private constructor(
             if (!parsed.isAbsolute || parsed.rawAuthority == null) return null
             if (scheme != "http" && scheme != "https") return null
             if (parsed.rawUserInfo != null || parsed.rawQuery != null || parsed.rawFragment != null) return null
-            if (parsed.rawPath.isNotEmpty() && parsed.rawPath != "/") return null
             if (parsed.port != -1 && parsed.port !in 1..65_535) return null
             // java.net.URI treats an empty explicit port as if no port was supplied.
             if (parsed.rawAuthority.endsWith(':')) return null
+            val path = parsed.rawPath.orEmpty()
+            val gatewayPath = isGatewayCompanionPath(path)
+            if (path.isNotEmpty() && path != "/" && !gatewayPath) return null
 
             when (kind) {
                 CompanionEndpointKind.HOSTED -> if (scheme != "https") return null
@@ -161,8 +165,14 @@ data class CompanionEndpoint private constructor(
             }
 
             return runCatching {
-                URI(scheme, null, host.lowercase(), parsed.port, null, null, null).toASCIIString()
+                val retainedPath = if (gatewayPath) path.trimEnd('/') else null
+                URI(scheme, null, host.lowercase(), parsed.port, retainedPath, null, null).toASCIIString()
             }.getOrNull()
+        }
+
+        fun isGatewayCompanionPath(path: String): Boolean {
+            val normalized = path.trim().trimEnd('/')
+            return GATEWAY_COMPANION_PATH.matches(normalized)
         }
 
         private fun canonicalDnsHost(host: String): String =

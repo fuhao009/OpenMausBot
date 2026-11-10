@@ -33,22 +33,19 @@ Codex and Claude Code support agent tools. API-key connections currently support
 
 ## Optional phone access
 
-A phone cannot connect to this computer's `localhost` address. The harness also does not listen on your LAN address. The guide does not create a phone QR until a configured HTTPS address has been checked against this workspace.
+A phone cannot connect to this computer's `localhost` address. Start the local
+account gateway with `--host` and `--public-host` set to an address the phone
+can reach, then sign in to the **same Hezuo account** on the phone app and on
+this computer. After both sides are signed in, the phone is already connected
+and can use companion features. No pairing code or QR code is required, and
+this path does not use a Cloudflare tunnel or Tailscale.
 
-Choose one connection method:
+This Hezuo account is separate from ChatGPT, Claude, or an API-provider
+account. The connection stays active while Hezuo and the gateway are running.
 
-- **Managed HTTPS address:** setup asks explicit permission for a public endpoint through Cloudflare and a possible connector download. Device pairing protects chat and settings; the pairing page and basic server identity remain publicly reachable. Sign in to an **Hezuo account** using an emailed code, or reuse this machine's saved account. This account is separate from ChatGPT, Claude, or an API-provider account. The connection stays active while Hezuo runs.
-- **Existing Tailscale:** both computer and phone must already be signed in to the same tailnet, with HTTPS certificates enabled. Setup asks before enabling HTTPS serving to that tailnet; it does not install or sign in to Tailscale for you.
-- **Existing HTTPS address (advanced):** supply the origin of a reverse proxy you already configured, such as `https://hezuo.example.com`. Do not paste a password, path, query, or pairing code. Entering an address does not create the proxy or open a LAN listener.
+Leftover pairing-code invitations can still be opened from a deep link, but
+they are not the default way to connect a phone.
 
-After the connection is ready:
-
-- **iPhone/iPad:** scan the QR with Camera to open Safari. If you already have the Hezuo iOS app, use its pairing scanner or paste the full link there.
-- **Android:** the QR is an app link, so scan it inside the Hezuo app. To use a browser instead, open the web address printed above it and type the code.
-
-Choose **Connect** on the phone. Scanning alone is not a successful pairing. The code is private, single-use, and expires after five minutes. Guided phone pairing grants client access for chat and approvals, not settings or pairing administration.
-
-If the workspace starts but its HTTPS check fails, the local workspace remains usable and no phone code is created. Fix the connection and run `hezuo pair` in another terminal to try again. A missing account, connector, or Tailscale prerequisite can prevent startup; follow the printed error, or use `hezuo --local`. To add phone access after skipping it, stop the server, run `hezuo setup`, then start it again.
 
 ## Commands
 

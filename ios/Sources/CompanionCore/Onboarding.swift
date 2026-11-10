@@ -12,6 +12,7 @@ public enum CompanionPairingState: Equatable, Sendable {
 
 public enum CompanionOnboardingRoute: Equatable, Sendable {
     case welcome
+    case accountLogin
     case pairing
     case unpairedHome
     case notificationPrompt
@@ -118,6 +119,7 @@ public struct CompanionOnboardingContext: Equatable, Sendable {
     public var hasSeenWelcome: Bool
     public var pairingRequested: Bool
     public var hasPendingPairingInvite: Bool
+    public var accountLoginRequested: Bool
     /// Persisted only after a new pairing commits. Existing paired users do
     /// not receive first-pair education merely because they upgraded.
     public var notificationOnboardingPending: Bool
@@ -129,6 +131,7 @@ public struct CompanionOnboardingContext: Equatable, Sendable {
         hasSeenWelcome: Bool,
         pairingRequested: Bool = false,
         hasPendingPairingInvite: Bool = false,
+        accountLoginRequested: Bool = false,
         notificationOnboardingPending: Bool = false,
         hasSeenNotificationPrompt: Bool = false,
         notificationAuthorization: CompanionNotificationAuthorizationState = .notDetermined
@@ -137,6 +140,7 @@ public struct CompanionOnboardingContext: Equatable, Sendable {
         self.hasSeenWelcome = hasSeenWelcome
         self.pairingRequested = pairingRequested
         self.hasPendingPairingInvite = hasPendingPairingInvite
+        self.accountLoginRequested = accountLoginRequested
         self.notificationOnboardingPending = notificationOnboardingPending
         self.hasSeenNotificationPrompt = hasSeenNotificationPrompt
         self.notificationAuthorization = notificationAuthorization
@@ -152,6 +156,9 @@ public enum CompanionOnboardingRouter {
             if context.pairingRequested || context.hasPendingPairingInvite {
                 return .pairing
             }
+            if context.accountLoginRequested {
+                return .accountLogin
+            }
             if context.notificationOnboardingPending,
                !context.hasSeenNotificationPrompt,
                context.notificationAuthorization == .notDetermined {
@@ -161,6 +168,9 @@ public enum CompanionOnboardingRouter {
         case .unpaired:
             if context.pairingRequested || context.hasPendingPairingInvite {
                 return .pairing
+            }
+            if context.accountLoginRequested {
+                return .accountLogin
             }
             return context.hasSeenWelcome ? .unpairedHome : .welcome
         }

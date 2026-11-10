@@ -2,9 +2,11 @@
 
 The iOS app is a thin, native client for the Hezuo instance running on
 your Mac. The Mac remains the only machine that persists agent processes,
-credentials, SQLite data, transcripts, and computers. The iPhone trusts a Mac
-by scanning the QR code shown in desktop **Settings → Remote access**; it does not need
-an Hezuo account of its own.
+credentials, SQLite data, transcripts, and computers. The default way to
+connect is to sign in on the phone with the **same Hezuo account** already
+used on the desktop, against the same local or self-hosted account gateway.
+No pairing code or QR code is required for that path, and it does not use a
+Cloudflare tunnel or Tailscale.
 
 ## Use My Cloud on your phone
 

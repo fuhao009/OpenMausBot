@@ -29,6 +29,11 @@ data class Connection(
     val allowedLocalRouteURLs: Set<String>? = null,
     val serverEnvironmentId: String? = null,
     val serverScopes: List<String>? = null,
+    /**
+     * Public CA used to reach a self-hosted account gateway. Not a secret.
+     * Omitted on connections that use Web PKI or a paired local route.
+     */
+    val gatewayCaPem: String? = null,
 ) {
     val pairedWithServer: Boolean get() = serverEnvironmentId != null
 
@@ -506,6 +511,8 @@ sealed class APIError(message: String, cause: Throwable? = null) : IOException(m
     class Transport(val detail: String, cause: Throwable? = null) : APIError(detail, cause)
 
     data object BadUrl : APIError("That address doesn't look right.")
+
+    class Unexpected(detail: String, cause: Throwable? = null) : APIError(detail, cause)
 
     val isUnauthorized: Boolean get() = this is Status && code == 401
 

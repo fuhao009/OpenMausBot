@@ -310,12 +310,12 @@ struct ConnectedComputersView: View {
             Section {
                 Button {
                     Haptics.selection()
-                    session.beginPairing()
+                    session.beginAccountLogin()
                 } label: {
                     Label("Connect another computer", systemImage: "plus.circle.fill")
                 }
             } footer: {
-                Text("Each computer is paired separately. Only the selected computer is active at a time.")
+                Text("Each computer is reached through the same Hezuo account. Only the selected computer is active at a time.")
             }
         }
         .navigationTitle("Computers")

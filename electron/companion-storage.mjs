@@ -58,14 +58,16 @@ export function createCompanionStorage({ userData, busy = () => false }) {
  * account's folder or the home-directory default. Without a configured folder the inherited value stays, as before
  * product accounts. HOME stays untouched: the sidecar only reads it to find Tailscale.
  */
-export function sidecarEnvironment({ base = {}, hostedUrl = null, secretPublicKey = null, internalOrigin = null, directory = null }) {
+export function sidecarEnvironment({ base = {}, hostedUrl = null, secretPublicKey = null, internalOrigin = null, directory = null, productAccountTrust = null }) {
   const environment = { ...base };
   delete environment.OMB_COMPANION_HOSTED_URL;
   delete environment.OMB_COMPANION_INTERNAL_ORIGIN;
   delete environment.OMB_PHONE_SECRET_PUBLIC_KEY;
+  delete environment.OMB_PRODUCT_ACCOUNT_TRUST;
   if (directory !== null) environment.OMB_COMPANION_DIR = directory;
   if (hostedUrl) environment.OMB_COMPANION_HOSTED_URL = hostedUrl;
   if (internalOrigin) environment.OMB_COMPANION_INTERNAL_ORIGIN = internalOrigin;
   if (/^[A-Za-z0-9_-]{87}$/.test(String(secretPublicKey ?? ""))) environment.OMB_PHONE_SECRET_PUBLIC_KEY = secretPublicKey;
+  if (productAccountTrust) environment.OMB_PRODUCT_ACCOUNT_TRUST = productAccountTrust;
   return environment;
 }

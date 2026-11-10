@@ -74,12 +74,21 @@ struct RootView: View {
             switch route {
             case .welcome:
                 CompanionWelcomeView(
-                    onConnect: startPairing,
+                    onConnect: startAccountLogin,
                     onSkip: {
                         hasSeenWelcome = true
                         session.endPairing()
                     }
                 )
+            case .accountLogin:
+                AccountLoginView {
+                    hasSeenWelcome = true
+                    session.endAccountLogin()
+                }
+                .onAppear {
+                    hasSeenWelcome = true
+                    session.beginAccountLogin()
+                }
             case .pairing:
                 PairingView {
                     hasSeenWelcome = true
@@ -90,7 +99,7 @@ struct RootView: View {
                     session.beginPairing()
                 }
             case .unpairedHome:
-                UnpairedHomeView(onConnect: startPairing)
+                UnpairedHomeView(onConnect: startAccountLogin)
             case .notificationPrompt:
                 NotificationOnboardingView {
                     hasSeenNotificationPrompt = true
@@ -112,7 +121,7 @@ struct RootView: View {
                 UnpairedView(
                     onPairAgain: {
                         session.signOut()
-                        startPairing()
+                        startAccountLogin()
                     },
                     onChooseAnother: session.connections.first(where: {
                         $0.id != session.connection?.id
@@ -166,6 +175,7 @@ struct RootView: View {
             hasSeenWelcome: hasSeenWelcome,
             pairingRequested: session.pairingRequested,
             hasPendingPairingInvite: session.pairingInvite != nil,
+            accountLoginRequested: session.accountLoginRequested,
             notificationOnboardingPending: notificationOnboardingPending,
             hasSeenNotificationPrompt: hasSeenNotificationPrompt,
             notificationAuthorization: notificationAuthorizationState
@@ -193,6 +203,11 @@ struct RootView: View {
     private func startPairing() {
         hasSeenWelcome = true
         session.beginPairing()
+    }
+
+    private func startAccountLogin() {
+        hasSeenWelcome = true
+        session.beginAccountLogin()
     }
 }
 

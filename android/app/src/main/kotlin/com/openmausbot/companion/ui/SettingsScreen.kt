@@ -150,7 +150,7 @@ fun SettingsScreen(
                 if (bound != null) {
                     SettingsButton("Connect another computer") {
                         haptics.play(TactileAction.CONNECT_ANOTHER_COMPUTER)
-                        session.beginPairing()
+                        session.beginAccountLogin()
                     }
                 }
             }
@@ -167,7 +167,7 @@ fun SettingsScreen(
                             pendingComputerRemoval = computer
                         }
                     }
-                    Footnote("Each computer is paired separately. Only the selected computer is active at a time.")
+                    Footnote("Each computer is reached through the same Hezuo account. Only the selected computer is active at a time.")
                 }
             }
 

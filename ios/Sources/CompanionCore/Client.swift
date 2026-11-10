@@ -56,6 +56,8 @@ public struct Connection: Codable, Hashable, Identifiable, Sendable {
     /// (`client`) without asking. Absent on server connections saved by
     /// builds that did not record them, which the app treated as chat-only.
     public var serverScopes: [String]?
+    /// Public CA used to reach a self-hosted account gateway. Not a secret.
+    public var gatewayCaPem: String?
 
     public init(
         id: String = UUID().uuidString,
@@ -70,7 +72,8 @@ public struct Connection: Codable, Hashable, Identifiable, Sendable {
         secretPublicKey: String? = nil,
         companionDeviceId: String? = nil,
         serverEnvironmentId: String? = nil,
-        serverScopes: [String]? = nil
+        serverScopes: [String]? = nil,
+        gatewayCaPem: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -85,6 +88,7 @@ public struct Connection: Codable, Hashable, Identifiable, Sendable {
         self.companionDeviceId = companionDeviceId
         self.serverEnvironmentId = serverEnvironmentId
         self.serverScopes = serverScopes
+        self.gatewayCaPem = gatewayCaPem
     }
 
     /// Paired with a server directly rather than through the companion
@@ -596,12 +600,12 @@ public struct CompanionClient: Sendable {
     public init(
         connection: Connection,
         token: String?,
-        session: URLSession = .shared,
+        session: URLSession? = nil,
         requestTimeout: TimeInterval = 20
     ) {
         self.connection = connection
         self.token = token
-        self.session = session
+        self.session = session ?? AccountGateway.urlSession(trusting: connection.gatewayCaPem)
         self.requestTimeout = min(max(requestTimeout, 1), 150)
     }
 
@@ -611,7 +615,10 @@ public struct CompanionClient: Sendable {
         guard let base = connection.baseURL,
               var components = URLComponents(url: base, resolvingAgainstBaseURL: false)
         else { throw APIError.badURL }
-        components.path = path
+        var prefix = components.path
+        while prefix.hasSuffix("/") { prefix.removeLast() }
+        let suffix = path.hasPrefix("/") ? path : "/" + path
+        components.path = prefix.isEmpty ? suffix : prefix + suffix
         components.queryItems = query.isEmpty ? nil : query
         guard let url = components.url else { throw APIError.badURL }
 

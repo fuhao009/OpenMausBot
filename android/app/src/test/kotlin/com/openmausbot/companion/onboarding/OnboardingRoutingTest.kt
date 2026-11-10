@@ -15,6 +15,7 @@ import com.openmausbot.companion.ui.LocalCompanion
 import com.openmausbot.companion.ui.NotificationAccess
 import com.openmausbot.companion.ui.notificationAuthorization
 import com.openmausbot.companion.ui.onboardingPairingState
+import com.openmausbot.companion.core.AccountLoginPolicy
 import com.openmausbot.companion.ui.OnboardingCopy
 import com.openmausbot.companion.ui.PermissionPreferences
 import kotlin.test.assertEquals
@@ -109,7 +110,7 @@ class OnboardingRoutingTest {
     }
 
     @Test
-    fun `the unpaired home leads back into pairing`() {
+    fun `the unpaired home leads back into account login`() {
         val scene = OnboardingScene(welcomeSeen = true)
         mount(scene)
 
@@ -117,8 +118,9 @@ class OnboardingRoutingTest {
         compose.onNodeWithText(OnboardingCopy.UNPAIRED_HOME_CONNECT).performClick()
         compose.waitForIdle()
 
-        compose.onNodeWithText("Pair with a computer").assertIsDisplayed()
-        assertEquals(emptyList(), scene.asked(), "reaching the QR screen asked for something")
+        compose.onNodeWithText(AccountLoginPolicy.TITLE).assertIsDisplayed()
+        compose.onNodeWithText("Pair with a computer").assertDoesNotExist()
+        assertEquals(emptyList(), scene.asked(), "reaching the account login screen asked for something")
     }
 
     @Test

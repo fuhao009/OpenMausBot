@@ -947,6 +947,16 @@ export function createProductAccountService({
       return serial(() => restoreNow());
     },
 
+    /** Runs `fn` with the live account bearer and user. The token never appears
+     * in a snapshot or IPC payload; callers must not retain it. */
+    async useAccount(fn) {
+      if (typeof fn !== "function") return null;
+      return serial(async () => {
+        if (auth !== "signed_in" || !accountToken || !user) return null;
+        return fn({ token: accountToken, user: { id: user.id, email: user.email } });
+      });
+    },
+
     onState(callback) {
       if (typeof callback !== "function") return () => {};
       subscribers.add(callback);

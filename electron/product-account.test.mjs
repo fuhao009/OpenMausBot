@@ -281,7 +281,7 @@ describe("product account sign-in", () => {
 
   it("reaches capability-ready only after main acknowledges the issued token", async () => {
     const f = fixture();
-    const state = await f.service.verifyCode("ada@example.com", "12345678");
+    const state = await f.service.verifyCode(" ada@example.com ", "1234 5678");
 
     expect(state).toMatchObject({ auth: "signed_in", runtime: "ready", ai: { state: "ready" } });
     const applied = f.events.filter((event) => event.type === "applyCapability").at(-1).update;
@@ -302,7 +302,7 @@ describe("product account sign-in", () => {
     const pem = certificate();
     if (!pem) return;
     const f = fixture({ ca: pem });
-    const state = await f.service.verifyCode("ada@example.com", "12345678");
+    const state = await f.service.verifyCode(" ada@example.com ", "1234 5678");
     expect(state).toMatchObject({ auth: "signed_in", runtime: "ready" });
     const applied = f.events.filter((event) => event.type === "applyCapability").at(-1).update;
     // The origin the fixture service talks to is https://operator.example, so
@@ -320,7 +320,7 @@ describe("product account sign-in", () => {
 
   it("reports a failing workspace start without inventing a capability", async () => {
     const f = fixture({ status: readyStatus(), start: async () => { throw new Error("child died"); } });
-    const state = await f.service.verifyCode("ada@example.com", "12345678");
+    const state = await f.service.verifyCode(" ada@example.com ", "1234 5678");
 
     expect(state).toMatchObject({ auth: "signed_in", runtime: "error", errorCode: "workspace_start_failed" });
     expect(f.events.filter((event) => event.type === "createAiToken")).toHaveLength(0);
@@ -329,7 +329,7 @@ describe("product account sign-in", () => {
   it("keeps a failed capability ack as an error and retries without extending the old token", async () => {
     let fail = true;
     const f = fixture({ apply: async () => { if (fail) throw new Error("runtime refused"); } });
-    const state = await f.service.verifyCode("ada@example.com", "12345678");
+    const state = await f.service.verifyCode(" ada@example.com ", "1234 5678");
     expect(state).toMatchObject({ auth: "signed_in", runtime: "error", errorCode: "capability_unavailable" });
     expect(f.events.filter((event) => event.type === "revokeAiToken")).toHaveLength(0);
 
@@ -420,7 +420,7 @@ describe("product account restore", () => {
     expect(f.events.filter((event) => event.type === "startRuntime")).toHaveLength(0);
 
     // Signing in again reuses the device and replaces the stale token.
-    const signedIn = await f.service.verifyCode("ada@example.com", "12345678");
+    const signedIn = await f.service.verifyCode(" ada@example.com ", "1234 5678");
     expect(signedIn).toMatchObject({ auth: "signed_in" });
     expect(f.events.filter((event) => event.type === "createAiToken")[0].deviceId).toBe(DEVICE);
     expect(f.record.value).toEqual(savedRecord());
@@ -613,7 +613,7 @@ describe("product account sign-out details", () => {
 
   it("releases a workspace whose start died partway", async () => {
     const f = fixture({ start: async () => { throw new Error("child died"); } });
-    const state = await f.service.verifyCode("ada@example.com", "12345678");
+    const state = await f.service.verifyCode(" ada@example.com ", "1234 5678");
     expect(state).toMatchObject({ runtime: "error", errorCode: "workspace_start_failed" });
     expect(f.events.filter((event) => event.type === "stopRuntime")).toHaveLength(1);
     const started = await f.service.refresh();
@@ -1017,6 +1017,28 @@ describe("current-account operator maximum grant", () => {
     expect(await grant).toMatchObject({ outcome: "failed", errorCode: "signed_out" });
     await out;
     expect(f.types()).not.toContain("grant");
+    f.service.dispose();
+  });
+});
+
+describe("product account useAccount", () => {
+  it("passes the live bearer only into the callback and never onto the snapshot", async () => {
+    const f = fixture({ status: pendingStatus() });
+    const state = await f.service.verifyCode(" ada@example.com ", "1234 5678");
+    expect(state.auth).toBe("signed_in");
+    expect(state).not.toHaveProperty("accountToken");
+    const seen = await f.service.useAccount(async ({ token, user: account }) => {
+      expect(token).toBe(ACCOUNT);
+      expect(account).toEqual({ id: user.id, email: user.email });
+      return "ok";
+    });
+    expect(seen).toBe("ok");
+    f.service.dispose();
+  });
+
+  it("returns null when signed out", async () => {
+    const f = fixture();
+    expect(await f.service.useAccount(async () => "no")).toBe(null);
     f.service.dispose();
   });
 });

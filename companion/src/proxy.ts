@@ -26,7 +26,10 @@ export interface ProxyOptions {
   mutationToken?: () => string | null;
   authenticate: (
     token: string | undefined,
-  ) => { id?: string; cloudDesktopAccess: boolean; browserControlAccess: boolean } | null;
+  ) =>
+    | { id?: string; cloudDesktopAccess: boolean; browserControlAccess: boolean }
+    | null
+    | Promise<{ id?: string; cloudDesktopAccess: boolean; browserControlAccess: boolean } | null>;
   /** Pairing is handled here and never forwarded: the harness has no such route. */
   redeem: (
     code: string,
@@ -265,6 +268,16 @@ export function createProxyHandler(options: ProxyOptions) {
   const viewers = new CompanionViewerRelay({ checkControl: harnessControlCheck(options) });
   const capabilityStreams = new Map<string, Set<() => void>>();
   const handle = function handle(req: IncomingMessage, res: ServerResponse): void {
+    void handleAsync(req, res).catch(() => {
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.end();
+      } else {
+        res.destroy();
+      }
+    });
+  };
+  const handleAsync = async function handleAsync(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const target = requestTarget(req.url);
     if (!target) return sendJson(res, 400, { error: "invalid request target" });
     const path = (req.url ?? "/").split("?")[0];
@@ -277,11 +290,11 @@ export function createProxyHandler(options: ProxyOptions) {
     }
 
     const token = bearerToken(req.headers.authorization);
-    const device = options.authenticate(token);
+    const device = await options.authenticate(token);
     const browserRequest = isBrowserControlAccess(method, path);
-    const browserRefusal = () => {
+    const browserRefusal = async () => {
       if (!browserRequest) return null;
-      const current = options.authenticate(token);
+      const current = await options.authenticate(token);
       if (!current || current.id !== device?.id) {
         return { status: 401, error: "pair this device from Remote access settings on the host computer" };
       }
@@ -375,7 +388,7 @@ export function createProxyHandler(options: ProxyOptions) {
       (harness) => {
         clearTimeout(headersDeadline);
         // A grant revoked while the native browser opens must not expose frames.
-        const refusal = browserRefusal();
+        const refusal = await browserRefusal();
         if (refusal) {
           harness.destroy();
           return sendJson(res, refusal.status, { error: refusal.error });
@@ -436,7 +449,7 @@ export function createProxyHandler(options: ProxyOptions) {
             && streamStatus >= 200
             && streamStatus < 300
             && Boolean(device?.id);
-          const currentDevice = tracksDeviceConnection ? options.authenticate(token) : device;
+          const currentDevice = tracksDeviceConnection ? await options.authenticate(token) : device;
           if (tracksDeviceConnection && currentDevice?.id !== device?.id) {
             harness.destroy();
             return sendJson(res, 401, {
@@ -550,7 +563,7 @@ export function createProxyHandler(options: ProxyOptions) {
         });
         harness.on("error", () => res.destroy());
         harness.on("end", () => {
-          const refusal = browserRefusal();
+          const refusal = await browserRefusal();
           if (refusal) return sendJson(res, refusal.status, { error: refusal.error });
           const body = Buffer.concat(chunks).toString("utf8");
 
@@ -635,12 +648,15 @@ export function createProxyHandler(options: ProxyOptions) {
   };
 
   handle.upgrade = (req: IncomingMessage, socket: Duplex, head: Buffer): void => {
+    void handleUpgradeAsync(req, socket, head).catch(() => socket.destroy());
+  };
+  const handleUpgradeAsync = async (req: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> => {
     if (req.headers.origin) {
       socket.destroy();
       return;
     }
     const token = bearerToken(req.headers.authorization);
-    const device = options.authenticate(token);
+    const device = await options.authenticate(token);
     viewers.handleUpgrade(req, socket, head, device);
   };
   handle.closeViewers = (): void => viewers.closeAll();

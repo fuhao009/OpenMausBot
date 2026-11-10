@@ -1,5 +1,11 @@
 # Install the phone web app
 
+The supported way to use Hezuo from a phone is the native Android or iOS app,
+signed in with the same Hezuo account as the desktop against the local account
+gateway. See [the local gateway](local-gateway.md#phone-access). This page
+describes the older browser / PWA path, which still uses workspace pairing.
+
+
 The browser UI can be added to your phone's Home Screen. It opens in its own
 window and uses the same workspace, conversations and pairing as the browser.
 

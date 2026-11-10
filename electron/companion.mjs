@@ -122,7 +122,7 @@ export function stopCompanion() {
   return serialize(() => stop());
 }
 
-async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = null, secretPublicKey = null, log }, directory) {
+async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = null, secretPublicKey = null, productAccountTrust = null, log }, directory) {
   if (proc) return companionState();
   lastError = null;
   const resolved = entryPoint(resourcesPath);
@@ -149,7 +149,7 @@ async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = nu
   };
 
   // Never inherit an endpoint from the launch environment: main passes one only after verifying the connector.
-  const childEnvironment = sidecarEnvironment({ base: process.env, hostedUrl, secretPublicKey, internalOrigin: allocatedOrigin.socketPath, directory });
+  const childEnvironment = sidecarEnvironment({ base: process.env, hostedUrl, secretPublicKey, internalOrigin: allocatedOrigin.socketPath, directory, productAccountTrust });
 
   controlToken = randomBytes(32).toString("base64url");
   let child;

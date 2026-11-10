@@ -45,7 +45,10 @@ class Session(
     private val notificationSink: NotificationSink = NoOpNotificationSink,
     private val httpClient: OkHttpClient = OkHttpClient(),
     private val clientFactory: (Connection, String?) -> CompanionClient = { connection, token ->
-        CompanionClient(connection, token, httpClient)
+        val trusted = connection.gatewayCaPem?.trim()?.takeIf { it.isNotEmpty() }?.let { pem ->
+            AccountGateway.httpClient(pem, httpClient)
+        } ?: httpClient
+        CompanionClient(connection, token, trusted)
     },
     private val pairFn: suspend (Connection, String, String, String) -> PairingOutcome =
         { connection, credential, deviceName, pairRequestId ->
@@ -128,8 +131,10 @@ class Session(
     val pairingInvite: StateFlow<PairingInvite?> = _pairingInvite.asStateFlow()
 
     private val _pairingRequested = MutableStateFlow(false)
+    private val _accountLoginRequested = MutableStateFlow(false)
     /** Pairing may be opened while the current computer stays live. */
     val pairingRequested: StateFlow<Boolean> = _pairingRequested.asStateFlow()
+    val accountLoginRequested: StateFlow<Boolean> = _accountLoginRequested.asStateFlow()
 
     private var registry = ConnectionRegistry()
     private var client: CompanionClient? = null
@@ -332,6 +337,85 @@ class Session(
     ) = pair(invite.connection, invite.credential, pairRequestId)
 
     /**
+     * Bind this phone to every desktop already signed into the same Hezuo
+     * account. The account session token is the credential; no pairing code
+     * is created or redeemed.
+     */
+    suspend fun connectWithAccount(
+        signIn: AccountGateway.SignIn,
+        hosts: List<AccountGateway.DesktopHost>,
+        caPem: String? = null,
+    ) {
+        awaitRestored()
+        gate.withLock {
+            if (hosts.isEmpty()) {
+                throw APIError.Unexpected(
+                    "No desktop Hezuo is signed into this account yet. Sign in on your computer first.",
+                )
+            }
+            synchronized(inviteLock) { _accountLoginRequested.value = true }
+            try {
+                val firstPairing = registry.connections.isEmpty()
+                var updatedRegistry = registry
+                val storedHosts = mutableListOf<Connection>()
+                for (host in hosts) {
+                    val created = AccountGateway.connectionFor(signIn.origin, host, caPem)
+                        ?: continue
+                    var stored = created
+                    registry.matchingConnection(stored)?.let { existing ->
+                        stored = stored.copy(id = existing.id)
+                    }
+                    updatedRegistry = updatedRegistry.upsert(stored)
+                    storedHosts += stored
+                    tokenStore.save(stored.id, signIn.token)
+                }
+                val active = storedHosts.lastOrNull()
+                    ?: throw APIError.Unexpected("None of this account's computers could be used from this phone.")
+                updatedRegistry = updatedRegistry.select(active.id) ?: updatedRegistry
+
+                try {
+                    PairingCommitSequence.persist(
+                        markNotificationOnboardingPending = {
+                            if (firstPairing) onboardingStore.setNotificationOnboardingPending(true)
+                        },
+                        saveConnection = { connectionStore.saveRegistry(updatedRegistry) },
+                    )
+                } catch (error: Throwable) {
+                    if (error is kotlinx.coroutines.CancellationException) throw error
+                    _actionError.value = error.message
+                    throw error
+                }
+
+                stopActiveRuntimeLocked()
+                registry = updatedRegistry
+                _connections.value = registry.connections
+                _connection.value = active
+                token = signIn.token
+                rotation = CandidateRotation(liveRoutes(active, active.activeEndpoint))
+                client = clientFactory(active, signIn.token)
+                _state.value = CompanionState()
+                _restoreState.value = RestoreState.Ready
+                _pairingRequested.value = false
+                _accountLoginRequested.value = false
+            } finally {
+                if (_connection.value == null) {
+                    // Leave the form open so the person can correct the gateway
+                    // or password. A successful bind already cleared the flag.
+                }
+            }
+        }
+        connect()
+    }
+
+    fun beginAccountLogin() {
+        _accountLoginRequested.value = true
+    }
+
+    fun endAccountLogin() {
+        _accountLoginRequested.value = false
+    }
+
+    /**
      * Accept a deep-link invite after restore has settled. A paired phone can
      * add another computer; the current runtime remains intact until that
      * invitation commits successfully.
@@ -489,6 +573,7 @@ class Session(
         // - Nothing to forget (id == null): clearActiveConnection — zero the flag.
         if (id == null) {
             _pairingRequested.value = false
+            _accountLoginRequested.value = false
         }
     }
 

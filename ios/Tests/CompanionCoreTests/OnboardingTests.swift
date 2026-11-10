@@ -52,6 +52,38 @@ final class OnboardingTests: XCTestCase {
         )
     }
 
+
+    func testAccountLoginIsTheDefaultConnectPath() {
+        XCTAssertEqual(
+            CompanionOnboardingRouter.route(for: .init(
+                pairingState: .unpaired,
+                hasSeenWelcome: true,
+                accountLoginRequested: true
+            )),
+            .accountLogin
+        )
+        XCTAssertEqual(
+            CompanionOnboardingRouter.route(for: .init(
+                pairingState: .paired,
+                hasSeenWelcome: true,
+                accountLoginRequested: true
+            )),
+            .accountLogin
+        )
+    }
+
+    func testLeftoverPairingDeepLinkOutranksAccountLogin() {
+        XCTAssertEqual(
+            CompanionOnboardingRouter.route(for: .init(
+                pairingState: .unpaired,
+                hasSeenWelcome: true,
+                hasPendingPairingInvite: true,
+                accountLoginRequested: true
+            )),
+            .pairing
+        )
+    }
+
     func testPairedUserCanAddAnotherComputer() {
         XCTAssertEqual(
             CompanionOnboardingRouter.route(for: .init(

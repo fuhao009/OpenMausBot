@@ -86,11 +86,15 @@ internal fun Connection.httpEndpoint(fallbackDns: Dns): ConnectionEndpoint? {
         val addressHost = if (zoneAt >= 0) bareHost.substring(0, zoneAt) else bareHost
         val httpHost = if (zoneAt >= 0) SCOPED_IPV6_HTTP_HOST else addressHost
         val zone = if (zoneAt >= 0) bareHost.substring(zoneAt + 1) else null
-        val url = HttpUrl.Builder()
+        val urlBuilder = HttpUrl.Builder()
             .scheme(dialingScheme)
             .host(httpHost)
             .port(dialingPort)
-            .build()
+        val prefix = dialingEndpoint.baseUrl.rawPath.orEmpty()
+        if (CompanionEndpoint.isGatewayCompanionPath(prefix)) {
+            urlBuilder.encodedPath(prefix.trimEnd('/'))
+        }
+        val url = urlBuilder.build()
         val dns = if (zone == null) {
             fallbackDns
         } else {
@@ -834,7 +838,10 @@ class CompanionClient(
         require(body == null || rawBody == null)
         if (connection.pairedWithServer) connection.requireServerTransport()
         val base = endpoint?.baseUrl ?: throw APIError.BadUrl
-        val url = base.newBuilder().encodedPath(path).apply {
+        val prefix = base.encodedPath.trimEnd('/')
+        val suffix = if (path.startsWith("/")) path else "/$path"
+        val joined = if (prefix.isEmpty()) suffix else prefix + suffix
+        val url = base.newBuilder().encodedPath(joined).apply {
             query.forEach { (name, value) -> addQueryParameter(name, value) }
         }.build()
         val requestBody = when {

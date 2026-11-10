@@ -70,6 +70,7 @@ fun CompanionRoot(
     val connection by session.connection.collectAsState()
     val connections by session.connections.collectAsState()
     val pairingRequested by session.pairingRequested.collectAsState()
+    val accountLoginRequested by session.accountLoginRequested.collectAsState()
     val invite by session.pairingInvite.collectAsState()
     val restoreState by session.restoreState.collectAsState()
     val notificationAccess by environment.notifications.access.collectAsState()
@@ -90,6 +91,7 @@ fun CompanionRoot(
             hasSeenWelcome = welcomeSeen,
             pairingRequested = pairingRequested,
             hasPendingPairingInvite = invite != null,
+            accountLoginRequested = accountLoginRequested,
             notificationOnboardingPending = notificationPending,
             hasSeenNotificationPrompt = notificationPromptSeen,
             notificationAuthorization = authorization,
@@ -118,6 +120,11 @@ fun CompanionRoot(
     fun startPairing() {
         scope.launch { onboarding.setWelcomeSeen(true) }
         session.beginPairing()
+    }
+
+    fun startAccountLogin() {
+        scope.launch { onboarding.setWelcomeSeen(true) }
+        session.beginAccountLogin()
     }
 
     /**
@@ -201,7 +208,7 @@ fun CompanionRoot(
                 Box(modifier = Modifier.fillMaxSize()) {
                     when (route) {
                         OnboardingRoute.WELCOME -> WelcomeScreen(
-                            onConnect = ::startPairing,
+                            onConnect = ::startAccountLogin,
                             onSkip = {
                                 // "Not now" is an answer, not a postponement of the same
                                 // screen: it is remembered, and it leads to a home that
@@ -210,6 +217,20 @@ fun CompanionRoot(
                                 session.endPairing()
                             },
                         )
+
+                        OnboardingRoute.ACCOUNT_LOGIN -> {
+                            LaunchedEffect(Unit) {
+                                onboarding.setWelcomeSeen(true)
+                                session.beginAccountLogin()
+                            }
+                            AccountLoginScreen(
+                                session = session,
+                                onCancel = {
+                                    scope.launch { onboarding.setWelcomeSeen(true) }
+                                    session.endAccountLogin()
+                                },
+                            )
+                        }
 
                         OnboardingRoute.PAIRING -> {
                             // Being on this screen *is* the request, and it is what
@@ -237,12 +258,12 @@ fun CompanionRoot(
                                 onBack = { showingUnpairedSettings = false },
                                 onConnect = {
                                     showingUnpairedSettings = false
-                                    startPairing()
+                                    startAccountLogin()
                                 },
                             )
                         } else {
                             UnpairedHomeScreen(
-                                onConnect = ::startPairing,
+                                onConnect = ::startAccountLogin,
                                 onOpenSettings = { showingUnpairedSettings = true },
                             )
                         }
@@ -281,7 +302,7 @@ fun CompanionRoot(
                         OnboardingRoute.REVOKED -> UnpairedScreen(
                             onPairAgain = {
                                 session.signOut()
-                                startPairing()
+                                startAccountLogin()
                             },
                             onChooseAnother = connections.firstOrNull { it.id != connection?.id }
                                 ?.let { other -> { session.switchComputer(other.id) } },
@@ -295,7 +316,7 @@ fun CompanionRoot(
             }
             // Pairing failures are shown inline on the pairing form, where the
             // action was — a modal on top of it would say the same thing twice.
-            if (route != OnboardingRoute.PAIRING) {
+            if (route != OnboardingRoute.PAIRING && route != OnboardingRoute.ACCOUNT_LOGIN) {
                 ActionErrorDialog(session)
             }
         }

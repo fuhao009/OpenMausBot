@@ -108,6 +108,7 @@ import {
   managedEndpointNeed,
   resolveCompanionControlPlaneURL,
 } from "./companion-account-service.mjs";
+import { createProductGatewayHost, writeProductAccountTrust, clearProductAccountTrust } from "./product-gateway-host.mjs";
 import capabilitiesModule from "./capabilities.cjs";
 import environmentsModule from "./environments.cjs";
 import localOriginModule from "./local-origin.cjs";
@@ -587,6 +588,7 @@ installDesktopCrashListeners({
 
 let managedCompanionConnector = null;
 let companionAccountService = null;
+let productGatewayHost = null;
 let companionDesiredThisLaunch = false;
 let companionLaunchGeneration = 0;
 let advertisementTransition = Promise.resolve();
@@ -657,6 +659,7 @@ function companionLaunchOptions(hostedUrl = null) {
     hostedUrl,
     // Only an embedded server receives the private half; a dev server must not advertise the public key.
     secretPublicKey: app.isPackaged && serverProc ? phoneSecretIdentity?.publicKey ?? null : null,
+    productAccountTrust: productAccountRoot ? path.join(productAccountRoot, "product-account-trust.json") : null,
     log: slog,
   };
 }
@@ -724,11 +727,58 @@ async function startManagedCompanionConnection({ waitForVerification = true } = 
   return publicManagedCompanionState();
 }
 
+
+async function startProductPhoneGateway() {
+  if (!productService?.origin || !productService.ca || !productAccount || !productAccountRoot) return null;
+  return productAccount.useAccount(async ({ token, user }) => {
+    writeProductAccountTrust(productAccountRoot, {
+      origin: productService.origin,
+      ca: productService.ca,
+      userId: user.id,
+    });
+    if (!productGatewayHost) {
+      productGatewayHost = createProductGatewayHost({
+        origin: productService.origin,
+        ca: productService.ca,
+        root: productAccountRoot,
+        client: createControlPlaneClient({ baseURL: productService.origin, ca: productService.ca }),
+        identity: {
+          name: installationDisplayName(),
+          platform: process.platform === "win32" ? "windows" : process.platform === "darwin" ? "darwin" : "linux",
+          appVersion: app.getVersion().slice(0, 64),
+        },
+        log: slog,
+      });
+    }
+    const preview = await productGatewayHost.register({ token, user });
+    const hosted = preview.endpoint;
+    if (!companionRunning()) {
+      companionDesiredThisLaunch = true;
+      companionLaunchGeneration += 1;
+      const localState = await startCompanion(companionLaunchOptions(hosted));
+      if (!localState.enabled || localState.error) {
+        companionDesiredThisLaunch = false;
+        return { error: localState.error || "companion_unavailable" };
+      }
+      rememberCompanionEnabled(true);
+    } else {
+      await reconcileCompanionAdvertisement(hosted);
+    }
+    const target = companionOriginTarget();
+    return productGatewayHost.start({ token, user, originTarget: target });
+  });
+}
+
 async function startDesktopCompanion({ waitForHosted = true, remember = true } = {}) {
   const refusal = managedRemoteAccessRefusal();
   if (refusal) throw new Error(refusal);
   companionDesiredThisLaunch = true;
   companionLaunchGeneration += 1;
+  if (productService) {
+    const result = await startProductPhoneGateway();
+    if (result?.error) companionDesiredThisLaunch = false;
+    return desktopCompanionState();
+  }
   const localState = await startCompanion(companionLaunchOptions());
   if (!localState.enabled || localState.error) {
     companionDesiredThisLaunch = false;
@@ -744,6 +794,7 @@ async function stopDesktopCompanion({ remember = true } = {}) {
   companionLaunchGeneration += 1;
   if (remember) rememberCompanionEnabled(false);
   syncCompanionKeepAwake(false, false);
+  await productGatewayHost?.stop();
   await managedCompanionConnector?.stop();
   await stopCompanion();
   return desktopCompanionState();
@@ -2801,6 +2852,7 @@ async function startProductDesktop() {
         ? Promise.resolve({ mode: "unavailable", reason: "fixture_computer_permission_not_granted" })
         : startCua().catch(() => ({ mode: "unavailable", reason: "computer_unavailable" }));
       createWindow();
+      void startProductPhoneGateway()?.catch((error) => slog(`product phone gateway: ${error?.message || "failed"}`));
       closingAuth = true;
       productAuthWindow?.close();
       productAuthWindow = null;
@@ -2811,6 +2863,9 @@ async function startProductDesktop() {
       serverSupervisor.pause();
       routineWake.stop();
       mainWindow?.destroy(); mainWindow = null;
+      await productGatewayHost?.stop();
+      productGatewayHost = null;
+      clearProductAccountTrust(productAccountRoot);
       await stopDesktopCompanion({ remember: false });
       computerSharing?.close();
       desktopWorkspaceManager?.close?.();
