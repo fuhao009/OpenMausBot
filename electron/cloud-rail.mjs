@@ -138,7 +138,7 @@ const CHOICES = Object.freeze(["cloud", "link", "address"]);
  * page (`lists`) reads the list and opens or adds a place; ＋'s buying sheet also runs on a page `trusted` vouches for
  * (the rail's, or this computer's own). Any other page learns only whether the rail stands beside it (`beside`).
  * `places()` is railPlaces' list now; `open(id)` main's own switch; `add` the ＋ sheet's fixed actions; `account()` the
- * MausBot Cloud sign-in; `targets()` the pages told when something changed; `makeHome(id)` starts the move to a server
+ * Hezuo Cloud sign-in; `targets()` the pages told when something changed; `makeHome(id)` starts the move to a server
  * of the person's own (own-home-main.mjs `start`).
  */
 export function installCloudRail({ ipcMain, guard, trusted, lists = trusted, beside = () => false, places, open, add, account, clipboard, openCloud, targets, makeHome = null, forget = null }) {
@@ -188,7 +188,7 @@ export function installCloudRail({ ipcMain, guard, trusted, lists = trusted, bes
   handle("cloud-add:state", () => view());
   handle("cloud-add:start", async (_event, tier, name, color, source) => {
     const client = account();
-    if (!client) throw new Error("Sign in to MausBot Cloud first.");
+    if (!client) throw new Error("Sign in to Hezuo Cloud first.");
     const plans = (await client.offer().catch(() => null))?.plans ?? [];
     const cleanName = cleanCloudListName(plain(name)), swatch = CLOUD_SWATCHES.includes(color) ? color : null;
     if (!plans.some(plan => plan.tier === plain(tier)) || !cleanName) throw new Error("Choose a plan and a name to continue.");
@@ -197,7 +197,7 @@ export function installCloudRail({ ipcMain, guard, trusted, lists = trusted, bes
   });
   handle("cloud-add:organization", async (_event, name, color) => {
     const client = account();
-    if (!client) throw new Error("Sign in to MausBot Cloud first.");
+    if (!client) throw new Error("Sign in to Hezuo Cloud first.");
     const cleanName = cleanCloudListName(plain(name)), swatch = CLOUD_SWATCHES.includes(color) ? color : null;
     if (!cleanName) throw new Error("Give the organization a name to continue.");
     const result = await client.addOrganization({ name: cleanName, color: swatch });

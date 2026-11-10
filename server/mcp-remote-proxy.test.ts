@@ -340,7 +340,7 @@ describe("remote MCP tool directory", () => {
     const [small, page] = (await request("tools/list")).result.tools;
     expect(small).toEqual(tools[0]);
     expect(schemaBytes(page.inputSchema)).toBeLessThanOrEqual(12_000);
-    expect(page.description).toContain("OpenMausBot shortened this tool's parameters to fit Kimi's size limit");
+    expect(page.description).toContain("Hezuo shortened this tool's parameters to fit Kimi's size limit");
     const closed = once(child!, "close"); child!.kill(); await closed;
 
     start(mcpStdioServer(spec(fake.url))!);
@@ -480,7 +480,7 @@ describe("remote MCP tool directory", () => {
     expect(described.result.content[0].text.length).toBeGreaterThan(600);
     expect(JSON.parse(described.result.content[0].text).inputSchema).toEqual(padded.find((tool) => tool.name === "payments_list")!.inputSchema);
     const ran = (await call(CALL_TOOL, { name: "payments_list", arguments: { company_id: "biz_1" } })).result.content[0].text;
-    expect(ran).toContain("⚠️ TRUNCATED by OpenMausBot:");
+    expect(ran).toContain("⚠️ TRUNCATED by Hezuo:");
     expect(fake.calls).toEqual([{ name: "payments_list", arguments: { company_id: "biz_1" } }]);
   });
 
@@ -501,7 +501,10 @@ describe("remote MCP tool directory", () => {
     const record = `OMB_REMOTE_MCP_CONFIG_${"a".repeat(64)}`;
     const descriptor = mcpStdioServer(spec(fake.url), { directory: { name: "whop" }, configEnvName: record })!;
     expect(descriptor.args!.slice(1)).toEqual(["--config-env", record]);
-    expect(Object.keys(descriptor.env!)).toEqual([record]);
+    expect(Object.keys(descriptor.env!).filter((name) => name.startsWith("OMB_REMOTE_MCP_"))).toEqual([record]);
+    const settings = JSON.parse(descriptor.env![record]!);
+    expect(JSON.parse(settings.OMB_REMOTE_MCP_SERVER)).toMatchObject({ url: fake.url, headers: spec(fake.url).headers });
+    expect(JSON.parse(settings.OMB_REMOTE_MCP_DIRECTORY)).toEqual({ name: "whop" });
     expect(descriptor.args!.join(" ")).not.toContain("directory-fixture-token");
     start(descriptor);
     await initialize();

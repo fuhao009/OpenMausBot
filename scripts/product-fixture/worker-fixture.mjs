@@ -19,8 +19,8 @@ const MAIL_FROM = "noreply@fixture.test";
 const SECRET = "fixture-better-auth-secret-with-at-least-32-chars";
 
 export const MODELS = Object.freeze([{
-  id: "maus-default",
-  label: "Maus",
+  id: "hezuo-default",
+  label: "Hezuo",
   protocol: "chat",
   pricingVersion: "fixture-v1",
   inputMicroPointsPerMillion: 2_000_000,

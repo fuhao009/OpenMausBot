@@ -1,6 +1,7 @@
 // The real chat/composer against the disposable approval smoke server.
 import { createRoot } from "react-dom/client";
-import { ChatView, ErrorRow } from "../components/ChatView";
+import { ChatView } from "../components/ChatView";
+import { ErrorRow } from "../components/ChatErrorRow";
 import { DesktopCapabilitiesProvider } from "../components/DesktopCapabilities";
 import { StoreProvider, useStore, type Bot } from "../state/store";
 import { PermissionsSection } from "../components/bot-settings/PermissionsSection";

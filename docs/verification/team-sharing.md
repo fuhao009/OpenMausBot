@@ -19,7 +19,7 @@ bot routine plus a group chat goal. It then checks:
 
 - a dry run (`dryRun: true`) counts every part and writes no
   `published-teams.json`;
-- the saved file is `sales-desk-1.0.0.openmaus.json`, reports the redacted
+- the saved file is `sales-desk-1.0.0.hezuo.json`, reports the redacted
   standing instruction and the skipped command server, and contains no
   secret, header value, other team's bot, model or thread id;
 - after renaming the team and a bot, the next save keeps the package id and

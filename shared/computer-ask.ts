@@ -84,7 +84,7 @@ export const COMPUTER_ASK_WORDS = {
 export type ComputerAskKey = keyof typeof COMPUTER_ASK_WORDS;
 
 /** The product's name as the person reads it, as the app fills `{app}`. */
-export const COMPUTER_ASK_APP = "MausBot";
+export const COMPUTER_ASK_APP = "Hezuo";
 
 export function computerAskText(key: ComputerAskKey, params: Record<string, string>): string {
   return COMPUTER_ASK_WORDS[key].replace(/\{(\w+)\}/g, (whole, name: string) => (name === "app" ? params.app ?? COMPUTER_ASK_APP : params[name] ?? whole));

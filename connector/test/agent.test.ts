@@ -45,7 +45,7 @@ async function connected(options: { handle?: (job: Job) => Promise<JobReply | nu
   return { admin, origin, record, agent, handled, statuses, lines };
 }
 
-describe("the connector's connection to MausBot", () => {
+describe("the connector's connection to Hezuo", () => {
   it("enrols once with the one-time code, then connects with its own token and sends a heartbeat every interval", async () => {
     const { admin, record, statuses, lines } = await connected();
     const [server] = admin.servers.values();
@@ -57,7 +57,7 @@ describe("the connector's connection to MausBot", () => {
     expect(admin.connections).toHaveLength(1);
     expect(lines.join("\n")).not.toContain(record.agentToken);
     await expect(enroll({ admin: admin.origin, code: [...admin.codes][0] ?? "MB-USED-CODE", host, connector })).rejects.toThrow(
-      "This code isn't valid anymore: a code works once, for one hour. Make a new one in MausBot and run the install command again.");
+      "This code isn't valid anymore: a code works once, for one hour. Make a new one in Hezuo and run the install command again.");
   });
 
   it("answers each job once: the same id again gets the same reply, and never a second run", async () => {
@@ -102,7 +102,7 @@ describe("the connector's connection to MausBot", () => {
     expect(backoffMs(20, 0.5)).toBe(60_000);
   });
 
-  it("slows right down when MausBot no longer knows its token, and says so", async () => {
+  it("slows right down when Hezuo no longer knows its token, and says so", async () => {
     const waits: number[] = [];
     const { admin, record, statuses, lines } = await connected({
       setTimer: (callback, ms) => {
@@ -114,7 +114,7 @@ describe("the connector's connection to MausBot", () => {
     admin.drop();
     await until(() => statuses.some((patch) => patch.unauthorized === true));
     expect(waits).toContain(5 * 60_000);
-    expect(lines).toContain("MausBot no longer knows this server; run the install command again with a new code to connect it");
+    expect(lines).toContain("Hezuo no longer knows this server; run the install command again with a new code to connect it");
     expect(CLOSE_UNAUTHORIZED).toBe(4401);
   });
 
@@ -126,8 +126,8 @@ describe("the connector's connection to MausBot", () => {
     for (const bad of ["http://cloud.openmausbot.com", "https://user:pw@cloud.openmausbot.com", "ftp://x", undefined]) expect(() => adminOrigin(bad)).toThrow();
   });
 
-  it("says plainly when MausBot cannot be reached at enrolment", async () => {
-    await expect(enroll({ admin: "http://127.0.0.1:9", code: "MB-1A2B-3C4D", host, connector })).rejects.toThrow(/^This server can't reach MausBot at http:\/\/127\.0\.0\.1:9 /);
-    await expect(enroll({ admin: "http://127.0.0.1:9", code: "MB 1A2B", host, connector })).rejects.toThrow("the code is the one-time code MausBot shows next to the install command");
+  it("says plainly when Hezuo cannot be reached at enrolment", async () => {
+    await expect(enroll({ admin: "http://127.0.0.1:9", code: "MB-1A2B-3C4D", host, connector })).rejects.toThrow(/^This server can't reach Hezuo at http:\/\/127\.0\.0\.1:9 /);
+    await expect(enroll({ admin: "http://127.0.0.1:9", code: "MB 1A2B", host, connector })).rejects.toThrow("the code is the one-time code Hezuo shows next to the install command");
   });
 });

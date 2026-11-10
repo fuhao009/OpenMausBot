@@ -40,7 +40,14 @@ describe("buildSrcdoc", () => {
   it("puts the theme style and the helper after the meta, before the content, only for bot HTML", () => {
     const bot = buildSrcdoc({ html: "<p>x</p>", csp: CSP, botHelper: true });
     expect(bot).toBe(`${head}<style>${APP_THEME_STYLE}</style><script>${APP_HELPER_SOURCE}</script><script>${APP_POINT_SOURCE}</script><p>x</p>`);
-    expect(buildSrcdoc({ html: "<p>x</p>", csp: CSP })).not.toContain("mausbot");
+    expect(buildSrcdoc({ html: "<p>x</p>", csp: CSP })).not.toContain("hezuo");
+  });
+
+  it("adapts only persisted bot HTML that uses the old SDK global", () => {
+    const html = "<script>mausbot.send('hello')</script>";
+    expect(buildSrcdoc({ html, csp: CSP, botHelper: true })).toContain('Object.defineProperty(window,"mausbot",{value:window.hezuo})');
+    expect(buildSrcdoc({ html, csp: CSP })).not.toContain('Object.defineProperty(window,"mausbot"');
+    expect(buildSrcdoc({ html: "<script>hezuo.send('hello')</script>", csp: CSP, botHelper: true })).not.toContain('Object.defineProperty(window,"mausbot"');
   });
 
   it("keeps the helper free of anything that would end its script element", () => {

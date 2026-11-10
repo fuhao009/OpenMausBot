@@ -44,8 +44,8 @@ describe("the card a bot asks for a key or secret with", () => {
     expect(cards.requestCredential(bot, "ledger-main", { credentialId: "xaiApiKey" }).status).toBe(201);
     expect(cards.requestCredential(bot, "ledger-main", { label: "Stripe-Testschlüssel", reason: "Für Testzahlungen.", delivery: "file" }).status).toBe(201);
     expect(lines.map((line) => line.text)).toEqual([
-      "Gib xAI API key sicher in OpenMausBot auf deinem Telefon oder Computer ein. Es wird nie in den Chat übernommen.",
-      "Gib Stripe-Testschlüssel sicher in OpenMausBot auf deinem Telefon oder Computer ein. Es wird nie in den Chat übernommen.",
+      "Gib xAI API key sicher in Hezuo auf deinem Telefon oder Computer ein. Es wird nie in den Chat übernommen.",
+      "Gib Stripe-Testschlüssel sicher in Hezuo auf deinem Telefon oder Computer ein. Es wird nie in den Chat übernommen.",
     ]);
     expect(lines[0]!.secret!.description).toBe("Used by the built-in Grok provider. Ledger kann es verwenden, aber nie auslesen.");
     expect(lines[1]!.secret!.description)
@@ -55,7 +55,7 @@ describe("the card a bot asks for a key or secret with", () => {
   it("asks in English where no language is known", () => {
     const { cards, lines, bot } = fixture();
     cards.requestCredential(bot, "ledger-main", { label: "Notion token", reason: "For Notion's MCP server.", delivery: "ref" });
-    expect(lines[0]!.text).toBe("Securely provide the Notion token from OpenMausBot on your phone or computer. It is never added to chat.");
-    expect(lines[0]!.secret!.description).toBe("For Notion's MCP server. Ledger gets a one-use reference for OpenMausBot's own tools and never sees it.");
+    expect(lines[0]!.text).toBe("Securely provide the Notion token from Hezuo on your phone or computer. It is never added to chat.");
+    expect(lines[0]!.secret!.description).toBe("For Notion's MCP server. Ledger gets a one-use reference for Hezuo's own tools and never sees it.");
   });
 });

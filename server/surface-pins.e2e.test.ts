@@ -11,6 +11,8 @@ import { writeFileAtomic } from "./atomic.ts";
 import { freePortBlock } from "./testing/ports.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
 import { decodeCuaConnection } from "./local-computer.ts";
+import { z } from "zod";
+import { createInterface } from "node:readline";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
@@ -29,12 +31,15 @@ describe("surface pin provenance against the real server", () => {
   let boatServer: Server;
   let boatApi = "";
   let boatDown = false;
+  const computerDevice = "surface-pin-fixture-device-00000001";
+  let computerPolicyFile = "";
+  let desktopOwner: string | undefined;
 
   const vmState = (state: Record<string, unknown> = {}) => writeFileAtomic(stateFile, JSON.stringify(state));
   const resetTurn = () => { vmState(); rmSync(dumpFile, { force: true }); rmSync(finishFile, { force: true }); };
   const api = async (method: string, path: string, body?: unknown) => {
     const response = await fetch(base + path, {
-      method, headers: { "content-type": "application/json" },
+      method, headers: { "content-type": "application/json", ...(desktopOwner ? { "x-hezuo-desktop-owner": desktopOwner } : {}) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     return { status: response.status, body: await response.json() as any };
@@ -76,7 +81,8 @@ describe("surface pin provenance against the real server", () => {
     writeFileSync(join(data, "bots.json"), JSON.stringify(bots, null, 2));
   };
 
-  async function start(withBrowser = false) {
+  async function start(withBrowser = false, withComputerPolicy = false) {
+    desktopOwner = withComputerPolicy ? "p".repeat(43) : undefined;
     const port = await freePortBlock([0, 1]);
     base = `http://127.0.0.1:${port}`;
     output = "";
@@ -89,6 +95,8 @@ describe("surface pin provenance against the real server", () => {
         TEMP: home, TMP: home, TMPDIR: home,
         OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(port + 1), OMB_STATIC_DIR: ui, OMB_TEST_VM_STATE: stateFile,
         OMB_BOAT_API: boatApi, OMB_USER_DATA: join(home, "user-data"), OMB_TEST_DESKTOP_CUA_CONNECTION: cuaDescriptor,
+        ...(withComputerPolicy ? { OMB_TEST_DESKTOP_OWNER_TOKEN: "p".repeat(43), OMB_TEST_COMPUTER_DEVICE: computerDevice,
+          OMB_TEST_COMPUTER_POLICY_FILE: computerPolicyFile } : {}),
         ...(withBrowser ? { OMB_AGENT_BROWSER_PATH: inertBrowser, AGENT_BROWSER_EXECUTABLE_PATH: inertBrowser } : {}),
       }, stdio: ["ignore", "pipe", "pipe"],
     });
@@ -121,6 +129,7 @@ describe("surface pin provenance against the real server", () => {
     dumpFile = join(home, "dump.json");
     finishFile = join(home, "finish");
     cuaDescriptor = join(home, "user-data", "cua-connection.json");
+    computerPolicyFile = join(home, "computer-policy.json");
     inertBrowser = join(home, "agent-browser");
     writeFileSync(inertBrowser, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
     vmState();
@@ -387,6 +396,103 @@ describe("surface pin provenance against the real server", () => {
     await apiOk("DELETE", `/api/bots/${bot.id}`);
     await stop();
   });
+
+  it.skipIf(process.platform === "linux")("enforces persistent computer policy through the real per-call gate across turns and restart", async () => {
+    mkdirSync(dirname(cuaDescriptor), { recursive: true });
+    writeFileSync(cuaDescriptor, JSON.stringify({ mode: "embedded", status: "ready", socketPath: join(home, "cua.sock"),
+      mcpCommand: "/fixture/cua-driver", mcpArgs: ["mcp"], mcpEnv: {} }), { mode: 0o600 });
+    const driverCalls = join(home, "policy-driver-calls.jsonl");
+    const fakeDriver = `
+      const fs = require("node:fs");
+      require("node:readline").createInterface({ input: process.stdin }).on("line", line => {
+        const message = JSON.parse(line);
+        if (message.id === undefined) return;
+        if (message.method === "tools/call") fs.appendFileSync(process.env.FIXTURE_CALLS, JSON.stringify(message.params) + "\\n");
+        process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "isolated driver performed call" }] } }) + "\\n");
+      });`;
+    const callCount = () => existsSync(driverCalls) ? readFileSync(driverCalls, "utf8").trim().split("\n").length : 0;
+    const proxyCall = async (raw: unknown) => {
+      const computer = z.object({ command: z.string(), args: z.array(z.string()), env: z.record(z.string(), z.string()) }).parse(raw);
+      // Keep the mounted real proxy and real gate capability; replace only the OS driver process boundary.
+      const proxy = spawn(computer.command, computer.args, { cwd: ROOT, env: { ...computer.env,
+        HOME: home, USERPROFILE: home, PATH: dirname(process.execPath), OMB_EXTRA_PATH: dirname(process.execPath),
+        OMB_CUA_COMMAND: process.execPath, OMB_CUA_ARGS: JSON.stringify(["-e", fakeDriver]), FIXTURE_CALLS: driverCalls,
+      }, stdio: ["pipe", "pipe", "pipe"] });
+      const lines = createInterface({ input: proxy.stdout! });
+      const result = (Promise as PromiseConstructor & { withResolvers<T>(): { promise: Promise<T>; resolve(value: T): void; reject(error: unknown): void } }).withResolvers<unknown>();
+      let diagnostics = "";
+      proxy.stderr!.on("data", chunk => { diagnostics += chunk; });
+      proxy.once("error", result.reject);
+      proxy.once("exit", () => result.reject(new Error(`Proxy exited before reply: ${diagnostics}`)));
+      lines.on("line", line => {
+        const reply = z.object({ id: z.number().optional(), result: z.unknown().optional() }).parse(JSON.parse(line));
+        if (reply.id === 1) result.resolve(reply.result);
+      });
+      // Real child processes cannot share Vitest's fake clock; this is only a failure watchdog, never a synchronization sleep.
+      const timer = setTimeout(() => result.reject(new Error(`Proxy call timed out: ${diagnostics}`)), 55_000);
+      proxy.stdin!.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "screenshot", arguments: {} } }) + "\n");
+      try { return await result.promise; }
+      finally { clearTimeout(timer); lines.close(); await waitForExit(proxy, { signal: "SIGTERM" }); }
+    };
+    const setPolicy = async (policy: "ask" | "allow" | "deny") => {
+      writeFileAtomic(computerPolicyFile, JSON.stringify({ policy, nonce: randomUUID() }));
+      await until(async () => (await apiOk("GET", "/api/config")).computerUsePolicy, value => value === policy);
+    };
+    await start(false, true);
+    const { bot } = await apiOk("POST", "/api/bots", { name: "Persistent host consent" });
+    const { task } = await apiOk("POST", `/api/bots/${bot.id}/tasks`, {});
+    const cardRows = z.object({ messages: z.array(z.object({ card: z.object({ yourComputer: z.unknown().optional(), answered: z.string().optional() }).passthrough().optional() }).passthrough()) });
+    const cards = async () => cardRows.parse(await apiOk("GET", `/api/threads/${task.threadId}/messages?limit=100`)).messages
+      .flatMap(message => message.card?.yourComputer ? [message.card] : []);
+    const begin = async () => {
+      resetTurn();
+      vmState({ noContainers: true, imageMissing: true });
+      await apiOk("POST", `/api/bots/${bot.id}/messages`, { text: "Use the available computer.", threadId: task.threadId });
+      const computer = mountedComputer(await dump());
+      expect(computer.env.OMB_CUA_COMMAND).toBe("/fixture/cua-driver");
+      return computer;
+    };
+    try {
+      await setPolicy("allow");
+      for (let turn = 0; turn < 2; turn++) {
+        const computer = await begin();
+        expect(await proxyCall(computer)).toMatchObject({ content: [{ text: "isolated driver performed call" }] });
+        expect(await proxyCall(computer)).toMatchObject({ content: [{ text: "isolated driver performed call" }] });
+        expect(callCount()).toBe((turn + 1) * 2);
+        expect(await cards()).toHaveLength(0);
+        writeFileSync(finishFile, "finish");
+        await idle(bot.id, task.threadId);
+      }
+      await stop();
+      await start(false, true);
+      expect((await apiOk("GET", "/api/config")).computerUsePolicy).toBe("allow");
+      const computer = await begin();
+      expect(await proxyCall(computer)).toMatchObject({ content: [{ text: "isolated driver performed call" }] });
+      expect(callCount()).toBe(5);
+      await setPolicy("ask");
+      const pending = proxyCall(computer);
+      await until(cards, rows => rows.some(card => !card.answered));
+      await setPolicy("deny");
+      expect(await pending).toMatchObject({ isError: true });
+      expect(await proxyCall(computer)).toMatchObject({ isError: true, content: [{ text: expect.stringContaining("Never allow") }] });
+      expect(callCount()).toBe(5);
+      expect((await cards()).every(card => card.answered === "deny")).toBe(true);
+      writeFileSync(finishFile, "finish");
+      await idle(bot.id, task.threadId);
+      await apiOk("PATCH", `/api/bots/${bot.id}/tasks/${task.threadId}`, { surface: "local" });
+      expect(await proxyCall(await begin())).toMatchObject({ isError: true, content: [{ text: expect.stringContaining("Never allow") }] });
+      expect(callCount()).toBe(5);
+      writeFileSync(finishFile, "finish");
+      await idle(bot.id, task.threadId);
+      await setPolicy("ask");
+      await apiOk("DELETE", `/api/bots/${bot.id}`);
+    } finally {
+      await stop();
+      rmSync(cuaDescriptor, { force: true });
+      rmSync(computerPolicyFile, { force: true });
+      rmSync(driverCalls, { force: true });
+    }
+  }, 90_000);
 
   it("clears a select_computer pin to a cloud computer that fails, and keeps a person's pin", async () => {
     await start();

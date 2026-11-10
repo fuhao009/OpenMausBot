@@ -3,7 +3,7 @@ import type { ProductLedgerEntry } from "../../shared/product-account";
 import { formatPointsMicros, productAccountNotice, productLedgerLine } from "./use-product-account";
 
 const entry = (over: Partial<ProductLedgerEntry> = {}): ProductLedgerEntry => ({
-  id: "req_1", kind: "request", createdAt: Date.UTC(2026, 10, 4, 9, 30), model: "maus-1",
+  id: "req_1", kind: "request", createdAt: Date.UTC(2026, 10, 4, 9, 30), model: "hezuo-1",
   state: "settled", chargedMicroPoints: 2100, inputTokens: 1000, cachedInputTokens: 200, outputTokens: 100, ...over,
 });
 
@@ -12,7 +12,7 @@ const ai = {
   unit: "points" as const,
   availableMicroPoints: 3_000_000,
   reservedMicroPoints: 2_400,
-  defaultModel: "maus-1",
+  defaultModel: "hezuo-1",
   models: [],
 };
 

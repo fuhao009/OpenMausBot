@@ -47,6 +47,7 @@ function main() {
   const client = { reopen: (...args) => { calls.push(args); return { status: "connecting" }; } };
   localOrigin.setLocalOrigin(ORIGIN);
   const context = vm.createContext({
+    productService: null,
     ipcMain: { handle: (channel, handler) => handlers.set(channel, handler), on: (channel, handler) => handlers.set(channel, handler) },
     localOnly: localOrigin.localOnly, workspaceSenderAllowed: environments.workspaceSenderAllowed,
     mainWindow: { webContents: contents }, rendererOrigin: () => ORIGIN, environmentsState: { environments: [], activeId: "local" },

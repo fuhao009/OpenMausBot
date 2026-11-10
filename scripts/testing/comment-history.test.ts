@@ -1,7 +1,7 @@
 // Comments do not record history git already holds: no pull request or issue
 // numbers of this repo. An upstream issue keeps its owner/repo or its URL.
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const ROOT = new URL("../../", import.meta.url);
@@ -9,7 +9,7 @@ const OUR_REF = /(?<![\w./-])(?:(?:PR|issue|pull request)\s+)?#\d{3,5}\b/i;
 
 function sourceFiles(): string[] {
   const out = execFileSync("git", ["ls-files", "server", "shared", "src", "scripts", "evals", "electron", "companion", "cloudflare"], { cwd: ROOT, encoding: "utf8" });
-  return out.split("\n").filter((file) => /\.(ts|tsx|mts|mjs|cjs|js)$/.test(file) && !file.startsWith("electron/vendor/") && !file.endsWith(".d.ts"));
+  return out.split("\n").filter((file) => /\.(ts|tsx|mts|mjs|cjs|js)$/.test(file) && !file.startsWith("electron/vendor/") && !file.endsWith(".d.ts") && existsSync(new URL(file, ROOT)));
 }
 
 function commentLines(text: string): Array<[number, string]> {

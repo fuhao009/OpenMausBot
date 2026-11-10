@@ -38,8 +38,8 @@ const BASE_CONFIG = path.join(root, "electron-builder.yml");
 const SCRATCH = path.join(root, ".omb-scratch", "product-release");
 const RELEASE_DIR = path.join(root, "release", "product");
 const PLATFORM_NAMES = { mac: "mac", win: "win", linux: "linux" };
-const PRODUCT_DESKTOP_NAME = "com.openmausbot.product.desktop";
-const PRODUCT_INSTALL_ROOT = "/opt/OpenMausBot Product";
+const PRODUCT_DESKTOP_NAME = "com.hezuo.product.desktop";
+const PRODUCT_INSTALL_ROOT = "/opt/Hezuo Product";
 
 const USAGE = `usage: OMB_PRODUCT_SERVICE_URL=https://… node scripts/package-product.mjs [options]
 
@@ -161,11 +161,11 @@ async function linuxProductResources(scratch) {
   // the root inside its own replacement. Shield it first, then rename the
   // product's own executable, launcher, profile, and desktop identity.
   const pairs = [
-    ["/opt/OpenMausBot", ROOT_SENTINEL],
-    [`${ROOT_SENTINEL}/openmausbot`, `${ROOT_SENTINEL}/openmausbot-product`],
-    ["update-alternatives --remove openmausbot ", "update-alternatives --remove openmausbot-product "],
-    ["/usr/bin/openmausbot", "/usr/bin/openmausbot-product"],
-    ["openmausbot-browser", "openmausbot-product-browser"],
+    ["/opt/Hezuo", ROOT_SENTINEL],
+    [`${ROOT_SENTINEL}/hezuo`, `${ROOT_SENTINEL}/hezuo-product`],
+    ["update-alternatives --remove hezuo ", "update-alternatives --remove hezuo-product "],
+    ["/usr/bin/hezuo", "/usr/bin/hezuo-product"],
+    ["hezuo-browser", "hezuo-product-browser"],
     [ROOT_SENTINEL, PRODUCT_INSTALL_ROOT],
   ];
   const afterInstall = substitute(await readFile(path.join(root, "build", "linux-after-install.sh"), "utf8"), pairs)
@@ -177,23 +177,23 @@ async function linuxProductResources(scratch) {
   const afterRemove = substitute(await readFile(path.join(root, "build", "linux-after-remove.sh"), "utf8"), pairs)
     // Both places pass the installed executable as a bare word; the product
     // install root contains a space, so each must be quoted.
-    .split(`${PRODUCT_INSTALL_ROOT}/openmausbot-product`).join(`"${PRODUCT_INSTALL_ROOT}/openmausbot-product"`);
-  if (!afterRemove.includes(`"${PRODUCT_INSTALL_ROOT}/openmausbot-product"`)) {
+    .split(`${PRODUCT_INSTALL_ROOT}/hezuo-product`).join(`"${PRODUCT_INSTALL_ROOT}/hezuo-product"`);
+  if (!afterRemove.includes(`"${PRODUCT_INSTALL_ROOT}/hezuo-product"`)) {
     throw new Error("build/linux-after-remove.sh no longer names the installed executable in the form this wrapper must rewrite");
   }
-  const profileSource = await readFile(path.join(root, "build", "linux-openmausbot-browser.apparmor"), "utf8");
+  const profileSource = await readFile(path.join(root, "build", "linux-hezuo-browser.apparmor"), "utf8");
   // The policy line must name the product's executable with the install root
   // quoted: AppArmor takes an unquoted path up to the first space.
   const profile = profileSource.replace(
-    /^profile\s+openmausbot-browser\s+\S+\s+flags=/m,
-    `profile openmausbot-product-browser "${PRODUCT_INSTALL_ROOT}/resources/browser-engine/chrome/chrome-headless-shell-linux64/chrome-headless-shell" flags=`,
+    /^profile\s+hezuo-browser\s+\S+\s+flags=/m,
+    `profile hezuo-product-browser "${PRODUCT_INSTALL_ROOT}/resources/browser-engine/chrome/chrome-headless-shell-linux64/chrome-headless-shell" flags=`,
   );
-  if (!profile.includes(`profile openmausbot-product-browser "${PRODUCT_INSTALL_ROOT}/`)) {
-    throw new Error("build/linux-openmausbot-browser.apparmor no longer has the browser policy line this wrapper must rewrite");
+  if (!profile.includes(`profile hezuo-product-browser "${PRODUCT_INSTALL_ROOT}/`)) {
+    throw new Error("build/linux-hezuo-browser.apparmor no longer has the browser policy line this wrapper must rewrite");
   }
   const afterInstallPath = path.join(scratch, "linux-after-install.sh");
   const afterRemovePath = path.join(scratch, "linux-after-remove.sh");
-  const profilePath = path.join(scratch, "openmausbot-product-browser.apparmor");
+  const profilePath = path.join(scratch, "hezuo-product-browser.apparmor");
   await writeFile(afterInstallPath, afterInstall, { mode: 0o755 });
   await writeFile(afterRemovePath, afterRemove, { mode: 0o755 });
   await writeFile(profilePath, profile, { mode: 0o644 });
@@ -211,7 +211,7 @@ export async function productBuildConfig({ scratch, platform, unsigned }) {
   config.appId = PRODUCT_APP_ID;
   config.productName = PRODUCT_NAME;
   config.artifactName = `${PRODUCT_ARTIFACT_PREFIX}-\${version}-\${arch}.\${ext}`;
-  config.protocols = [{ name: "OpenMausBot Product package install", schemes: [PRODUCT_PROTOCOL] }];
+  config.protocols = [{ name: "Hezuo Product package install", schemes: [PRODUCT_PROTOCOL] }];
   // A product build publishes nowhere and bakes no update feed.
   // `--publish never` alone is not enough: with an empty list, or none at all,
   // electron-builder falls back to the `repository` field and writes a GitHub
@@ -246,7 +246,7 @@ export async function productBuildConfig({ scratch, platform, unsigned }) {
     artifactName: `${PRODUCT_ARTIFACT_PREFIX}-\${version}-\${arch}-setup.\${ext}`,
   };
   const linux = { ...base.linux, publish: null };
-  linux.executableName = "openmausbot-product";
+  linux.executableName = "hezuo-product";
   linux.desktop = {
     ...linux.desktop,
     entry: { ...linux.desktop?.entry, Name: PRODUCT_NAME },
@@ -255,7 +255,7 @@ export async function productBuildConfig({ scratch, platform, unsigned }) {
   const deb = {
     ...base.deb,
     publish: null,
-    packageName: "openmausbot-product",
+    packageName: "hezuo-product",
     // Fpm targets default to `${name}-${version}-${arch}.${ext}` with the
     // package name; keep the product's artifact naming there too.
     artifactName: `${PRODUCT_ARTIFACT_PREFIX}-\${version}-\${arch}.\${ext}`,
@@ -263,8 +263,8 @@ export async function productBuildConfig({ scratch, platform, unsigned }) {
 
   if (platform === "linux") {
     const productLinux = await linuxProductResources(scratch);
-    const profileTarget = "openmausbot-product-browser.apparmor";
-    const profileIndex = linuxResources.findIndex((entry) => entry && typeof entry === "object" && entry.to === "openmausbot-browser.apparmor");
+    const profileTarget = "hezuo-product-browser.apparmor";
+    const profileIndex = linuxResources.findIndex((entry) => entry && typeof entry === "object" && entry.to === "hezuo-browser.apparmor");
     if (profileIndex < 0) throw new Error("electron-builder.yml no longer ships the browser AppArmor profile this wrapper must replace");
     // The generated hook installs the profile under the product's own name,
     // so the bundled resource must carry that exact filename too.
@@ -396,11 +396,11 @@ export async function packageProduct(options, environment = process.env) {
     if (options.arch) {
       // package:prepare stages both CUA trees for both macOS arches unless
       // told exactly which one this build packages.
-      env.OPENMAUSBOT_CUA_ARCHES = options.arch;
-      env.OPENMAUSBOT_CUA_ARCHES_PARTIAL = "1";
+      env.HEZUO_CUA_ARCHES = options.arch;
+      env.HEZUO_CUA_ARCHES_PARTIAL = "1";
     } else {
-      delete env.OPENMAUSBOT_CUA_ARCHES;
-      delete env.OPENMAUSBOT_CUA_ARCHES_PARTIAL;
+      delete env.HEZUO_CUA_ARCHES;
+      delete env.HEZUO_CUA_ARCHES_PARTIAL;
     }
   }
   for (const script of steps) run(pnpmCommand(), [script], { env });

@@ -67,7 +67,7 @@ describe("full backup Settings in the real renderer", () => {
         if (path.endsWith('/upload')) return reply({ id: 'uploaded-file' });
         if (path.endsWith('/preview')) {
           if (body.password !== 'fixture password 123') return reply({ error: 'Fixture password rejected' }, 400);
-          return reply({ id: 'validated-stage', summary: { format: 'openmaus.workspace-backup', version: 1, id: 'archive-id', createdAt: '2026-09-11T00:00:00Z', appVersion: '0.1.71', files: 12, directories: 4, bytes: 4321, bots: 3, groups: 2, threads: 7, messages: 21, warnings: ['Fixture warning: routines will be paused'], exclusions: ['Saved account credentials and connections', 'External CLI sign-ins', 'Remote VM disks'] } });
+          return reply({ id: 'validated-stage', summary: { format: 'hezuo.workspace-backup', version: 1, id: 'archive-id', createdAt: '2026-09-11T00:00:00Z', appVersion: '0.1.71', files: 12, directories: 4, bytes: 4321, bots: 3, groups: 2, threads: 7, messages: 21, warnings: ['Fixture warning: routines will be paused'], exclusions: ['Saved account credentials and connections', 'External CLI sign-ins', 'Remote VM disks'] } });
         }
         if (path.endsWith('/restore')) { fixture.pending = true; return reply({ restartRequired: true, restoreId: 'validated-stage' }); }
         return reply({ error: 'Unexpected fixture route' }, 404);
@@ -124,7 +124,7 @@ describe("full backup Settings in the real renderer", () => {
     const evidence = join(ROOT, ".omb-scratch", "verify-evidence", "workspace-backup-preview.png");
     await ui("screenshot", "--out", evidence);
     await click("Replace installation");
-    await expect.poll(snapshot, { timeout: 10_000 }).toContain("Fully quit OpenMausBot");
+    await expect.poll(snapshot, { timeout: 10_000 }).toContain("Fully quit Hezuo");
     expect(await evaluate("window.backupFixture.calls.find(call => call.path.endsWith('/restore')).body")).toEqual({ id: "validated-stage", confirmation: "REPLACE" });
     expect(await evaluate("window.backupFixture.calls.find(call => call.path.endsWith('/upload')).rawFile")).toBe(true);
     expect(await evaluate("localStorage.getItem('omb-pending-workspace-restore')")).toBe("validated-stage");

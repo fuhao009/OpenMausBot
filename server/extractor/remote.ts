@@ -114,7 +114,7 @@ export function extractorHelperPrompt(request: Pick<ExtractBackendRequest, "fiel
 export async function extractWithOpenRouter(request: ExtractBackendRequest): Promise<ExtractBackendResult> {
   const url = openrouterEndpoint(request.baseUrl);
   if (!url) return { ok: false, reason: "misconfigured" };
-  const answered = await post(request, url, { "x-openrouter-title": "OpenMausBot" }, openrouterExtractBody(request));
+  const answered = await post(request, url, { "x-openrouter-title": "Hezuo" }, openrouterExtractBody(request));
   if (!answered.ok || !("body" in answered)) return answered as ExtractBackendResult;
   const body = answered.body;
   try {

@@ -6,7 +6,7 @@ import test from "node:test";
 import { installProductAccountIpc } from "./product-account-ipc.mjs";
 import { createProductAccountWindow } from "./product-account-window.mjs";
 
-const ACCOUNT_URL = "file:///Applications/OpenMausBot.app/Contents/Resources/ui/product-account.html";
+const ACCOUNT_URL = "file:///Applications/Hezuo.app/Contents/Resources/ui/product-account.html";
 const WORKSPACE_A = "http://127.0.0.1:8801/";
 const WORKSPACE_B = "http://127.0.0.1:8802/";
 

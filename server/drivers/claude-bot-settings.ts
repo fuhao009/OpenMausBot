@@ -45,9 +45,9 @@ function readBotSettings(file: string, cwd: string): unknown {
 }
 
 /** What a turn takes from the bot's settings file: its hooks, plugins, permission rules and env. They ride in
- * OpenMausBot's own --settings file (Claude Code takes one), and Claude Code 2.1.312 drops a whole settings file when a
+ * Hezuo's own --settings file (Claude Code takes one), and Claude Code 2.1.312 drops a whole settings file when a
  * field it knows has the wrong type, so only these, each checked, come along. An env name the turn's process already
- * has keeps OpenMausBot's value. */
+ * has keeps Hezuo's value. */
 export function botSettingsFor(file: string | undefined, cwd: string, processEnv: Record<string, string | undefined>): Settings {
   const parsed = file ? readBotSettings(file, cwd) : null;
   if (!isObject(parsed)) return {};

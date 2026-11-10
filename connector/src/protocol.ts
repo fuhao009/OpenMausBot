@@ -1,4 +1,4 @@
-// MausBot connector protocol v1: what the connector on an own server and the MausBot Cloud Admin say to each other.
+// Hezuo connector protocol v1: what the connector on an own server and the Hezuo Cloud Admin say to each other.
 // The Admin side copies this file as it is: it imports nothing.
 //
 // The connector only ever calls out. It enrols once over HTTPS with a one-time code, then holds one WebSocket to the
@@ -60,7 +60,7 @@ export type CheckId = "arch" | "docker" | "rootless" | "apparmor" | "profiles" |
 export interface HostCheck {
   id: CheckId;
   ok: boolean;
-  /** A warning still lets MausBot run. */
+  /** A warning still lets Hezuo run. */
   warning?: boolean;
   fix?: string;
 }
@@ -331,5 +331,5 @@ export function checkEnrollResponse(value: unknown): Checked<EnrollResponse> {
 export function checkEnrollCode(value: unknown): Checked<string> {
   return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9-]{5,127}$/.test(value)
     ? { ok: true, value }
-    : { ok: false, message: "the code is the one-time code MausBot shows next to the install command" };
+    : { ok: false, message: "the code is the one-time code Hezuo shows next to the install command" };
 }

@@ -173,7 +173,7 @@ comes back at login, install it as a LaunchAgent:
 
 ```sh
 node scripts/local-gateway.mjs service install \
-  --config "$HOME/Library/Application Support/OpenMausBotGateway/gateway.json"
+  --config "$HOME/Library/ApplicationSupport/HezuoGateway/gateway.json"
 node scripts/local-gateway.mjs service status  --config <same file>
 node scripts/local-gateway.mjs service uninstall --config <same file>
 ```
@@ -312,6 +312,13 @@ trustGatewayCertificate(gateway.certificate);
 await gateway.close(); // idempotent; returns after Miniflare shut down
 ```
 
+The local gateway runs the Worker's scheduled maintenance before reporting
+readiness, then once per minute without overlapping runs. Failed periodic
+runs are logged and retried on the next interval; shutdown clears the timer
+and waits for an active run. Stale AI reservations move to review and stop
+occupying active-request slots. Their reserved points remain held for usage
+reconciliation; maintenance does not refund unknown usage.
+
 `status` reports `running`, `healthy`, the origin, capabilities and migration
 counts — never a secret. Programmatic callers reach the gateway with
 `trustGatewayCertificate()` (or an `https.request` carrying the CA); the
@@ -319,3 +326,52 @@ desktop app verifies it through the certificate bundled at package time (or,
 for an app built without `--gateway-ca`, through the OS trust store), as
 described above. `stop` signals only a process whose recorded config
 path and command line match, so a reused PID cannot kill an unrelated process.
+
+## Offline gateway identity cutover
+
+The `identity-migrate` command moves an existing stopped installation to a
+`HezuoGateway` directory. It does not install, stop or start a service. D1 retains
+its historical persistence identity internally: do not replace that identity or
+export/import only selected tables. The entire state tree (including SQLite WAL
+files), credentials, authentication secret and TLS material moves together.
+The origin remains `https://127.0.0.1:18487` for the standard installation.
+
+1. Quit all desktop clients and stop manual gateway processes. Disable external
+   supervisors. Using the **old checkout**, run `service uninstall --config`
+   with the actual old config path. This boots out its old LaunchAgent and
+   removes the installed plist. Do not merely kill its PID: launchd may restart
+   it. Retire any already-installed new gateway service as well. Keep both
+   checkouts stopped throughout the move.
+2. Make an offline, private backup of the complete data directory. Identify the
+   actual configured directory rather than assuming a documented example path.
+   Keep the backup offline; never run old and new copies concurrently. The
+   config must be inside the data directory. The destination must not exist and
+   must be on the same filesystem; no merging or cross-volume copy is attempted.
+3. From the new checkout run (substitute your actual source config):
+
+   ```sh
+   node scripts/local-gateway.mjs identity-migrate \
+     --config "/actual/old/data/gateway.json" \
+     --data-dir "$HOME/Library/Application Support/HezuoGateway"
+   ```
+
+   This refuses loaded/installed services, a live recorded PID, or an occupied
+   listening port. It preserves config values, rewriting only owned absolute
+   file paths below the moved directory. External files remain external. It
+   never calls `init`, generates certificates, rotates secrets, or prints their
+   contents. Unexpected service-query failures stop the operation. Keep other
+   writers disabled: these checks are not a lock against an operator starting
+   an old checkout during migration.
+4. Run `service install --config` with the returned config path and a suitable
+   `--node` when needed. This regenerates all launch paths under the new label
+   `com.hezuo.gateway`; stale staged plists inside the moved tree are inert and
+   must not be installed manually. Check `status`, sign in with an existing
+   account, and confirm history, balance and credentials before deleting your
+   backup. Do not change the origin or regenerate the trusted certificate.
+
+If installation fails, leave both services stopped and retain the moved tree.
+Correct the installation and retry; do not initialize a blank database. For
+rollback, uninstall the new service first and restore the complete offline
+backup and old checkout together before reinstalling the old service. Never
+restore only the config or run the backup as a second gateway.
+

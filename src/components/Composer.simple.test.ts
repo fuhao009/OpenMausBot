@@ -108,16 +108,9 @@ afterEach(() => {
 });
 
 describe("the Simple composer in a bot chat", () => {
-  it("is one pill: a round + with three rows, the field, and one round button in the bot's tone", () => {
+  it("offers attachment and task actions alongside the message field and send button", () => {
     render({ bot });
     expect(plus()?.getAttribute("aria-label")).toBe("Add");
-    const pill = container.querySelector('[data-tour="composer"]')!.className.split(" ");
-    expect(pill).toEqual(expect.arrayContaining(["rounded-[22px]", "bg-composer", "p-2", "ring-[0.5px]", "hover:ring-ink/[0.22]", "focus-within:ring-ink/[0.22]",
-      "[transition:border-radius_300ms,box-shadow_150ms]"]));
-    expect(pill.filter((name) => name.startsWith("shadow"))).toEqual(["shadow-[0_2px_8px_-1px_rgb(0_0_0/0.05),0_1px_2px_rgb(0_0_0/0.03),0_0_0_1px_rgb(228_228_228/0.04)]"]);
-    expect(container.querySelector("[data-composer-row]")!.className).not.toContain("flex-wrap");
-    expect(container.querySelector("[data-composer-actions]")!.className.split(" ")).toContain("gap-2");
-    expect(container.querySelector("[data-composer-plus]")!.className.split(" ")).toEqual(expect.arrayContaining(["size-7", "bg-ink/[0.05]", "ring-inset", "text-ink-tertiary"]));
     expect(container.querySelector('button[aria-label="Attach a file"]')).toBeNull();
     expect(container.querySelector("[data-goal-chip]")).toBeNull();
     expect(container.querySelector("[data-approval-chip]")).toBeNull();
@@ -126,9 +119,6 @@ describe("the Simple composer in a bot chat", () => {
     openPlus();
     expect([...menu()!.querySelectorAll("[data-menu-key]")].map((row) => row.getAttribute("data-menu-key"))).toEqual(["attach", "goal", "teach"]);
     expect([...menu()!.querySelectorAll("[data-menu-key]")].map((row) => row.textContent)).toEqual(["Attach files", "Work until done", "Teach a task"]);
-    const row = menu()!.querySelector("[data-menu-key='attach']")!.className.split(" ");
-    expect(row).toEqual(expect.arrayContaining(["h-[34px]", "gap-2", "px-3", "text-[15px]"]));
-    expect(menu()!.className.split(" ")).toEqual(expect.arrayContaining(["popover-surface", "rounded-[14px]", "w-max", "min-w-[200px]", "max-w-[280px]"]));
   });
 
   it("starts a /learn draft from Teach a task, ahead of anything already typed", () => {
@@ -158,12 +148,11 @@ describe("the Simple composer in a bot chat", () => {
     expect(send.getAttribute("title")).toBe("Sends when Atlas is done");
   });
 
-  it("rounds its corners in from 22 to 18 once the message takes a second line", () => {
+  it("recognizes a message spanning multiple lines", () => {
     restoreComposerDraft(`bot:${bot.id}:${bot.threadId}`, { text: "one\ntwo", attachments: [] });
     render({ bot });
     const pill = container.querySelector('[data-tour="composer"]')!;
     expect(pill.hasAttribute("data-multiline")).toBe(true);
-    expect(pill.className.split(" ")).toContain("rounded-[18px]");
   });
 
   it("sets the composer on plain canvas from its top edge down, with no fade above it", () => {

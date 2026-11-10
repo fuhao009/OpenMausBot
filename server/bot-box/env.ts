@@ -2,7 +2,7 @@
 // the workspace credentials and every OMB_CLOUD_ setting before a spawn (server/config.ts stripWorkspaceCredentialEnv);
 // this is the second gate, applied at the box boundary, so a name a driver forgot never reaches a bot's shell.
 
-/** Names a bot's engine, its tools and the proxies OpenMausBot starts inside the box may read. */
+/** Names a bot's engine, its tools and the proxies Hezuo starts inside the box may read. */
 export const BOX_ENV_NAMES: ReadonlySet<string> = new Set([
   "PATH", "HOME", "USER", "LOGNAME", "SHELL", "HOSTNAME", "PWD",
   "LANG", "LANGUAGE", "TZ", "TERM", "COLORTERM", "TMPDIR", "NO_COLOR", "FORCE_COLOR", "CI", "DEBUG",
@@ -15,7 +15,7 @@ export const BOX_ENV_NAMES: ReadonlySet<string> = new Set([
 
 /** Prefixes of the engines' own settings and keys (T0b replaces the keys with per-turn broker tokens). */
 export const BOX_ENV_PREFIXES: readonly string[] = [
-  "LC_", "OMB_", "OPENMAUSBOT_", "NPM_CONFIG_", "npm_config_",
+  "LC_", "OMB_", "HEZUO_", "NPM_CONFIG_", "npm_config_",
   "ANTHROPIC_", "CLAUDE_", "CODEX_", "OPENAI_", "OPENCODE_", "OPENROUTER_", "GEMINI_", "GOOGLE_", "GROK_", "XAI_",
   "MISTRAL_", "CEREBRAS_", "GROQ_", "GREENFERENCE_", "META_", "MINIMAX_", "KIMI_", "MOONSHOT_", "CURSOR_", "FACTORY_", "CLINE_", "HERMES_",
   "MUSE_", "PI_", "DWEB_", "UNSLOTH_", "FAKE_CLAUDE_", "MCP_", "ANTIGRAVITY_", "AGY_",
@@ -30,7 +30,7 @@ export const BOX_ENV_NEVER_PREFIXES: readonly string[] = ["OMB_CLOUD_"];
 
 /** `allow` is what one spawn vouches for: the keys the person saved for its engine, under whatever name that engine reads
  * (NANO_GPT_API_KEY, OPENCODE_API_KEY). Security: it lifts the allow-list and `deny` for that process only, and never for
- * a name of OpenMausBot's own (`OMB_`) or one on the never-list. */
+ * a name of Hezuo's own (`OMB_`) or one on the never-list. */
 export function boxEnvironmentAllows(name: string, deny: ReadonlySet<string> = new Set(), allow: ReadonlySet<string> = new Set()): boolean {
   if (BOX_ENV_NEVER.has(name) || BOX_ENV_NEVER_PREFIXES.some((prefix) => name.startsWith(prefix))) return false;
   if (allow.has(name) && !name.startsWith("OMB_")) return true;

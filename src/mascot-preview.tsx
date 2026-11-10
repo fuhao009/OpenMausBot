@@ -2,25 +2,25 @@ import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   EYE_SCALE,
-  MausAvatar,
+  HezuoAvatar,
   MOUTH_WEIGHT,
-  type MausAvatarHandle,
+  type HezuoAvatarHandle,
 } from "@/components/Avatar";
 import {
-  MAUS_COLOR_NAMES,
-  MAUS_COLORS,
-  MAUS_MOTIONS,
+  HEZUO_COLOR_NAMES,
+  HEZUO_COLORS,
+  HEZUO_MOTIONS,
   PICKABLE_STATES,
   STATE_GROUPS,
-  type MausColor,
-  type MausMotion,
-  type MausState,
+  type HezuoColor,
+  type HezuoMotion,
+  type HezuoState,
 } from "@/lib/mascot";
 import { EXPRESSION_COUNT } from "@/components/CursorAvatar";
 import "./styles.css";
 import "./mascot-preview.css";
 
-interface ScenarioLabels extends Partial<Record<MausState, string>> {}
+interface ScenarioLabels extends Partial<Record<HezuoState, string>> {}
 
 const SCENARIOS: ScenarioLabels = {
   idle: "General / admin",
@@ -48,9 +48,9 @@ const MOTION_SCENARIOS = {
   blink: "New reply",
   surprise: "Unread update",
   failure: "Action failed",
-} satisfies Record<Exclude<MausMotion, "none">, string>;
+} satisfies Record<Exclude<HezuoMotion, "none">, string>;
 
-const MOTION_COLORS: MausColor[] = [
+const MOTION_COLORS: HezuoColor[] = [
   "green", "blue", "purple", "red", "cyan", "orange",
   "teal", "green", "pink", "yellow", "coral", "red",
 ];
@@ -96,16 +96,16 @@ function Tuner({
 }: {
   tuning: Tuning;
   setTuning: (t: Tuning) => void;
-  state: MausState;
-  setState: (s: MausState) => void;
+  state: HezuoState;
+  setState: (s: HezuoState) => void;
   expression: number | undefined;
   setExpression: (e: number | undefined) => void;
-  color: MausColor;
-  setColor: (c: MausColor) => void;
+  color: HezuoColor;
+  setColor: (c: HezuoColor) => void;
   forward: boolean;
   setForward: (v: boolean) => void;
 }) {
-  const handle = useRef<MausAvatarHandle>(null);
+  const handle = useRef<HezuoAvatarHandle>(null);
   const changed = (Object.keys(DEFAULTS) as (keyof Tuning)[]).filter(
     (k) => tuning[k] !== DEFAULTS[k],
   );
@@ -113,13 +113,13 @@ function Tuner({
   return (
     <section className="tuner">
       <div className="tuner-stage">
-        <MausAvatar
+        <HezuoAvatar
           ref={handle}
           color={color}
           state={state}
           expression={expression}
           size={300}
-          label={`${state} maus`}
+          label={`${state} hezuo`}
           eyeScale={tuning.eyeScale}
           mouthStroke={tuning.mouthStroke}
           spring={tuning.spring}
@@ -177,14 +177,14 @@ function Tuner({
 
           <h3>Colour</h3>
           <div className="chips">
-            {MAUS_COLOR_NAMES.map((c) => (
+            {HEZUO_COLOR_NAMES.map((c) => (
               <button
                 key={c}
                 type="button"
                 className={c === color ? "on" : ""}
                 onClick={() => setColor(c)}
               >
-                <span className="swatch" style={{ background: MAUS_COLORS[c] }} />
+                <span className="swatch" style={{ background: HEZUO_COLORS[c] }} />
                 {c}
               </button>
             ))}
@@ -243,17 +243,17 @@ function MotionCard({
   replayAll,
   color,
 }: {
-  motion: Exclude<MausMotion, "none">;
+  motion: Exclude<HezuoMotion, "none">;
   index: number;
   replayAll: number;
-  color: MausColor;
+  color: HezuoColor;
 }) {
   const [replayOne, setReplayOne] = useState(0);
 
   return (
     <article className="motion-card">
       <div className="motion-stage">
-        <MausAvatar
+        <HezuoAvatar
           color={color ?? MOTION_COLORS[index]}
           state="idle"
           size={172}
@@ -279,9 +279,9 @@ function MotionCard({
 function Preview() {
   const [replayAll, setReplayAll] = useState(0);
   const [tuning, setTuning] = useState<Tuning>(DEFAULTS);
-  const [state, setState] = useState<MausState>("idle");
+  const [state, setState] = useState<HezuoState>("idle");
   const [expression, setExpression] = useState<number | undefined>(undefined);
-  const [color, setColor] = useState<MausColor>("green");
+  const [color, setColor] = useState<HezuoColor>("green");
   const [forward, setForward] = useState(true);
 
   useEffect(() => {
@@ -294,7 +294,7 @@ function Preview() {
       <header className="preview-header">
         <div>
           <p className="eyebrow">Morphing face engine · 25 expressions · 39 states</p>
-          <h1>Maus motion library</h1>
+          <h1>Hezuo motion library</h1>
           <p className="intro">
             The app&rsquo;s lit body with the face engine behind it. Expressions morph on a
             spring, blink on each state&rsquo;s own rhythm, and the eyes wrap around an implied
@@ -321,7 +321,7 @@ function Preview() {
       />
 
       <section className="motion-grid" aria-label="Mascot motion library">
-        {MAUS_MOTIONS.map((motion, index) => (
+        {HEZUO_MOTIONS.map((motion, index) => (
           <MotionCard
             key={motion}
             motion={motion}
@@ -338,7 +338,7 @@ function Preview() {
             <p className="eyebrow">Identity system · 100 combinations</p>
             <h2 id="expression-heading">Colors and states</h2>
           </div>
-          <p>Move your pointer over any Maus to test the responsive eyes.</p>
+          <p>Move your pointer over any Hezuo to test the responsive eyes.</p>
         </div>
 
         <div className="matrix-wrap">
@@ -351,16 +351,16 @@ function Preview() {
               </div>
             ))}
 
-            {MAUS_COLOR_NAMES.map((c) => (
+            {HEZUO_COLOR_NAMES.map((c) => (
               <div className="matrix-row" key={c}>
                 <div className="row-label">
-                  <span className="swatch" style={{ background: MAUS_COLORS[c] }} />
+                  <span className="swatch" style={{ background: HEZUO_COLORS[c] }} />
                   <strong>{c}</strong>
-                  <code>{MAUS_COLORS[c]}</code>
+                  <code>{HEZUO_COLORS[c]}</code>
                 </div>
                 {PICKABLE_STATES.map((s) => (
                   <div className="mascot-cell" key={`${c}-${s}`}>
-                    <MausAvatar color={c} state={s} size={86} label={`${c} ${s} maus`} />
+                    <HezuoAvatar color={c} state={s} size={86} label={`${c} ${s} hezuo`} />
                   </div>
                 ))}
               </div>

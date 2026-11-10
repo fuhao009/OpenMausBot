@@ -10,8 +10,8 @@ import { askPromptWords, screenFixLabel, screenLine } from "./screen-words.mjs";
 import { driverFailure } from "./cua-failure.mjs";
 
 const embedded = (extra = {}) => ({
-  mode: "embedded", socketPath: "\\\\.\\pipe\\cua-driver-1234", mcpCommand: "C:\\Program Files\\OpenMausBot\\resources\\cua-driver.exe",
-  mcpArgs: ["mcp", "--embedded", "--socket", "\\\\.\\pipe\\cua-driver-1234"], mcpEnv: { CUA_DRIVER_EMBEDDED: "1", CUA_DRIVER_HOST_BUNDLE_ID: "com.openmausbot.app" }, ...extra,
+  mode: "embedded", socketPath: "\\\\.\\pipe\\cua-driver-1234", mcpCommand: "C:\\Program Files\\Hezuo\\resources\\cua-driver.exe",
+  mcpArgs: ["mcp", "--embedded", "--socket", "\\\\.\\pipe\\cua-driver-1234"], mcpEnv: { CUA_DRIVER_EMBEDDED: "1", CUA_DRIVER_HOST_BUNDLE_ID: "com.hezuo.app" }, ...extra,
 });
 
 test("a PC lends its apps and screen once its own embedded computer control runs, and never through another driver", () => {
@@ -33,10 +33,10 @@ test("why a PC's apps and screen aren't lent, and the one fix", () => {
   const timedOut = screenStatus({ platform: "win32", connection: { mode: "unavailable", reason: "embedded host failed: StartupTimeout: timeoutMs 10000" } });
   assert.deepEqual({ reason: timedOut.reason, fix: timedOut.fix }, { reason: "not-running", fix: "start" });
   for (const reason of [
-    "embedded host failed: Spawn: binaryPath C:\\OpenMausBot\\resources\\cua-driver-background.exe; reason Access is denied. (os error 5)",
+    "embedded host failed: Spawn: binaryPath C:\\Hezuo\\resources\\cua-driver-background.exe; reason Access is denied. (os error 5)",
     "embedded host failed: Spawn: reason Operation did not complete successfully because the file contains a virus or potentially unwanted software. (os error 225)",
     "cua-driver binary not found",
-    "embedded host failed: Packaged background CUA driver is missing; reinstall OpenMausBot",
+    "embedded host failed: Packaged background CUA driver is missing; reinstall Hezuo",
   ]) {
     const blocked = screenStatus({ platform: "win32", connection: { mode: "unavailable", reason } });
     assert.deepEqual({ reason: blocked.reason, fix: blocked.fix }, { reason: "blocked", fix: "start" }, reason);
@@ -47,7 +47,7 @@ test("why a PC's apps and screen aren't lent, and the one fix", () => {
 });
 
 test("a Mac lacking only macOS's permissions still lends them, so a bot's first need asks macOS; Linux control is off until turned on", () => {
-  const mac = screenStatus({ platform: "darwin", connection: { mode: "unavailable", reason: "embedded host failed: Accessibility and Screen Recording required; grant access in System Settings and restart OpenMausBot" } });
+  const mac = screenStatus({ platform: "darwin", connection: { mode: "unavailable", reason: "embedded host failed: Accessibility and Screen Recording required; grant access in System Settings and restart Hezuo" } });
   assert.deepEqual(mac, { ready: false, lent: true, reason: "permissions", fix: "allow" });
   assert.equal(screenFixLabel(mac), "Allow screen control…");
   const linux = screenStatus({ platform: "linux", connection: { schemaVersion: 1, platform: "linux", mode: "unavailable", enabled: false, status: "disabled", reasonCode: "opt-in-required" } });
@@ -75,7 +75,7 @@ test("the icon's menu says plainly what the Clouds can't use, why, and offers th
   indicator.update({ clouds: ["My Cloud"], screen: notRunning });
   const [line, why, fix] = trays[0].menu;
   assert.deepEqual([line.label, line.enabled, why.label, why.enabled, fix.label], ["My Cloud can use this PC, but not its apps and screen", false, "Screen control isn't running on this PC", false, "Start screen control"]);
-  assert.equal(trays[0].tip, "OpenMausBot: My Cloud can use this PC, but not its apps and screen. Screen control isn't running on this PC");
+  assert.equal(trays[0].tip, "Hezuo: My Cloud can use this PC, but not its apps and screen. Screen control isn't running on this PC");
   fix.click();
   assert.equal(started, 1, "one click starts screen control");
   indicator.update({ clouds: ["My Cloud"], screen: { ready: true, lent: true, reason: null, fix: null } });

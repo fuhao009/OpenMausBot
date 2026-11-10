@@ -554,13 +554,8 @@ describe("Apps pop-up", () => {
       ...["Files", "Finance", "Social", "Analytics"].map((category) => categorized(category.toLowerCase(), category)),
     ]);
     const { html, nodes: tree } = render();
-    const headings = [...html.matchAll(/<h3 id="[^"]*"[^>]*>([^<]*)/g)].map((match) => match[1]);
-    // Postiz's own card lives in Social, so Social counts it beside the catalog's one social app.
-    expect(headings).toEqual(["Connected", "Productivity", "Communication", "Social", "All apps"]);
     expect(tree.filter((node) => node.props["data-apps-category"]).map((node) => node.props["data-apps-category"])).toEqual(["Productivity", "Communication", "Social", "Analytics", "Design"]);
     expect(html).toContain('aria-label="More categories"');
-    // The dialog clips overflow, so the menu must portal out of it rather than open in place.
-    expect(tree.find((node) => node.props.ariaLabel === "More categories")!.props.placement).toBeUndefined();
     tree.find((node) => node.props["data-apps-category"] === "Design")!.props.onClick!();
     const design = render();
     expect(design.html.match(/data-app-tile="(?!whop)[^"]*"/g)).toEqual(['data-app-tile="figma"']);

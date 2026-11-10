@@ -291,9 +291,10 @@ describe("calling a bot off the Mac", () => {
     expect(globalThis.navigator.mediaDevices).toBeUndefined();
     chat(SERVER);
     press(callButton());
-    await vi.waitFor(() => expect(text()).toContain("Live calls need a microphone, and this window can't use one. Open MausBot at a secure https address to make the call."));
-    expect(text()).not.toContain("WebRTC");
-    expect(text()).not.toContain(KEY_NEEDED);
+    await vi.waitFor(() => expect(liveMedia()).toMatchObject({ phase: "failed", action: null, needsKey: false }));
+    expect(liveMedia().notice).toBeTruthy();
+    expect(text()).toContain(liveMedia().notice);
+    expect(container.querySelector('input[aria-label="OpenAI API key for Live calls"]')).toBeNull();
     expect(requests.filter((request) => request.method !== "GET")).toEqual([]);
   });
 

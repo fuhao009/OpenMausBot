@@ -22,7 +22,7 @@ The smoke checks:
   Branding is excluded from the strict runtime model grant and credential store.
 
 - Loading Settings does not enroll or open a browser. **Sign in with your
-  organization** uses the standard OpenMaus Admin; a separate custom Admin
+  organization** uses the standard Hezuo Admin; a separate custom Admin
   address remains available under **Advanced**.
 - The production client opens the browser and connects automatically after
   approval. The optional verification code stays collapsed under **Security
@@ -68,7 +68,7 @@ and preservation of personal controls have focused renderer regressions.
 
 Use **Server → Sign in with your organization…** in the installed desktop app, or
 **Use desktop app → Open desktop app** in Admin. The fixed
-`openmausbot://organization` link opens local settings only; it carries no
+`hezuo://organization` link opens local settings only; it carries no
 credentials and does not approve enrollment. Remote pages do not gain access
 to the organization bridge. Existing hosted server selections are not reset
 on an ordinary update.
@@ -231,10 +231,6 @@ Tested, not production qualification:
 - `pnpm vitest run src` (223 files), `pnpm vitest run electron`, and
   `node --test electron/*.node-test.mjs`, with the assertions that named the
   old labels updated.
-- `src/locales/words.test.ts` fails on any English value that says
-  "Organisation" or a non-Slack "workspace", apart from the two third-party
-  terms. Mutation check: putting back "Organisation" and "New workspace"
-  failed it, a "Slack workspace" value did not, then en.json was restored.
 - `pnpm i18n:check`: translations whose meaning changed were removed so those
   keys fall back to English; spelling-only keys were re-accepted.
 - `scripts/verify-organization-settings.mjs` and

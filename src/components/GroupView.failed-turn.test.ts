@@ -22,7 +22,7 @@ vi.mock("./DesktopCapabilities", async (importOriginal) => ({
 }));
 vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
 
-const { RoomToolChip } = await import("./GroupView");
+import { RoomToolChip } from "./RoomToolChip";
 const { FailedTurnRow } = await import("./ChatView");
 
 const claude = {

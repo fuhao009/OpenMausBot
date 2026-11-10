@@ -92,11 +92,11 @@ async function run(): Promise<void> {
   const state = new StateStore(PATHS.state);
   const docker = new SocketDocker(PATHS.docker);
   const instance = process.env.MAUSBOT_INSTANCE || "unknown";
-  log(`MausBot connector ${CONNECTOR_VERSION} starting`);
+  log(`Hezuo connector ${CONNECTOR_VERSION} starting`);
   // A connector removed with SIGKILL never said it went offline.
   state.saveStatus({ connected: false });
   let record: AgentRecord | null = state.agent();
-  if (!record) log("waiting for this server to be connected: run the install command with the code MausBot shows");
+  if (!record) log("waiting for this server to be connected: run the install command with the code Hezuo shows");
   while (!record) {
     await sleep(2_000);
     record = state.agent();
@@ -184,7 +184,7 @@ async function enrollCommand(): Promise<void> {
   state.saveAgent(record);
   // Connected again only once the service has connected with this token.
   state.saveStatus({ connected: false, unauthorized: false, lastError: null });
-  console.log(`This server is connected to MausBot (server ${record.serverId}).`);
+  console.log(`This server is connected to Hezuo (server ${record.serverId}).`);
 }
 
 function statusCommand(): void {

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { FLIGHT_MS, LANDING_MS, landInSidebar } from "./mausbot-landing";
+import { FLIGHT_MS, LANDING_MS, landInSidebar } from "./hezuo-landing";
 
 type Played = { el: Element; keyframes: Keyframe[]; options: KeyframeAnimationOptions; finish(): void };
 let played: Played[] = [];
@@ -41,28 +41,28 @@ function sidebar() {
   const from = document.createElement("span");
   place(from, 584, 160, 112, 112);
   document.body.append(list, from);
-  const maus = row("maus", 100);
+  const hezuo = row("hezuo", 100);
   const commit = vi.fn(() => {
-    list.prepend(maus);
+    list.prepend(hezuo);
     place(ada, 8, 140, 280, 40);
     place(ada.firstElementChild!, 16, 146, 28, 28);
     place(bea, 8, 180, 280, 40);
   });
-  return { ada, bea, maus, from, commit };
+  return { ada, bea, hezuo, from, commit };
 }
 
-describe("MausBot landing in the sidebar", () => {
+describe("Hezuo landing in the sidebar", () => {
   it("glides the rows already there down by its height, flies the avatar into the new top slot and shows the row as it lands", () => {
     const s = sidebar();
-    landInSidebar({ from: s.from, botId: "maus", reduced: false, commit: s.commit });
+    landInSidebar({ from: s.from, botId: "hezuo", reduced: false, commit: s.commit });
     expect(s.commit).toHaveBeenCalledOnce();
     for (const shifted of [s.ada, s.bea]) {
       const glide = played.find((entry) => entry.el === shifted)!;
       expect(glide.keyframes).toEqual([{ transform: "translateY(-40px)" }, { transform: "translateY(0)" }]);
       expect(glide.options).toMatchObject({ duration: LANDING_MS, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
     }
-    expect(played.find((entry) => entry.el === s.maus)!.keyframes).toEqual([{ opacity: 0 }, { opacity: 0, offset: 0.72 }, { opacity: 1 }]);
-    const ghost = played.find((entry) => entry.el !== s.ada && entry.el !== s.bea && entry.el !== s.maus)!;
+    expect(played.find((entry) => entry.el === s.hezuo)!.keyframes).toEqual([{ opacity: 0 }, { opacity: 0, offset: 0.72 }, { opacity: 1 }]);
+    const ghost = played.find((entry) => entry.el !== s.ada && entry.el !== s.bea && entry.el !== s.hezuo)!;
     const flown = ghost.el as HTMLElement;
     expect(flown.style.pointerEvents).toBe("none");
     expect(flown.getAttribute("aria-hidden")).toBe("true");
@@ -79,15 +79,15 @@ describe("MausBot landing in the sidebar", () => {
 
   it("only fades the row in when motion is reduced", () => {
     const s = sidebar();
-    landInSidebar({ from: s.from, botId: "maus", reduced: true, commit: s.commit });
-    expect(played.map((entry) => [entry.el, entry.keyframes])).toEqual([[s.maus, [{ opacity: 0 }, { opacity: 1 }]]]);
+    landInSidebar({ from: s.from, botId: "hezuo", reduced: true, commit: s.commit });
+    expect(played.map((entry) => [entry.el, entry.keyframes])).toEqual([[s.hezuo, [{ opacity: 0 }, { opacity: 1 }]]]);
     expect(s.from.style.visibility).toBe("");
   });
 
   it("just adds it when the sidebar is hidden", () => {
     const s = sidebar();
     const commit = vi.fn();
-    landInSidebar({ from: s.from, botId: "maus", reduced: false, commit });
+    landInSidebar({ from: s.from, botId: "hezuo", reduced: false, commit });
     expect(commit).toHaveBeenCalledOnce();
     expect(played).toEqual([]);
   });

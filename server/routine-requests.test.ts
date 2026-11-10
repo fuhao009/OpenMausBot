@@ -424,7 +424,7 @@ describe("RoutineRequestService", () => {
     expect(plain.detail).not.toContain("On startup:");
 
     const proposed = await service.propose({ botId: "bot-a", threadId: "thread-a", proposal: createProposal({ runOnStartup: true }) });
-    expect(proposed.detail).toContain("On startup: Also runs once each time OpenMausBot starts");
+    expect(proposed.detail).toContain("On startup: Also runs once each time Hezuo starts");
     expect(store.messagesFor("thread-a")[0]!.card!.routineRequest?.operation).toMatchObject({ action: "create", routine: { runOnStartup: true } });
     expect(service.resolve({ botId: "bot-a", threadId: "thread-a", requestId: proposed.requestId, behavior: "allow" }).state).toBe("applied");
     const routine = routines.listRoutines().find((candidate) => candidate.name === "Morning brief")!;
@@ -972,7 +972,7 @@ describe("RoutineRequestService", () => {
     await service.propose({
       botId: "bot-a",
       threadId: "thread-a",
-      proposal: { action: "update", routineId: routine.id, changes: { runOn: "maus" } },
+      proposal: { action: "update", routineId: routine.id, changes: { runOn: "hezuo" } },
     });
     await service.propose({
       botId: "bot-a",
@@ -1087,7 +1087,7 @@ describe("RoutineRequestService", () => {
       botId: "bot-a",
       name: "Morning brief",
       prompt: "Summarize the overnight support queue.",
-      runOn: "maus",
+      runOn: "hezuo",
       enabled: true,
       schedule: { type: "daily", time: "09:00", weekdays: [1, 3] },
       durationMinutes: 5,

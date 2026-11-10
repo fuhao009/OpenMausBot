@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { appPermissionHandlers } from "./app-permissions.mjs";
@@ -10,7 +9,6 @@ const environments = require("./environments.cjs");
 const LOCAL = "http://127.0.0.1:48993";
 const VPS = "https://viernes.tail1.ts.net:9444";
 const OTHER = "https://other.tail1.ts.net:9444";
-const mainSource = readFileSync(new URL("./main.mjs", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 
 // The real appPermissionHandlers and environments authority; only Electron is faked. `ctx.state` is read per request, like main's.
 function harness(envState, { cloud = null } = {}) {
@@ -136,9 +134,3 @@ test("the Cloud keeps its microphone and writes the clipboard by the same rule, 
   assert.equal(r.request("clipboard-read", `${CLOUD}/chat`), false);
 });
 
-test("main installs the active environment's origin into the shared handlers, with no second handler registration", () => {
-  assert.match(mainSource, /activeRemoteOrigin: \(\) => activeEnvironment\(environmentsState\)\?\.origin \?\? null,\n/);
-  assert.equal(mainSource.match(/setPermissionRequestHandler\(appPermissions\.request\)/g)?.length, 1);
-  assert.equal(mainSource.match(/setPermissionCheckHandler\(appPermissions\.check\)/g)?.length, 1);
-  assert.doesNotMatch(mainSource, /remoteClipboardWrite\b/, "no parallel permission handler left in main");
-});

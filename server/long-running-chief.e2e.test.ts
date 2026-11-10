@@ -299,7 +299,7 @@ it("tells the Chief what happened to each approval: allowed, denied, or never an
   expect(settled).toEqual(["@Mira got your approval", "@Mira's request was denied", "Nobody answered @Mira's approval in time — that step did not run"]);
   expect(f.child(job, f.mira.id, "CHECK-HISTORY").result).toBe("HISTORY-RESULT: checked the history.");
   expect(f.child(job, f.mira.id, "PUSH-BRANCH").result).toBe("PUSH-RESULT: not pushed; the push was denied.");
-  const unanswered = "[OpenMausBot: nobody answered the approval for “Bash: pnpm test” in time, so it did not run. Do not report it as done; it needs the person's approval.]";
+  const unanswered = "[Hezuo: nobody answered the approval for “Bash: pnpm test” in time, so it did not run. Do not report it as done; it needs the person's approval.]";
   expect(f.child(job, f.mira.id, "RUN-TESTS")).toMatchObject({ status: "completed", result: `${unanswered}\n\nTESTS-RESULT: I could not run the tests.` });
   expect(f.prompt(f.turn("B3"))).toContain(JSON.stringify(unanswered.replace(/^\[/, "(")).slice(1, -1));
   expect(f.prompt(f.turn("B3"))).toContain("[From @Mira (bot) · report on assignment ");

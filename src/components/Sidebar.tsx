@@ -1,7 +1,8 @@
+import { RoomContextMenu } from "./SidebarRoomMenu";
 import { OrganizationIdentity } from "./OrganizationIdentity";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch } from "react";
 import { createPortal } from "react-dom";
-import { Activity, Archive, Bot as BotIcon, Check, ChevronRight, ClipboardCopy, Crown, FolderPlus, Library, Loader2, MessageSquarePlus, MoreHorizontal, Pencil, Phone, Pin, PinOff, Plus, Search, TextQuote, Trash2, Users, X, Zap } from "lucide-react";
+import { Activity, Archive, Bot as BotIcon, ChevronRight, Crown, FolderPlus, Library, Loader2, MessageSquarePlus, MoreHorizontal, Phone, Pin, PinOff, Plus, Search, Trash2, Users, X, Zap } from "lucide-react";
 import { api, useStore, formatTime, visibleMessages, currentTaskBot, botOpensTo, openBot, openThread, type Action, type AppState, type Bot, type BotProject, type Group, type InstanceInfo, type Message } from "@/state/store";
 import { approvalModeFor } from "../../shared/approval-mode";
 import { liveActivityLabel } from "@/lib/live-activity";
@@ -17,14 +18,12 @@ import { useHeldMenuMotion, useMenuMotion } from "./MenuMotion";
 import { lastNonReceipt } from "@/lib/receipts";
 import { botPreview, groupPreview } from "./sidebar-preview";
 import { activeLocale, t } from "@/lib/i18n";
-import { copyText } from "@/lib/copy-text";
 import type { LocaleKey } from "@/locales";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { BulkSelectFilters, ThreadListFooter, deleteThreadsInBulk, useBulkSelect } from "./BulkSelectBar";
  
-import { StackedMauses } from "./StackedMauses";
+import { StackedHezuos } from "./StackedHezuos";
 import { LocalComputerAutoWarning } from "./LocalComputerAutoWarning";
-import { nextRename } from "@/lib/rename";
 import { useDesktopCapabilities, windowFramed } from "./DesktopCapabilities";
 import { MIN_QUERY, SearchResults } from "./SearchResults";
 import { ShareTeamDialog, TeamLibraryPanel } from "./lazy-screens";
@@ -197,7 +196,7 @@ export function GroupListItem({
       title={density === "icons" ? group.name : undefined}
       aria-label={density === "icons" ? group.name : undefined}
     >
-      <StackedMauses members={members} density={railTile ? "comfortable" : density} large={simpleRow || railTile} />
+      <StackedHezuos members={members} density={railTile ? "comfortable" : density} large={simpleRow || railTile} />
       <div className={cn("min-w-0 flex-1", density === "icons" && "hidden")}>
         <div className={cn("flex items-baseline justify-between gap-2", simpleRow && "pr-7")}>
           <span className={cn("truncate text-[14px] text-ink", simpleRow ? "font-medium leading-5" : "font-semibold")}>{group.name}</span>
@@ -228,222 +227,6 @@ export function GroupListItem({
   );
 }
 
-function RoomContextMenu({
-  menu,
-  onClose,
-  onMoveToSection,
-  onDelete,
-}: {
-  menu: { groupId: string; x: number; y: number } | null;
-  onClose: () => void;
-  onMoveToSection: (groupId: string) => void;
-  onDelete: (groupId: string) => void;
-}) {
-  const motion = useHeldMenuMotion(menu);
-  const shown = motion.value;
-  const { state, dispatch } = useStore();
-  const remoteClient = window.ogb?.remoteClient?.active === true;
-  const group = shown ? state.groups.find((g) => g.id === shown.groupId) : undefined;
-  const [renaming, setRenaming] = useState(false);
-  const [describing, setDescribing] = useState(false);
-  const [draft, setDraft] = useState(group?.name ?? "");
-  const [descriptionDraft, setDescriptionDraft] = useState(group?.description ?? "");
-
-  useEffect(() => {
-    if (!menu) return;
-    setDraft(state.groups.find((g) => g.id === menu.groupId)?.name ?? "");
-    setDescriptionDraft(state.groups.find((g) => g.id === menu.groupId)?.description ?? "");
-    setRenaming(false);
-    setDescribing(false);
-  }, [menu]);
-  useEffect(() => {
-    if (!menu) return;
-    const onDown = (e: MouseEvent) => {
-      if (!(e.target instanceof Element) || !e.target.closest("[data-room-menu]")) onClose();
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("blur", onClose);
-    return () => {
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("blur", onClose);
-    };
-  }, [menu, onClose]);
-
-  if (!motion.shown || !group || !shown) return null;
-  const isBotChat = Boolean(group.dm);
-  const saveRename = () => {
-    const name = nextRename(group.name, draft);
-    if (name) dispatch({ type: "patchGroup", groupId: group.id, patch: { name } });
-    onClose();
-  };
-  const saveDescription = () => {
-    const trimmed = descriptionDraft.trim();
-    if (trimmed !== (group.description ?? "")) {
-      dispatch({ type: "patchGroup", groupId: group.id, patch: { description: trimmed } });
-    }
-    onClose();
-  };
-  const top = Math.min(shown.y, window.innerHeight - 204);
-  const left = Math.min(shown.x, window.innerWidth - 240);
-  return createPortal(
-    <div
-      data-room-menu
-      data-sidebar
-      role="menu"
-      aria-label={t("sidebar.bot.actions", { name: group.name })}
-      onKeyDown={navigateThreadMenu}
-      style={{ top, left }}
-      className={cn("fixed z-40 w-[228px] overflow-hidden", MENU_SHEET, motion.className)} {...motion.exitProps}
-    >
-      {!remoteClient && describing ? (
-        <div className="flex items-center gap-1 px-2 py-1">
-          <input
-            autoFocus
-            value={descriptionDraft}
-            maxLength={120}
-            placeholder={t("sidebar.room.descriptionPlaceholder")}
-            aria-label={t("sidebar.room.descriptionAria", { name: group.name })}
-            onFocus={(event) => event.currentTarget.select()}
-            onChange={(event) => setDescriptionDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                saveDescription();
-              }
-              if (event.key === "Escape") {
-                event.preventDefault();
-                onClose();
-              }
-            }}
-            className="min-w-0 flex-1 rounded-lg bg-raised px-2 py-1.5 text-[14px] text-ink focus:outline-none focus:ring-1 focus:ring-accent"
-          />
-          <button
-            type="button"
-            onClick={saveDescription}
-            aria-label={t("sidebar.room.saveDescription")}
-            title={t("common.save")}
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-secondary hover:bg-raised hover:text-ink"
-          >
-            <Check size={15} />
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t("common.cancel")}
-            title={t("common.cancel")}
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-secondary hover:bg-raised hover:text-ink"
-          >
-            <X size={15} />
-          </button>
-        </div>
-      ) : !remoteClient && (renaming ? (
-        <div className="flex items-center gap-1 px-2 py-1">
-          <input
-            autoFocus
-            value={draft}
-            maxLength={100}
-            aria-label={t("sidebar.room.renameAria", { name: group.name })}
-            onFocus={(event) => event.currentTarget.select()}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                saveRename();
-              }
-              if (event.key === "Escape") {
-                event.preventDefault();
-                onClose();
-              }
-            }}
-            className="min-w-0 flex-1 rounded-lg bg-raised px-2 py-1.5 text-[14px] text-ink focus:outline-none focus:ring-1 focus:ring-accent"
-          />
-          <button
-            type="button"
-            onClick={saveRename}
-            aria-label={isBotChat ? t("sidebar.room.saveChatName") : t("sidebar.room.saveChannelName")}
-            title={t("common.save")}
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-secondary hover:bg-raised hover:text-ink"
-          >
-            <Check size={15} />
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={isBotChat ? t("sidebar.room.cancelChatRename") : t("sidebar.room.cancelChannelRename")}
-            title={t("common.cancel")}
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-secondary hover:bg-raised hover:text-ink"
-          >
-            <X size={15} />
-          </button>
-        </div>
-      ) : (
-        <button
-          role="menuitem"
-          onClick={() => {
-            setDraft(group.name);
-            setRenaming(true);
-          }}
-          className={cn(MENU_ITEM, "text-ink hover:bg-menu-hover")}
-        >
-          <Pencil size={16} className="text-ink-secondary" />
-          {isBotChat ? t("sidebar.room.renameChat") : t("sidebar.room.renameChannel")}
-        </button>
-      ))}
-      {!remoteClient && !renaming && !isBotChat && (
-        <button
-          role="menuitem"
-          onClick={() => {
-            setDescriptionDraft(group.description ?? "");
-            setDescribing(true);
-          }}
-          className={cn(MENU_ITEM, "text-ink hover:bg-menu-hover")}
-        >
-          <TextQuote size={16} className="text-ink-secondary" />
-          {t("sidebar.room.setDescription")}
-        </button>
-      )}
-      {!remoteClient && !isBotChat && (
-        <button
-          role="menuitem"
-          onClick={() => {
-            onClose();
-            onMoveToSection(group.id);
-          }}
-          className={cn(MENU_ITEM, "text-ink hover:bg-menu-hover")}
-        >
-          <FolderPlus size={16} className="text-ink-secondary" />
-          {t("sidebar.section.moveToContext")}
-        </button>
-      )}
-      <button
-        role="menuitem"
-        onClick={() => {
-          void copyText(group.threadId);
-          onClose();
-        }}
-        className={cn(MENU_ITEM, "text-ink hover:bg-menu-hover")}
-      >
-        <ClipboardCopy size={16} className="text-ink-secondary" />
-        {t("sidebar.copyConversationId")}
-      </button>
-      {!remoteClient && <button
-        role="menuitem"
-        onClick={() => {
-          onClose();
-          onDelete(group.id);
-        }}
-        className={cn(MENU_ITEM, "text-danger hover:bg-menu-hover")}
-      >
-        <Trash2 size={16} />
-        {isBotChat ? t("sidebar.room.deleteChat") : t("sidebar.room.deleteChannel")}
-      </button>}
-    </div>,
-    document.body,
-  );
-}
 
 /** A confirmation may span live fleet updates; never authorize from its snapshot. */
 export function currentArchivableBot(bots: readonly Bot[], id: string): Bot | undefined {
@@ -926,7 +709,7 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
 
 /** The product sidebar's foot: the verified account, the point balance the gateway holds, and one way into Settings → Account.
  * No plan card, usage upsell or update row: a managed workspace's credit is its account points balance, and it has no
- * purchase step. The account's own MausBot sits above the list, so nothing here competes with the bots. */
+ * purchase step. The account's own Hezuo sits above the list, so nothing here competes with the bots. */
 function ProductSidebarFooter({ account }: { account: ProductAccountState }) {
   const { state, dispatch } = useStore();
   const email = account.user?.email ?? "";
@@ -1052,7 +835,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
   } | null>(null);
   const [query, setQuery] = useState("");
   const storedDensity = useSidebarDensity();
-  const density = collapseToIcons || product ? "comfortable" : storedDensity;
+  const density = collapseToIcons ? "icons" : product ? "comfortable" : storedDensity;
   // A product account's list is always the plain list of bots and threads — never the tile grid or the search pill that
   // simple mode swaps in — because its default bot is pinned above the list and the rest of the bots follow as rows.
   const simple = !advanced && density !== "icons" && !product;
@@ -1172,7 +955,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
     );
   const visibleGroups = state.groups.filter((g) => !q || g.name.toLowerCase().includes(q) || g.tasks?.some((task) => task.title.toLowerCase().includes(q)));
   const viewerEmail = useViewerEmail();
-  // A product account's own MausBot is pinned above the list, not left among the bots where a long list buries it. It is
+  // A product account's own Hezuo is pinned above the list, not left among the bots where a long list buries it. It is
   // taken out of the partitioned set, so no section, pin or tile lists it a second time.
   const productDefault = product ? myDefaultBot(matchingBots, viewerEmail) : undefined;
   const parts = partitionSidebarBots(botDrag.preview(

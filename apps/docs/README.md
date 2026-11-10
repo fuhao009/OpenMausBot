@@ -1,4 +1,4 @@
-# OpenMausBot documentation
+# Hezuo documentation
 
 The public documentation site is a Next.js 16 + Fumadocs app. User-facing content lives in `content/docs`; the repository's top-level `docs` folder remains available for implementation notes and detailed platform records.
 
@@ -17,8 +17,8 @@ The site opens at `http://localhost:3000`.
 
 ```bash
 pnpm docs:build
-pnpm --filter @openmausbot/docs types:check
-pnpm --filter @openmausbot/docs lint
+pnpm --filter @hezuo/docs types:check
+pnpm --filter @hezuo/docs lint
 ```
 
 The changelog reads published releases from `milind-soni/OpenMausBot` plus the

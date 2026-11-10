@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// MausBot's example asks live in its panel in Simple mode: a tap sends one.
+// Hezuo's example asks live in its panel in Simple mode: a tap sends one.
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,7 +13,7 @@ vi.mock("../HelperIntro", () => ({ HELPER_ASK_KEYS: ["helperIntro.ask.overview",
 const { TryAsking } = await import("./TryAsking");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-const bot = (extra: Partial<Bot> = {}) => ({ id: "maus", threadId: "t", name: "MausBot", defaultBot: {}, ...extra }) as Bot;
+const bot = (extra: Partial<Bot> = {}) => ({ id: "hezuo", threadId: "t", name: "Hezuo", defaultBot: {}, ...extra }) as Bot;
 let host: HTMLDivElement, root: Root;
 const show = async (target: Bot) => { await act(async () => { root.render(createElement(TryAsking, { bot: target })); }); };
 
@@ -31,16 +31,16 @@ afterEach(async () => {
 });
 
 describe("Try asking", () => {
-  it("lists MausBot's four asks, and a tap sends one in the open conversation", async () => {
+  it("lists Hezuo's four asks, and a tap sends one in the open conversation", async () => {
     await show(bot());
     const asks = [...host.querySelectorAll<HTMLButtonElement>("[data-panel-ask]")];
     expect(host.textContent).toContain("Try asking");
     expect(asks.map((ask) => ask.textContent)).toEqual(["What are my bots up to?", "Set up a bot for my inbox", "Make me a morning routine", "How do I connect my email?"]);
     await act(async () => { asks[1]!.click(); });
-    expect(f.dispatch).toHaveBeenCalledWith({ type: "send", botId: "maus", text: "Set up a bot for my inbox", threadId: "t" });
+    expect(f.dispatch).toHaveBeenCalledWith({ type: "send", botId: "hezuo", text: "Set up a bot for my inbox", threadId: "t" });
   });
 
-  it("is MausBot's alone, and Simple mode's", async () => {
+  it("is Hezuo's alone, and Simple mode's", async () => {
     await show(bot({ defaultBot: undefined }));
     expect(host.textContent).toBe("");
     f.advanced = true;

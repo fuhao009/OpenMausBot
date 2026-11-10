@@ -32,7 +32,7 @@ export function setupAction(step: SetupStep, productManaged = false): Action {
   }
 }
 
-/** What is left to set up, under MausBot's intro on a new install (Advanced mode). */
+/** What is left to set up, under Hezuo's intro on a new install (Advanced mode). */
 export function HelperSetup() {
   const { state, dispatch } = useStore();
   const productManaged = isProductWorkspace(state.config?.productManaged);
@@ -91,7 +91,7 @@ function IntroConnectAi({ onClose }: { onClose: () => void }) {
   return <ConnectAiDialog tested={useWelcomeAi(state.instances, true)} onClose={onClose} />;
 }
 
-/** What is still missing, as chips under MausBot's follow-up (Simple mode): at most INTRO_CHIPS, and one that was tapped
+/** What is still missing, as chips under Hezuo's follow-up (Simple mode): at most INTRO_CHIPS, and one that was tapped
  * leaves for the next. */
 export function IntroChips({ chips }: { chips: readonly IntroChip[] }) {
   const { state, dispatch } = useStore();

@@ -172,7 +172,7 @@ export async function prepareProjectSession(
     if (existing && supportsMultiAccount(existing) && authConfigsReady(existing, authConfigs)) {
       return {
         apiKey: trimmed,
-        userId: existing.config?.user_id ?? current.userId ?? `openmausbot_${randomUUID()}`,
+        userId: existing.config?.user_id ?? current.userId ?? `hezuo_${randomUUID()}`,
         sessionId: existing.session_id,
       };
     }
@@ -180,7 +180,7 @@ export async function prepareProjectSession(
     priorUserId = existing?.config?.user_id ?? priorUserId;
   }
 
-  const userId = priorUserId ?? `openmausbot_${randomUUID()}`;
+  const userId = priorUserId ?? `hezuo_${randomUUID()}`;
   const sessionId = await createProjectSession(trimmed, userId, authConfigs);
   return { apiKey: trimmed, userId, sessionId };
 }

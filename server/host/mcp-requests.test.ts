@@ -63,6 +63,18 @@ describe("MCP approval cards", () => {
     expect(team.store.rows[0]!.card).toMatchObject({ answered: "deny" });
   });
 
+  it("returns a settled approval after owner review becomes unavailable without applying or resuming twice", async () => {
+    const { propose, respond, apply, answers, decisions } = service();
+    const { requestId } = propose();
+    expect(await respond(requestId, "allow")).toMatchObject({ status: 200, body: { alreadySettled: false } });
+    expect(await respond(requestId, "allow", false)).toMatchObject({
+      status: 200, body: { alreadySettled: true, result: { state: "applied" } },
+    });
+    expect(apply).toHaveBeenCalledOnce();
+    expect(answers).toHaveLength(1);
+    expect(decisions.filter((row) => row.decision === "user-approved")).toHaveLength(1);
+  });
+
   it("a newer card about the same server supersedes the open one, which can no longer be allowed", async () => {
     const { store, propose, respond, apply, waiting } = service();
     const older = propose();
@@ -116,8 +128,8 @@ describe("MCP approval cards", () => {
     expect(await after.respond(requestId, "allow")).toMatchObject({ status: 200, body: { alreadySettled: false, result: { state: "expired" } } });
     expect(after.apply).not.toHaveBeenCalled();
     expect(after.answers).toHaveLength(1);
-    expect(after.answers[0]).toContain("OpenMausBot restarted, so this request expired. Ask again if you still need it.");
-    expect(after.store.rows[0]!.card).toMatchObject({ expired: true, options: [], held: "OpenMausBot restarted, so this request expired.", mcpRequest: { resumed: true } });
+    expect(after.answers[0]).toContain("Hezuo restarted, so this request expired. Ask again if you still need it.");
+    expect(after.store.rows[0]!.card).toMatchObject({ expired: true, options: [], held: "Hezuo restarted, so this request expired.", mcpRequest: { resumed: true } });
   });
 
   it("a restart expires an open Change card for the turn parked on it, which hears why, and leaves a Turn on card open", () => {
@@ -128,7 +140,7 @@ describe("MCP approval cards", () => {
     expect(after.cards.decided(THREAD, messageId)).toBe(true);
     const parked: string[] = [];
     expect(after.cards.resume(THREAD, messageId, (text) => { parked.push(text); return true; })).toBe(true);
-    expect(parked[0]).toContain("OpenMausBot restarted, so this request expired. Ask again if you still need it.");
+    expect(parked[0]).toContain("Hezuo restarted, so this request expired. Ask again if you still need it.");
     expect(after.waiting()).toEqual([]);
 
     const turnOn = service();

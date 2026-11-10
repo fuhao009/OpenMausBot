@@ -33,3 +33,29 @@ export function createExecutionConnectorRoutes(deps: { host: ExecutionConnectorH
     } catch (error) { ctx.json(ctx.res, 400, { error: error instanceof Error ? error.message : "Execution request failed." }); }
   };
 }
+
+export function createInternalExecutionConnectorRoutes(deps: {
+  host: ExecutionConnectorHost;
+  botId: string;
+  readBody(): Promise<Record<string, any>>;
+  owner(): string | null;
+}): RouteHandler {
+  return async ctx => {
+    if (ctx.path !== "/api/internal/execution-connectors" || ctx.method !== "POST") return PASS;
+    const body = await deps.readBody();
+    const owner = deps.owner();
+    if (!owner) return void ctx.json(ctx.res, 403, { error: "Execution needs an attributable owner request." });
+    try {
+      if (body.action === "list") {
+        const list = await deps.host.list(owner);
+        return void ctx.json(ctx.res, 200, { connectors: list.connectors.filter(c => c.botIds.includes(deps.botId)) });
+      }
+      if (body.action === "start") return void ctx.json(ctx.res, 200, await deps.host.start(owner, body.connectorId, { botId: deps.botId, prompt: body.prompt }));
+      const task = await deps.host.task(owner, body.taskId);
+      if (task.botId !== deps.botId) return void ctx.json(ctx.res, 403, { error: "Task belongs to another bot." });
+      if (body.action === "status") return void ctx.json(ctx.res, 200, task);
+      if (body.action === "cancel") return void ctx.json(ctx.res, 200, await deps.host.cancel(owner, task.id));
+      ctx.json(ctx.res, 400, { error: "Use list, start, status or cancel. Only the owner can answer approvals." });
+    } catch (error) { ctx.json(ctx.res, 400, { error: error instanceof Error ? error.message : "Execution request failed." }); }
+  };
+}

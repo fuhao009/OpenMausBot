@@ -161,7 +161,7 @@ describe("following a notification", () => {
     expect(unread("finished")).toBe(false);
   });
 
-  it("opens the brief in MausBot's chat while MausBot is hidden from the sidebar", async () => {
+  it("opens the brief in Hezuo's chat while Hezuo is hidden from the sidebar", async () => {
     await threadsShown(true);
     server = { ...server, defaultBot: {}, sidebarHidden: true };
     stream().send({ kind: "bot", bot: structuredClone(server) });

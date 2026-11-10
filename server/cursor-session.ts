@@ -1,6 +1,6 @@
 // Optional "Sign in with Cursor" for a one-click Grok Bot import. Grok Bot templates live on Cursor's servers, and the
 // full recipe needs a signed-in Cursor account (a free one is enough). The person signs in themselves in their own
-// browser, with the PKCE flow Cursor's CLI uses (cursor.com/loginDeepControl, then api2.cursor.sh/auth/poll); Maus never
+// browser, with the PKCE flow Cursor's CLI uses (cursor.com/loginDeepControl, then api2.cursor.sh/auth/poll); Hezuo never
 // reads another app's files or stored logins. The access token is kept in <data dir>/cursor-session.json (mode 0600),
 // is sent only to api2.cursor.sh, and is used only to read a template's import details.
 //
@@ -176,7 +176,7 @@ export function createCursorSession(options: { dataDir: string; fetcher?: typeof
   /** Only ever api2.cursor.sh; the token rides only when asked for, and a redirect is refused rather than followed. */
   const cursorFetch = (path: string, init: RequestInit, withToken: boolean) => {
     const url = new URL(path, CURSOR_API);
-    if (url.origin !== CURSOR_API) throw new CursorFallback("Maus only talks to api2.cursor.sh.");
+    if (url.origin !== CURSOR_API) throw new CursorFallback("Hezuo only talks to api2.cursor.sh.");
     const headers = new Headers(init.headers);
     if (withToken && token) headers.set("authorization", `Bearer ${token}`);
     return fetcher()(url.toString(), { ...init, headers, redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS) });
@@ -293,13 +293,13 @@ export function createCursorSession(options: { dataDir: string; fetcher?: typeof
       }
       if (response.status === 404) throw new CursorFallback("Cursor does not share this template's setup.");
       if (!response.ok) throw new CursorFallback(`Cursor could not share this template's setup (HTTP ${response.status}).`);
-      if (!isRecord(details)) throw new CursorFallback("Cursor answered in a way Maus does not understand yet.");
+      if (!isRecord(details)) throw new CursorFallback("Cursor answered in a way Hezuo does not understand yet.");
       const template = isRecord(details.template) ? details.template : {};
       const blob = details.blobGetUrl ?? details.blob_get_url ?? template.blobGetUrl;
       let recipe: unknown = isRecord(details.recipe) ? details.recipe : undefined;
       if (recipe === undefined) {
         const url = recipeUrl(blob);
-        if (!url) throw new CursorFallback("Cursor answered in a way Maus does not understand yet.");
+        if (!url) throw new CursorFallback("Cursor answered in a way Hezuo does not understand yet.");
         try {
           // A signed download address: no token, no cookies, no redirects.
           const download = await fetcher()(url.toString(), { method: "GET", redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS) });
@@ -313,7 +313,7 @@ export function createCursorSession(options: { dataDir: string; fetcher?: typeof
       try {
         return grokExportFromRecipe(recipe, card);
       } catch {
-        throw new CursorFallback("Cursor answered in a way Maus does not understand yet.");
+        throw new CursorFallback("Cursor answered in a way Hezuo does not understand yet.");
       }
     },
   };

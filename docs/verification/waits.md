@@ -62,7 +62,7 @@ internet, and what a real model does with the follow-up (the fake engine replies
 ## Last exercised
 
 2026-10-28, Node 24, branch `feat/bot-waits` at `4fc4ef0bb`, fixture log
-`/var/folders/7b/15jj691d4tj_7vq99cqvwgbr0000gn/T/openmausbot-verification-evidence/server-1793162265419-23568.log`.
+`/var/folders/7b/15jj691d4tj_7vq99cqvwgbr0000gn/T/hezuo-verification-evidence/server-1793162265419-23568.log`.
 Every expectation above held. The lines below are abridged: only these fields of each
 message are kept, and `<W>` stands for the temp dir.
 

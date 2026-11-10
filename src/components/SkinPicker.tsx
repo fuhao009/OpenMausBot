@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { setDressUp, useDressUp } from "@/lib/halloween-dress";
 import type { HalloweenBodyId } from "../../shared/halloween-bodies";
-import { MausAvatar } from "./Avatar";
+import { HezuoAvatar } from "./Avatar";
 import { Switch } from "./SettingsPrimitives";
 import { useSkinChoice } from "./ThemeRow";
 
@@ -67,7 +67,7 @@ export function DressUpRow() {
     <div data-dress-up className="mt-4 flex items-center gap-4 rounded-xl border border-accent-border/40 bg-accent/[0.06] p-3">
       <div className="flex shrink-0 -space-x-1.5" aria-hidden="true">
         {DRESS_UP_PREVIEW.map(([body, color]) => (
-          <MausAvatar key={body} color={color} bodyId={body} size={30} animated={false} trackPointer={false} />
+          <HezuoAvatar key={body} color={color} bodyId={body} size={30} animated={false} trackPointer={false} />
         ))}
       </div>
       <div className="min-w-0 flex-1">

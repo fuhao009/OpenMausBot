@@ -474,7 +474,7 @@
       "use_tool"
     ]
   },
-  "default+mausbot": {
+  "default+hezuo": {
     "bytes": 16746,
     "sha256": "2c5a49d6c626bcd3ac2aa1c6eff5cb11e538284a8d84b73e17cb3258037a847b",
     "tools": [
@@ -495,7 +495,7 @@
       "use_tool"
     ]
   },
-  "skills+shared+voice+mausbot": {
+  "skills+shared+voice+hezuo": {
     "bytes": 17594,
     "sha256": "578e32e579d95890f9e21f977b6bfa0a314ac44e3a3c7c044e06bc21ff5d4259",
     "tools": [

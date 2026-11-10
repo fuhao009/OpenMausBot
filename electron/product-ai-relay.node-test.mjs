@@ -10,11 +10,11 @@ import { createManagedDesktopRelay } from "./managed-desktop.mjs";
 
 const ORIGIN = "https://operator.example";
 const token = `omb_product_ai_${"a".repeat(22)}.${"b".repeat(43)}`;
-const model = () => ({ id: "maus-default", label: "MausBot", protocol: "chat", pricingVersion: "v1",
+const model = () => ({ id: "hezuo-default", label: "Hezuo", protocol: "chat", pricingVersion: "v1",
   inputMicroPointsPerMillion: 2_000_000, cachedInputMicroPointsPerMillion: 500_000, outputMicroPointsPerMillion: 4_000_000,
   maxContextTokens: 1000, maxOutputTokens: 100 });
 const connection = () => ({ origin: ORIGIN, userId: "user-1", tokenId: "token-1", token, expiresAt: Date.now() + 15 * 60_000,
-  defaultModel: "maus-default", models: [model()] });
+  defaultModel: "hezuo-default", models: [model()] });
 const settle = async () => { for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve)); };
 
 /** A throwaway certificate for the fixture origin, or null without openssl. */
@@ -40,28 +40,28 @@ test("a ready capability is sent as one private message and acknowledged by the 
   const operation = relay.sendProductAi(proc1, { state: "ready", connection: connection() });
   assert.equal(proc1.sent.length, 1);
   const [message] = proc1.sent;
-  assert.equal(message.type, "openmausbot:product-ai");
+  assert.equal(message.type, "hezuo:product-ai");
   assert.equal(typeof message.requestId, "string");
   assert.equal(message.state, "ready");
   assert.equal(message.connection.token, token, "the runtime is the one place the token goes");
   // A different process, a different type for the same id, and a non-boolean
   // outcome each leave the operation waiting.
-  assert.equal(relay.receive(other, { type: "openmausbot:product-ai-result", requestId: message.requestId, ok: true }), true);
-  assert.equal(relay.receive(proc1, { type: "openmausbot:managed-desktop-result", requestId: message.requestId, ok: true }), true);
-  assert.equal(relay.receive(proc1, { type: "openmausbot:product-ai-result", requestId: message.requestId, ok: "yes" }), true);
+  assert.equal(relay.receive(other, { type: "hezuo:product-ai-result", requestId: message.requestId, ok: true }), true);
+  assert.equal(relay.receive(proc1, { type: "hezuo:managed-desktop-result", requestId: message.requestId, ok: true }), true);
+  assert.equal(relay.receive(proc1, { type: "hezuo:product-ai-result", requestId: message.requestId, ok: "yes" }), true);
   await settle();
   let settled = false;
   void operation.then(() => { settled = true; });
   await settle();
   assert.equal(settled, false, "only the runtime's own ack settles it");
-  relay.receive(proc1, { type: "openmausbot:product-ai-result", requestId: message.requestId, ok: true });
+  relay.receive(proc1, { type: "hezuo:product-ai-result", requestId: message.requestId, ok: true });
   await operation;
 });
 
 test("an unready state sends no capability; a rejected runtime answers with its own error", async () => {
   const relay = createManagedDesktopRelay(), proc1 = proc();
   const idle = relay.sendProductAi(proc1, { state: "pending", connection: null });
-  relay.receive(proc1, { type: "openmausbot:product-ai-result", requestId: proc1.sent.at(-1).requestId, ok: true });
+  relay.receive(proc1, { type: "hezuo:product-ai-result", requestId: proc1.sent.at(-1).requestId, ok: true });
   await idle;
   assert.deepEqual(proc1.sent.at(-1).connection, null);
   assert.equal(proc1.sent.at(-1).state, "pending");
@@ -70,20 +70,20 @@ test("an unready state sends no capability; a rejected runtime answers with its 
   await assert.rejects(relay.sendProductAi(null, { state: "ready", connection: connection() }), /not available/);
   // Accepted work may finish on a live credential: a balance-empty account keeps one.
   const held = relay.sendProductAi(proc1, { state: "insufficient_balance", connection: connection() });
-  relay.receive(proc1, { type: "openmausbot:product-ai-result", requestId: proc1.sent.at(-1).requestId, ok: true });
+  relay.receive(proc1, { type: "hezuo:product-ai-result", requestId: proc1.sent.at(-1).requestId, ok: true });
   await held;
   assert.equal(proc1.sent.at(-1).state, "insufficient_balance");
   assert.equal(proc1.sent.at(-1).connection.token, token);
   // Without a live credential it holds none, and that is still a valid state.
   relay.sendProductAi(proc1, { state: "insufficient_balance", connection: null });
-  relay.receive(proc1, { type: "openmausbot:product-ai-result", requestId: proc1.sent.at(-1).requestId, ok: true });
+  relay.receive(proc1, { type: "hezuo:product-ai-result", requestId: proc1.sent.at(-1).requestId, ok: true });
   await new Promise(resolve => setImmediate(resolve));
   const refused = relay.sendProductAi(proc1, { state: "ready", connection: connection() });
-  relay.receive(proc1, { type: "openmausbot:product-ai-result", requestId: proc1.sent.at(-1).requestId, ok: false });
+  relay.receive(proc1, { type: "hezuo:product-ai-result", requestId: proc1.sent.at(-1).requestId, ok: false });
   await assert.rejects(refused, /AI could not be connected/);
   // A balance-empty account without any live credential holds none.
   const unprovisioned = relay.sendProductAi(proc1, { state: "insufficient_balance", connection: null });
-  relay.receive(proc1, { type: "openmausbot:product-ai-result", requestId: proc1.sent.at(-1).requestId, ok: true });
+  relay.receive(proc1, { type: "hezuo:product-ai-result", requestId: proc1.sent.at(-1).requestId, ok: true });
   await unprovisioned;
 });
 
@@ -118,7 +118,7 @@ test("a bundled certificate rides the private message, beside the credential", a
   const operation = relay.sendProductAi(proc1, { state: "ready", connection: { ...connection(), ca: pem } });
   const [message] = proc1.sent;
   assert.equal(message.connection.ca, `${pem.trim()}\n`);
-  relay.receive(proc1, { type: "openmausbot:product-ai-result", requestId: message.requestId, ok: true });
+  relay.receive(proc1, { type: "hezuo:product-ai-result", requestId: message.requestId, ok: true });
   await operation;
 });
 
@@ -126,14 +126,14 @@ test("company messages keep their own result type and wording, unchanged", async
   const relay = createManagedDesktopRelay(), proc1 = proc();
   // Observed once, as a value, so the probe below never reports an unhandled rejection.
   const outcome = relay.send(proc1, { fixture: true }).then(() => "resolved", error => error.message);
-  assert.equal(proc1.sent.at(-1).type, "openmausbot:managed-desktop");
+  assert.equal(proc1.sent.at(-1).type, "hezuo:managed-desktop");
   // A product-AI ack with the company request's id is not this operation's answer.
-  relay.receive(proc1, { type: "openmausbot:product-ai-result", requestId: proc1.sent.at(-1).requestId, ok: true });
+  relay.receive(proc1, { type: "hezuo:product-ai-result", requestId: proc1.sent.at(-1).requestId, ok: true });
   let answered = false;
   void outcome.then(() => { answered = true; });
   await settle();
   assert.equal(answered, false, "the product-AI result did not answer the company message");
-  relay.receive(proc1, { type: "openmausbot:managed-desktop-result", requestId: proc1.sent.at(-1).requestId, ok: false });
+  relay.receive(proc1, { type: "hezuo:managed-desktop-result", requestId: proc1.sent.at(-1).requestId, ok: false });
   assert.match(await outcome, /Company models could not be connected/);
   assert.equal(relay.receive(proc1, { type: "unrelated" }), false);
 });

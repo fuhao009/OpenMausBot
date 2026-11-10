@@ -1,3 +1,4 @@
+import "./hezuo-preferences-migration";
 import { useEffect, useState } from "react";
 import type { CloudAccountState } from "../../electron/cloud-account.mjs";
 import { activeLocale, t } from "@/lib/i18n";
@@ -127,7 +128,7 @@ export function openPlaceAction(
     case "manage-computers": appSettings("computer"); return true;
     case "add-boat-key": dispatch(openKeySettings("box")); return true;
     case "open-vm-settings":
-      window.sessionStorage?.setItem("openmausbot.settings.section", "computer");
+      window.sessionStorage?.setItem("hezuo.settings.section", "computer");
       appSettings("computer");
       return true;
     case "open-team-map": dispatch({ type: "showTeamMap" }); return true;

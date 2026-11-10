@@ -6,7 +6,6 @@ import { BotEditorStore, initialState, type InstanceInfo, type useStore } from "
 import { EnginesSettings } from "./EnginesSettings";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-const NOTICE = "Another copy of OpenCode on this computer doesn't start, so OpenCode now uses the copy MausBot installed.";
 const install: InstanceInfo["install"] = {
   platform: "linux", command: { linux: "npm install -g opencode-ai" }, needsNode: true,
   server: { standalone: { version: "1.19.4", downloadBytes: 64_291_659 } },
@@ -48,18 +47,18 @@ it("keeps saying OpenCode now runs the app's copy once the switched copy is Read
   mount([ready]);
   expect(button("Install OpenCode here")).toBeUndefined();
   expect(host.textContent).toContain("Ready");
-  expect(host.textContent).toContain(NOTICE);
+  expect(host.querySelector("[data-app-copy-notice]")).not.toBeNull();
   act(() => button("Dismiss")!.click());
-  expect(host.textContent).not.toContain(NOTICE);
+  expect(host.querySelector("[data-app-copy-notice]")).toBeNull();
 });
 
 it("forgets the notice when the person leaves Settings", async () => {
   mount([broken]);
   await act(async () => button("Install OpenCode here")!.click());
   mount([ready]);
-  expect(host.textContent).toContain(NOTICE);
+  expect(host.querySelector("[data-app-copy-notice]")).not.toBeNull();
   act(() => root.unmount());
   root = createRoot(host);
   mount([ready]);
-  expect(host.textContent).not.toContain(NOTICE);
+  expect(host.querySelector("[data-app-copy-notice]")).toBeNull();
 });

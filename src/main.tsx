@@ -1,3 +1,4 @@
+import "./lib/hezuo-preferences-migration";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import {

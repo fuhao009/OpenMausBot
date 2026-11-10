@@ -26,12 +26,12 @@ afterEach(() => {
 
 describe("gatewayPlist", () => {
   const spec = {
-    node: "/Users/example/Library/ApplicationSupport/OpenMausBotGateway/service/node",
+    node: "/Users/example/Library/ApplicationSupport/HezuoGateway/service/node",
     script: "/Users/example/checkout/scripts/local-gateway.mjs",
-    configPath: "/Users/example/Library/ApplicationSupport/OpenMausBotGateway/gateway.json",
+    configPath: "/Users/example/Library/ApplicationSupport/HezuoGateway/gateway.json",
     home: "/Users/example",
-    workingDirectory: "/Users/example/Library/ApplicationSupport/OpenMausBotGateway",
-    logPath: "/Users/example/Library/ApplicationSupport/OpenMausBotGateway/logs/gateway.log",
+    workingDirectory: "/Users/example/Library/ApplicationSupport/HezuoGateway",
+    logPath: "/Users/example/Library/ApplicationSupport/HezuoGateway/logs/gateway.log",
   };
 
   it("runs this gateway with its own config, at login, and keeps it alive after a crash", () => {
@@ -66,12 +66,12 @@ describe("gatewayPlist", () => {
 
   it("is a valid plist launchd understands", () => {
     const directory = scratch();
-    const file = path.join(directory, "com.openmausbot.gateway.plist");
+    const file = path.join(directory, "com.hezuo.gateway.plist");
     writeFileSync(file, gatewayPlist(spec));
     // plutil parses it; anything launchd would reject is a parse failure here.
     expect(execFileSync("plutil", ["-lint", file], { encoding: "utf8" })).toContain("OK");
     const parsed = JSON.parse(execFileSync("plutil", ["-convert", "json", "-o", "-", file], { encoding: "utf8" }));
-    expect(parsed.Label).toBe("com.openmausbot.gateway");
+    expect(parsed.Label).toBe("com.hezuo.gateway");
     expect(parsed.ProgramArguments).toEqual([spec.node, spec.script, "start", "--config", spec.configPath]);
     expect(parsed.EnvironmentVariables).toEqual({
       HOME: spec.home,
@@ -100,7 +100,7 @@ describe("servicePaths", () => {
   it("keeps the node copy, the plist, and the log inside the data directory except the LaunchAgent", () => {
     const paths = servicePaths({ dataDir: "/data/gw", home: "/Users/example" });
     expect(paths.node).toBe("/data/gw/service/node");
-    expect(paths.installedPlist).toBe("/Users/example/Library/LaunchAgents/com.openmausbot.gateway.plist");
+    expect(paths.installedPlist).toBe("/Users/example/Library/LaunchAgents/com.hezuo.gateway.plist");
     expect(paths.log).toBe("/data/gw/logs/gateway.log");
   });
 });
@@ -134,6 +134,7 @@ describe("stageNode", () => {
     });
     expect(candidates).toEqual([
       "/opt/custom/node",
+      "/Users/example/.local/share/hezuo-runtime/node_modules/node/bin/node",
       "/Users/example/.local/share/openmausbot-runtime/node_modules/node/bin/node",
       "/opt/homebrew/bin/node",
       "/usr/local/bin/node",

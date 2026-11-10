@@ -193,7 +193,7 @@ function sanitizeConnection(value) {
 }
 
 /**
- * The private `openmausbot:product-ai` payload. A ready state always carries a
+ * The private `hezuo:product-ai` payload. A ready state always carries a
  * connection; a balance-empty account may keep one so accepted work finishes.
  */
 export function parseProductAiUpdate(value) {

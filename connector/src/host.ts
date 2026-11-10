@@ -1,4 +1,4 @@
-// What this server is and whether MausBot can run on it, from Docker's own report and the host's /proc (the
+// What this server is and whether Hezuo can run on it, from Docker's own report and the host's /proc (the
 // connector's container shares the host's kernel). Every failing check carries the plain-words fix for its owner.
 import { createHash, randomBytes } from "node:crypto";
 
@@ -61,18 +61,18 @@ export interface BoxProbeResult {
   fix?: string;
 }
 
-/** Each check MausBot needs to pass on a server, in order, with the line its owner sees when it fails. */
+/** Each check Hezuo needs to pass on a server, in order, with the line its owner sees when it fails. */
 export function hostChecks(info: DockerInfo, reader: HostReader, extra: { clockSkewS: number | null; box: BoxProbeResult | null }): HostCheck[] {
   const checks: HostCheck[] = [];
   const add = (check: HostCheck) => checks.push(check);
   add(info.Architecture === "x86_64"
     ? { id: "arch", ok: true }
-    : { id: "arch", ok: false, fix: "This server has an ARM processor. MausBot runs on Intel or AMD (x86-64) servers for now. Please pick an x86-64 server." });
+    : { id: "arch", ok: false, fix: "This server has an ARM processor. Hezuo runs on Intel or AMD (x86-64) servers for now. Please pick an x86-64 server." });
   add(dockerMajor(info.ServerVersion) >= 24
     ? { id: "docker", ok: true }
-    : { id: "docker", ok: false, fix: `Docker ${info.ServerVersion} is too old; MausBot needs Docker 24 or newer. Run: curl -fsSL https://get.docker.com | sudo sh` });
+    : { id: "docker", ok: false, fix: `Docker ${info.ServerVersion} is too old; Hezuo needs Docker 24 or newer. Run: curl -fsSL https://get.docker.com | sudo sh` });
   add(securityOption(info, "rootless")
-    ? { id: "rootless", ok: false, fix: "Docker runs in rootless mode here. MausBot needs the standard Docker service: run curl -fsSL https://get.docker.com | sudo sh" }
+    ? { id: "rootless", ok: false, fix: "Docker runs in rootless mode here. Hezuo needs the standard Docker service: run curl -fsSL https://get.docker.com | sudo sh" }
     : { id: "rootless", ok: true });
   add(securityOption(info, "apparmor") && securityOption(info, "seccomp")
     ? { id: "apparmor", ok: true }
@@ -87,7 +87,7 @@ export function hostChecks(info: DockerInfo, reader: HostReader, extra: { clockS
   if (extra.box) add(extra.box.ok ? { id: "box", ok: true } : { id: "box", ok: false, fix: extra.box.fix });
   const { free, total } = reader.disk();
   const freeGb = Math.floor(free / 1e9);
-  if (freeGb < MIN_DISK_GB) add({ id: "disk", ok: false, fix: `Your server has only ${freeGb} GB free. MausBot needs at least ${MIN_DISK_GB} GB: free some space or add a disk.` });
+  if (freeGb < MIN_DISK_GB) add({ id: "disk", ok: false, fix: `Your server has only ${freeGb} GB free. Hezuo needs at least ${MIN_DISK_GB} GB: free some space or add a disk.` });
   else if (total > 0 && (total - free) / total >= 0.85) add({ id: "disk", ok: true, warning: true, fix: `Your server's disk is ${Math.round(((total - free) / total) * 100)}% full. Free some space or add a disk before it fills up.` });
   else add({ id: "disk", ok: true });
   const memGb = Math.round((info.MemTotal / 1073741824) * 10) / 10;
@@ -141,7 +141,7 @@ export function boxProbeFix(output: string): string {
 
 /** Runs BOX_PROBE in a throwaway container from `image` with the home's own security settings, as nobody. */
 export async function probeBox(docker: Docker, image: string, seccomp: string): Promise<BoxProbeResult> {
-  const name = `mausbot-probe-${randomBytes(4).toString("hex")}`;
+  const name = `hezuo-probe-${randomBytes(4).toString("hex")}`;
   try {
     await docker.createContainer(name, {
       Image: image,

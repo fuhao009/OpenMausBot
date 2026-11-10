@@ -92,7 +92,7 @@ export default defineConfig({
         ws: true,
         target: `http://127.0.0.1:${process.env.OMB_PORT || process.env.OGB_PORT || 8799}`,
       },
-      "/.well-known/openmausbot/environment": {
+      "/.well-known/hezuo/environment": {
         target: `http://127.0.0.1:${process.env.OMB_PORT || process.env.OGB_PORT || 8799}`,
       },
     },

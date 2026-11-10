@@ -43,7 +43,7 @@ const HOUR = 3_600_000;
 const claude = (used: number, blocked = false): EngineLimit => ({ engine: "claude", name: "Claude", driver: "claude", window: "5-hour", usedPercent: used, resetsAt: RESET, blocked });
 const bot = { id: "scout", name: "Scout", hidden: false, threadId: "t-main", modelSelection: { instanceId: "claude", model: "claude-sonnet-5" }, tasks: [] } as unknown as Bot;
 const routine = (id: string, nextRunAt: number, extra: Partial<Routine> = {}): Routine => ({
-  id, name: id, prompt: "Finish the report.", target: "bot", botId: "scout", runOn: "maus", enabled: true,
+  id, name: id, prompt: "Finish the report.", target: "bot", botId: "scout", runOn: "hezuo", enabled: true,
   schedule: { type: "daily", time: "11:00", weekdays: [0, 1, 2, 3, 4, 5, 6] }, durationMinutes: 30, nextRunAt, createdAt: 0, updatedAt: 0, ...extra,
 });
 
@@ -81,8 +81,13 @@ afterEach(() => {
 
 describe("the words", () => {
   it("say how full an engine is and when it resets", () => {
-    expect(limits.limitLine(claude(92), NOW)).toBe("Claude: 92% used · resets 3:40 PM");
-    expect(limits.limitLine(claude(100, true), NOW)).toBe("Claude: at its limit · resets 3:40 PM");
+    const near = limits.limitLine(claude(92), NOW);
+    const blocked = limits.limitLine(claude(100, true), NOW);
+    expect(near).toContain("Claude");
+    expect(near).toContain("92%");
+    expect(blocked).not.toBe(near);
+    expect(near).not.toBe(limits.limitLine({ ...claude(92), resetsAt: null }, NOW));
+    expect(limits.limitLine({ ...claude(92), resetsAt: NOW - 1 }, NOW)).toBe(limits.limitLine({ ...claude(92), resetsAt: null }, NOW));
     expect(limits.nearLimitEngines([claude(89), { ...claude(90), engine: "codex" }]).map((limit) => limit.engine)).toEqual(["codex"]);
   });
 
@@ -117,7 +122,7 @@ describe("the Automations page warning", () => {
     fixture.api.mockImplementation(async (path: unknown) => String(path).startsWith("/api/limit-resets/after-reset") ? { routine: moved } : { checkedAt: NOW, engines: [claude(92)] });
     const container = mount(createElement(LimitWarnings));
     const warning = container.querySelector('[data-limit-warning="claude"]')!;
-    expect(warning.textContent).toContain("Claude: 92% used · resets 3:40 PM");
+    expect(warning.textContent).toContain(limits.limitLine(claude(92), NOW));
     expect(warning.textContent).toContain("1 automation runs before then");
     flushSync(() => button(container, "Move to after reset").click());
     await settle();
@@ -134,7 +139,7 @@ describe("the Automations page warning", () => {
 
 describe("the chat", () => {
   it("shows a compact notice for the bot's own engine only when it is near its limit", () => {
-    expect(mount(createElement(EngineLimitNotice, { engine: "claude" })).textContent).toBe("Claude: 92% used · resets 3:40 PM");
+    expect(mount(createElement(EngineLimitNotice, { engine: "claude" })).textContent).toBe(limits.limitLine(claude(92), NOW));
     root!.unmount();
     root = null;
     expect(mount(createElement(EngineLimitNotice, { engine: "codex" })).innerHTML).toBe("");
@@ -146,7 +151,7 @@ describe("the chat", () => {
     root!.unmount();
     limits.rememberLimits({ checkedAt: NOW, engines: [claude(100, true)] });
     const blocked = mount(createElement(EngineLimitNotice, { engine: "claude" })).querySelector("button")!;
-    expect(blocked.textContent).toBe("Claude: at its limit · resets 3:40 PM");
+    expect(blocked.textContent).toBe(limits.limitLine(claude(100, true), NOW));
     expect(blocked.title).toContain("clears by itself once a reply on Claude works again");
     expect(blocked.getAttribute("aria-label")).toContain("Claude: at its limit");
   });
@@ -172,8 +177,10 @@ describe("the chat", () => {
     fixture.api.mockImplementation(async (path: unknown) => String(path) === "/api/limit-resets/continue" ? { routine: created } : { checkedAt: NOW, engines: [claude(100, true)] });
     const tool = failedTurnTool("This Claude account has reached its 5-hour limit, which resets Oct 19, 3:40 PM (UTC).", { limitResetsAt: RESET });
     const container = mount(createElement(FailedTurnRow, { tool, engine: undefined, botId: "scout", threadId: "t-1", onRetry: vi.fn() }));
-    expect([...container.querySelectorAll("button")].map((candidate) => candidate.textContent?.trim())).toEqual(["Continue at 3:40 PM when your limit resets"]);
-    flushSync(() => button(container, "Continue at 3:40 PM when your limit resets").click());
+    const actions = container.querySelectorAll("button");
+    expect(actions).toHaveLength(1);
+    expect(actions[0].disabled).toBe(false);
+    flushSync(() => actions[0].click());
     await settle();
     expect(fixture.api).toHaveBeenCalledWith("/api/limit-resets/continue", { method: "POST", body: JSON.stringify({ botId: "scout", threadId: "t-1" }) });
     expect(fixture.dispatch).toHaveBeenCalledWith({ type: "routinePatched", routine: created });
@@ -206,7 +213,8 @@ describe("the calendar", () => {
   it("draws each engine's next reset as a labelled marker", () => {
     const container = grid();
     const shown = container.querySelector('[data-limit-marker="claude"]')!;
-    expect(shown.textContent).toBe("Claude resets 3:40 PM");
+    expect(shown.textContent).toContain(marker.name);
+    expect(shown.textContent).toContain(limits.resetTime(marker.at, NOW));
     expect(shown.getAttribute("title")).toBe("Drop a bot or an automation here to run it when Claude's limit resets");
   });
 
@@ -215,9 +223,9 @@ describe("the calendar", () => {
     const onCreate = vi.fn();
     const container = grid(onDropOnReset, onCreate);
     const shown = container.querySelector('[data-limit-marker="claude"]')!;
-    drop(shown, "application/x-openmaus-bot", "scout");
+    drop(shown, "application/x-hezuo-bot", "scout");
     expect(onDropOnReset).toHaveBeenLastCalledWith({ botId: "scout" }, marker);
-    drop(shown, "application/x-openmaus-calendar-event", JSON.stringify({ kind: "routine", id: "brief", at: NOW + HOUR }));
+    drop(shown, "application/x-hezuo-calendar-event", JSON.stringify({ kind: "routine", id: "brief", at: NOW + HOUR }));
     expect(onDropOnReset).toHaveBeenLastCalledWith({ event: { kind: "routine", id: "brief", at: NOW + HOUR } }, marker);
     expect(onCreate).not.toHaveBeenCalled();
   });

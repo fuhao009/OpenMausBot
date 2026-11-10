@@ -1,6 +1,6 @@
 // A move to the person's own Cloud carries this computer's connections, end to end: this computer's server and a Cloud
 // home (scripts/testing/cloud-send-fixture.ts), main's own functions between them (electron/cloud-connections.mjs) over
-// the private port and the owner session, OpenMausBot's connected-apps service with a fake Composio behind it, a fake
+// the private port and the owner session, Hezuo's connected-apps service with a fake Composio behind it, a fake
 // sign-in server for an MCP server's own account, and a fake HighLevel with its relay. Disposable homes; no network.
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -105,7 +105,7 @@ it("moves the MCP servers with their secrets and sign-ins, the keys and the conn
     expect((await local("PATCH", `/api/mcp/servers/${server.name}`, { enabled: true })).status).toBe(200);
   }
   // Signed in to linear with its own account here, its access token already expired: My Cloud must refresh it itself.
-  const desktopSignIns = join(fx.root, "desktop", ".openmausbot", "mcp-oauth.json");
+  const desktopSignIns = join(fx.root, "desktop", ".hezuo", "mcp-oauth.json");
   writeFileSync(desktopSignIns, JSON.stringify({ servers: { linear: { url: LINEAR_URL, state: "signed-in", clientId: "omb-fixture-client", tokenAuth: "client_secret_post",
     tokenEndpoint, tokens: { access: ACCESS, refresh: REFRESH, expiresAt: Date.now() - 60_000 } } } }));
   expect((await local("PATCH", "/api/config", { openrouter: { key: OPENROUTER_KEY } })).status).toBe(200);

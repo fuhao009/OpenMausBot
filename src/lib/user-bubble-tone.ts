@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { contrastRatio, fromOklch, mixSrgb, toOklch } from "./color-contrast";
-import { MAUS_COLORS, type MausColor } from "./mascot";
+import { HEZUO_COLORS, type HezuoColor } from "./mascot";
 
 const WHITE = "#ffffff";
 const INK = "#101410";
@@ -186,8 +186,8 @@ function darkInkTone(palette: string): UserBubbleTone {
   };
 }
 
-export function userBubbleTone(color: MausColor): UserBubbleTone {
-  const palette = MAUS_COLORS[color];
+export function userBubbleTone(color: HezuoColor): UserBubbleTone {
+  const palette = HEZUO_COLORS[color];
   const { h } = toOklch(palette);
   return h >= YELLOW_HUES.from && h <= YELLOW_HUES.to ? darkInkTone(palette) : whiteInkTone(palette);
 }
@@ -205,7 +205,7 @@ export function quoteSurface(inset: string, background: string): string {
 }
 
 /** `flat`: Simple mode's one even fill, the tone's background with no gradient over it. */
-export function userBubbleStyle(color: MausColor, { flat = false }: { flat?: boolean } = {}): CSSProperties {
+export function userBubbleStyle(color: HezuoColor, { flat = false }: { flat?: boolean } = {}): CSSProperties {
   const tone = userBubbleTone(color);
   return {
     backgroundColor: tone.background,

@@ -19,6 +19,7 @@ function fixture(response = 0) {
   const mainWindow = { webContents: contents, isDestroyed: () => false };
   localOrigin.setLocalOrigin(ORIGIN);
   const context = vm.createContext({
+    productService: null,
     ipcMain: { handle: (name, handler) => handlers.set(name, handler) },
     localOnly: localOrigin.localOnly, workspaceSenderAllowed: environments.workspaceSenderAllowed,
     mainWindow, rendererOrigin: () => ORIGIN, environmentsState: { activeId: "local", environments: [] },

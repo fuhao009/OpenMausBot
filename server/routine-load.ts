@@ -85,7 +85,7 @@ export function loadRoutine(routine: Routine, now: number): Routine | null {
     schedule,
     target,
     groupId: loadGroupId(routine.groupId, target),
-    runOn: routine.runOn ?? "maus",
+    runOn: routine.runOn === "cloud" ? "cloud" : "hezuo", // Includes pre-Hezuo persisted "maus".
     timeoutMinutes: loadTimeoutMinutes(routine.timeoutMinutes),
     attachments: loadAttachments(routine.attachments),
     sourceThreadId: persistedSourceThreadId.parse(routine.sourceThreadId),
@@ -111,7 +111,7 @@ export function loadRun(run: RoutineRun): RoutineRun {
     target,
     goalStatus: loadGoalStatus(run.goalStatus, target),
     groupId: loadGroupId(run.groupId, target),
-    runOn: run.runOn ?? "maus",
+    runOn: run.runOn === "cloud" ? "cloud" : "hezuo", // Includes pre-Hezuo persisted "maus".
     timeoutMinutes: loadTimeoutMinutes(run.timeoutMinutes),
     attachments: loadAttachments(run.attachments),
     sourceThreadId: persistedSourceThreadId.parse(run.sourceThreadId),

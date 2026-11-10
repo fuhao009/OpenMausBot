@@ -3,7 +3,7 @@ import { Check, ChevronLeft, ChevronRight, Trash2, type LucideIcon } from "lucid
 
 import { cn } from "@/lib/cn";
 import { useAdvancedMode } from "@/lib/interface-mode";
-import { MAUS_COLORS, type MausColor } from "@/lib/mascot";
+import { HEZUO_COLORS, type HezuoColor } from "@/lib/mascot";
 import { ELEVATED_CONTROL, ELEVATED_HOVER } from "../elevated";
 import { Switch } from "../SettingsPrimitives";
 
@@ -71,8 +71,8 @@ export function RowIcon({ icon: Icon }: { icon: LucideIcon }) {
   );
 }
 
-export function BotSwitch({ color, checked, ...props }: Parameters<typeof Switch>[0] & { color: MausColor }) {
-  return <Switch {...props} checked={checked} style={checked ? { backgroundColor: MAUS_COLORS[color] } : undefined} />;
+export function BotSwitch({ color, checked, ...props }: Parameters<typeof Switch>[0] & { color: HezuoColor }) {
+  return <Switch {...props} checked={checked} style={checked ? { backgroundColor: HEZUO_COLORS[color] } : undefined} />;
 }
 
 export function SwitchRow({ title, hint, checked, onChange, disabled, color, label, tooltip, extra, ...rest }: {
@@ -81,7 +81,7 @@ export function SwitchRow({ title, hint, checked, onChange, disabled, color, lab
   checked: boolean;
   onChange: () => void;
   disabled?: boolean;
-  color: MausColor;
+  color: HezuoColor;
   label?: string;
   tooltip?: string;
   extra?: ReactNode;

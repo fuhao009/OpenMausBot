@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/cn";
-import { CHROME_EYES, CHROME_GRADIENT, MAUS_COLORS, type MausColor, type MausMotion, type MausState } from "@/lib/mascot";
+import { CHROME_EYES, CHROME_GRADIENT, HEZUO_COLORS, type HezuoColor, type HezuoMotion, type HezuoState } from "@/lib/mascot";
 import { CursorAvatar, type CursorAvatarHandle } from "./CursorAvatar";
 import { avatarCropRadius, botAvatarProfile, clampAvatarFocus, clampAvatarZoom, mascotFaceInk, type BotAvatarCrop, type MascotFaceColor } from "../../shared/bot-avatar";
 import { MASCOT_BODIES, botMascotBody } from "../../shared/mascot-bodies";
@@ -25,7 +25,7 @@ const POINTER_GAZE = { forward: 1, authored: 0.25 };
 
 interface MotionFaces
   extends Partial<
-    Record<Exclude<MausMotion, "none">, { state?: MausState; blink?: boolean; spin?: number }>
+    Record<Exclude<HezuoMotion, "none">, { state?: HezuoState; blink?: boolean; spin?: number }>
   > {}
 
 const MOTION_FACE: MotionFaces = {
@@ -58,13 +58,13 @@ function mix(hex: string, toward: string, t: number): string {
     .join("")}`;
 }
 
-const gradientFor = (color: MausColor): [string, string, string] => {
+const gradientFor = (color: HezuoColor): [string, string, string] => {
   if (color === "chrome") return CHROME_GRADIENT;
-  const fill = MAUS_COLORS[color] ?? MAUS_COLORS.green;
+  const fill = HEZUO_COLORS[color] ?? HEZUO_COLORS.green;
   return [mix(fill, "#ffffff", 0.55), fill, mix(fill, "#000000", 0.42)];
 };
 
-export function roomAvatarGradient(color: MausColor): [string, string, string] {
+export function roomAvatarGradient(color: HezuoColor): [string, string, string] {
   const fill = `var(--identity-${color})`;
   return [
     `color-mix(in srgb, ${fill} 82%, #ffffff)`,
@@ -73,15 +73,15 @@ export function roomAvatarGradient(color: MausColor): [string, string, string] {
   ];
 }
 
-export type MausAvatarHandle = CursorAvatarHandle;
+export type HezuoAvatarHandle = CursorAvatarHandle;
 
-export type MausAvatarProps = {
-  color: MausColor;
-  state?: MausState;
+export type HezuoAvatarProps = {
+  color: HezuoColor;
+  state?: HezuoState;
   expression?: number;
   size?: number;
   label?: string;
-  motion?: MausMotion;
+  motion?: HezuoMotion;
   motionKey?: number;
   turn?: number;
   gaze?: { x?: number; y?: number };
@@ -98,7 +98,7 @@ export type MausAvatarProps = {
   faceColor?: MascotFaceColor | null;
 };
 
-function MausAvatarComponent(props: MausAvatarProps, ref: React.Ref<MausAvatarHandle>) {
+function HezuoAvatarComponent(props: HezuoAvatarProps, ref: React.Ref<HezuoAvatarHandle>) {
   const { bodyId, color, size, state, motion, motionKey, gaze, trackPointer, animated, label } = props;
   if (isHalloweenBody(bodyId)) {
     return (
@@ -143,8 +143,8 @@ function GradientAvatarComponent(
     bodyId,
     gradient,
     faceColor,
-  }: MausAvatarProps,
-  ref: React.Ref<MausAvatarHandle>,
+  }: HezuoAvatarProps,
+  ref: React.Ref<HezuoAvatarHandle>,
 ) {
   const silhouette = MASCOT_BODIES[botMascotBody(bodyId)];
   const chrome = color === "chrome";
@@ -156,7 +156,7 @@ function GradientAvatarComponent(
     setExpression: (index: number) => inner.current?.setExpression(index),
   }));
 
-  const [motionState, setMotionState] = useState<MausState | null>(null);
+  const [motionState, setMotionState] = useState<HezuoState | null>(null);
   useEffect(() => {
     if (motion === "none" || !animated) return;
     const beat = MOTION_FACE[motion];
@@ -212,13 +212,13 @@ function GradientAvatarComponent(
 
 const GradientAvatar = forwardRef(GradientAvatarComponent);
 
-export const MausAvatar = memo(forwardRef(MausAvatarComponent));
+export const HezuoAvatar = memo(forwardRef(HezuoAvatarComponent));
 
-export type BotAvatarProps = Omit<MausAvatarProps, "color" | "gradient"> & {
+export type BotAvatarProps = Omit<HezuoAvatarProps, "color" | "gradient"> & {
   readable?: boolean;
   bot: {
     name?: string;
-    color: MausColor;
+    color: HezuoColor;
     avatarUrl?: string | null;
     avatarCrop?: BotAvatarCrop;
     avatarZoom?: number;
@@ -259,7 +259,7 @@ export function BotAvatar({ bot, size = 44, label, readable = false, ...mascotPr
 
   if (outcome !== "flatImage") {
     return (
-      <MausAvatar
+      <HezuoAvatar
         bodyId={wornBody(bot.mascotBody, bot.color, dressed)}
         {...mascotProps}
         color={bot.color}

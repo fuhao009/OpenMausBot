@@ -4,13 +4,13 @@ import { ChevronDown, ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
-import { colorSwatch, MAUS_COLOR_LABEL, MAUS_COLOR_NAMES, PICKABLE_STATES, type MausState } from "@/lib/mascot";
+import { colorSwatch, HEZUO_COLOR_LABEL, HEZUO_COLOR_NAMES, PICKABLE_STATES, type HezuoState } from "@/lib/mascot";
 import type { Bot } from "@/state/store";
 import { MASCOT_BODIES, MASCOT_BODY_IDS } from "../../../shared/mascot-bodies";
 import { HALLOWEEN_BODIES, HALLOWEEN_BODY_IDS } from "../../../shared/halloween-bodies";
 import { isHalloweenBody, type BotBodyId } from "../../../shared/bot-body";
 import { useHalloweenDressed, wornBody } from "@/lib/halloween-dress";
-import { MausAvatar } from "../Avatar";
+import { HezuoAvatar } from "../Avatar";
 import { AvatarImageGenerator } from "../AvatarImageGenerator";
 import { AvatarFraming, OrganizationAvatarIcons, RESET_MASCOT_PATCH, useAvatarImage, type AvatarPatch } from "../avatar-editing";
 import { Segmented } from "./rows";
@@ -31,7 +31,7 @@ const CROP_KEY: Record<(typeof IMAGE_CROPS)[number], LocaleKey> = {
   square: "botPanel.avatar.square",
 };
 
-const FACE_KEY: Partial<Record<MausState, LocaleKey>> = {
+const FACE_KEY: Partial<Record<HezuoState, LocaleKey>> = {
   idle: "botPanel.face.idle",
   happy: "botPanel.face.happy",
   curious: "botPanel.face.curious",
@@ -44,14 +44,14 @@ const FACE_KEY: Partial<Record<MausState, LocaleKey>> = {
   proud: "botPanel.face.proud",
 };
 
-const faceLabel = (state: MausState) => {
+const faceLabel = (state: HezuoState) => {
   const key = FACE_KEY[state];
   return key ? t(key) : state;
 };
 
 export function AvatarEditorCard({ bot, activeState, onPatch, onClose }: {
   bot: Bot;
-  activeState: MausState;
+  activeState: HezuoState;
   onPatch: (patch: AvatarPatch) => void;
   onClose: () => void;
 }) {
@@ -84,7 +84,7 @@ export function AvatarEditorCard({ bot, activeState, onPatch, onClose }: {
         !showsImage && body === id ? "bg-ink/[0.08] ring-[1.5px] ring-inset ring-ink/25" : "hover:bg-ink/[0.05]",
       )}
     >
-      <MausAvatar color={bot.color} faceColor={bot.mascotFaceColor} bodyId={id} size={40} animated={false} trackPointer={false} />
+      <HezuoAvatar color={bot.color} faceColor={bot.mascotFaceColor} bodyId={id} size={40} animated={false} trackPointer={false} />
     </button>
   );
 
@@ -138,14 +138,14 @@ export function AvatarEditorCard({ bot, activeState, onPatch, onClose }: {
               {MASCOT_BODY_IDS.map((id) => bodyButton(id, MASCOT_BODIES[id].name))}
             </div>
             <div className="flex flex-wrap justify-center gap-2 px-1 pb-1 pt-3.5">
-              {MAUS_COLOR_NAMES.map((color) => (
+              {HEZUO_COLOR_NAMES.map((color) => (
                 <button
                   key={color}
                   type="button"
                   disabled={busy}
                   aria-pressed={bot.color === color}
                   aria-label={`Use ${color} mascot color`}
-                  title={t(MAUS_COLOR_LABEL[color])}
+                  title={t(HEZUO_COLOR_LABEL[color])}
                   onClick={() => pickMascot({ color })}
                   className={cn(
                     "size-6 rounded-full disabled:opacity-50",

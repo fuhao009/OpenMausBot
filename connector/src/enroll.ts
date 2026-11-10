@@ -9,10 +9,10 @@ export function adminOrigin(raw: string | undefined): string {
   try {
     url = new URL(raw ?? "");
   } catch {
-    throw new Error("The install command did not say which MausBot to connect to. Copy the install command from MausBot again.");
+    throw new Error("The install command did not say which Hezuo to connect to. Copy the install command from Hezuo again.");
   }
   if (url.username || url.password || (url.protocol !== "https:" && !(url.protocol === "http:" && isLoopbackHost(url.hostname)))) {
-    throw new Error(`${url.origin} is not a MausBot address this connector may use.`);
+    throw new Error(`${url.origin} is not a Hezuo address this connector may use.`);
   }
   return url.origin;
 }
@@ -36,15 +36,15 @@ export async function enroll(options: {
       signal: AbortSignal.timeout(30_000),
     });
   } catch (error) {
-    throw new Error(`This server can't reach MausBot at ${options.admin} (${errorText(error)}). Check that it can make outbound HTTPS connections, then run the install command again.`);
+    throw new Error(`This server can't reach Hezuo at ${options.admin} (${errorText(error)}). Check that it can make outbound HTTPS connections, then run the install command again.`);
   }
   if (response.status === 400 || response.status === 401 || response.status === 403 || response.status === 404 || response.status === 410) {
-    throw new Error("This code isn't valid anymore: a code works once, for one hour. Make a new one in MausBot and run the install command again.");
+    throw new Error("This code isn't valid anymore: a code works once, for one hour. Make a new one in Hezuo and run the install command again.");
   }
-  if (!response.ok) throw new Error(`MausBot answered ${response.status} to the connection request. Try the install command again in a minute.`);
+  if (!response.ok) throw new Error(`Hezuo answered ${response.status} to the connection request. Try the install command again in a minute.`);
   let body: unknown;
   try { body = await response.json(); } catch { body = null; }
   const checked = checkEnrollResponse(body);
-  if (!checked.ok) throw new Error(`MausBot's answer could not be used (${checked.message}). Try the install command again.`);
+  if (!checked.ok) throw new Error(`Hezuo's answer could not be used (${checked.message}). Try the install command again.`);
   return { version: 1, admin: options.admin, ...checked.value, enrolledAt: (options.now ?? Date.now)() };
 }

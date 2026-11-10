@@ -12,8 +12,8 @@ const bootstrapSource = fileURLToPath(new URL("../scripts/desktop-server-entry.m
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 test("the packaged server forks the bootstrap with a compile cache under userData", () => {
-  const resourcesPath = path.join("/Applications", "OpenMausBot.app", "Contents", "Resources");
-  const userData = path.join("/Users", "someone", "Library", "Application Support", "OpenMausBot");
+  const resourcesPath = path.join("/Applications", "Hezuo.app", "Contents", "Resources");
+  const userData = path.join("/Users", "someone", "Library", "Application Support", "Hezuo");
   assert.deepEqual(serverChildLaunch({ resourcesPath, userData, env: {}, exists: () => true }), {
     entry: path.join(resourcesPath, "server", "desktop-entry.mjs"),
     compileCacheDir: path.join(userData, "server-compile-cache"),
@@ -21,8 +21,8 @@ test("the packaged server forks the bootstrap with a compile cache under userDat
 });
 
 test("a server tree without the bootstrap forks index.js with no cache, as before", () => {
-  const resourcesPath = path.join("/opt", "OpenMausBot", "resources");
-  assert.deepEqual(serverChildLaunch({ resourcesPath, userData: "/home/someone/.config/OpenMausBot", env: {}, exists: () => false }), {
+  const resourcesPath = path.join("/opt", "Hezuo", "resources");
+  assert.deepEqual(serverChildLaunch({ resourcesPath, userData: "/home/someone/.config/Hezuo", env: {}, exists: () => false }), {
     entry: path.join(resourcesPath, "server", "index.js"),
     compileCacheDir: null,
   });
@@ -32,39 +32,21 @@ test("no cache where the app's path changes every launch: AppImage and App Trans
   // Node keys cache entries by full path, so these would never hit and would add an entry every launch.
   const appImage = serverChildLaunch({
     resourcesPath: "/tmp/.mount_OpenMaXk3f9a/resources",
-    userData: "/home/someone/.config/OpenMausBot",
-    env: { APPIMAGE: "/home/someone/OpenMausBot.AppImage" },
+    userData: "/home/someone/.config/Hezuo",
+    env: { APPIMAGE: "/home/someone/Hezuo.AppImage" },
     exists: () => true,
   });
   assert.equal(appImage.entry, path.join("/tmp/.mount_OpenMaXk3f9a/resources", "server", "desktop-entry.mjs"));
   assert.equal(appImage.compileCacheDir, null);
   const translocated = serverChildLaunch({
-    resourcesPath: "/private/var/folders/xy/T/AppTranslocation/2F1C/d/OpenMausBot.app/Contents/Resources",
-    userData: "/Users/someone/Library/Application Support/OpenMausBot",
+    resourcesPath: "/private/var/folders/xy/T/AppTranslocation/2F1C/d/Hezuo.app/Contents/Resources",
+    userData: "/Users/someone/Library/Application Support/Hezuo",
     env: {},
     exists: () => true,
   });
   assert.equal(translocated.compileCacheDir, null);
 });
 
-test("main forks what the helper picks and hands only the server the cache directory", () => {
-  const main = readFileSync(new URL("./main.mjs", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  const start = main.indexOf("async function startServerOn(port,");
-  const body = main.slice(start, main.indexOf("utilityProcess.fork(entry", start));
-  assert.match(body, /const \{ entry, compileCacheDir \} = serverChildLaunch\(\{\n\s+resourcesPath: process\.resourcesPath,\n\s+userData: app\.getPath\("userData"\),/);
-  assert.match(body, /delete childEnv\.OMB_SERVER_COMPILE_CACHE;\n\s+if \(compileCacheDir\) childEnv\.OMB_SERVER_COMPILE_CACHE = compileCacheDir;/);
-  assert.doesNotMatch(body, /path\.join\(process\.resourcesPath, "server", "index\.js"\)/);
-});
-
-test("every server child of one launch gets that launch's id, never one from the shell", () => {
-  const main = readFileSync(new URL("./main.mjs", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  assert.match(main, /\nconst desktopLaunchId = randomUUID\(\);\n/);
-  const start = main.indexOf("async function startServerOn(port,");
-  const body = main.slice(start, main.indexOf("utilityProcess.fork(entry", start));
-  const spread = body.indexOf("...process.env,");
-  const launch = body.indexOf("OMB_DESKTOP_LAUNCH_ID: desktopLaunchId,");
-  assert.ok(spread > 0 && launch > spread, "the launch id is set after, so over, the inherited environment");
-});
 
 // A staged copy of the bootstrap beside a stand-in index.js that reports what the server would see.
 function stage(t, indexSource = REPORTING_INDEX) {

@@ -67,8 +67,8 @@ optional account AI (absent: accounts sign in, AI reads unavailable):
 optional:
   AUTH_EMAIL_VERIFICATION     'required' (default with a sender) or 'off':
                               off deploys password accounts with no mail
-  OMB_PRODUCT_D1_NAME         D1 database name (default: openmausbot-product)
-  OMB_PRODUCT_WORKER_NAME     Worker name (default: openmausbot-product)
+  OMB_PRODUCT_D1_NAME         D1 database name (default: hezuo-product)
+  OMB_PRODUCT_WORKER_NAME     Worker name (default: hezuo-product)
   BETTER_AUTH_URL             sign-in base URL (default: OMB_PRODUCT_SERVICE_URL)
   OMB_PRODUCT_CORS_ORIGINS    comma-separated extra allowed app origins
   OMB_PRODUCT_COMPAT_DATE     compatibility date (default: the checked-in one)
@@ -264,9 +264,9 @@ export function readProductDeployment(environment = process.env, { realDeploy = 
   if (!RESOURCE_ID.test(accountId)) fail("CLOUDFLARE_ACCOUNT_ID must be a 32-character Cloudflare account ID");
   const databaseId = required(environment, "OMB_PRODUCT_D1_ID");
   if (!DATABASE_ID.test(databaseId)) fail("OMB_PRODUCT_D1_ID must be a D1 database UUID");
-  const workerName = optional(environment, "OMB_PRODUCT_WORKER_NAME") ?? "openmausbot-product";
+  const workerName = optional(environment, "OMB_PRODUCT_WORKER_NAME") ?? "hezuo-product";
   if (!WORKER_NAME.test(workerName)) fail("OMB_PRODUCT_WORKER_NAME must be a lowercase Worker name");
-  const databaseName = optional(environment, "OMB_PRODUCT_D1_NAME") ?? "openmausbot-product";
+  const databaseName = optional(environment, "OMB_PRODUCT_D1_NAME") ?? "hezuo-product";
   if (!WORKER_NAME.test(databaseName)) fail("OMB_PRODUCT_D1_NAME must be a lowercase D1 database name");
   // Emailed verification is the default where a sender exists. A deployment may
   // deliberately run without mail (`AUTH_EMAIL_VERIFICATION=off`): then a

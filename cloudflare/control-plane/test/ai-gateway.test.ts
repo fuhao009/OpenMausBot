@@ -8,7 +8,7 @@ import { readAuthConfig } from "../src/config";
 import { sha256 } from "../src/installations";
 import worker from "../src/index";
 
-const BASE_URL = "https://auth.openmausbot.test";
+const BASE_URL = "https://auth.hezuo.test";
 const UPSTREAM = "https://ai.upstream.test/v1";
 const UPSTREAM_KEY = "operator-upstream-key-0123456789";
 

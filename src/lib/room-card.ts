@@ -1,3 +1,4 @@
+import "./hezuo-preferences-migration";
 // Display only: the room card never changes a plan or a limit. The Admin decides when a Cloud is short on room and which
 // plan fixes it (the session's `cloud.room`); its Upgrade goes through the usual preview and confirmation.
 import type { CloudRoom, CloudUsage } from "../../electron/cloud-home.mjs";
@@ -60,7 +61,7 @@ export function roomCardView(input: { room: CloudRoom | null | undefined; usage:
     tip: offer ? null : t(kind === "disk" ? "roomCard.tip.disk" : "roomCard.tip.memory") };
 }
 
-const HIDDEN_KEY = "openmausbot.roomCard.hidden.v1";
+const HIDDEN_KEY = "hezuo.roomCard.hidden.v1";
 export function readRoomCardHidden(): string | null {
   try { return globalThis.localStorage?.getItem(HIDDEN_KEY) ?? null; } catch { return null; }
 }

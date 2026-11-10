@@ -86,7 +86,7 @@ describe("the connector replacing itself", () => {
   it("keeps the running connector when the new one never connects, and removes the new one", async () => {
     const f = await fixture();
     const reply = await f.updater("instance-old").run(f.job, f.agent);
-    expect(reply).toEqual({ id: "self-1", ok: false, error: { code: "self_update_failed", message: "The new connector did not connect to MausBot within 3 minutes; kept this one." } });
+    expect(reply).toEqual({ id: "self-1", ok: false, error: { code: "self_update_failed", message: "The new connector did not connect to Hezuo within 3 minutes; kept this one." } });
     expect([...f.docker.containers.keys()]).toEqual(["mausbot-connector"]);
     expect(f.docker.container("mausbot-connector")!.spec.Image).toBe(OLD);
     expect(f.agent).toMatchObject({ paused: 1, resumed: 1 });

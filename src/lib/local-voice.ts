@@ -1,3 +1,4 @@
+import "./hezuo-preferences-migration";
 export type RemoteVoiceProvider = "host" | "system";
 
 type Preferences = {
@@ -5,7 +6,7 @@ type Preferences = {
   voices?: Record<string, string>;
 };
 
-const STORAGE_KEY = "openmausbot.remote-voice.v1";
+const STORAGE_KEY = "hezuo.remote-voice.v1";
 
 function storage(): Storage | null {
   try {

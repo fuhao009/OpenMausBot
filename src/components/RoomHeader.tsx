@@ -59,7 +59,7 @@ export function DefaultResponderSelect({ group, members }: { group: Group; membe
   );
 }
 
-function memberMauses(group: Group, members: Bot[]) {
+function memberHezuos(group: Group, members: Bot[]) {
   const contextWarnings = roomContextWarnings(group, members);
   const speakersElsewhere = new Set(roomSpeakerIds(group).filter((id) => id !== group.busyBotId));
   return members.map((b) => {
@@ -146,7 +146,7 @@ export function RoomHeader({
   membersTriggerRef: RefObject<HTMLButtonElement | null>;
 }) {
   const { dragProps: headerDragProps, noDragStyle: headerNoDragStyle } = useCaptionChrome();
-  const faces = memberMauses(group, members);
+  const faces = memberHezuos(group, members);
   const membersLabel = members.length === 1
     ? t("room.members.ariaOne")
     : t("room.members.ariaMany", { count: members.length });

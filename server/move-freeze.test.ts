@@ -168,7 +168,7 @@ describe("/api/move/freeze", () => {
     expect(await ask(route, "POST", undefined, { cloud: "https://garage.example.test", place: "x".repeat(121) }), "a name past 120 characters").toMatchObject({ status: 400 });
   });
 
-  it("is only for OpenMausBot on this computer, never a paired device", async () => {
+  it("is only for Hezuo on this computer, never a paired device", async () => {
     const freeze = createMoveFreeze({ dataDir: dataDir() });
     const route = createMoveFreezeRoutes({ freeze, busy: () => null, restart() {} });
     expect(await ask(route, "POST", undefined, {}, "session")).toMatchObject({ status: 403 });

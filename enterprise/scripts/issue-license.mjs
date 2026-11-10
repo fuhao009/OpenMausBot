@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Issue OpenMausBot enterprise license keys.
+// Issue Hezuo enterprise license keys.
 //
-//   node enterprise/scripts/issue-license.mjs keygen [--out ~/.config/openmausbot-enterprise/signing-key.json]
+//   node enterprise/scripts/issue-license.mjs keygen [--out ~/.config/hezuo-enterprise/signing-key.json]
 //     Creates an Ed25519 signing key (file mode 0600) and prints the public
 //     part to append to LICENSE_PUBLIC_KEYS in enterprise/server/license.ts.
 //
@@ -12,13 +12,14 @@
 //
 // The private key never enters the repo, a chat, or a container image.
 import { generateKeyPairSync } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { issueLicenseKey } from "../server/license.ts";
 
-const DEFAULT_KEY_PATH = join(homedir(), ".config", "openmausbot-enterprise", "signing-key.json");
+const DEFAULT_KEY_PATH = join(homedir(), ".config", "hezuo-enterprise", "signing-key.json");
+const LEGACY_KEY_PATH = join(homedir(), ".config", "openmausbot-enterprise", "signing-key.json");
 
 function fail(message) {
   console.error(message);
@@ -40,6 +41,15 @@ function flags(argv) {
 
 const [command, ...rest] = process.argv.slice(2);
 const opts = flags(rest);
+
+// Preserve the signing identity during the default-path cutover. Explicit
+// paths are operator-owned and never migrated; conflicting keys need review.
+if ((command === "keygen" && opts.out === undefined || command === "issue" && opts.key === undefined)
+  && existsSync(LEGACY_KEY_PATH)) {
+  if (existsSync(DEFAULT_KEY_PATH)) fail("Both legacy and Hezuo signing keys exist; pass --key or --out explicitly after reviewing them.");
+  mkdirSync(dirname(DEFAULT_KEY_PATH), { recursive: true, mode: 0o700 });
+  renameSync(LEGACY_KEY_PATH, DEFAULT_KEY_PATH);
+}
 
 if (command === "keygen") {
   const out = opts.out ?? DEFAULT_KEY_PATH;

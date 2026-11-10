@@ -3,7 +3,7 @@ import {
   parseWidgetInput, resolveWidgetAction, widgetActions, widgetFields, widgetToText, WIDGET_LIMITS,
   type WidgetAction, type WidgetNode, type WidgetPayload, type WidgetRoot, type WidgetSettled,
 } from "../shared/widget.ts";
-import type { MausColor } from "../shared/wire.ts";
+import type { HezuoColor } from "../shared/wire.ts";
 import type { ChatApps } from "./chat-apps.ts";
 import type { BotFolders } from "./pages/bundle.ts";
 import { createOptionsCard } from "./options-card.ts";
@@ -98,7 +98,7 @@ function canonicalWidget(input: Record<string, unknown>): CanonicalWidget {
 /** The route has already checked that the conversation is the calling bot's own. */
 export interface AgentCardArgs {
   store: AgentCardStore;
-  bot: { id: string; name: string; color: MausColor };
+  bot: { id: string; name: string; color: HezuoColor };
   threadId: string;
   input: unknown;
   /** The row a widget call wrote: the calling session made it, so it is never offered back to it as unseen. */

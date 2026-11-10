@@ -71,7 +71,7 @@ export interface PlanAccount {
   driver: PlanDriver;
   environment: Record<string, string | undefined>;
   configDir?: string;
-  /** Signed in through OpenMausBot (ChatGPT plan), not a CLI login on disk, so it has no usage reading. */
+  /** Signed in through Hezuo (ChatGPT plan), not a CLI login on disk, so it has no usage reading. */
   noUsage?: true;
 }
 

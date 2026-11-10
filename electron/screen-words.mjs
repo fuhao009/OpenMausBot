@@ -33,7 +33,7 @@ const WANTS = {
 function askReason(reason, device) {
   if (reason === "paused") return `Using this ${device} is paused.`;
   if (reason === "terminal-off") return `Running commands isn't turned on for this ${device}.`;
-  if (reason === "permissions") return "macOS hasn't allowed OpenMausBot to see and use the screen yet. Turn on asks macOS.";
+  if (reason === "permissions") return "macOS hasn't allowed Hezuo to see and use the screen yet. Turn on asks macOS.";
   return `${screenLine({ ready: false, reason }, device)}.`;
 }
 

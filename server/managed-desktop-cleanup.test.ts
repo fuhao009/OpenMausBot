@@ -3,6 +3,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import { expect, it } from "vitest";
 import { changedInstanceIds, engineLaunches } from "./config.ts";
+import { ComputerUsePermission } from "./computer-use-permission.ts";
 
 // Runs the real cleanup functions sliced from index.ts: importing index.ts would start a server.
 const source = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
@@ -45,6 +46,9 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
   const autoVmClaims = new Map<string, { owner: { threadId: string; generation: string } }>();
   // An open "may I use your computer?" question, by thread, for the generation that asked it.
   const yourComputerAsks = new Map<string, string>();
+  const computerUsePermission = new ComputerUsePermission(() => "allow", async () => {
+    throw new Error("The allow-policy fixture must not prompt");
+  });
   const started = new Map<string, ReturnType<typeof deferred>>(), interrupted = new Map<string, ReturnType<typeof deferred>>();
   const interruptCalls: string[] = [], cancelled: string[] = [], revoked: string[] = [], messages: string[] = [], settled: string[] = [], detached: string[] = [];
   const roomStops: Array<{ threadId: string; status: string; detail: string; byHarness?: boolean }> = [];
@@ -58,6 +62,7 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
     bots.set(threadId, bot); tasks.set(threadId, { threadId, busy: true });
     owners.set(threadId, { threadId, generation: `company-${threadId}` });
     generations.set(threadId, `company-${threadId}`);
+    computerUsePermission.register(threadId, `company-${threadId}`, true);
     if (kind === "direct") directBots.set(threadId, bot);
     else { speakers.set(threadId, { botId: threadId, name: "Company turn" }); groups.set(threadId, { id: threadId, busyBotId: threadId }); }
     vmLeases.set(threadId, {}); approvals.add(threadId); screens.add(threadId); watched.add(threadId);
@@ -66,6 +71,8 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
     started.set(threadId, deferred()); interrupted.set(threadId, deferred());
   }
   const context = vm.createContext({
+    PRODUCT_MANAGED: false,
+    computerUsePermission,
     companyShutdown: false, providerInstancesChanging: new Set(),
     providerAuthSessions: { clearInstance() {} }, bus: { detach: (id: string) => detached.push(id) },
     liveTurnByThread: new Map(), stoppedTurnText: (_threadId: string, _turnId: string | undefined, cause: string) => cause,
@@ -114,6 +121,7 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
   vm.runInContext(code, context, { filename: "index.ts (Company cleanup ownership fixture)" });
   return {
     bots, tasks, groups, owners, directBots, speakers, vmLeases, approvals, screens, watched,
+    computerUsePermission,
     autoVmClaims, yourComputerAsks,
     interruptCalls, cancelled, revoked, messages, settled, detached, roomStops, causes,
     directRequestOwners, stopAwaiting, patched,
@@ -127,6 +135,7 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
       const bot = { id: threadId, busy: true, modelSelection: { instanceId: "personal" } };
       bots.set(threadId, bot); tasks.get(threadId)!.busy = true;
       owners.set(threadId, { threadId, generation: `personal-${threadId}` });
+      computerUsePermission.register(threadId, `personal-${threadId}`, true);
       generations.set(threadId, `personal-${threadId}`);
       if (kind === "direct") directBots.set(threadId, bot);
       else if (replaceSpeaker) speakers.set(threadId, { botId: threadId, name: "Personal turn" });
@@ -155,6 +164,7 @@ it("preserves a personal direct turn started while a slower Company sibling is s
   for (let count = 0; count < 5; count++) await Promise.resolve();
   f.replace("first");
   f.finish("slow"); await stopping;
+  await expect(f.computerUsePermission.check("first", "personal-first")).resolves.toBeUndefined();
   expectPersonalResources(f, "first");
   expect(f.directBots.get("first")?.modelSelection.instanceId).toBe("personal");
   expect(f.tasks.get("first")?.busy).toBe(true);
@@ -175,6 +185,7 @@ it("preserves a group replacement's speaker, resources and busy state after the 
   await f.started("first"); f.replace("first");
   const speaker = f.speakers.get("first");
   f.finish("first"); await stopping;
+  await expect(f.computerUsePermission.check("first", "personal-first")).resolves.toBeUndefined();
   expectPersonalResources(f, "first");
   expect(f.speakers.get("first")).toBe(speaker);
   expect(f.groups.get("first")?.busyBotId).toBe("first");
@@ -206,6 +217,7 @@ it("notes the Company cause for each direct turn before interrupting it", async 
 it("also fences group resource-generation changes when the speaker object is unchanged", async () => {
   const f = fixture("group"), stopping = f.stop();
   await f.started("first"); f.replace("first", false); f.finish("first"); await stopping;
+  await expect(f.computerUsePermission.check("first", "personal-first")).resolves.toBeUndefined();
   expectPersonalResources(f, "first");
   expect(f.speakers.has("first")).toBe(true);
   expect(f.groups.get("first")?.busyBotId).toBe("first");
@@ -215,6 +227,7 @@ for (const kind of ["direct", "group"] as const) {
   it(`still releases the original ${kind} turn when no replacement has claimed it`, async () => {
     const f = fixture(kind), stopping = f.stop();
     await f.started("first"); f.finish("first"); await stopping;
+    await expect(f.computerUsePermission.check("first", "company-first")).rejects.toBeInstanceOf(Error);
     expect(f.owners.has("first")).toBe(false);
     expect(f.vmLeases.has("first")).toBe(false);
     expect(f.autoVmClaims.has("first")).toBe(false);

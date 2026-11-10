@@ -1,24 +1,24 @@
 # OMB Cloud: the home machine
 
 OMB Cloud (the Starter, Pro and Max plans) gives one person an always-on
-OpenMausBot server of their own (a plan may instead sleep when idle: see
+Hezuo server of their own (a plan may instead sleep when idle: see
 [Sleeping homes](#sleeping-homes-the-power-read-and-the-sleep-handshake)). The plans differ in machine size, disk and
 included allowances; everything on this page applies to all of them. Each
 customer gets one Fly app with one `home` machine that is always on, a volume
 at `/data`, and TLS at `https://<app>.fly.dev`. The desktop app, the phone and
 the web are windows onto it. Local use of the app is unchanged and free.
-Customers read its name as **MausBot Cloud** wherever they meet it (the
+Customers read its name as **Hezuo Cloud** wherever they meet it (the
 app, the Admin's pages, emails); "OMB Cloud" is this page's shorthand, and
-the app itself is still OpenMausBot.
+the app itself is still Hezuo.
 
 OMB Cloud includes no AI usage. The person signs in on their machine with their
 own Claude or ChatGPT subscription, or an API key, through the same sign-in
-flows as any OpenMausBot server. Nothing on a Cloud home is routed to a
+flows as any Hezuo server. Nothing on a Cloud home is routed to a
 platform model gateway. The one exception is a free trial's Claude credit, a
 small one-time amount the Admin meters on its own relay, used only until the
 person connects their own AI ([Trial Claude credit](#trial-claude-credit)).
 
-This page is the OpenMausBot half of a contract with three parties:
+This page is the Hezuo half of a contract with three parties:
 
 - **the home machine**: this repository's `cloud-home` image (`Dockerfile`, `deploy/fly/`);
 - **the Admin** (openmaus-cloud, `docs/consumer-cloud.md` there): provisions
@@ -32,7 +32,7 @@ Contract version: `1` (`cloudContractVersion` on the wire).
 ## What the person sees
 
 1. They subscribe on the Cloud site. The Admin creates the Fly app and machine.
-2. They open the desktop app, go to **Settings → MausBot Cloud** and sign in (the
+2. They open the desktop app, go to **Settings → Hezuo Cloud** and sign in (the
    existing device sign-in). A **Your Cloud** card says **Setting up** until
    the machine is up.
 3. When it is ready, the machine appears under **Servers** as **My Cloud**, and
@@ -65,7 +65,7 @@ Contract version: `1` (`cloudContractVersion` on the wire).
       credit lasts and nothing of the person's own can run, a line says so
       (with the amount where the desktop app knows it), and **Use my credit for
       now** moves on.
-   3. **Files and apps**, optional: **Share folders** opens Settings → MausBot
+   3. **Files and apps**, optional: **Share folders** opens Settings → Hezuo
       Cloud in this computer's window, one click from Files (a browser is told
       to use the desktop app), and **Connect apps** opens Connected apps on the
       Cloud.
@@ -142,7 +142,7 @@ sign-in instead of the welcome flow, which describes the person's own computer
 1. Get the phone app: the menu under your name → **Get the phone app** (App
    Store for iPhone, APK for Android).
 2. The same menu → **Connect your phone · to your Cloud (always on)**, or
-   **Settings → MausBot Cloud → Use My Cloud on your phone**. The Cloud opens in
+   **Settings → Hezuo Cloud → Use My Cloud on your phone**. The Cloud opens in
    the app window at its phone pairing.
 3. **Create pairing code**, and scan the QR code with the phone app.
 
@@ -159,14 +159,14 @@ How it fits together (`src/lib/phone-pairing.ts`):
   Cloud (always on)* first, which does what **Use My Cloud on your phone**
   does, then *to this computer*. A paid plan whose Cloud is not Ready keeps
   the single *to this computer* line, with a note that the Cloud will show
-  there. A failed switch opens Settings → MausBot Cloud.
+  there. A failed switch opens Settings → Hezuo Cloud.
 - **Use My Cloud on your phone** shows for a paid plan. With a Ready Cloud it
   calls `cloud-account:connectHomeForPhone`, which takes no arguments and
   connects as **Open My Cloud** does, adding the one fixed request
   `?desktop-settings=phone` (on `/pair` too, which carries it on once paired).
   The Cloud's page opens Settings on its phone pairing. It never makes a code
   by itself. Before the Cloud is Ready, or if opening it failed, the card
-  lists the two steps instead. On the Cloud itself, Settings → MausBot Cloud
+  lists the two steps instead. On the Cloud itself, Settings → Hezuo Cloud
   offers the same button and opens the pairing directly.
 
 ### Only your own devices
@@ -392,10 +392,10 @@ shared-computer tools.
   Auto never lands on either.
 - A bot still set to either (an older or imported setting) has each task
   refused with a sentence saying so, suggesting Auto, Cloud or Browser and,
-  for This computer, the person's own computer while OpenMausBot is open on it.
+  for This computer, the person's own computer while Hezuo is open on it.
 - Every turn's system prompt says the bot runs in the cloud. Asked about the
   person's own computer, a bot with the shared-computer tools checks for a lent
-  Mac and, finding none, says so and asks them to open OpenMausBot on it; a bot
+  Mac and, finding none, says so and asks them to open Hezuo on it; a bot
   without them says it cannot reach it. Either offers the browser and cloud computers, never a
   place that cannot exist.
 - The built-in browser is on unless the person switches it off in Settings.
@@ -429,7 +429,7 @@ says "sign in again on your computer". A check that names no machine for the
 account ends it (a stopped machine named without its address does not). A
 call placed while a saved sign-in is still restoring, in the first seconds
 after launch, waits for it (at most 5 seconds) rather than being refused.
-Signing out of MausBot Cloud takes it away at once, and so do another
+Signing out of Hezuo Cloud takes it away at once, and so do another
 account, companion client mode and restarting the app before a check succeeds
 (the last verified Cloud is kept in memory only); every other server's page
 stays refused. In a web browser, the browser asks for the microphone for
@@ -457,12 +457,12 @@ the Cloud's address.
   the call with one bot is a Live call, and a room has no call
   (`effectiveCallMode` in `src/lib/call-mode.ts`, `GroupCallButton`).
 
-### Open in the app: `openmausbot://cloud`
+### Open in the app: `hezuo://cloud`
 
 The Cloud page (`https://cloud.openmausbot.com/cloud`) can offer **Open in the
-app** as a link to exactly `openmausbot://cloud`. The app accepts that string
+app** as a link to exactly `hezuo://cloud`. The app accepts that string
 and nothing else: no path, query, fragment or trailing slash, and it ignores
-any other form. Like `openmausbot://organization`, it is an action, not a
+any other form. Like `hezuo://organization`, it is an action, not a
 router. It never carries an address, a pairing code or a credential; the app
 decides everything from its own verified state (`electron/cloud-entry.mjs`).
 
@@ -471,7 +471,7 @@ decides everything from its own verified state (`electron/cloud-entry.mjs`).
    that arrives before the app is ready). If the window already shows
    **My Cloud**, coming forward is all it does.
 2. Otherwise the window returns to this computer (a hosted server that was
-   showing stays saved under **Servers**) and opens **Settings → MausBot Cloud**.
+   showing stays saved under **Servers**) and opens **Settings → Hezuo Cloud**.
    Before that view acts, the app gives a saved Cloud sign-in up to five
    seconds to finish restoring, so it is never mistaken for signed out.
 3. Opened this way, the view acts on its own, with no confirmation:
@@ -489,11 +489,11 @@ sign-out in that view starts nothing) and one automatic connection per link.
 A failed connection shows the card's error; clicking the link again retries.
 Closing Settings or choosing another section ends it. While it is open, the
 first-run welcome waits, as it does for Organization settings. A normal visit
-to **Settings → MausBot Cloud** never signs in or connects by itself.
+to **Settings → Hezuo Cloud** never signs in or connects by itself.
 
 The link does nothing in development builds, and in companion client mode it
 explains that the app must be disconnected from the other computer first.
-The `openmausbot` scheme belongs to the installed app: on macOS through the
+The `hezuo` scheme belongs to the installed app: on macOS through the
 app bundle, on Linux through the `.deb`'s desktop entry, and on Windows (and
 for an AppImage) once the installed app has started at least once, since it
 registers itself at startup. Before that, or if the app is not installed, the
@@ -615,7 +615,7 @@ The grant (`automaticGrant`) is the same for every Cloud of the person's own:
   a drive) stay lent as they were, by the same ids, so Files keeps their copies
   (`docs/files.md`); one deleted since is left out.
 - **Apps and screen**, once computer control works here: on macOS once the
-  person allowed OpenMausBot Accessibility and Screen Recording. macOS asks
+  person allowed Hezuo Accessibility and Screen Recording. macOS asks
   through the app's own permission flow: at start-up, from Settings' Retry, and
   the first time a Cloud's bot needs apps and screen, when main starts computer
   control again (at most every 10 minutes), which asks macOS for what it never
@@ -779,7 +779,7 @@ Cloud every profile stays built-in.
   connection is dropped, and each of its calls gets "Someone else wrote in this
   conversation, so it can't use your Chrome. Start a new conversation to use it."
 - **When it can't**, the call says why in one line the bot can pass on: the
-  computer is offline, no computer lends Chrome (open OpenMausBot there), Chrome
+  computer is offline, no computer lends Chrome (open Hezuo there), Chrome
   isn't open with remote debugging on, or Chrome did not accept the connection
   (it may be waiting for Allow). It never falls back to the built-in browser,
   whose sign-ins differ. A connection no bot has used for the desktop's browser
@@ -852,14 +852,14 @@ On the Cloud home (`server/shared-computers.ts`, `server/index.ts`):
   apps and screen or a terminal, when it was last online (written at most once
   a minute) and last used (a page opened through its internet connection
   counts, at most once a minute), and whether it stopped lending (paused there,
-  or signed out of MausBot Cloud). Never a
+  or signed out of Hezuo Cloud). Never a
   folder name or path, a secret or anything a job carried; kept 90 days.
 - **What bots are told.** `list_shared_computers` lists online computers with
   their `device` ("PC", "Mac" or "computer"). When none is online it adds
   `offline` and a `say` sentence naming the computer, its kind and when it was
   last online ("Their PC ASH-PC is lent to My Cloud but offline (last online
   …)"), or that it no longer lends itself (paused there, or signed out of
-  MausBot Cloud, and how to resume). The Cloud prompt names the
+  Hezuo Cloud, and how to resume). The Cloud prompt names the
   person's computer the same way and tells bots never to call a PC a Mac; an
   offline `shared_computer` call says the same.
 - The server refuses operations outside the scopes the Mac registered before
@@ -889,7 +889,7 @@ On the Cloud home (`server/shared-computers.ts`, `server/index.ts`):
   named) is never the owner's, whoever writes in it. Whenever a computer is lent but a turn can't use it,
   `list_shared_computers` answers why in `unavailable` and `say` (`cloudLendingRefusalText` in
   `server/cloud-lending.ts`), and a refused `shared_computer` call answers the same, so the bot says the reason instead
-  of asking the person to open OpenMausBot: lines from before My Cloud carried the owner's name, someone else's words ("Someone else
+  of asking the person to open Hezuo: lines from before My Cloud carried the owner's name, someone else's words ("Someone else
   wrote in this conversation, so it can't use your Mac. Start a new conversation to use it."; in a room, "Start a new
   thread in this group chat to use it."), a changed memory, a room turn no line of the owner's started, or any other
   turn that isn't provably the owner's. A move marks the lines and answers the owner wrote in a room as theirs, as in
@@ -1043,15 +1043,15 @@ differs from the previous one only in those (a few MB) unless Chrome, an
 engine, Grok's pin, or the Node base image changed in between.
 
 At boot the launcher, running as root, hands the volume's mount point to the
-`maus` user, locks the volume for as long as it runs (`flock` on the volume's
+`hezuo` user, locks the volume for as long as it runs (`flock` on the volume's
 root: a second home on a volume a live home holds refuses to start, which
 Docker on your own server does not prevent by itself), binds the volume to
-this machine as `maus` (`/data/.omb-cloud-home.json`; another machine's
+this machine as `hezuo` (`/data/.omb-cloud-home.json`; another machine's
 volume, or an unmarked volume with data on it, is refused), clears the
 data-directory lease records another machine or container left on it (a home
 killed uncleanly leaves one, and on one Docker host every container shares the
 boot id while its pids start again from 1, so the lease names its pid
-namespace and its process's start time too), and runs two children as `maus`: the
+namespace and its process's start time too), and runs two children as `hezuo`: the
 server on `127.0.0.1:8799` (webhooks on `127.0.0.1:8800`) and Caddy on
 `:8080`. It stays a small root supervisor: if either child exits, both stop
 and Fly restarts the machine. The one exception: after a restore commits
@@ -1072,17 +1072,17 @@ what the image sets and the parts of the boot contract that are not secret
 (`serverEnvironmentAllowed`). Anything else, a secret the platform adds
 later included, never reaches it; the launcher logs the names it left out,
 never their values. The launcher's own environment and memory belong to
-root, out of `maus`'s reach. A server started without the pipe (tests,
+root, out of `hezuo`'s reach. A server started without the pipe (tests,
 development) reads them from its environment and says so in its log.
 
-The launcher runs and trusts only code `maus` cannot change: the image
+The launcher runs and trusts only code `hezuo` cannot change: the image
 makes `/app` root's and not writable by anyone else, and the launcher
 refuses to start if Node, itself, the server's entry point, Caddy or its
 config (or any folder above them) is not root's, is writable by others, or
-is on the volume. Only the `/data` volume is `maus`'s.
+is on the volume. Only the `/data` volume is `hezuo`'s.
 
-`HOME=/data`, so `~/.claude`, `~/.codex`, `~/.grok` and OpenMausBot's own
-data (`/data/.openmausbot`) persist on the volume.
+`HOME=/data`, so `~/.claude`, `~/.codex`, `~/.grok` and Hezuo's own
+data (`/data/.hezuo`) persist on the volume.
 
 ### Memory
 
@@ -1134,7 +1134,7 @@ provider outage. So on a Cloud home (`server/engine-memory.ts`):
   server is -800 and Caddy -900, so the health check is the last to go, and
   the root supervisor that restarts them is -1000, never picked. When memory
   runs out the kernel takes a bot's process, never the workspace.
-- **OpenCode reaches OpenMausBot's own tools over HTTP.** The agents,
+- **OpenCode reaches Hezuo's own tools over HTTP.** The agents,
   browser, computer, Data and HighLevel servers are endpoints of this server
   (`/api/internal/mcp-http/<name>`, `server/routes/own-mcp-http.ts`) with the
   turn's capability in the Authorization header, instead of a Node proxy
@@ -1183,7 +1183,7 @@ The Admin creates the machine through the Machines API; `deploy/fly/fly.toml`
 is the same shape for a manual deploy: `internal_port = 8080`, `force_https`,
 no auto-stop, one machine always running, a volume `omb_home` at `/data`,
 restart policy `always`, and an HTTP check on `GET /api/health` (it answers
-`{"app":"openmausbot"}` with no session). Each customer's app lives in its
+`{"app":"hezuo"}` with no session). Each customer's app lives in its
 own Fly private network, so no machine can reach another's over 6PN.
 
 ## Boot contract
@@ -1205,7 +1205,7 @@ never echoes a secret.
 - The machine must not also carry `OMB_ADMIN_URL`, `OMB_ADMIN_WORKSPACE` or
   `OMB_ADMIN_MEMBERSHIP`: a Cloud home is a personal server with pairing codes
   on, not a hosted team workspace with portal membership.
-- `HOME=/data` and `OMB_DATA_DIR=/data/.openmausbot` are set by the image.
+- `HOME=/data` and `OMB_DATA_DIR=/data/.hezuo` are set by the image.
 - The server keeps the secret in memory and removes it from its environment at
   startup; no engine or tool it starts ever inherits it.
 
@@ -1296,7 +1296,7 @@ computers belong to this machine on every request.
   starts inherits them, including tools that copy its environment as it is
   (the browser, docker, ssh, MCP bridges), and no process finds them in the
   server's `/proc/<pid>/environ`. They are still in the server's memory, and
-  that is the remaining exposure: the server runs as `maus`, like every
+  that is the remaining exposure: the server runs as `hezuo`, like every
   engine, so a process running as the same user that may trace it (the
   kernel's ptrace policy, `kernel.yama.ptrace_scope`, decides) could read
   them there. That is why a guest's turn gets no shell (above); the complete
@@ -1320,14 +1320,14 @@ computers belong to this machine on every request.
 ### Included connected apps
 
 Connected apps (Gmail, Outlook, Slack, LinkedIn, Calendly and the rest of the
-catalog) come with the plan through OpenMausBot's managed connection service,
+catalog) come with the plan through Hezuo's managed connection service,
 the same one the packaged desktop app uses. The Admin sets nothing for it: at
 every start the server registers the Cloud's own installation if it has none,
-keeps the token owner-only in `/data/.openmausbot/connected-apps-installation.json`
+keeps the token owner-only in `/data/.hezuo/connected-apps-installation.json`
 (never in a backup, a move or `config.json`), checks it with the service, and
 retries with backoff while the service is down, without holding up the start.
 An owner's own Composio project key still wins. The details are in
-[composio.md](composio.md#mausbot-cloud). `OMB_COMPOSIO_BROKER_URL` (env, not
+[composio.md](composio.md#hezuo-cloud). `OMB_COMPOSIO_BROKER_URL` (env, not
 secret, optional) points a Cloud at another service, such as a staging one.
 
 For a paid plan the Admin also sets `OMB_CLOUD_CONNECTED_APPS_GRANT` (secret):
@@ -1350,7 +1350,7 @@ credit, the Admin also sets:
 | `OMB_CLOUD_AI_URL` | env | `https://cloud.openmausbot.com/api/cloud/services/ai/v1`, an OpenAI-compatible base URL with its `/v1` (as the Admin sends it): `POST {url}/chat/completions` and `GET {url}/models` only. Nothing Anthropic-shaped (no `/v1/messages`) answers a credit token. |
 | `OMB_CLOUD_AI_TOKEN` | secret | This machine's credit token (`omb_ai_…`), sent as `Authorization: Bearer`. It works only through the relay, only for this account's credit, and not at all once it is spent or the Cloud is deleted. |
 
-- **OpenMausBot's own chat engine, nothing else.** `server/cloud-credit-provider.ts`
+- **Hezuo's own chat engine, nothing else.** `server/cloud-credit-provider.ts`
   adds one read-only **Trial credit · Claude** engine: the OpenAI-compatible
   driver (`openai-compat`, the same chat engine and tools as any API key) with
   the relay as its address and the token as its own key, on the models the
@@ -1422,7 +1422,7 @@ x-omb-cloud-timestamp: 1790000000
 x-omb-cloud-nonce: <base64url, 16–128 characters>
 x-omb-cloud-signature: v1=<base64url HMAC-SHA256(OMB_CLOUD_BOOTSTRAP_SECRET, canonical)>
 
-{"label":"OpenMausBot app (Cloud)","ttlSeconds":300}
+{"label":"Hezuo app (Cloud)","ttlSeconds":300}
 ```
 
 where `canonical` is
@@ -1788,7 +1788,7 @@ notice queue (below), on this computer's page and on My Cloud's own page.
 Customers couldn't find how to cancel: the plan card only said **Manage in
 your browser**. Now, while the session's `renewal` says this account pays for a
 plan that runs, the plan card in Settings (Usage & billing → Plan in Simple
-mode, MausBot Cloud in Advanced) and on the Cloud's own page in home mode
+mode, Hezuo Cloud in Advanced) and on the Cloud's own page in home mode
 (`CloudPlanOnCloud`) shows **Cancel trial** during a free trial and **Cancel
 plan** otherwise (`src/components/CloudCancelPlan.tsx`). Someone in a team's
 Cloud never sees it: the Admin sends no `renewal` for a Cloud they don't pay
@@ -1797,7 +1797,7 @@ for.
 Its sheet asks "Before you go: what's the main reason?" with one-tap chips
 (Missing a feature, Too expensive, Hard to set up, Didn't work as I expected,
 Not using it right now, Something else; tap again to let one go), two optional
-boxes ("What did you expect MausBot to do?", "What could we have done
+boxes ("What did you expect Hezuo to do?", "What could we have done
 better?"), "Rather talk it through? Book 30 minutes with Milind", and **Keep my
 plan** and **Cancel my trial** / **Cancel my plan**. Cancelling never needs an
 answer. The page sends only the survey's words: `cloudAccount.cancelPlan` on
@@ -1846,11 +1846,11 @@ launch: What's new comes first, and the Boat card waits for a later one.
    or a desktop signed in with an organization), never during setup (the welcome,
    the tour), a call, another dialog, busy work or an update being offered,
    never in the launch whose welcome finished or before a new install's first
-   reply, and after MausBot's first-launch card. `lib/whats-new.ts` decides the
+   reply, and after Hezuo's first-launch card. `lib/whats-new.ts` decides the
    slides from the account the app already holds (its plan, its trial, its
    teams and its Clouds list):
    - **No Cloud plan** (signed out, or signed in with none): **Meet the new
-     MausBot Cloud**, the Cloud website's Home pictured in the skin's light or
+     Hezuo Cloud**, the Cloud website's Home pictured in the skin's light or
      dark, then **Team**.
    - **A Cloud plan of one's own**, in no team: the Team slide only.
    - **In a team** (any role, a Team or Business plan, or a team's Cloud in the
@@ -1877,10 +1877,10 @@ launch: What's new comes first, and the Boat card waits for a later one.
    unless focus has moved on. `whats_new` ([docs/analytics.md](analytics.md))
    counts each slide seen and each step.
 2. **The card after the update** (`CloudTrialIntro`, id `cloud-trial-intro-v1`):
-   MausBot Cloud's free trial for someone signed out or with no plan who
+   Hezuo Cloud's free trial for someone signed out or with no plan who
    has used the app before this launch, only while the Admin offers a trial
    (it waits for one), and never on a desktop whose first-run welcome
-   showed its MausBot Cloud step. Its numbers are the Admin's: the trial's
+   showed its Hezuo Cloud step. Its numbers are the Admin's: the trial's
    days, the lowest monthly price, the Claude credit and money-back. At most
    once a calendar day, on at most three days (one for someone who closed the
    earlier Pro card), kept in browser storage and the workspace's hint record;
@@ -1922,12 +1922,12 @@ restoring or connecting.
 
 In the Server menu, **My Cloud** goes through the same connection as
 **Open My Cloud** (no pairing code to type); when it cannot, the app
-opens **Settings → MausBot Cloud**, which says the next step. In the desktop app a
+opens **Settings → Hezuo Cloud**, which says the next step. In the desktop app a
 `/pair#code=` link connects without a second click; a browser still asks. On a
 Cloud home the pairing page says where its connection starts (the environment
 descriptor's `capabilities.cloudHome`).
 
-On the person's own Cloud, open in the app's window, **Settings → MausBot Cloud**
+On the person's own Cloud, open in the app's window, **Settings → Hezuo Cloud**
 shows the plan read only (`cloud-plan:*`: its name and whether it is active,
 **Manage in your browser** and **Switch to this computer**). It is listed only
 on an OMB Cloud home (`config.cloudHome`), never on another server open in the
@@ -1985,7 +1985,7 @@ page alike (`ogb.cloudPlan`), so the meter reads the same on both (`src/componen
   month at this level: it comes back when one reaches 100%, and next month. Never shown in a browser, without a paid plan,
   or on a Team Cloud unless the plan whose usage it is is that team's (only the person who pays for a team sees its usage;
   its members never do).
-- **Settings → General → MausBot Cloud usage**, while there is a paid plan: every allowance with its meter, when they
+- **Settings → General → Hezuo Cloud usage**, while there is a paid plan: every allowance with its meter, when they
   start over, and Upgrade to the next plan (the others as links), "You're on the top plan" on Max, or "To change your
   team's plan, write to us" on a team's plan.
 - **Upgrade, one tap and a confirm.** Upgrade asks main for a preview (`ogb.cloudPlan.upgradePreview(plan, source)`,
@@ -2026,10 +2026,10 @@ only.
 
 ## Add a Cloud
 
-The one way to buy MausBot Cloud in the app, the same for every way in:
+The one way to buy Hezuo Cloud in the app, the same for every way in:
 What's new, the card after the update, **Show me how**, **Add a
 Cloud…** in the server menu (the sidebar's and the menu bar's Server menu),
-Settings (the Cloud card in General, and MausBot Cloud), and the routine
+Settings (the Cloud card in General, and Hezuo Cloud), and the routine
 screen's note.
 
 - **The menu item.** Main adds **Add a Cloud…** under the saved servers only
@@ -2052,7 +2052,7 @@ screen's note.
   the menu is.
 - **The dialog** (`components/CloudAddDialog.tsx`, one state→view function,
   `lib/cloud-plan` `cloudAddView`) covers the buying journey only: the offer
-  (the night card: MausBot Cloud's name and one line over a linocut night sky
+  (the night card: Hezuo Cloud's name and one line over a linocut night sky
   where the three bots ride a cloud while this computer's laptop sleeps, with
   Compare plans in the card; then one card
   per plan the Admin sells, side by side on a wide sheet and stacked in a
@@ -2085,7 +2085,7 @@ screen's note.
   checkout already being prepared), the offer says why. A screen reader
   hears each card's button with its plan's name, and each new step takes
   focus at its heading. A payment problem, an ended sign-in or a Cloud that can't
-  be reached go to Settings → MausBot Cloud instead.
+  be reached go to Settings → Hezuo Cloud instead.
 - **Checkout runs in the default browser, never the app.** Signed in, main
   asks the Admin for this account's checkout (`POST /api/cloud/desktop/checkout`
   with the plan and where it was opened) and opens the address only when it is
@@ -2097,7 +2097,7 @@ screen's note.
   with `&next=checkout&plan=<plan>&src=<source>` added (older Admins ignore it).
   The app follows its own session, never the return page: every 15 seconds
   for 30 minutes after it opened a checkout, and at once when the window comes
-  back or `openmausbot://cloud` arrives (which then opens the dialog).
+  back or `hezuo://cloud` arrives (which then opens the dialog).
 - **Ready.** When My Cloud is ready after a checkout this app opened and the
   window is elsewhere, one system notification says so.
 
@@ -2130,7 +2130,7 @@ screen's note.
   `app_onboarding` (main refuses any other, and any plan the offer doesn't
   sell).
 - **Interest** `POST /api/cloud/desktop/interest` `{kind: "another_cloud"}` → `{ok: true}`.
-- Every signed-in request carries this app's version in `x-openmausbot-version`.
+- Every signed-in request carries this app's version in `x-hezuo-version`.
 
 Nothing in the app is a price: with the Admin's trial switch off, no card is
 shown, and the dialog offers today's plans at the Admin's prices, charged
@@ -2148,7 +2148,7 @@ itself, and from then on opens the Cloud as its only home
 thing by id over one owner session (`electron/cloud-send.mjs`), checks that it
 all arrived, and freezes this computer's copy so nothing runs in two places
 (`server/move-freeze.ts`). An older desktop's Copy this computer here gets
-`410` with "Update OpenMausBot to bring your bots here by itself."
+`410` with "Update Hezuo to bring your bots here by itself."
 (`server/cloud-move-http.ts`); a backup file still restores from Settings →
 Backups. [docs/verification/cloud-send.md](verification/cloud-send.md) has the
 tests.

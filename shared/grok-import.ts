@@ -1,7 +1,7 @@
-// Bringing a shared Grok Bot into OpenMausBot. A public x.ai/bot/<id> page
+// Bringing a shared Grok Bot into Hezuo. A public x.ai/bot/<id> page
 // shows only the name, creator and description, so the full setup comes from
 // the person's own Grok Bot: they paste GROK_EXPORT_PROMPT into it and paste
-// the JSON it writes back here. Both turn into an ordinary openmaus.package v2,
+// the JSON it writes back here. Both turn into an ordinary hezuo.package v2,
 // so the usual preview and import rules apply (skills off, routines paused, no
 // model, no keys). Pure text: the renderer and the server both read it.
 import {
@@ -12,7 +12,7 @@ import { BOT_PROFILE_LIMITS } from "./bot-profile.ts";
 import { normalizeCronSchedule } from "./routine-schedule.ts";
 import { parseSkillMd, SKILL_FILE_MAX_BYTES, yamlFrontmatterValue } from "./skill-md.ts";
 
-export const GROK_EXPORT_FORMAT = "openmaus.grok/1";
+export const GROK_EXPORT_FORMAT = "hezuo.grok/1";
 /** pi-grokbot-import's export (github.com/Shixuuu/pi-grokbot-import). */
 export const GROK_BUNDLE_FORMAT = "grokbot-bundle/v1";
 const MAX_EXPORT_CHARS = 4 * 1024 * 1024;
@@ -103,7 +103,7 @@ export const grokMarketplaceUrl = (slug: string) => `https://x.ai/bot/marketplac
 /** A Grok Bot share link, its grokbot:// button link, or a marketplace page. */
 export const isGrokLink = (text: string) => Boolean(grokShareIdFrom(text) ?? grokMarketplaceSlugFrom(text));
 
-export const GROK_EXPORT_PROMPT = `Please export your setup so I can run you in OpenMausBot.
+export const GROK_EXPORT_PROMPT = `Please export your setup so I can run you in Hezuo.
 
 Reply with ONE JSON code block and nothing else, in exactly this shape:
 
@@ -166,15 +166,15 @@ function replyObject(text: string): unknown {
 
 /** A reply or file that says it is a Grok Bot export (it may still be malformed). */
 export function isGrokExport(value: unknown): boolean {
-  if (typeof value === "string") return value.includes(GROK_EXPORT_FORMAT) || value.includes(GROK_BUNDLE_FORMAT);
-  return isRecord(value) && (value.format === GROK_EXPORT_FORMAT || value.format === GROK_BUNDLE_FORMAT);
+  if (typeof value === "string") return value.includes(GROK_EXPORT_FORMAT) || value.includes("openmaus.grok/1") || value.includes(GROK_BUNDLE_FORMAT);
+  return isRecord(value) && (value.format === GROK_EXPORT_FORMAT || value.format === "openmaus.grok/1" || value.format === GROK_BUNDLE_FORMAT);
 }
 
-/** Forgiving reader for openmaus.grok/1 and grokbot-bundle/v1: text (fenced or not) or an object. */
+/** Forgiving reader for hezuo.grok/1 and grokbot-bundle/v1: text (fenced or not) or an object. */
 export function parseGrokExport(input: unknown): GrokExport {
   const root = typeof input === "string" ? replyObject(input.replace(/^\uFEFF/, "")) : input;
   if (!isRecord(root)) throw new GrokImportError("That is not a Grok Bot export.");
-  const format = root.format;
+  const format = root.format === "openmaus.grok/1" ? GROK_EXPORT_FORMAT : root.format;
   const bundle = format === GROK_BUNDLE_FORMAT;
   if (format !== undefined && format !== GROK_EXPORT_FORMAT && !bundle) throw new GrokImportError("That is not a Grok Bot export.");
   const persona = isRecord(root.persona) ? root.persona : {};
@@ -225,7 +225,7 @@ export function parseGrokExport(input: unknown): GrokExport {
   };
 }
 
-/** The mascot palette (src/lib/mascot.ts MAUS_COLORS). */
+/** The mascot palette (src/lib/mascot.ts HEZUO_COLORS). */
 const PALETTE = {
   green: "#009957", blue: "#377FE6", red: "#D94B52", orange: "#E78531", purple: "#8057C8",
   cyan: "#0EA5C6", pink: "#D84F8B", yellow: "#D8A729", teal: "#01A492", coral: "#E5634E",
@@ -289,7 +289,7 @@ const COMPOSIO_SLUGS: Record<string, string> = {
   youtube: "youtube", linkedin: "linkedin", shopify: "shopify", calendly: "calendly", zoom: "zoom",
 };
 
-/** The Composio toolkit for an app a Grok Bot names, when Maus knows one. */
+/** The Composio toolkit for an app a Grok Bot names, when Hezuo knows one. */
 export const composioSlugFor = (label: string): string | undefined => COMPOSIO_SLUGS[label.trim().toLowerCase().replace(/\s+/g, " ")];
 
 const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -329,7 +329,7 @@ function looksLikeCron(value: string): boolean {
 
 function routineSchedule(routine: GrokExport["routines"][number], timeZone: string): { schedule: PackageRoutineSchedule } | { reason: string } {
   const expression = routine.cron || (looksLikeCron(routine.schedule) ? routine.schedule : "");
-  // A zone Maus cannot read falls back to the person's own; a cron it cannot read falls back to the plain words.
+  // A zone Hezuo cannot read falls back to the person's own; a cron it cannot read falls back to the plain words.
   for (const zone of expression ? [routine.timeZone || timeZone, timeZone] : []) {
     try {
       return { schedule: normalizeCronSchedule({ type: "cron", expression, timeZone: zone }) };
@@ -355,7 +355,7 @@ function skillEntry(skill: GrokExport["skills"][number], name: string): { name: 
   return "error" in parsed || parsed.description !== description ? null : { name, description, instructions };
 }
 
-/** A Grok Bot export as one bot in an openmaus.package v2 file, plus what could not travel. */
+/** A Grok Bot export as one bot in an hezuo.package v2 file, plus what could not travel. */
 export function grokExportToPackage(
   x: GrokExport,
   options: { sourceUrl?: string; timeZone?: string } = {},
@@ -408,7 +408,7 @@ export function grokExportToPackage(
       name: label,
       agent: agentKey,
       prompt: routine.prompt.slice(0, 20_000),
-      runOn: "maus" as const,
+      runOn: "hezuo" as const,
       schedule: timing.schedule,
       durationMinutes: 30,
       enabledAfterInstall: false,
@@ -445,7 +445,7 @@ export function grokExportToPackage(
       category: "Imported",
       author: { name: clip(x.creator || "Grok Bot creator", 100), ...(sourceUrl ? { url: sourceUrl } : {}) },
       license: "See source",
-      outcomes: [clip(`${name} runs in OpenMausBot with your own engine and apps.`, 240)],
+      outcomes: [clip(`${name} runs in Hezuo with your own engine and apps.`, 240)],
       setupMinutes: 5,
       requirements: { apps, capabilities: [] },
       team: { name: clip(name, 60) },
@@ -473,7 +473,7 @@ export function grokExportToPackage(
 }
 
 /** The recipe Cursor's GetGrokBotTemplateImportDetails points at, as an export. The field names follow
- * pi-grokbot-import (MIT, github.com/Shixuuu/pi-grokbot-import); a grokbot-bundle/v1 or openmaus.grok/1 is read as is. */
+ * pi-grokbot-import (MIT, github.com/Shixuuu/pi-grokbot-import); a grokbot-bundle/v1 or hezuo.grok/1 is read as is. */
 export function grokExportFromRecipe(recipe: unknown, card?: GrokTemplateCard): GrokExport {
   if (!isRecord(recipe)) throw new GrokImportError("Cursor's answer is not a Grok Bot recipe.");
   const fromCard = card ? { creator: card.creator, sourceUrl: card.url, description: card.description } : {};

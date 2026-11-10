@@ -3,7 +3,7 @@ import { ChevronLeft, Loader2, Menu } from "lucide-react";
 import { CLOUD_LINK_SETTINGS, openBot, StoreProvider, useStore } from "@/state/store";
 import { useShowThreads } from "@/lib/thread-preferences";
 import { useWelcomeViewer, WelcomeGate } from "@/components/onboarding/WelcomeGate";
-import { MausBotWelcome } from "@/components/MausBotWelcome";
+import { HezuoWelcome } from "@/components/HezuoWelcome";
 import { CloudTimeZoneSync } from "@/components/CloudTimeZone";
 import { cloudSignInDue, spotlightsQuiet, type WelcomeViewer } from "@/lib/onboarding";
 import { FirstConversationTour } from "@/components/onboarding/FirstConversationTour";
@@ -189,7 +189,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   const welcome = useCloudWelcome();
   const welcomeOnScreen = cloudWelcomeVisible({ viewer, connected: state.connected, enginesKnown: state.instances.length > 0, onboarding: state.config?.onboarding }, welcome)
     && state.activeView === "chat" && !(!remoteClient && localVmWorkspaceBotId);
-  // The account is the product's whole first run: its welcome, intent and engine sign-in belong to MausBot Cloud's
+  // The account is the product's whole first run: its welcome, intent and engine sign-in belong to Hezuo Cloud's
   // onboarding, which a managed workspace never shows.
   const firstRun = product ? null : cloudFirstRun({ welcome: welcomeOnScreen, intent: cloudAsk, signIn: cloudSignIn || cloudJobWaiting });
 
@@ -345,7 +345,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
       target?.focus({ preventScroll: true });
     });
   }, []);
-  // MausBot Cloud's strips and notices sell a service this account does not use, and its update banner offers the
+  // Hezuo Cloud's strips and notices sell a service this account does not use, and its update banner offers the
   // original project's feed; a managed workspace keeps only the connection line it actually needs.
   const strips = <>
     {!product && <UpdateBanner sidebarIndicator={framed || (!calendarFocus && (sidebarInline || drawerOpen))} />}
@@ -517,7 +517,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   );
 }
 
-/** MausBot Cloud's own onboarding, welcomes and tours never stand in a managed account's way: the account gate and the
+/** Hezuo Cloud's own onboarding, welcomes and tours never stand in a managed account's way: the account gate and the
  * default bot are the whole first run there. Ordinary source and self-hosted builds are untouched. */
 function ProductSetupGate({ children }: { children: ReactNode }) {
   const { state } = useStore();
@@ -537,7 +537,7 @@ function Application() {
         </ThreadRefsProvider>
         <ProductSetupGate>
           <WelcomeGate viewer={viewer} />
-          <MausBotWelcome viewer={viewer} />
+          <HezuoWelcome viewer={viewer} />
           <GuidedTour />
           <FirstConversationTour quiet={spotlightsQuiet(viewer)} />
         </ProductSetupGate>

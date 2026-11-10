@@ -31,7 +31,7 @@ export const SIGN_IN_REQUIRED = "This server needs you to sign in.";
 /** A tool name no server defines, so calling it runs nothing and the answer says only whether tool calls need a sign-in.
  * Observed 2026-10-31: mcp.agentcard.sh answers it HTTP 401 with `resource_metadata`; huggingface.co/mcp, whose sign-in is
  * optional and which also serves an RFC 9728 document, answers JSON-RPC -32602 "not found". */
-export const SIGN_IN_CHECK_TOOL = "openmausbot.sign-in-check";
+export const SIGN_IN_CHECK_TOOL = "hezuo.sign-in-check";
 const SIGN_IN_CHECK_MS = 5_000;
 const DISCOVERY_MS = 5_000;
 /** How MCP servers word a refused key in a JSON-RPC error when they answer it with HTTP 200. */
@@ -154,7 +154,7 @@ async function probeRemoteMcpServer(
     ? new RemoteMcpClient({ ...server, url: options.via.url, headers: {} }, { maxBytes: MAX_REMOTE_MCP_BYTES, fetch: options.via.fetch })
     : new RemoteMcpClient(server, { maxBytes: MAX_REMOTE_MCP_BYTES });
   try {
-    await client.initialize("OpenMausBot", combined, options.extension ? { extensions: { [APP_EXTENSION_KEY]: UI_EXTENSION } } : {});
+    await client.initialize("Hezuo", combined, options.extension ? { extensions: { [APP_EXTENSION_KEY]: UI_EXTENSION } } : {});
     const result = await client.request("tools/list", {}, combined);
     const tools = result && typeof result === "object" ? (result as { tools?: unknown }).tools : undefined;
     if (!Array.isArray(tools)) return { ok: false, error: "The server did not return a valid MCP tools list." };
@@ -189,9 +189,9 @@ async function probeRemoteMcpServer(
   }
 }
 
-const INITIALIZE = { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "OpenMausBot", version: "probe" } };
+const INITIALIZE = { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "Hezuo", version: "probe" } };
 
-/** Always reaped, never inherits OpenMaus credentials. */
+/** Always reaped, never inherits Hezuo credentials. */
 function probeStdioMcpServer(
   server: StoredStdioMcpServer,
   timeoutMs: number,

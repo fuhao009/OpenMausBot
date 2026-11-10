@@ -1,6 +1,6 @@
 // Security invariant: the account's model token lives in this process's memory only — never config.json, an engine
 // home, an environment variable or the wire — and the capability reaches this process only through Electron's private
-// utility-parent port (`openmausbot:product-ai`), never an HTTP route.
+// utility-parent port (`hezuo:product-ai`), never an HTTP route.
 import type {
   InstanceConfigMap,
   ModelCatalog,
@@ -18,10 +18,10 @@ import { PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE } from "../shared/product-accou
 export type { ProductAiState, ProductModel } from "../shared/product-account.ts";
 
 export const PRODUCT_AI_INSTANCE_ID = "product-ai";
-export const PRODUCT_AI_KEY_ENV = "OPENMAUSBOT_PRODUCT_AI_TOKEN";
+export const PRODUCT_AI_KEY_ENV = "HEZUO_PRODUCT_AI_TOKEN";
 export const PRODUCT_AI_PATH = "/v1/ai";
 
-const DISPLAY_NAME = "OpenMausBot AI";
+const DISPLAY_NAME = "Hezuo AI";
 const TOKEN = /^omb_product_ai_[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
@@ -143,7 +143,7 @@ export function parseProductAiUpdate(raw: unknown, options: ParseProductAiUpdate
   if (typeof state !== "string" || !["pending", "ready", "insufficient_balance", "suspended", "unavailable"].includes(state)) {
     throw invalid("state");
   }
-  if (raw.type !== undefined && raw.type !== "openmausbot:product-ai") throw invalid("type");
+  if (raw.type !== undefined && raw.type !== "hezuo:product-ai") throw invalid("type");
   if (raw.requestId !== undefined && !text(raw.requestId, 100)) throw invalid("request_id");
   for (const key of Object.keys(raw)) {
     if (!["type", "requestId", "state", "connection"].includes(key)) throw invalid("payload");

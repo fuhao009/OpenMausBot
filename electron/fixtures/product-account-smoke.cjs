@@ -54,9 +54,9 @@ async function accountWindow() {
   const state = {
     auth: "signed_in", runtime: "ready", user: { id: "user-1", email: "person@example.test" },
     accountToken: "account-bearer", dataDir: "/Users/person/Library/Product",
-    ai: { state: "ready", unit: "points", availableMicroPoints: 3000, reservedMicroPoints: 0, defaultModel: "maus-default",
+    ai: { state: "ready", unit: "points", availableMicroPoints: 3000, reservedMicroPoints: 0, defaultModel: "hezuo-default",
       upstreamBaseUrl: "https://upstream.invalid",
-      models: [{ id: "maus-default", label: "MausBot", protocol: "chat", pricingVersion: "v1", upstreamModel: "vendor/model",
+      models: [{ id: "hezuo-default", label: "Hezuo", protocol: "chat", pricingVersion: "v1", upstreamModel: "vendor/model",
         inputMicroPointsPerMillion: 2_000_000, cachedInputMicroPointsPerMillion: 500_000, outputMicroPointsPerMillion: 4_000_000,
         maxContextTokens: 1000, maxOutputTokens: 100 }] },
   };

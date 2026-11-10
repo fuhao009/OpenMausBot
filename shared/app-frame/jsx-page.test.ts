@@ -40,12 +40,12 @@ afterEach(() => {
   for (const root of roots.splice(0)) root.unmount();
   document.body.innerHTML = "";
   document.documentElement.removeAttribute("data-theme");
-  delete (window as { mausbot?: unknown }).mausbot;
+  delete (window as { hezuo?: unknown }).hezuo;
   fakeEcharts.made = [];
 });
 
 async function start(source: string, more: Record<string, unknown> = {}) {
-  document.body.innerHTML = "<div id=\"mausbot-root\"></div>";
+  document.body.innerHTML = "<div id=\"hezuo-root\"></div>";
   const problems: Problem[] = [];
   const loads: string[] = [];
   const root = await runtime({
@@ -56,7 +56,7 @@ async function start(source: string, more: Record<string, unknown> = {}) {
   }) as { unmount(): void } | null;
   if (root) roots.push(root);
   await new Promise((resolve) => setTimeout(resolve, 30));
-  return { problems, loads, overlay: document.querySelector<HTMLElement>("[data-page-problem]"), rendered: document.getElementById("mausbot-root")! };
+  return { problems, loads, overlay: document.querySelector<HTMLElement>("[data-page-problem]"), rendered: document.getElementById("hezuo-root")! };
 }
 
 const PRICING = `import { useState } from "react";
@@ -85,7 +85,7 @@ describe("a jsx page in the shell", () => {
 
   it("shows a syntax error as a readable overlay with the line, and tells the bot through the page's context", async () => {
     const setContext = vi.fn(async () => {});
-    (window as { mausbot?: unknown }).mausbot = { send: vi.fn(), open: vi.fn(), setContext };
+    (window as { hezuo?: unknown }).hezuo = { send: vi.fn(), open: vi.fn(), setContext };
     const { problems, overlay } = await start("export default function Page() {\n  const total = ;\n  return <p>{total}</p>;\n}");
     expect(problems).toHaveLength(1);
     expect(problems[0]).toMatchObject({ kind: "syntax", message: "Unexpected token", line: 2 });
@@ -120,9 +120,9 @@ describe("a jsx page in the shell", () => {
     expect(overlay?.getAttribute("data-page-problem")).toBe("offline");
   });
 
-  it("gives the page mausbot's Chart and useTheme, drawing ECharts in the chat's theme", async () => {
+  it("gives the page hezuo's Chart and useTheme, drawing ECharts in the chat's theme", async () => {
     document.documentElement.setAttribute("data-theme", "dark");
-    const source = `import { Chart, useTheme } from "mausbot";
+    const source = `import { Chart, useTheme } from "hezuo";
 export default function Page() { const theme = useTheme(); return <div><p id="theme">{theme}</p><Chart label="Sales" option={{ series: [{ type: "bar", data: [1, 2] }] }} /></div>; }`;
     const { problems, loads, rendered } = await start(source);
     expect(problems).toEqual([]);
@@ -130,6 +130,15 @@ export default function Page() { const theme = useTheme(); return <div><p id="th
     expect(rendered.querySelector("#theme")?.textContent).toBe("dark");
     expect(rendered.querySelector("[role=img]")?.getAttribute("aria-label")).toBe("Sales");
     expect(fakeEcharts.made[0]).toMatchObject({ theme: "dark", options: [{ backgroundColor: "transparent", series: [{ type: "bar", data: [1, 2] }] }] });
+  });
+
+  it("loads the old module name only as a persisted JSX read adapter", async () => {
+    const { problems, loads, rendered } = await start('import { useTheme } from "mausbot"; export default function Page() { return <p>{useTheme()}</p>; }');
+    expect(problems).toEqual([]);
+    expect(loads).toContain("echarts");
+    expect(loads).not.toContain("mausbot");
+    expect(rendered.querySelector("p")?.textContent).toMatch(/light|dark/);
+    expect(JSX_PAGE_MODULES).not.toContain("mausbot");
   });
 
   it("runs a published page's transpiled code without loading the compiler", async () => {
@@ -150,7 +159,7 @@ describe("the shell's HTML", () => {
       expect(url, url).toMatch(/\/npm\/(@[\w-]+\/)?[\w.-]+@\d+\.\d+\.\d+\//);
     }
     expect(JSX_PAGE_LIBRARIES.sucrase).toBe(packageJson.dependencies.sucrase);
-    expect(JSX_PAGE_MODULES).toEqual(["react", "react/jsx-runtime", "react-dom", "react-dom/client", "lucide-react", "echarts", "mausbot"]);
+    expect(JSX_PAGE_MODULES).toEqual(["react", "react/jsx-runtime", "react-dom", "react-dom/client", "lucide-react", "echarts", "hezuo"]);
   });
 
   it("carries the file as JSON no script element can be closed by, with the import map and Tailwind ahead of it", () => {
@@ -171,7 +180,7 @@ describe("the shell's HTML", () => {
     const compiled = "\"use strict\";exports.default = function () { return \"</script>\"; };";
     const html = jsxPublishedHtml({ title: "Pricing", compiled });
     expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
-    expect(html).toContain("window.__mausbotPage=function(require,module,exports){\"use strict\";exports.default = function () { return \"<\\/script>\"; };");
+    expect(html).toContain("window.__hezuoPage=function(require,module,exports){\"use strict\";exports.default = function () { return \"<\\/script>\"; };");
     expect(html).toContain("--color-text-primary:light-dark(");
     expect(html).not.toContain("source:");
     expect(html.match(/<\/script>/g)).toHaveLength(4);

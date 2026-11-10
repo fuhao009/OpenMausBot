@@ -1,4 +1,4 @@
-// The Cloud home image's entry point: a root supervisor of two `maus` children, the server on 127.0.0.1:8799 and the Caddy
+// The Cloud home image's entry point: a root supervisor of two `hezuo` children, the server on 127.0.0.1:8799 and the Caddy
 // edge on 0.0.0.0:8080, the only listener the network reaches, always forwarding X-Forwarded-*, so no remote request gets
 // loopback trust. Secrets never ride a child's environment (/proc/<pid>/environ stays readable by the same user): the
 // server reads them from an inherited pipe. Root runs and trusts only the image's code, never the volume's.
@@ -15,7 +15,7 @@ import { clearRecordsFromOtherMachines } from "./data-dir-lease.ts";
 import { OOM_SCORE, protectSupervisor, spawnWithOomScore } from "./oom-score.ts";
 import { restartPolicy } from "./restart.ts";
 
-const SERVICE_USER = "maus";
+const SERVICE_USER = "hezuo";
 const SECRETS_FD = 3;
 
 /** uid/gid from /etc/passwd; Node has no getpwnam. */
@@ -65,7 +65,7 @@ export function edgeClientAddress(env: NodeJS.ProcessEnv): { OMB_CLOUD_EDGE_CLIE
 
 /** The server's data directory on the volume. */
 export function cloudHomeDataDir(env: NodeJS.ProcessEnv, home: string): string {
-  return env.OMB_DATA_DIR || posix.join(home, ".openmausbot");
+  return env.OMB_DATA_DIR || posix.join(home, ".hezuo");
 }
 
 /** flock(1)'s exit status when another process holds the lock (its --conflict-exit-code). */
@@ -81,7 +81,7 @@ const flockVolume: VolumeLock = (fd) => spawnSync("/usr/bin/flock", ["--exclusiv
  * Locks the volume for as long as this process lives, or refuses: a second home on the same volume must never start.
  * Docker lets any number of containers mount one volume, each in its own pid namespace, so no pid or lease record can
  * tell a live home from a dead one; a kernel lock on the volume can, and the kernel drops it when this process dies.
- * The lock is flock(2) on the volume's root, an inode `maus` cannot replace. flock(1) takes it on this process's own
+ * The lock is flock(2) on the volume's root, an inode `hezuo` cannot replace. flock(1) takes it on this process's own
  * open descriptor, which keeps it after flock exits.
  */
 export function holdVolume(home: string, lock: VolumeLock = flockVolume): void {
@@ -94,7 +94,7 @@ export function holdVolume(home: string, lock: VolumeLock = flockVolume): void {
     return;
   }
   closeSync(fd);
-  if (result.status === VOLUME_HELD) throw new Error("Another MausBot home is already running on this volume. No data was changed.");
+  if (result.status === VOLUME_HELD) throw new Error("Another Hezuo home is already running on this volume. No data was changed.");
   const why = result.error?.message ?? (String(result.stderr ?? "").trim().split("\n")[0] || `exit ${result.status}`);
   throw new Error(`This home could not lock its volume (${why}), so it will not start: another home might be using it. No data was changed.`);
 }
@@ -137,8 +137,8 @@ export function cloudHomeChildEnvironments(config: CloudHomeConfig, env: NodeJS.
   return { server, edge, secrets: cloudHomeSecrets(env), dropped };
 }
 
-/** What root does to the machine before anything runs as `maus` (docs/bot-box.md, "What each layer stops"): /proc hides
- * other users' processes (`hidepid=invisible`), so no `maus` process lists root's, and Fly's local API socket folder is
+/** What root does to the machine before anything runs as `hezuo` (docs/bot-box.md, "What each layer stops"): /proc hides
+ * other users' processes (`hidepid=invisible`), so no `hezuo` process lists root's, and Fly's local API socket folder is
  * root's alone. Each step is one command; a failure is logged, never fatal, and OMB_CLOUD_HARDEN=0 skips them all. */
 export function hardenHost(env: NodeJS.ProcessEnv, run: { exec: (command: string, args: string[]) => { status: number | null; stderr?: string }; chmod: (path: string, mode: number) => void; exists: (path: string) => boolean } = {
   exec: (command, args) => spawnSync(command, args, { stdio: ["ignore", "ignore", "pipe"], encoding: "utf8", timeout: 10_000 }), chmod: chmodSync, exists: existsSync,
@@ -153,8 +153,8 @@ export function hardenHost(env: NodeJS.ProcessEnv, run: { exec: (command: string
   return notes;
 }
 
-/** Each file and every folder above it must be root's and not writable by others, and never on the `maus`-owned volume:
- * otherwise `maus` could rewrite what runs as root at the next start. */
+/** Each file and every folder above it must be root's and not writable by others, and never on the `hezuo`-owned volume:
+ * otherwise `hezuo` could rewrite what runs as root at the next start. */
 export function codeTrustProblem(files: readonly string[], home: string, stat: (path: string) => Pick<Stats, "uid" | "mode"> = statSync): string | null {
   const volume = posix.join(home, "/");
   for (const file of files) {
@@ -186,7 +186,7 @@ export function spawnWithSecrets(command: string, args: string[], env: NodeJS.Pr
 export function startCloudHome(env: NodeJS.ProcessEnv = process.env) {
   process.umask(0o077);
   const config = cloudHomeConfiguration(env);
-  if (!config) throw new Error("This image runs a My Cloud machine for MausBot Cloud; set its boot contract (docs/cloud-pro.md).");
+  if (!config) throw new Error("This image runs a My Cloud machine for Hezuo Cloud; set its boot contract (docs/cloud-pro.md).");
   // Logged here once: the server child never sees what they are about.
   for (const warning of config.warnings) console.warn(`cloud home: ${warning}`);
   const home = env.HOME || "/data";
@@ -202,7 +202,7 @@ export function startCloudHome(env: NodeJS.ProcessEnv = process.env) {
     const stat = statSync(home);
     if (stat.uid !== ids.uid || stat.gid !== ids.gid) chownSync(home, ids.uid, ids.gid);
     process.setgroups?.([]);
-    // The volume is prepared as `maus`, so what it creates is theirs.
+    // The volume is prepared as `hezuo`, so what it creates is theirs.
     process.setegid!(ids.gid);
     process.seteuid!(ids.uid);
     try { prepared = prepare(); } finally {

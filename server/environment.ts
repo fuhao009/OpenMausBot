@@ -1,4 +1,4 @@
-// Served without auth at /.well-known/openmausbot/environment, so a saved connection can check it still reaches the same server.
+// Served without auth at /.well-known/hezuo/environment, so a saved connection can check it still reaches the same server.
 import { randomUUID } from "node:crypto";
 import {
   closeSync,

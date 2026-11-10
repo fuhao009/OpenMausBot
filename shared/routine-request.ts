@@ -7,7 +7,7 @@
 import type { LimitResetRepeat } from "./limit-reset.ts";
 import type { RoutineCronSchedule } from "./routine-schedule.ts";
 
-export type RoutineRequestRunOn = "maus" | "cloud";
+export type RoutineRequestRunOn = "hezuo" | "cloud";
 
 export interface RoutineRequestIntervalWindow {
   start: string;
@@ -59,7 +59,7 @@ export interface RoutineRequestDefinition {
   continuity?: boolean;
   /** Skip by default, or keep at most one scheduled run waiting. */
   overlap?: "skip" | "queue";
-  /** Also run once each time OpenMausBot starts. Repeating routines only. */
+  /** Also run once each time Hezuo starts. Repeating routines only. */
   runOnStartup?: boolean;
 }
 

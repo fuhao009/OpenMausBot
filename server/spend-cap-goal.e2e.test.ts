@@ -19,7 +19,7 @@ describe("spend cap inside a team goal run", () => {
       ...process.env,
       // FAKE_CLAUDE_REPLY_STATE unset: every invocation replays index 0, so an accidental retry would price another turn.
       FAKE_CLAUDE_REPLIES: JSON.stringify([
-        'The plan is ready.\n<openmaus-goal>{"status":"continue","next":"Worker","instruction":"Do the thing","detail":"Plan ready"}</openmaus-goal>',
+        'The plan is ready.\n<hezuo-goal>{"status":"continue","next":"Worker","instruction":"Do the thing","detail":"Plan ready"}</hezuo-goal>',
       ]),
     }, undefined, undefined, undefined, { dir: layerDir, licenseKey: "fixture-key" });
   }, 60_000);
@@ -99,7 +99,7 @@ describe("spend cap inside a one-on-one goal", () => {
       ...process.env,
       // Every invocation replays index 0, so an accidental retry would price another turn.
       FAKE_CLAUDE_REPLIES: JSON.stringify([
-        'Half done.\n<openmaus-goal>{"status":"continue","next":"Solo","instruction":"Finish the thing","detail":"Half done"}</openmaus-goal>',
+        'Half done.\n<hezuo-goal>{"status":"continue","next":"Solo","instruction":"Finish the thing","detail":"Half done"}</hezuo-goal>',
       ]),
     }, undefined, undefined, undefined, { dir: layerDir, licenseKey: "fixture-key" });
   }, 60_000);

@@ -32,7 +32,7 @@ const api = async (method: string, path: string, body?: unknown, token = admin) 
 };
 const mint = async (botId: string, threadId: string, kind = "highlevel") => {
   const response = await fetch(fixture.info.url + "/api/testing/internal-capability", {
-    method: "POST", headers: { "content-type": "application/json", "x-openmausbot-test-capability": key },
+    method: "POST", headers: { "content-type": "application/json", "x-hezuo-test-capability": key },
     body: JSON.stringify({ botId, threadId, kind }),
   });
   expect(response.status).toBe(201);
@@ -121,7 +121,7 @@ it("gives a bot its scoped tools, records writes without contact data, refreshes
 
   const refused = await call(token, "HIGHLEVEL_ADD_NOTE", { contactId: "contact_1", body: "Called back" });
   expect(refused.body.result.isError).toBe(true);
-  expect(refused.body.result.content[0].text).toBe("OpenMausBot did not run this: HighLevel is read-only for CRM scout, and Add note would write to it. Ask the user before trying again.");
+  expect(refused.body.result.content[0].text).toBe("Hezuo did not run this: HighLevel is read-only for CRM scout, and Add note would write to it. Ask the user before trying again.");
   expect(hl.calls.some((row) => row.path.endsWith("/notes"))).toBe(false);
 
   expect((await api("PATCH", `/api/bots/${bot.id}`, { connectorScopes: { apps: { highlevel: "write" } } })).status).toBe(200);

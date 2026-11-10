@@ -3,7 +3,7 @@
 Open **Plugins → MCP servers → Add server** to give your bots tools from an
 MCP server you trust. Paste what you were given into the one box: the
 server's link, a `claude mcp add …` or `claude mcp add-json …` command, an
-`npx`, `uvx` or `docker run` line, or an `mcpServers` JSON block. OpenMausBot
+`npx`, `uvx` or `docker run` line, or an `mcpServers` JSON block. Hezuo
 works out the name, the connection, the headers and the environment, and asks
 only for what the paste left out: a value that was a variable from your
 terminal (`$CF_ID`, `${CF_ID}`) or a placeholder (`YOUR_API_KEY`, `<token>`)
@@ -106,8 +106,8 @@ opens Agentcard's browser sign-in with your own Agentcard account. No API key
 is needed. After sign-in and tool discovery it enables the connection, and
 **Disconnect** and **Bot access** work as they do for Whop.
 
-OpenMausBot owns no cards, approvals or orders here. Agentcard keeps your cards
-and handles purchase approvals; OpenMausBot stores no card details. A bot that
+Hezuo owns no cards, approvals or orders here. Agentcard keeps your cards
+and handles purchase approvals; Hezuo stores no card details. A bot that
 can use Agentcard can call all of its tools, including the ones that buy and
 the ones that show card details, so choose which bots get it under **Bot
 access**. Existing custom entries at the official HTTP endpoint are recognized
@@ -120,24 +120,24 @@ Some URL servers take no token; they want you to sign in with your browser
 details (RFC 9728 protected-resource metadata, then the authorization
 server's own metadata), the server shows **Needs sign-in** and a **Sign in**
 button. Sign in opens the provider's page in your browser, which returns to
-OpenMausBot when you approve. The server then shows **Signed in**, and Test
+Hezuo when you approve. The server then shows **Signed in**, and Test
 lists its tools. A server that lists its tools before you sign in but refuses
 tool calls the same way (an HTTP 401 pointing at those sign-in details) shows
 **Sign in** too.
 
 - **Which servers work.** The authorization server must support PKCE with
   S256. If it lets apps register themselves (dynamic client registration),
-  OpenMausBot registers a fresh app for each sign-in. If it only accepts an
+  Hezuo registers a fresh app for each sign-in. If it only accepts an
   app registered in advance, add that app as described below. A 401 without
   sign-in details keeps the old message: check the address and headers.
-- **Where you can sign in.** Anywhere you use OpenMausBot: on the computer
+- **Where you can sign in.** Anywhere you use Hezuo: on the computer
   it runs on, or in a browser on another computer (My Cloud, a hosted
   workspace, a server of your own). See below.
 - **Bots never sign in.** A server that needs sign-in is left out of every
   turn until someone signs in from this page. A signed-in server gets
   `Authorization: Bearer …` in place of any `Authorization` header you set,
   so every engine that reaches URL servers can use it.
-- **Tokens are kept apart.** They live in `~/.openmausbot/mcp-oauth.json`
+- **Tokens are kept apart.** They live in `~/.hezuo/mcp-oauth.json`
   (owner-only), never in `config.json` or an API response, and are left out of
   workspace backups. They belong to the server's address: changing the
   address or removing the server drops them. **Sign out** revokes them when
@@ -147,14 +147,14 @@ tool calls the same way (an HTTP 401 pointing at those sign-in details) shows
 
 #### Signing in from another computer
 
-On the computer OpenMausBot runs on, your browser returns to it at
+On the computer Hezuo runs on, your browser returns to it at
 `127.0.0.1`. In a browser on another computer that address is your own
-computer, where OpenMausBot is not, so sign-in comes back another way:
+computer, where Hezuo is not, so sign-in comes back another way:
 
 - **Over https (My Cloud, a hosted workspace, a server behind https).** When
   the server lets apps register themselves, your browser returns to the
-  address you are using OpenMausBot at, at `/mcp-oauth/callback`, and the tab
-  says **Signed in. You can close this tab and return to OpenMausBot.** Nothing
+  address you are using Hezuo at, at `/mcp-oauth/callback`, and the tab
+  says **Signed in. You can close this tab and return to Hezuo.** Nothing
   to copy. Whop works this way. The address is the server's public address
   (a Cloud or hosted workspace's own, a connected domain, or `OMB_PUBLIC_URL`)
   when you are on it, or the https address your browser is on when none is
@@ -162,15 +162,15 @@ computer, where OpenMausBot is not, so sign-in comes back another way:
   returns to its listed public address instead.
 - **Otherwise, paste one address.** For an app registered in advance (it
   always returns to its registered `127.0.0.1` address), a server that will
-  not register OpenMausBot for your https address, or a server reached over
+  not register Hezuo for your https address, or a server reached over
   plain http, the sign-in panel says: *After you approve, your browser shows a
   page that can't load. Copy that page's full address and paste it here.* Copy
   the **entire URL from the address bar**, paste it into **Redirect URL**, and
   choose **Complete sign-in**. The page that can't load is expected: it
-  refers to your computer, while OpenMausBot is on the server. No port
+  refers to your computer, while Hezuo is on the server. No port
   forwarding is needed.
 
-On the computer OpenMausBot runs on, the same paste step is under **Signing
+On the computer Hezuo runs on, the same paste step is under **Signing
 in from another computer?** for an SSH tunnel or a browser elsewhere. **Open
 sign-in page** reopens the approval page if your browser blocked the first
 attempt.
@@ -186,7 +186,7 @@ Corporate identity providers (Microsoft Entra ID, for example) and some
 hosted servers do not let apps register themselves. Register an app with the
 provider, then edit the server and fill in **Sign-in app**:
 
-- **Client ID** of that app. With a client ID set, OpenMausBot signs in as
+- **Client ID** of that app. With a client ID set, Hezuo signs in as
   that app and never registers one.
 - **Client secret**, only for a confidential app. It is write-only like a
   header value: kept in `config.json`, never shown again, and sent only to
@@ -240,14 +240,14 @@ is ignored.
 
 The desktop app's first-run tour does the same for you in its **Bring what you
 already use** step (`server/setup-import.ts`). On the computer running
-OpenMausBot, and only for the desktop app's own window there, it reads the
+Hezuo, and only for the desktop app's own window there, it reads the
 `mcpServers` of Claude Code (only the top-level key of `~/.claude.json`),
 Claude Desktop, Cursor (`~/.cursor/mcp.json`) and Gemini CLI
 (`~/.gemini/settings.json`), and the `[mcp_servers.*]` tables of Codex's
 `config.toml`. Each server goes through the import parser, switched off;
 one already here by command or address is left alone, a different server
 under a name already taken is skipped and named in the result, a name
-OpenMausBot keeps for itself (`browser`, `computer`, `data`…) gets an `mcp-`
+Hezuo keeps for itself (`browser`, `computer`, `data`…) gets an `mcp-`
 prefix, a trailing comma is accepted, and the list stops at its limit. One
 entry or file it cannot read drops only itself, and a kind that cannot be
 saved is reported as failed while the other still comes in. With **Also use
@@ -367,7 +367,7 @@ limit, or half of it or more.
 | URL, Streamable HTTP | yes | yes | yes | yes |
 | URL, SSE | yes | yes | yes | yes |
 
-Every engine except Claude Code reaches URL servers through OpenMausBot's own
+Every engine except Claude Code reaches URL servers through Hezuo's own
 connector, the same one **Test** uses, so a server that passes Test works in
 chat too. On a Cloud whose bots run in their box, bots reach a URL server
 through the box's credential broker, and so does Test (docs/bot-box.md). Some servers refuse any handshake field they do not know, and the
@@ -407,7 +407,7 @@ it off unless you need those servers — the recommended way to give a bot a
 server is still this page or the bot project's `.mcp.json`.
 
 **Also use my Claude Code skills**, just below it, gives Claude bots the skills
-in your own `~/.claude/skills` and nothing else from your setup. OpenMausBot
+in your own `~/.claude/skills` and nothing else from your setup. Hezuo
 keeps one link to that folder (in its data folder, `claude-user-skills/`) and
 passes it with `--add-dir`, so each skill loads as it is on disk, scripts and
 reference files included, and Claude Code picks up your edits within the
@@ -421,10 +421,10 @@ the original.
 
 The switch drops the CLI flag `--strict-mcp-config` (Claude Code 1.0.60+)
 while keeping `--setting-sources project` (1.0.122+). The environment variable
-`OMB_CLAUDE_INHERIT_USER_CONFIG=1` on the OpenMausBot process remains the full
+`OMB_CLAUDE_INHERIT_USER_CONFIG=1` on the Hezuo process remains the full
 escape hatch back to the old launch: it restores everything, for every Claude
 bot, until you remove it. The harness also picks the session's compaction
-window with `--autocompact` (2.1.122+). OpenMausBot reads `claude --version`
+window with `--autocompact` (2.1.122+). Hezuo reads `claude --version`
 whenever it lists engines (app load, the Engines page, after an update) and
 only passes each flag to a CLI that accepts it, so an older CLI keeps working
 — without the controls it predates — and the Engines page shows an update
@@ -448,7 +448,7 @@ Address entries are HTTPS only. The host is compared label by label, where
 and the path separately, where `*` matches anything.
 
 Limits: a personal **Codex** engine also loads MCP servers from your own
-`~/.codex/config.toml`, which OpenMausBot does not filter. A server here that
+`~/.codex/config.toml`, which Hezuo does not filter. A server here that
 `config.toml` already runs, with the same command, arguments and environment
 or the same address and headers (as one brought in from there is), is not
 mounted a second time on a turn without a tool selection. An organization that
@@ -458,7 +458,7 @@ its engine list. Company Codex uses its own separate home, without your
 
 ## Advanced: edit the file
 
-The same registry lives in `~/.openmausbot/config.json`:
+The same registry lives in `~/.hezuo/config.json`:
 
 ```json
 {
@@ -485,7 +485,7 @@ The same registry lives in `~/.openmausbot/config.json`:
 
 `type` is `http` (Streamable HTTP, the default) or `sse`. `oauth` is the
 optional sign-in app; `clientSecret` and `scopes` may be left out. If you edit the file
-by hand, restart OpenMausBot. Every bot whose engine can mount custom MCP
+by hand, restart Hezuo. Every bot whose engine can mount custom MCP
 servers gets the enabled tools on its next task.
 
 ## Rules that keep this safe
@@ -501,8 +501,8 @@ servers gets the enabled tools on its next task.
   32 chars, starting with a letter.
 - **Environment names are checked.** `OMB_*` and `OGB_*` are refused: Codex
   hands MCP children their variables from one shared environment, and those
-  names carry OpenMausBot's own routing and bearers. `ELECTRON_RUN_AS_NODE`
-  is accepted as `1` only — the value OpenMausBot's own proxies use — so a
+  names carry Hezuo's own routing and bearers. `ELECTRON_RUN_AS_NODE`
+  is accepted as `1` only — the value Hezuo's own proxies use — so a
   server bundled inside an Electron app (its binary as the command) can run
   as node; any other value would overwrite what the built-in proxies need.
 - **One bad entry never takes the fleet down.** Invalid entries are skipped
@@ -513,7 +513,7 @@ servers gets the enabled tools on its next task.
 - **Credentials stay off argv.** `env` values travel in the child
   environment (Codex argv carries env *names* only; Claude uses the private
   0600 mcp-config file; ACP passes them in the session payload with the
-  wire log redacted). Header values do the same: OpenMausBot's connector
+  wire log redacted). Header values do the same: Hezuo's connector
   reads them from a private environment record (Codex names only the
   record's variable on argv; ACP gets it in the session payload), Claude
   Code from the 0600 file. They do persist as plaintext in the 0600 config file — prefer
@@ -521,7 +521,7 @@ servers gets the enabled tools on its next task.
   variables from the same environment it runs the bot's shell commands in,
   so each variable a server needs there is excluded from that shell; a value
   you already had in your own environment, like a proxy setting, stays.
-- **Proxies.** Where OpenMausBot's own remote proxy connects to a URL
+- **Proxies.** Where Hezuo's own remote proxy connects to a URL
   server, an `https://` server goes through your `HTTPS_PROXY` /
   `HTTP_PROXY` (CONNECT), with this computer's loopback names always added
   to `NO_PROXY` (`[::1]` included). An `http://` server goes through your
@@ -532,7 +532,7 @@ servers gets the enabled tools on its next task.
   System Settings are not read.
 - **Testing is bounded.** A command is stopped after the handshake (or eight
   seconds), its output is capped, and its stderr is never sent to the UI. It
-  inherits none of OpenMausBot's workspace or provider credentials; only the
+  inherits none of Hezuo's workspace or provider credentials; only the
   environment variables configured for that MCP server are added. Where bots
   are boxed, a command server is tested in the box, as a bot's turn starts
   it, and its configured variables pass the box's allow-list there, in the

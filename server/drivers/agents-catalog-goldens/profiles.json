@@ -1113,7 +1113,7 @@
       "mcp_server"
     ]
   },
-  "default+mausbot": {
+  "default+hezuo": {
     "bytes": 58901,
     "sha256": "b1a4b34d069475c8320bc116277af0f28dd64a0c38c0976da6ecb3fcd70411e9",
     "tools": [
@@ -1165,7 +1165,7 @@
       "mark_notifications_read"
     ]
   },
-  "skills+shared+voice+mausbot": {
+  "skills+shared+voice+hezuo": {
     "bytes": 64766,
     "sha256": "9924a5382dcb61053fc680328b815f8e5b3e5f322dbf46ca46ec3b252d75cef1",
     "tools": [

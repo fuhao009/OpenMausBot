@@ -5,7 +5,7 @@ import { engineInstallRoots } from "../engine-roots.ts";
 import { BOX_MUTATIONS, argvPaths, bwrapArgs, planBox, taskWorkspaceIds, visibleInBox, type BoxMutation, type BoxSetup } from "./plan.ts";
 
 const home = "/data";
-const dataDir = "/data/.openmausbot";
+const dataDir = "/data/.hezuo";
 const setup = (mutate?: BoxMutation[]): BoxSetup => ({
   dataDir, home, codeRoots: ["/app"], engineRoots: engineInstallRoots(dataDir), seccompFd: 3,
   bridges: [{ name: "egress", port: 3128, socket: `${dataDir}/box/egress.sock` }, { name: "harness", port: 8799, socket: `${dataDir}/box/harness.sock` }],
@@ -62,7 +62,7 @@ linuxBox("the box plan", () => {
     expect(text).not.toContain("--new-session");
   });
 
-  it("puts the engines OpenMausBot installed back whole and read-only, whatever else the turn may write", () => {
+  it("puts the engines Hezuo installed back whole and read-only, whatever else the turn may write", () => {
     // npm's bin entries are relative links into the prefix: `bin/opencode -> ../lib/node_modules/opencode-ai/bin/opencode.exe`.
     const prefix = join(dataDir, "tools", "npm");
     const engineFiles = [`${prefix}/bin/opencode`, `${prefix}/lib/node_modules/opencode-ai/bin/opencode.exe`, `${prefix}/bin/codex`,
@@ -90,7 +90,7 @@ linuxBox("the box plan", () => {
     const own = join(dataDir, "engine-homes", "member-aaaaaaaaaaaaaaaa");
     const team = planBox(setup(), { command: "opencode", args: [], cwd, env: { HOME: own }, home: own });
     expect(visibleInBox(team, join(dataDir, "tools", "npm", "bin", "opencode"))).toBe("ro");
-    const apart = planBox({ ...setup(), dataDir: "/srv/omb", home: "/home/maus", engineRoots: engineInstallRoots("/srv/omb") }, { command: "opencode", args: [], cwd: "/srv/omb/task-workspaces/b/t", env: {} });
+    const apart = planBox({ ...setup(), dataDir: "/srv/omb", home: "/home/hezuo", engineRoots: engineInstallRoots("/srv/omb") }, { command: "opencode", args: [], cwd: "/srv/omb/task-workspaces/b/t", env: {} });
     expect(visibleInBox(apart, "/srv/omb/tools/npm/bin/opencode")).toBe("ro");
     expect(visibleInBox(apart, "/srv/omb/messages.db")).toBe("none");
   });
@@ -104,12 +104,12 @@ linuxBox("the box plan", () => {
   });
 
   it("a shared-network box (a browser) has no bridges and no network namespace", () => {
-    const plan = planBox(setup(), { command: "/opt/chrome", args: [], env: {}, net: "shared", rw: ["/data/.openmausbot/browser/profiles/p1"] });
+    const plan = planBox(setup(), { command: "/opt/chrome", args: [], env: {}, net: "shared", rw: ["/data/.hezuo/browser/profiles/p1"] });
     expect(plan.net).toBe("shared");
     expect(bwrapArgs(plan).join(" ")).not.toContain("--unshare-net");
     expect(bwrapArgs(plan).join(" ")).not.toContain("/run/omb");
-    expect(visibleInBox(plan, "/data/.openmausbot/browser/profiles/p1/Default")).toBe("rw");
-    expect(visibleInBox(plan, "/data/.openmausbot/messages.db")).toBe("none");
+    expect(visibleInBox(plan, "/data/.hezuo/browser/profiles/p1/Default")).toBe("rw");
+    expect(visibleInBox(plan, "/data/.hezuo/messages.db")).toBe("none");
   });
 
   it("Antigravity's own profile (GEMINI_HOME) goes back read-write, and no other account's", () => {
@@ -156,7 +156,7 @@ linuxBox("the box plan", () => {
   });
 
   it("a data folder outside HOME is simply not there", () => {
-    const plan = planBox({ ...setup(), dataDir: "/srv/omb", home: "/home/maus" }, { command: "/usr/bin/x", args: [], cwd: "/srv/omb/task-workspaces/b/t", env: {} });
+    const plan = planBox({ ...setup(), dataDir: "/srv/omb", home: "/home/hezuo" }, { command: "/usr/bin/x", args: [], cwd: "/srv/omb/task-workspaces/b/t", env: {} });
     expect(visibleInBox(plan, "/srv/omb/messages.db")).toBe("none");
     expect(visibleInBox(plan, "/srv/omb/task-workspaces/b/t")).toBe("rw");
     expect(visibleInBox(plan, "/srv/omb/workspaces/b")).toBe("rw");

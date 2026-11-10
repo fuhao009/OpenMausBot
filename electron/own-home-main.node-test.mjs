@@ -23,7 +23,7 @@ function servers(answers) {
     if (server?.down) throw new TypeError("fetch failed");
     if (!server) return new Response("", { status: 502 });
     if (pathname === "/api/auth/session") return Response.json(server.signedIn === false ? { error: "unauthorized" } : { kind: "session", scopes: ["admin"], ...(server.own ? { own: true } : {}) }, { status: server.signedIn === false ? 401 : 200 });
-    if (pathname === "/.well-known/openmausbot/environment") return Response.json({ environmentId: server.environmentId ?? ID, capabilities: server.move === false ? {} : { move: 1 } });
+    if (pathname === "/.well-known/hezuo/environment") return Response.json({ environmentId: server.environmentId ?? ID, capabilities: server.move === false ? {} : { move: 1 } });
     return new Response("", { status: 404 });
   };
   return { fetch, asked };
@@ -86,7 +86,7 @@ test("starting asks the server once more, and keeps this computer's bots here wh
   const cases = [
     [{ own: false }, "Garage server has other people on it, so your bots stay here."],
     [{ signedIn: false }, "This app isn't signed in to Garage server."],
-    [{ own: true, move: false }, "Update OpenMausBot on Garage server first"],
+    [{ own: true, move: false }, "Update Hezuo on Garage server first"],
   ];
   for (const [answer, words] of cases) {
     const { own } = install({ answers: { [garage.origin]: answer } });

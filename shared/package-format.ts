@@ -1,4 +1,4 @@
-// The OpenMausBot package file ("openmaus.package"), v1 or v2; every reader
+// The Hezuo package file ("hezuo.package"), v1 or v2; every reader
 // returns v2. The single validation gate for the server, the renderer and the
 // Admin upload, so it imports only zod, yaml, croner and pure shared modules
 // (no Buffer, no node:*). The schema has no field for chat history, secrets,
@@ -10,10 +10,10 @@ import { z } from "zod";
 import { BOT_PROFILE_LIMITS, fitsOnOneLine } from "./bot-profile.ts";
 import { redactSecretsInText } from "./redact.ts";
 import { normalizeCronSchedule } from "./routine-schedule.ts";
-import { MAUS_COLOR_NAMES } from "./wire.ts";
+import { HEZUO_COLOR_NAMES } from "./wire.ts";
 import { isSkillName, parseSkillMd, scanSkillText, SKILL_FILE_MAX_BYTES } from "./skill-md.ts";
 
-export const PACKAGE_FORMAT = "openmaus.package";
+export const PACKAGE_FORMAT = "hezuo.package";
 /** The newest version this module reads and writes. */
 export const PACKAGE_VERSION = 2;
 /** Canonical UTF-8 bytes of the whole document. */
@@ -30,7 +30,7 @@ export const PACKAGE_V1_MAX_SKILLS = 20;
 export const BOTMRR_MARKDOWN_VERSION = 1;
 const BOTMRR_MARKDOWN_MAX_BYTES = 1_000_000;
 
-export const NEWER_PACKAGE_MESSAGE = "This file was made by a newer OpenMausBot. Update the app, then import it again.";
+export const NEWER_PACKAGE_MESSAGE = "This file was made by a newer Hezuo. Update the app, then import it again.";
 
 export type PackageTrust = "file" | "org";
 export type PackageFormatErrorCode = "not_a_package" | "unsupported_version" | "newer_version" | "invalid" | "too_large";
@@ -199,7 +199,7 @@ const exampleSchema = z.object({
 });
 
 const packageDocumentV1Schema = z.object({
-  format: z.literal(PACKAGE_FORMAT, { error: "This is not an OpenMaus package" }),
+  format: z.literal(PACKAGE_FORMAT, { error: "This is not an Hezuo package" }),
   version: z.literal(PACKAGE_V1_VERSION, { error: "Package version is not supported" }),
   package: z.object({
     id: requiredText(80).regex(/^[a-z0-9][a-z0-9-]*$/, { message: "must be a lowercase slug" }),
@@ -222,7 +222,7 @@ const packageDocumentV1Schema = z.object({
       description: optionalText(4_000),
       soul: soulSchema.optional(),
       appearance: z.object({
-        color: z.enum(MAUS_COLOR_NAMES, { error: "is not supported" }),
+        color: z.enum(HEZUO_COLOR_NAMES, { error: "is not supported" }),
         mascotExpression: optionalText(80),
         mascotBody: optionalText(40),
       }),
@@ -236,7 +236,7 @@ const packageDocumentV1Schema = z.object({
       name: requiredText(80),
       agent: key,
       prompt: requiredText(20_000),
-      runOn: z.enum(["maus", "cloud"]),
+      runOn: z.enum(["hezuo", "cloud"]),
       schedule: packageRoutineScheduleSchema,
       durationMinutes: z.number().int().min(5).max(240),
       timeoutMinutes: z.number().int().min(5).max(240).optional(),
@@ -310,7 +310,7 @@ const avatarSchema = z.object({
 });
 
 const appearanceSchema = z.object({
-  color: z.enum(MAUS_COLOR_NAMES, { error: "is not supported" }),
+  color: z.enum(HEZUO_COLOR_NAMES, { error: "is not supported" }),
   mascotExpression: optionalText(80),
   mascotBody: optionalText(40),
   avatar: avatarSchema.optional(),
@@ -362,13 +362,13 @@ const routineSchema = z.object({
   /** Present = a room goal (runs on this computer, no continuity). */
   room: key.optional(),
   prompt: requiredText(20_000),
-  runOn: z.enum(["maus", "cloud"]),
+  runOn: z.enum(["hezuo", "cloud"]),
   schedule: packageRoutineScheduleSchema,
   durationMinutes: z.number().int().min(5).max(240),
   timeoutMinutes: z.number().int().min(1).max(1_440).optional(),
   overlap: z.enum(["skip", "queue"]).optional(),
   continuity: z.boolean().optional(),
-  /** Also run once each time OpenMausBot starts. Repeating routines only. */
+  /** Also run once each time Hezuo starts. Repeating routines only. */
   runOnStartup: z.boolean().optional(),
   /** The publisher's intent. File imports always arrive paused. */
   enabledAfterInstall: z.boolean(),
@@ -426,7 +426,7 @@ const connectionSchema = z.object({
 });
 
 export const packageDocumentSchema = z.object({
-  format: z.literal(PACKAGE_FORMAT, { error: "This is not an OpenMaus package" }),
+  format: z.literal(PACKAGE_FORMAT, { error: "This is not an Hezuo package" }),
   version: z.literal(PACKAGE_VERSION, { error: "Package version is not supported" }),
   package: z.object({
     /** The package slug: its identity across releases. */
@@ -673,7 +673,7 @@ function checkV2References(pkg: PackageDefinition): void {
     if (!agents.has(routine.agent)) throw invalid(`Routine ${routine.key} references unknown agent: ${routine.agent}`);
     if (routine.room === undefined) continue;
     if (!rooms.has(routine.room)) throw invalid(`Routine ${routine.key} references unknown group chat: ${routine.room}`);
-    if (routine.runOn !== "maus") throw invalid(`Routine ${routine.key} is a group chat goal, which only runs on this computer`);
+    if (routine.runOn !== "hezuo") throw invalid(`Routine ${routine.key} is a group chat goal, which only runs on this computer`);
     if (routine.continuity) throw invalid(`Routine ${routine.key} is a group chat goal, which cannot carry continuity`);
     // The goal scheduler refuses a lead who is not in the room.
     if (!roomMembers.get(routine.room)!.has(routine.agent)) {
@@ -706,16 +706,32 @@ function markdownDocument(markdown: string): unknown {
 }
 
 
+/** Read-only migration of pre-Hezuo package identity and routine execution targets. */
+function migrateLegacyPackage(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const document = value as Record<string, unknown>;
+  if (document.format !== "openmaus.package") return value;
+  const pkg = document.package;
+  if (!pkg || typeof pkg !== "object" || Array.isArray(pkg)) return { ...document, format: PACKAGE_FORMAT };
+  const definition = pkg as Record<string, unknown>;
+  const routines = Array.isArray(definition.routines) ? definition.routines.map((routine: unknown) => {
+    if (!routine || typeof routine !== "object" || Array.isArray(routine)) return routine;
+    const row = routine as Record<string, unknown>;
+    return row.runOn === "maus" ? { ...row, runOn: "hezuo" } : row;
+  }) : definition.routines;
+  return { ...document, format: PACKAGE_FORMAT, package: { ...definition, ...(routines === undefined ? {} : { routines }) } };
+}
+
 /** True for a BotMRR Markdown string or an object that says it is a package. */
 export function isPackageDocument(value: unknown): boolean {
   if (typeof value === "string") return /^---\r?\n[\s\S]*?\bbotmrr:\s*1\b/m.test(value);
   return Boolean(value) && typeof value === "object" && !Array.isArray(value) &&
-    (value as { format?: unknown }).format === PACKAGE_FORMAT;
+    [PACKAGE_FORMAT, "openmaus.package"].includes((value as { format?: unknown }).format as string);
 }
 
 /** Parse exactly one v1 document (JSON object or Markdown) with the v1 rules. */
 export function parsePackageV1(value: unknown): PackageDocumentV1 {
-  const source = typeof value === "string" ? markdownDocument(value) : value;
+  const source = typeof value === "string" ? markdownDocument(value) : migrateLegacyPackage(value);
   const parsed = packageDocumentV1Schema.safeParse(source);
   if (!parsed.success) throw new PackageFormatError("invalid", v1SchemaSentence(parsed.error));
   checkV1References(parsed.data.package);
@@ -754,13 +770,14 @@ export function upgradeV1(document: PackageDocumentV1): PackageDocument {
  * returns v2. trust "file" (the default) deletes package.publisher: only
  * Admin may stamp who published a release. */
 export function parsePackageDocument(value: unknown, options: { trust?: PackageTrust } = {}): PackageDocument {
+  value = migrateLegacyPackage(value);
   const trust = options.trust ?? "file";
   let document: PackageDocument;
   if (typeof value === "string") {
     document = upgradeV1(parsePackageV1(value));
   } else {
     if (!value || typeof value !== "object" || Array.isArray(value) || (value as { format?: unknown }).format !== PACKAGE_FORMAT) {
-      throw new PackageFormatError("not_a_package", "This is not an OpenMaus package");
+      throw new PackageFormatError("not_a_package", "This is not an Hezuo package");
     }
     const version = (value as { version?: unknown }).version;
     if (typeof version === "number" && Number.isInteger(version) && version > PACKAGE_VERSION) {
@@ -785,16 +802,16 @@ export function parsePackageDocument(value: unknown, options: { trust?: PackageT
 export function downgradeToV1(document: PackageDocument):
   { document: PackageDocumentV1; dropped: string[] } | { error: string } {
   const pkg = document.package;
-  if (!pkg.agents.length || !pkg.team) return { error: "Packages without bots cannot be opened by older versions of OpenMausBot." };
+  if (!pkg.agents.length || !pkg.team) return { error: "Packages without bots cannot be opened by older versions of Hezuo." };
   const referenced = new Set(pkg.agents.flatMap((agent) => agent.skills ?? []));
   const skills = (pkg.skills?.entries ?? []).filter((skill) => referenced.has(skill.name));
   if (skills.length > PACKAGE_V1_MAX_SKILLS) {
-    return { error: `Older versions of OpenMausBot accept at most ${PACKAGE_V1_MAX_SKILLS} skills in a package.` };
+    return { error: `Older versions of Hezuo accept at most ${PACKAGE_V1_MAX_SKILLS} skills in a package.` };
   }
   const crowded = pkg.agents.find((agent) => (agent.skills?.length ?? 0) > PACKAGE_V1_MAX_SKILLS);
-  if (crowded) return { error: `Older versions of OpenMausBot accept at most ${PACKAGE_V1_MAX_SKILLS} skills per bot (${crowded.key} has more).` };
+  if (crowded) return { error: `Older versions of Hezuo accept at most ${PACKAGE_V1_MAX_SKILLS} skills per bot (${crowded.key} has more).` };
   const outOfRange = (pkg.routines ?? []).find((routine) => routine.timeoutMinutes !== undefined && (routine.timeoutMinutes < 5 || routine.timeoutMinutes > 240));
-  if (outOfRange) return { error: `Older versions of OpenMausBot accept run limits from 5 to 240 minutes (${outOfRange.key} has ${outOfRange.timeoutMinutes}).` };
+  if (outOfRange) return { error: `Older versions of Hezuo accept run limits from 5 to 240 minutes (${outOfRange.key} has ${outOfRange.timeoutMinutes}).` };
 
   const dropped: string[] = [];
   if (pkg.publisher) dropped.push("package.publisher");
@@ -841,7 +858,7 @@ export function downgradeToV1(document: PackageDocument):
   try {
     return { document: parsePackageV1({ format: PACKAGE_FORMAT, version: PACKAGE_V1_VERSION, package: v1 }), dropped };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "This package cannot be written for older versions of OpenMausBot." };
+    return { error: error instanceof Error ? error.message : "This package cannot be written for older versions of Hezuo." };
   }
 }
 

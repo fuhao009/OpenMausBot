@@ -60,7 +60,7 @@ describe("install.sh", () => {
     for (const bashism of [/\[\[/, /\bfunction\s+\w+/, /\blocal\s/, /<<</, /\$\{[A-Za-z_]+\[/, /\bsource\s/, /&>/]) expect(script, String(bashism)).not.toMatch(bashism);
   });
 
-  it("names the same Docker objects, labels and profiles as the connector, and waits for MausBot to fill in its address and image", () => {
+  it("names the same Docker objects, labels and profiles as the connector, and waits for Hezuo to fill in its address and image", () => {
     const value = (name: string) => new RegExp(`^${name}=(\\S+)$`, "m").exec(script)?.[1];
     expect(value("CONNECTOR")).toBe(NAMES.connector);
     expect(value("CONNECTOR_NEXT")).toBe(NAMES.connectorNext);
@@ -73,7 +73,7 @@ describe("install.sh", () => {
     expect(value("SECCOMP")).toBe(SECCOMP_FILE);
     expect(script).toContain('ADMIN_URL="${MAUSBOT_ADMIN_URL:-@MAUSBOT_ADMIN_URL@}"');
     expect(script).toContain('CONNECTOR_IMAGE="${MAUSBOT_CONNECTOR_IMAGE:-@MAUSBOT_CONNECTOR_IMAGE@}"');
-    expect(script).toContain('say "Connected. Your server shows up in MausBot in a minute."');
+    expect(script).toContain('say "Connected. Your server shows up in Hezuo in a minute."');
     expect(script).toContain(`com.mausbot.instance=$instance`);
     expect(script).toContain("--restart unless-stopped --network host");
     expect(script).toContain("-v /var/run/docker.sock:/var/run/docker.sock -v \"$STATE_VOLUME:/state\" -v \"$ETC_DIR:/etc/mausbot:ro\"");
@@ -102,7 +102,7 @@ describe("install.sh", () => {
       `docker volume rm ${NAMES.dataVolume}`, `docker volume rm ${NAMES.snapshotVolume}`,
       "docker volume rm mausbot-backup-20261028-000000-ab12", "docker volume rm mausbot-backup-20261029-000000-cd34",
     ]));
-    expect(deleted.stdout).toContain("MausBot is removed from this server, and so is its data.");
+    expect(deleted.stdout).toContain("Hezuo is removed from this server, and so is its data.");
     for (const typo of [["uninstall", "--delete-dat"], ["uninstall", "--delete-data=yes"], ["uninstall", "-f"]]) {
       const refused = run(typo);
       expect(refused.status, typo.join(" ")).toBe(1);
@@ -111,15 +111,15 @@ describe("install.sh", () => {
     }
   });
 
-  it.skipIf(!posix)("says in plain words what to run instead: as root, from MausBot's own command, with a code as MausBot shows it", () => {
+  it.skipIf(!posix)("says in plain words what to run instead: as root, from Hezuo's own command, with a code as Hezuo shows it", () => {
     const user = run(["MB-1A2B-3C4D"], { uid: 1000 });
     expect(user.status).toBe(1);
     expect(user.stderr).toContain("Please run this as root: put sudo before sh, like this: curl -fsSL https://cloud.example.test/install.sh | sudo sh -s -- MB-1A2B-3C4D");
     expect(run(["uninstall"], { uid: 1000 }).stderr).toContain("Please run this as root");
     const copied = run(["MB-1A2B-3C4D"], { env: { MAUSBOT_ADMIN_URL: "", MAUSBOT_CONNECTOR_IMAGE: "" } });
-    expect(copied.stderr).toContain("This installer was not downloaded from MausBot. Copy the install command from MausBot and run that.");
+    expect(copied.stderr).toContain("This installer was not downloaded from Hezuo. Copy the install command from Hezuo and run that.");
     const odd = run(["MB-1A2B;reboot"]);
-    expect(odd.stderr).toContain("That code doesn't look right. Copy the install command from MausBot again.");
+    expect(odd.stderr).toContain("That code doesn't look right. Copy the install command from Hezuo again.");
     expect(odd.calls).toEqual([]);
   });
 });

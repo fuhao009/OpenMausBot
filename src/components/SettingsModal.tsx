@@ -18,6 +18,8 @@ import { DiagnosticsRow } from "./DiagnosticsRow";
 import { DecisionModelSettings } from "./DecisionModelSettings";
 import { EnginesSettings } from "./EnginesSettings";
 import { LocalComputerSection } from "./LocalComputerSection";
+import { ComputerUsePolicyRow } from "./ComputerUsePolicyRow";
+import { ProductPermissionsSettings } from "./ProductPermissionsSettings";
 import { CompanionSection } from "./CompanionSection";
 import { ServerPairingCard } from "./ServerPairingCard";
 import { PeopleSection } from "./PeopleSection";
@@ -237,7 +239,7 @@ export function SettingsModal() {
     .filter((entry) => entry.id !== "workspaces" || workspacesAvailable(state.config))
     .filter((entry) => entry.id !== "people" || (!window.ogb && state.config?.cloudHome !== true))
     .filter((entry) => entry.id !== "activity" || (!window.ogb && ownerOrAdmin === true))
-    .filter((entry) => entry.id !== "botAccess" || (Boolean(state.config?.team) && ownerOrAdmin === true))
+    .filter((entry) => entry.id !== "botAccess" || productManaged || (Boolean(state.config?.team) && ownerOrAdmin === true))
     .filter((entry) => !productManaged || !PRODUCT_HIDDEN_SECTIONS.includes(entry.id))
     .filter((entry) => productManaged || entry.id !== "account");
   const availableSections = baseSections.filter((entry) => entry.id !== "skills" || skillsLibraryEnabled(state.config));
@@ -451,7 +453,7 @@ export function SettingsModal() {
       case "companion":
         return <>{remoteAccess.client}{remoteAccess.domain}{remoteAccess.pairing}{remoteAccess.companion}</>;
       case "computer":
-        return <><BuiltInBrowserRow /><ServerSitesRow /><BrowserProfilesRow /><AdminOnly><LocalComputerSection /></AdminOnly></>;
+        return <><ComputerUsePolicyRow /><BuiltInBrowserRow /><ServerSitesRow /><BrowserProfilesRow /><AdminOnly><LocalComputerSection /></AdminOnly></>;
       case "logins":
         return <LoginsSettings />;
       case "usage":
@@ -466,7 +468,7 @@ export function SettingsModal() {
       case "activity":
         return <ActivitySection />;
       case "botAccess":
-        return <AccessOverview />;
+        return productManaged ? <ProductPermissionsSettings /> : <AccessOverview />;
       case "workspaces":
         return <WorkspacesSection />;
       default:

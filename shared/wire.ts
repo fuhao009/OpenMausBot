@@ -59,18 +59,18 @@ export type CloudBackend = "box" | "vps";
 /** A place a bot can act. `cloud` covers both cloud backends. */
 export type Surface = "cloud" | "vm" | "local" | "browser";
 
-export const MAUS_COLOR_NAMES = [
+export const HEZUO_COLOR_NAMES = [
   "green", "blue", "red", "orange", "purple", "cyan", "pink",
   "yellow", "teal", "coral", "silver", "chrome",
 ] as const;
-export type MausColor = (typeof MAUS_COLOR_NAMES)[number];
+export type HezuoColor = (typeof HEZUO_COLOR_NAMES)[number];
 
-export function isMausColor(value: unknown): value is MausColor {
-  return typeof value === "string" && (MAUS_COLOR_NAMES as readonly string[]).includes(value);
+export function isHezuoColor(value: unknown): value is HezuoColor {
+  return typeof value === "string" && (HEZUO_COLOR_NAMES as readonly string[]).includes(value);
 }
 
 /** The face a bot rests on, as one of the engine's state names. */
-export type MausExpression = string;
+export type HezuoExpression = string;
 
 /** What the bot is doing right now, as the harness sees it. `parked.computer`
  * is task-level only: a turn that settled at the computer wait ceiling and
@@ -288,8 +288,8 @@ export interface WireBot extends DefaultBotFields, BotAccessFields {
   /** The SOUL.md mirror differed from soul at the last turn dispatch. */
   soulDrift?: boolean;
   notifications: boolean;
-  color: MausColor;
-  mascotExpression?: MausExpression | null;
+  color: HezuoColor;
+  mascotExpression?: HezuoExpression | null;
   mascotBody?: BotBodyId | null;
   /** Overrides both eyes and mouth. Absent or null preserves the body's default inks. */
   mascotFaceColor?: MascotFaceColor | null;
@@ -733,7 +733,7 @@ export interface SecretRequestCardData {
   description: string;
   placeholder: string;
   helpUrl: string;
-  /** A custom secret's use the person agrees to: "ref", OpenMausBot's own tools only; "file", the bot's commands. */
+  /** A custom secret's use the person agrees to: "ref", Hezuo's own tools only; "file", the bot's commands. */
   delivery?: SecretDelivery;
   /** A custom secret: the bot's own words on why; `description` adds what the bot may do with it, and helpUrl is empty. */
   reason?: string;

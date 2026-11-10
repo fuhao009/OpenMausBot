@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { fingerprint, MAX_DELIVERED_THREADS, replayDelivered, type DeliveredUserMessage } from "./chat-delivered-replay.ts";
+import { FETCH_LIMIT_MS, fetchPastLimit } from "./chat-fetch.ts";
 import type {
   DriverCreateInput,
   ModelCatalog,
@@ -32,7 +33,6 @@ import { requestTooLargeMessage } from "../../shared/request-too-large.ts";
 import { toolSchemaProfileFor } from "../tool-schema-profile.ts";
 import { classifyContinuable, writeTurnHandoff } from "../turn-continuation.ts";
 import { KEY_REJECTED_REASON, keyRejected, noteKeyAccepted, noteKeyRejected, rejectsKey } from "../key-rejections.ts";
-import type { Agent } from "undici";
 
 export interface OpenAIChatMessage {
   role: "system" | "user" | "assistant" | "tool";
@@ -80,16 +80,7 @@ interface NativeLog {
   incoming(completion: Completion): unknown;
 }
 
-// Node's fetch (undici 7.29 in Electron 43, 8.9 in Node 26) fails a request after 300 s without response headers
-// or body bytes, whatever its signal allows. A local model sends nothing until its first token.
-const FETCH_LIMIT_MS = 300_000;
 const LIVENESS_MISSES = 3;
-let unlimitedAgent: Agent | undefined;
-async function fetchPastLimit(url: string, init: RequestInit): Promise<Response> {
-  const { Agent: UndiciAgent, fetch: fetchWithoutLimits } = await import("undici");
-  unlimitedAgent ??= new UndiciAgent({ headersTimeout: 0, bodyTimeout: 0 });
-  return fetchWithoutLimits(url, { ...init, dispatcher: unlimitedAgent } as Parameters<typeof fetchWithoutLimits>[1]) as unknown as Promise<Response>;
-}
 
 interface RuntimeOptions<Config> {
   input: DriverCreateInput<Config>;
@@ -154,51 +145,8 @@ const MAX_ANNOUNCEMENT_NUDGES = 3;
 const stoppedAfter = (count: string) =>
   `Stopped after ${count} without a final answer. The steps so far already ran, so ask only for what's left.`;
 
-interface DeliveredUserMessage {
-  text: string;
-  sent: string;
-  volatile?: string;
-  after: string;
-}
 
-const MAX_REPLAY_EXTRA_BYTES = 24_000;
-const MAX_DELIVERED_THREADS = 256;
-
-const fingerprint = (text: string) => createHash("sha256").update(text).digest("base64url");
-
-function replayDelivered(
-  transcript: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
-  records: readonly DeliveredUserMessage[],
-): { content: Map<number, string>; matched: DeliveredUserMessage[]; volatile: string | undefined } {
-  const found: Array<{ index: number; record: DeliveredUserMessage }> = [];
-  let next = records.length - 1;
-  for (let index = transcript.length - 1; index >= 0 && next >= 0; index--) {
-    const message = transcript[index]!;
-    if (message.role !== "user" || !message.text) continue;
-    const after = index > 0 ? fingerprint(transcript[index - 1]!.text) : undefined;
-    for (let at = next; at >= 0; at--) {
-      const record = records[at]!;
-      if (record.text !== message.text && !record.text.endsWith("\n\n" + message.text)) continue;
-      if (after !== undefined && record.after !== after) continue;
-      found.unshift({ index, record });
-      next = at - 1;
-      break;
-    }
-  }
-  const content = new Map<number, string>();
-  let volatile: string | undefined;
-  let budget = MAX_REPLAY_EXTRA_BYTES;
-  for (const { index, record } of found) {
-    const extra = Buffer.byteLength(record.sent) - Buffer.byteLength(transcript[index]!.text);
-    if (extra > budget) break;
-    budget -= extra;
-    content.set(index, record.sent);
-    if (record.volatile !== undefined) volatile = record.volatile;
-  }
-  return { content, matched: found.map(({ record }) => record), volatile };
-}
-
-const CORRECTIVE_ROUND = "[OpenMausBot: a tool call in this turn failed (its result is marked ok:false). Re-run the failed operations with corrected inputs where possible, check the results, then give your final answer. Do not report results you did not get.]";
+const CORRECTIVE_ROUND = "[Hezuo: a tool call in this turn failed (its result is marked ok:false). Re-run the failed operations with corrected inputs where possible, check the results, then give your final answer. Do not report results you did not get.]";
 const NUDGE_ANNOUNCED_ACTION = "You said what you would do next but called no tool. Use your tools for only the remaining work, or reply with verified results if nothing is left to do. Never repeat an operation that succeeded, was denied, or may already have taken effect; inspect its state instead. Do not retry a destructive operation.";
 
 export function announcesAction(text: string): boolean {
@@ -213,7 +161,7 @@ export function announcesAction(text: string): boolean {
     /^i(?:['\u2019]m| am)\b[^.!?\n]*\band (?:i )?will\s+(?:launch|open|check|pull|look|search|navigate|read|fetch|load|run|inspect)\b/i.test(reply);
 }
 
-const UNREADABLE_CALL = "[OpenMausBot: your last tool call could not be read, so nothing ran. Call the tool again using only the tools you were given, with valid JSON arguments.]";
+const UNREADABLE_CALL = "[Hezuo: your last tool call could not be read, so nothing ran. Call the tool again using only the tools you were given, with valid JSON arguments.]";
 const LOCAL_CORRECTIVE_ROUNDS = 2;
 
 const TEXT_ONLY_ATTACHMENT_NOTE = "[The person attached image(s), but this model cannot see images. Say so if the request depends on them.]";

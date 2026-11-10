@@ -70,7 +70,7 @@ control state >/dev/null || fail "the fake Admin did not start: $(cat "$OUT/admi
 
 step "install.sh with the code, as a person runs it"
 sudo env "${INSTALL_ENV[@]}" sh "$ROOT/connector/install.sh" "$CODE" | tee "$OUT/install.txt"
-[ "$(tail -n 1 "$OUT/install.txt")" = "Connected. Your server shows up in MausBot in a minute." ] || fail "install.sh did not end connected"
+[ "$(tail -n 1 "$OUT/install.txt")" = "Connected. Your server shows up in Hezuo in a minute." ] || fail "install.sh did not end connected"
 state=$(control state)
 expect '.connected and (.servers | length) == 1' "$state" "enrolled once"
 expect '.servers[0].host | .arch == "x86_64" and .apparmor and .userns and .cpus >= 2 and .diskGb >= 20 and (.docker | length) > 0' "$state" "enrolled with the host's facts"
@@ -81,7 +81,7 @@ state_dir=/var/lib/docker/volumes/mausbot-connector/_data
 
 step "running it again repairs and stays connected, without a new code"
 sudo env "${INSTALL_ENV[@]}" sh "$ROOT/connector/install.sh" | tee "$OUT/repair.txt"
-[ "$(tail -n 1 "$OUT/repair.txt")" = "Connected. Your server shows up in MausBot in a minute." ] || fail "the repair did not end connected"
+[ "$(tail -n 1 "$OUT/repair.txt")" = "Connected. Your server shows up in Hezuo in a minute." ] || fail "the repair did not end connected"
 expect '(.servers | length) == 1 and .connections >= 2 and .connected' "$(control state)" "the same server, connected again"
 
 step "a heartbeat with every check passing"

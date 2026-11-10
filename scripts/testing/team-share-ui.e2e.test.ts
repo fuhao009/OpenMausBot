@@ -104,12 +104,12 @@ describe("Share team in the real renderer", () => {
     await expect.poll(snapshot, { timeout: 10_000 }).toContain("Removed what looked like a key or password from:");
     await ui("screenshot", "--out", join(ROOT, ".omb-scratch", "verify-evidence", "share-team-dialog.png"));
     await click("Save file");
-    await expect.poll(snapshot, { timeout: 10_000 }).toContain("Saved sales-desk-1.0.0.openmaus.json");
+    await expect.poll(snapshot, { timeout: 10_000 }).toContain("Saved sales-desk-1.0.0.hezuo.json");
     await evaluate("window.__shareBlob.text().then((text) => { window.__shareText = text; }); true");
     await expect.poll(async () => typeof (await evaluate("window.__shareText")), { timeout: 5_000 }).toBe("string");
     const saved = JSON.parse(await evaluate("window.__shareText") as string);
-    expect(await evaluate("window.__shareDownload")).toBe("sales-desk-1.0.0.openmaus.json");
-    expect(saved).toMatchObject({ format: "openmaus.package", version: 2, package: { id: "sales-desk", team: { name: "Sales desk", brief: "Quote list prices only." } } });
+    expect(await evaluate("window.__shareDownload")).toBe("sales-desk-1.0.0.hezuo.json");
+    expect(saved).toMatchObject({ format: "hezuo.package", version: 2, package: { id: "sales-desk", team: { name: "Sales desk", brief: "Quote list prices only." } } });
     expect(saved.package.agents).toHaveLength(2);
     const savedScout = saved.package.agents.find((agent: { name: string }) => agent.name === "Scout");
     expect(savedScout.skills).toHaveLength(30);
@@ -121,7 +121,7 @@ describe("Share team in the real renderer", () => {
 
     // Add the saved file back through Import: the preview names every part.
     await click("Import");
-    await evaluate(`(() => { const input = document.querySelector('[role=dialog] input[type=file]'); const transfer = new DataTransfer(); transfer.items.add(new File([window.__shareText], 'sales-desk-1.0.0.openmaus.json', { type: 'application/json' })); input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+    await evaluate(`(() => { const input = document.querySelector('[role=dialog] input[type=file]'); const transfer = new DataTransfer(); transfer.items.add(new File([window.__shareText], 'sales-desk-1.0.0.hezuo.json', { type: 'application/json' })); input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
     await expect.poll(snapshot, { timeout: 10_000 }).toContain("2 bots · shared department");
     const preview = await snapshot();
     for (const line of ["Shared instructions", "Routines: 1 · paused", "Starter notes: 1", "Included skills (added switched off)"]) {

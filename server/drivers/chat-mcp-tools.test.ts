@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { crc32 } from "node:zlib";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setImmediate as immediate } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { augmentedPath } from "../env-path.ts";
 import { ChatToolSessionError, chatToolNotices, directServers, mountChatTools, trimmedToolsNotice, type ChatToolSession } from "./chat-mcp-tools.ts";
@@ -209,7 +210,7 @@ describe("Chat MCP session", () => {
       sessions.push(session);
       const [definition] = session.definitions;
       expect(schemaBytes(definition!.function.parameters)).toBeLessThanOrEqual(12_000);
-      expect(definition!.function.description).toContain("OpenMausBot shortened this tool's parameters to fit Kimi's size limit");
+      expect(definition!.function.description).toContain("Hezuo shortened this tool's parameters to fit Kimi's size limit");
       expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^chat-mcp: audit: kept only the top-level fields of tool "write"'s parameters/));
       expect(() => session.validate("audit_write", { field_000: { label: 5 } })).toThrow("input schema");
       expect(() => session.validate("audit_write", { field_000: { label: "five" } })).not.toThrow();
@@ -509,7 +510,7 @@ describe("Chat MCP shutdown verdict", () => {
 const grantFor = (server: string, tool: string) => expect.stringMatching(new RegExp(`^\\["${server}","[0-9a-f]{64}","${tool}"\\]$`));
 
 describe("Chat MCP approvals by server", () => {
-  it("asks nothing for OpenMausBot's agents server, and grants no session-wide allow on the person's computer", async () => {
+  it("asks nothing for Hezuo's agents server, and grants no session-wide allow on the person's computer", async () => {
     const agents = fixture(); const audit = fixture(); const computer = fixture();
     const session = await mountChatTools({
       agents: agents.server, custom: { audit: audit.server },
@@ -784,15 +785,15 @@ describe("Chat MCP servers past the tool limit", () => {
 describe("Chat MCP startup budgets", () => {
   /** Lets real I/O run, the faked clock standing still, until `condition`. */
   async function untilReal(condition: () => boolean): Promise<void> {
-    const started = Date.now();
-    while (!condition() && Date.now() - started < 15_000) await new Promise((resolve) => setImmediate(resolve));
+    const started = performance.now();
+    while (!condition() && performance.now() - started < 15_000) await immediate();
     expect(condition()).toBe(true);
   }
   /** Past a deadline: steps the faked clock too, by at most `budgetMs`, pausing in real time so a process can exit. */
   async function settleWithin(budgetMs: number, condition: () => boolean): Promise<void> {
     for (let spent = 0; !condition() && spent < budgetMs; spent += 25) {
-      const until = Date.now() + 20;
-      while (Date.now() < until) await new Promise((resolve) => setImmediate(resolve));
+      const until = performance.now() + 20;
+      while (performance.now() < until) await immediate();
       await vi.advanceTimersByTimeAsync(25);
     }
     expect(condition()).toBe(true);
@@ -804,7 +805,7 @@ describe("Chat MCP startup budgets", () => {
   }
 
   it("gives a searched URL server 30 seconds to list its tools", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     const remote = await startFakeHttpMcp({ tools: whopLikeCatalog(300), toolsDelayMs: 20_000 });
     const controller = new AbortController(); controllers.push(controller);
     try {
@@ -823,7 +824,7 @@ describe("Chat MCP startup budgets", () => {
   });
 
   it("still gives a command server 8 seconds", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     try {
       const f = fixture(`if (message.method === "tools/list") return;`);
       const mounting = watch(f.mount());

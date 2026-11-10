@@ -44,7 +44,7 @@ async function api(method: string, path: string, options: { body?: unknown; remo
 }
 
 async function ownerPairing(): Promise<string> {
-  const body = JSON.stringify({ label: "OpenMausBot app (Cloud)", ttlSeconds: 300 });
+  const body = JSON.stringify({ label: "Hezuo app (Cloud)", ttlSeconds: 300 });
   const timestamp = String(Math.floor(Date.now() / 1000)), nonce = randomBytes(16).toString("base64url");
   const granted = await api("POST", "/api/cloud/pairing", { remote: true, headers: {
     "content-type": "application/json", "x-omb-cloud-timestamp": timestamp, "x-omb-cloud-nonce": nonce,
@@ -55,7 +55,7 @@ async function ownerPairing(): Promise<string> {
 
 beforeAll(async () => {
   home = mkdtempSync(join(tmpdir(), "omb-cloud-sync-e2e-"));
-  const dataDir = join(home, ".openmausbot");
+  const dataDir = join(home, ".hezuo");
   mkdirSync(dataDir, { recursive: true });
   const cli = join(home, "fixture-claude.mjs");
   writeFileSync(cli, `#!/usr/bin/env node
@@ -72,10 +72,26 @@ await import(${JSON.stringify(pathToFileURL(join(SERVER_DIR, "testing", "fake-cl
     },
   }));
   mkdirSync(join(home, "web"));
-  writeFileSync(join(home, "web", "index.html"), "<!doctype html><title>OpenMausBot</title>");
+  writeFileSync(join(home, "web", "index.html"), "<!doctype html><title>Hezuo</title>");
   const port = await freePortBlock([0, 1]);
   base = `http://127.0.0.1:${port}`;
-  const offlinePrelude = `data:text/javascript,${encodeURIComponent('globalThis.fetch = async () => new Response("offline fixture", { status: 503 });')}`;
+  // Capacity belongs to the disposable Cloud fixture, not the developer's disk.
+  // Keep real filesystem I/O; only its statfs capacity report is deterministic.
+  const offlinePrelude = `data:text/javascript,${encodeURIComponent(`
+    import fs from "node:fs";
+    import { syncBuiltinESMExports } from "node:module";
+    const statfs = fs.statfsSync;
+    fs.statfsSync = (path, options) => {
+      const stats = statfs(path, options);
+      if (String(path).startsWith(${JSON.stringify(home + "/")})) {
+        const n = options?.bigint ? BigInt : Number;
+        stats.bsize = n(4096); stats.blocks = n(2621440); stats.bavail = stats.bfree = n(2359296);
+      }
+      return stats;
+    };
+    syncBuiltinESMExports();
+    globalThis.fetch = async () => new Response("offline fixture", { status: 503 });
+  `)}`;
   child = spawn(process.execPath, ["--import", offlinePrelude, join(SERVER_DIR, "index.ts")], {
     cwd: join(SERVER_DIR, ".."),
     env: {
@@ -112,9 +128,10 @@ const desktopFetch = (url: string, init: RequestInit & { headers?: Record<string
 function desktop(pcHome: string) {
   return createCloudFilesService({
     settingsFile: join(pcHome, "user", "settings.json"), stateFile: join(pcHome, "user", "state.db"),
-    documentsDir: join(pcHome, "Documents"), localDataDir: join(pcHome, ".openmausbot"), homeDir: pcHome, platform: process.platform, hostname: "Ash-PC",
+    documentsDir: join(pcHome, "Documents"), localDataDir: join(pcHome, ".hezuo"), homeDir: pcHome, platform: process.platform, hostname: "Ash-PC",
     cloudOrigin: () => PC_ORIGIN, fetch: desktopFetch as typeof fetch, trashItem: async (file: string) => rmSync(file), markDownloaded: async () => {},
     watch: () => () => {}, now: () => Date.now() + 60_000,
+    freeBytes: () => 9 * 1024 ** 3,
   });
 }
 
@@ -162,14 +179,14 @@ it("shares a PC folder as a read-only copy: changes go to My Cloud, a bot's edit
   }
 }, 60_000);
 
-it("a bot's turn wakes the desktop, and its new work comes down to Documents/MausBot/<bot>/<conversation>", async () => {
+it("a bot's turn wakes the desktop, and its new work comes down to Documents/Hezuo/<bot>/<conversation>", async () => {
   const pcHome = realpathSync(mkdtempSync(join(tmpdir(), "omb-files-pc-")));
   const created = await api("POST", "/api/bots", { body: { name: "Report Owl", modelSelection: { instanceId: "claude", model: "claude-sonnet-5" } } });
   const bot = created.body.bot as { id: string; threadId: string };
   const service = desktop(pcHome);
   try {
     await service.pass();
-    const output = join(home, ".openmausbot", "task-workspaces", bot.id, bot.threadId);
+    const output = join(home, ".hezuo", "task-workspaces", bot.id, bot.threadId);
     mkdirSync(output, { recursive: true });
     writeFileSync(join(output, "report.md"), "# Q3");
     const later = new Date(Date.now() + 120_000);
@@ -181,7 +198,7 @@ it("a bot's turn wakes the desktop, and its new work comes down to Documents/Mau
     expect((await api("POST", `/api/bots/${bot.id}/messages`, { body: { text: "write the report" } })).status).toBe(202);
     expect((await woken).folderIds).toContain(`bot-${bot.id}-${bot.threadId}`);
     await service.pass();
-    const owl = join(pcHome, "Documents", "MausBot", "Report Owl");
+    const owl = join(pcHome, "Documents", "Hezuo", "Report Owl");
     const [conversation] = readdirSync(owl);
     expect(readFileSync(join(owl, conversation!, "report.md"), "utf8")).toBe("# Q3");
   } finally {

@@ -33,7 +33,7 @@ export function createAuth(
   const requireVerification = config.emailVerification === "required";
 
   return betterAuth({
-    appName: "OpenMausBot",
+    appName: "Hezuo",
     baseURL: config.authBaseURL,
     basePath: "/api/auth",
     secret: env.BETTER_AUTH_SECRET,

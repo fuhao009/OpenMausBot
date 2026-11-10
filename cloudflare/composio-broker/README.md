@@ -1,4 +1,9 @@
-# OpenMausBot connected-apps broker
+# Hezuo connected-apps broker
+
+The deployed `openmausbot-composio` Worker/D1 namespace, health service value
+and workers.dev callback URL remain unchanged for existing clients and webhook
+registrations. These deployment identifiers are not Hezuo hosting promises.
+
 
 This Worker keeps the shared Composio project key out of desktop builds. Each
 installation receives a random bearer token stored only as a SHA-256 hash in

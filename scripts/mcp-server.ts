@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Model Context Protocol (MCP) server for OpenMausBot over JSON-RPC 2.0 stdio,
+// Model Context Protocol (MCP) server for Hezuo over JSON-RPC 2.0 stdio,
 // for external agents (Hermes, Claude Desktop, Cursor, etc.).
 import readline from "node:readline";
 import { isRecord, projectMessage } from "./mcp-message-projection.ts";
@@ -10,16 +10,16 @@ export function validateBaseUrl(url: string): string {
   try {
     parsed = new URL(trimmed);
   } catch {
-    throw new Error(`Invalid OpenMausBot URL: '${url}'`);
+    throw new Error(`Invalid Hezuo URL: '${url}'`);
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error("OpenMausBot URL must use http:// or https://");
+    throw new Error("Hezuo URL must use http:// or https://");
   }
   if (parsed.username || parsed.password) {
-    throw new Error("OpenMausBot URL must not contain credentials; use OPENMAUSBOT_TOKEN instead");
+    throw new Error("Hezuo URL must not contain credentials; use HEZUO_TOKEN instead");
   }
   if ((parsed.pathname !== "/" && parsed.pathname !== "") || parsed.search || parsed.hash) {
-    throw new Error("OpenMausBot URL must be an origin without a path, query, or fragment");
+    throw new Error("Hezuo URL must be an origin without a path, query, or fragment");
   }
   const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   const isLoopback = hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
@@ -31,7 +31,7 @@ export function validateBaseUrl(url: string): string {
   return parsed.origin;
 }
 
-const configuredUrl = process.env.OPENMAUSBOT_URL ||
+const configuredUrl = process.env.HEZUO_URL ||
   (process.env.OMB_PORT ? `http://127.0.0.1:${process.env.OMB_PORT}` : undefined);
 
 export const OMB_BASE_URL = validateBaseUrl(configuredUrl || "http://127.0.0.1:8799");
@@ -41,18 +41,18 @@ const DISCOVERY_URLS = configuredUrl
 let discoveredBaseUrl: string | undefined;
 
 export function log(msg: string) {
-  process.stderr.write(`[openmausbot-mcp] ${msg}\n`);
+  process.stderr.write(`[hezuo-mcp] ${msg}\n`);
 }
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
 function requestTimeoutMs(): number {
-  const raw = Number(process.env.OPENMAUSBOT_MCP_TIMEOUT_MS);
+  const raw = Number(process.env.HEZUO_MCP_TIMEOUT_MS);
   return Number.isFinite(raw) && raw >= 1_000 && raw <= 120_000 ? Math.floor(raw) : DEFAULT_REQUEST_TIMEOUT_MS;
 }
 
 function requestHeaders(options: RequestInit): NonNullable<RequestInit["headers"]> {
-  const token = process.env.OPENMAUSBOT_TOKEN?.trim();
+  const token = process.env.HEZUO_TOKEN?.trim();
   const headers = new Headers(options.headers);
   if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (token && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`);
@@ -60,7 +60,7 @@ function requestHeaders(options: RequestInit): NonNullable<RequestInit["headers"
 }
 
 /** A refusal from the API, with its HTTP status for callers that branch on it. */
-export class OpenMausBotApiError extends Error {
+export class HezuoApiError extends Error {
   readonly status: number;
   constructor(status: number, message: string) {
     super(message);
@@ -76,17 +76,17 @@ async function fetchJson(url: string, options: RequestInit = {}): Promise<any> {
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     if (response.status === 403 && !new Headers(headers).has("Authorization")) {
-      throw new OpenMausBotApiError(403,
-        "OpenMausBot refused this write because the installed desktop app requires a paired session token. " +
-        "Set OPENMAUSBOT_TOKEN as described in docs/mcp-server.md.",
+      throw new HezuoApiError(403,
+        "Hezuo refused this write because the installed desktop app requires a paired session token. " +
+        "Set HEZUO_TOKEN as described in docs/mcp-server.md.",
       );
     }
-    throw new OpenMausBotApiError(response.status, `OpenMausBot API error (${response.status}): ${text || response.statusText}`);
+    throw new HezuoApiError(response.status, `Hezuo API error (${response.status}): ${text || response.statusText}`);
   }
   try {
     return await response.json();
   } catch {
-    throw new Error(`OpenMausBot API returned a non-JSON response from ${url}`);
+    throw new Error(`Hezuo API returned a non-JSON response from ${url}`);
   }
 }
 
@@ -98,8 +98,8 @@ export async function probeBaseUrls(candidates: string[]): Promise<string> {
       const health = await fetchJson(`${candidate}/api/health`, {
         signal: AbortSignal.timeout(Math.min(requestTimeoutMs(), 2_000)),
       });
-      if (health?.app !== "openmausbot") {
-        failures.push(`${candidate} answered, but it was not OpenMausBot`);
+      if (health?.app !== "hezuo") {
+        failures.push(`${candidate} answered, but it was not Hezuo`);
         continue;
       }
       return candidate;
@@ -107,13 +107,13 @@ export async function probeBaseUrls(candidates: string[]): Promise<string> {
       failures.push(`${candidate}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  throw new Error(`Could not find a running OpenMausBot server. ${failures.join("; ")}`);
+  throw new Error(`Could not find a running Hezuo server. ${failures.join("; ")}`);
 }
 
 export async function resolveBaseUrl(): Promise<string> {
   if (discoveredBaseUrl) return discoveredBaseUrl;
-  if (process.env.OPENMAUSBOT_TOKEN?.trim() && !configuredUrl) {
-    throw new Error("Set OPENMAUSBOT_URL or OMB_PORT when using OPENMAUSBOT_TOKEN so credentials are never sent during port discovery");
+  if (process.env.HEZUO_TOKEN?.trim() && !configuredUrl) {
+    throw new Error("Set HEZUO_URL or OMB_PORT when using HEZUO_TOKEN so credentials are never sent during port discovery");
   }
   discoveredBaseUrl = await probeBaseUrls(DISCOVERY_URLS);
   return discoveredBaseUrl;
@@ -156,7 +156,7 @@ const AGENT_ACTION = { readOnlyHint: false, destructiveHint: true, idempotentHin
 export const TOOLS: McpToolDefinition[] = [
   {
     name: "get_system_health",
-    description: "Check whether the OpenMausBot server is reachable.",
+    description: "Check whether the Hezuo server is reachable.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -564,7 +564,7 @@ function optionalStringArg(
 
 function idArg(args: Record<string, unknown>, key: string): string {
   const value = stringArg(args, key);
-  if (!/^[\w-]+$/.test(value)) throw new ToolInputError(`${key} is not a valid OpenMausBot ID`);
+  if (!/^[\w-]+$/.test(value)) throw new ToolInputError(`${key} is not a valid Hezuo ID`);
   return value;
 }
 
@@ -753,7 +753,7 @@ function sendReceipt(receipt: unknown) {
   };
 }
 
-/** Hooks a caller can give a long tool call (the openmausbot CLI streams progress). */
+/** Hooks a caller can give a long tool call (the hezuo CLI streams progress). */
 export interface ToolCallHooks {
   /** Each new state of the job a wait watches. */
   onProgress?(job: Record<string, any>): void;
@@ -780,8 +780,8 @@ export async function waitForJob(
       ...(wait > 0 ? { wait: String(wait) } : {}), ...(version !== undefined ? { version } : {}) });
     const job: Record<string, any> = await fetcher(`/api/threads/${encodeURIComponent(threadId)}/job?${params.toString()}`,
       options.signal ? { signal: options.signal } : {}).catch((error: unknown) => { // a server without the route; a gone conversation is itself
-      throw error instanceof OpenMausBotApiError && error.status === 404 && !/no such conversation/.test(error.message)
-        ? new OpenMausBotApiError(404, "This OpenMausBot server cannot report a conversation's job (GET /api/threads/:id/job); update it, then wait again.") : error;
+      throw error instanceof HezuoApiError && error.status === 404 && !/no such conversation/.test(error.message)
+        ? new HezuoApiError(404, "This Hezuo server cannot report a conversation's job (GET /api/threads/:id/job); update it, then wait again.") : error;
     });
     since = Number(job.since);
     if (job.version !== version) options.onProgress?.(job);
@@ -805,11 +805,11 @@ export async function handleToolCall(
   switch (name) {
     case "get_system_health": {
       const res = await fetcher("/api/health");
-      if (res?.app !== "openmausbot") throw new Error("The configured endpoint is not an OpenMausBot server");
+      if (res?.app !== "hezuo") throw new Error("The configured endpoint is not an Hezuo server");
       return {
         status: "connected",
         endpoint: discoveredBaseUrl ?? OMB_BASE_URL,
-        app: "openmausbot",
+        app: "hezuo",
         packaged: Boolean(res.static),
       };
     }
@@ -876,7 +876,7 @@ export async function handleToolCall(
         }),
       });
       if (!isRecord(created?.bot) || typeof created.bot.id !== "string") {
-        throw new Error("OpenMausBot did not return the created bot");
+        throw new Error("Hezuo did not return the created bot");
       }
       return { success: true, bot: projectBot(created.bot) };
     }
@@ -894,7 +894,7 @@ export async function handleToolCall(
         body: JSON.stringify(patch),
       });
       if (!isRecord(result?.bot)) {
-        throw new Error("OpenMausBot did not return the updated bot");
+        throw new Error("Hezuo did not return the updated bot");
       }
       return { success: true, bot: projectBot(result.bot) };
     }
@@ -963,7 +963,7 @@ export async function handleToolCall(
         }),
       });
       if (!isRecord(created?.group) || typeof created.group.id !== "string") {
-        throw new Error("OpenMausBot did not return the created channel");
+        throw new Error("Hezuo did not return the created channel");
       }
       return { success: true, channel: projectChannel(created.group) };
     }
@@ -987,7 +987,7 @@ export async function handleToolCall(
         body: JSON.stringify(patch),
       });
       if (!isRecord(result?.group)) {
-        throw new Error("OpenMausBot did not return the updated channel");
+        throw new Error("Hezuo did not return the updated channel");
       }
       return { success: true, channel: projectChannel(result.group) };
     }
@@ -998,7 +998,7 @@ export async function handleToolCall(
       const route = taskRoute(args.target_type, targetId);
       const result = await fetcher(route, { method: "POST", body: JSON.stringify(title ? { title } : {}) });
       if (!isRecord(result?.task) || typeof result.task.threadId !== "string") {
-        throw new Error("OpenMausBot did not return the created task");
+        throw new Error("Hezuo did not return the created task");
       }
       const activeTaskId = result.bot?.threadId ?? result.group?.threadId ?? result.task?.threadId;
       return {
@@ -1036,7 +1036,7 @@ export async function handleToolCall(
         body: JSON.stringify({ title }),
       });
       if (!isRecord(result?.task)) {
-        throw new Error("OpenMausBot did not return the renamed task");
+        throw new Error("Hezuo did not return the renamed task");
       }
       return {
         success: true,
@@ -1109,7 +1109,7 @@ export async function handleToolCall(
           method: "PATCH",
           body: JSON.stringify({ modelSelection: selection, requireAvailableModel: true }),
         });
-        if (!isRecord(res?.task)) throw new Error("OpenMausBot did not return the updated task");
+        if (!isRecord(res?.task)) throw new Error("Hezuo did not return the updated task");
         return { success: true, botId, task: projectTask(res.task, bot.threadId) };
       }
       if (bot.busy) throw new Error("Interrupt the bot or let it finish before changing its model");
@@ -1280,10 +1280,10 @@ export async function processMcpMessage(
           tools: {},
         },
         serverInfo: {
-          name: "openmausbot-mcp",
+          name: "hezuo-mcp",
           version: "1.1.0",
         },
-        instructions: "Use bounded read tools before mutating the OpenMausBot team. Approval grants, deletion, and computer lifecycle are intentionally unavailable.",
+        instructions: "Use bounded read tools before mutating the Hezuo team. Approval grants, deletion, and computer lifecycle are intentionally unavailable.",
       });
     }
 
@@ -1368,9 +1368,9 @@ export async function processMcpMessage(
 }
 
 /** Serve MCP on this process's stdin and stdout until stdin closes (then
- * resolves): what `pnpm mcp`, dist-server/mcp-server.js and `openmausbot mcp` run. */
+ * resolves): what `pnpm mcp`, dist-server/mcp-server.js and `hezuo mcp` run. */
 export function runStdio(): Promise<void> {
-  log("OpenMausBot MCP server running on stdio");
+  log("Hezuo MCP server running on stdio");
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,

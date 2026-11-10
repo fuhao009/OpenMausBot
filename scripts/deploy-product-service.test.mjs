@@ -1,7 +1,7 @@
 // The deploy script's verification toggle: a deployment with a sender confirms
 // new password accounts by emailed code, and one deliberately without mail needs
 // no sender at all. Both fail closed on a half-configured pair.
-import { describe, expect, it } from "vitest";
+import { expect, it } from "vitest";
 
 import { productWorkerConfig, readProductDeployment } from "./deploy-product-service.mjs";
 

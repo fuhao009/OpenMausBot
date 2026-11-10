@@ -1,4 +1,4 @@
-// Alias for `openmausbot pair`: docs and images reference dist-server/pair-cli.js.
+// Alias for `hezuo pair`: docs and images reference dist-server/pair-cli.js.
 import { main } from "./cli.ts";
 import { exitAfterFlush } from "./exit.ts";
 

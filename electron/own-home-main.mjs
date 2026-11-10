@@ -53,7 +53,7 @@ export function serverRequests(place, fetchImpl) {
     request,
     call: async (method, route, body) => answer(await request(method, route, body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) })),
     async who() {
-      const [session, described] = await Promise.all([request("GET", "/api/auth/session").then(answer), request("GET", "/.well-known/openmausbot/environment").then(answer)]);
+      const [session, described] = await Promise.all([request("GET", "/api/auth/session").then(answer), request("GET", "/.well-known/hezuo/environment").then(answer)]);
       const signedIn = session.ok && session.body?.kind === "session";
       return { signedIn, own: signedIn && session.body.own === true, environmentId: typeof described.body?.environmentId === "string" ? described.body.environmentId : null,
         takesMove: Number(described.body?.capabilities?.move) >= 1, status: session.status };
@@ -114,7 +114,7 @@ export function installOwnHome({ localRequest, fetch: fetchImpl, environments, h
       ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }) })),
     async json(route) {
       const got = await local.call("GET", route);
-      if (!got.ok) throw new Error("OpenMausBot on this computer did not answer. Try again in a moment.");
+      if (!got.ok) throw new Error("Hezuo on this computer did not answer. Try again in a moment.");
       return got.body;
     },
   };
@@ -147,7 +147,7 @@ export function installOwnHome({ localRequest, fetch: fetchImpl, environments, h
       freeze: async (origin) => freezeAnswer(await local.call("POST", "/api/move/freeze", { cloud: origin, place: chosen()?.name })),
       async unfreeze(options) {
         const got = await local.call("DELETE", "/api/move/freeze", options?.automations === "off" ? { automations: "off" } : undefined);
-        if (!got.ok) throw Object.assign(new Error("OpenMausBot on this computer could not go on again."), { status: got.status });
+        if (!got.ok) throw Object.assign(new Error("Hezuo on this computer could not go on again."), { status: got.status });
       },
       frozen: async () => (await local.json("/api/move/freeze"))?.frozen === true,
     },
@@ -253,7 +253,7 @@ export function installOwnHome({ localRequest, fetch: fetchImpl, environments, h
       const who = await serverRequests(place, fetchImpl).who().catch(() => null);
       if (!who?.signedIn) throw new Error(`This app isn't signed in to ${place.name}. Open ${place.name} in this app, then try again.`);
       if (!who.own) throw new Error(`${place.name} has other people on it, so your bots stay here. Only a server that's yours alone can be your bots' home.`);
-      if (!who.takesMove || !who.environmentId) throw new Error(`Update OpenMausBot on ${place.name} first, then try again.`);
+      if (!who.takesMove || !who.environmentId) throw new Error(`Update Hezuo on ${place.name} first, then try again.`);
       choice.write({ v: 1, id: place.id, origin: place.origin, environmentId: who.environmentId, name: place.name, at: now() });
       onChange();
       void kick().catch((error) => log(`own home: ${error?.message ?? error}`));

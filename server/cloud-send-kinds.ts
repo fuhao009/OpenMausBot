@@ -232,7 +232,7 @@ class Refused extends Error {
 const refuse = (status: number, message: string): never => { throw new Refused(status, message); };
 
 const routineSchema = z.object({ id: z.string().regex(/^[\w-]{1,128}$/u), name: z.string().max(200), prompt: z.string().max(100_000), target: z.enum(["bot", "room-goal"]),
-  botId: z.string().min(1).max(128), groupId: z.string().max(128).optional(), runOn: z.enum(["maus", "cloud"]), schedule: z.record(z.string(), z.unknown()),
+  botId: z.string().min(1).max(128), groupId: z.string().max(128).optional(), runOn: z.enum(["hezuo", "cloud"]), schedule: z.record(z.string(), z.unknown()),
   durationMinutes: z.number().finite(), createdAt: z.number().finite() }).passthrough();
 const runSchema = z.object({ id: z.string().min(1).max(200), routineId: z.string(), status: z.string(), botId: z.string(), scheduledFor: z.number().finite(),
   createdAt: z.number().finite() }).passthrough();

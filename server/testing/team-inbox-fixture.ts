@@ -116,7 +116,7 @@ export function teamInbox(options: { team?: boolean; representative?: TeamMessag
       continueTurn: (botId, threadId, text, from, relay) => { continued.push({ botId, threadId, text, from, relay }); },
       changed: (threadId) => { changed.push(threadId); },
       handedFrom: (threadId) => options.handed?.[threadId] ?? null,
-      notes: (botId) => ({ reporter: "The Q4 report draft is due on Nov 3.", scout: "Cleo's notes.", "bens-mausbot": "Notes only Ben sees." })[botId] ?? "",
+      notes: (botId) => ({ reporter: "The Q4 report draft is due on Nov 3.", scout: "Cleo's notes.", "bens-hezuo": "Notes only Ben sees." })[botId] ?? "",
       ...(options.representative ? { representative: options.representative } : {}),
     },
   });

@@ -36,7 +36,7 @@ async function certificates() {
   const leaf = make("leaf", ["-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1"]);
   const wrongLeaf = make("wrong", ["-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1"]);
   const otherLeaf = make("other", ["-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:10.0.0.1"]);
-  const ca = make("root", ["-subj", "/CN=OpenMausBot fixture root", "-addext", "basicConstraints=critical,CA:TRUE",
+  const ca = make("root", ["-subj", "/CN=Hezuo fixture root", "-addext", "basicConstraints=critical,CA:TRUE",
     "-addext", "keyUsage=critical,digitalSignature,keyCertSign", "-addext", "subjectAltName=DNS:gateway.example"]);
   if (!leaf || !wrongLeaf || !otherLeaf || !ca) return null;
   const read = async (file) => await readFile(file, "utf8");

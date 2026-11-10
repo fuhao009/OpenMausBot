@@ -14,7 +14,7 @@ import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute } from "node:path";
 
-export const SETUP_COMMAND = "sudo openmausbot browser setup";
+export const SETUP_COMMAND = "sudo hezuo browser setup";
 
 /** What Chrome prints before aborting when it cannot sandbox itself. */
 export const NO_SANDBOX_SIGNATURE = "No usable sandbox";
@@ -25,7 +25,7 @@ export function sandboxDisabled(env: Readonly<Record<string, string | undefined>
 
 /** Set on Ubuntu 23.10+: unprivileged user namespaces need an AppArmor profile. */
 export const USERNS_RESTRICTION = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns";
-export const APPARMOR_PROFILE_NAME = "openmausbot-chrome";
+export const APPARMOR_PROFILE_NAME = "hezuo-chrome";
 export const APPARMOR_PROFILE_PATH = `/etc/apparmor.d/${APPARMOR_PROFILE_NAME}`;
 
 /**
@@ -37,7 +37,7 @@ export function appArmorProfile(executable: string): string {
   if (!isAbsolute(executable) || /[\s*?[\]{}"'\\^]/.test(executable) || !executable.startsWith("/opt/")) {
     throw new Error(`The browser's AppArmor exemption is only for a root-owned path under /opt, not ${executable}.`);
   }
-  return `# Written by \`openmausbot browser setup\`: lets OpenMausBot's Chrome use its sandbox.
+  return `# Written by \`hezuo browser setup\`: lets Hezuo's Chrome use its sandbox.
 abi <abi/4.0>,
 include <tunables/global>
 

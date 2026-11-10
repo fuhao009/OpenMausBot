@@ -125,7 +125,7 @@ function finalReply(messages: readonly Rec[] | undefined): { text: string; from?
   return reply ? { text: reply.text, ...(reply.from?.name ? { from: reply.from.name } : {}), files: messageFileTargets(reply.text) } : undefined;
 }
 
-const waitAgain = (watching: Watching): string => `openmausbot wait --thread ${watching.threadId}${watching.since !== undefined ? ` --since ${watching.since}` : ""}`;
+const waitAgain = (watching: Watching): string => `hezuo wait --thread ${watching.threadId}${watching.since !== undefined ? ` --since ${watching.since}` : ""}`;
 
 function report(waited: Waited, threadId: string, extra: Rec = {}): { result: Rec; human: string[] } {
   const { result, exitCode } = waited;
@@ -148,7 +148,7 @@ function report(waited: Waited, threadId: string, extra: Rec = {}): { result: Re
 
 const interrupted = (watching: Watching): HeadlessError =>
   new HeadlessError("stopped waiting; the work keeps running", EXIT.interrupted,
-    watching.threadId ? `wait again: ${waitAgain(watching)}` : "openmausbot wait TARGET picks it up again");
+    watching.threadId ? `wait again: ${waitAgain(watching)}` : "hezuo wait TARGET picks it up again");
 
 export async function runVerb(ctx: VerbContext): Promise<VerbOutcome> {
   const named = Boolean(flag(ctx.flags, "bot") ?? flag(ctx.flags, "channel") ?? flag(ctx.flags, "thread"));
@@ -192,7 +192,7 @@ export async function runVerb(ctx: VerbContext): Promise<VerbOutcome> {
     return {
       result: { ok: true, exitCode: EXIT.done, threadId, sendId, since, ...sent },
       exitCode: EXIT.done,
-      human: [`Sent. Thread: ${threadId}`, `Wait for it with: openmausbot wait --thread ${threadId} --since ${since}`],
+      human: [`Sent. Thread: ${threadId}`, `Wait for it with: hezuo wait --thread ${threadId} --since ${since}`],
     };
   }
   let waited: Waited;

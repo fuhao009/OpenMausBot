@@ -102,7 +102,7 @@ describe("POST /api/team-library/grok", () => {
     expect(full.status).toBe(200);
     expect(JSON.parse(bodies[1]!)).toMatchObject({
       shareId: ID, name: "DOGE (Department of Grok Efficiency)", creator: "Avid",
-      export: { format: "openmaus.grok/1", name: "DOGE", instructions: recipe.profile.description, creator: "Avid", sourceUrl: `https://x.ai/bot/${ID}` },
+      export: { format: "hezuo.grok/1", name: "DOGE", instructions: recipe.profile.description, creator: "Avid", sourceUrl: `https://x.ai/bot/${ID}` },
     });
     const out = await post({}, "/api/team-library/cursor/sign-out");
     bodies.push(await out.text());

@@ -17,7 +17,7 @@ import {
 } from "../src/endpoint-accounts";
 
 const TOKEN_SECRET = "CLOUDFLARE_API_TOKEN_MAUSBOT_SI";
-const TOKEN = "test-only-mausbot-si-api-token-with-no-real-access";
+const TOKEN = "test-only-second-zone-api-token-with-no-real-access";
 const SECOND_ENTRY = {
   accountId: "2B".repeat(16),
   zoneId: "3c".repeat(16),

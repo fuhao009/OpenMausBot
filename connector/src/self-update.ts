@@ -111,7 +111,7 @@ export class SelfUpdater {
     await docker.removeContainer(NAMES.connectorNext).catch(() => {});
     state.clearSelfUpdateOutcome();
     agent.resume();
-    return this.fail(job, `The new connector did not connect to MausBot within ${Math.round((this.deps.deadlineMs ?? SELF_UPDATE_DEADLINE_MS) / 60_000)} minutes; kept this one.`);
+    return this.fail(job, `The new connector did not connect to Hezuo within ${Math.round((this.deps.deadlineMs ?? SELF_UPDATE_DEADLINE_MS) / 60_000)} minutes; kept this one.`);
   }
 
   private async awaitOutcome(record: SelfUpdateRecord): Promise<"confirmed" | "aborted"> {

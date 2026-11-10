@@ -73,14 +73,14 @@ export type SecretCards = ReturnType<typeof createSecretCards>;
 const SWEEP_MS = 10 * 60 * 1000;
 
 const credentialUpdateText = (label: string, outcome: "provided" | "dismissed"): string => outcome === "provided"
-  ? `OpenMausBot credential update: the user securely provided ${label}. Continue the task that paused for it. You do not receive the secret and must not ask them to paste it into chat.`
-  : `OpenMausBot credential update: the user declined to provide ${label}. Continue without it if possible, or briefly explain the limitation. Do not ask them to paste it into chat.`;
+  ? `Hezuo credential update: the user securely provided ${label}. Continue the task that paused for it. You do not receive the secret and must not ask them to paste it into chat.`
+  : `Hezuo credential update: the user declined to provide ${label}. Continue without it if possible, or briefly explain the limitation. Do not ask them to paste it into chat.`;
 
 /** What the bot is told a saved custom secret is, and how to use it without ever seeing or showing the value. */
 export function savedSecretText(label: string, saved: SavedSecret | null): string {
-  if (!saved) return `The person saved ${label}, but it expired or OpenMausBot restarted before you used it. Ask again with request_credential if you still need it.`;
+  if (!saved) return `The person saved ${label}, but it expired or Hezuo restarted before you used it. Ask again with request_credential if you still need it.`;
   if ("ref" in saved) {
-    return `The person saved ${label} as ${saved.ref}. Put it in an mcp_server env, header or oauth.clientSecret value, alone or inside text such as "Bearer ${saved.ref}": OpenMausBot swaps in the value. It works once, only for you in this conversation, for an hour, and you never see the value.`;
+    return `The person saved ${label} as ${saved.ref}. Put it in an mcp_server env, header or oauth.clientSecret value, alone or inside text such as "Bearer ${saved.ref}": Hezuo swaps in the value. It works once, only for you in this conversation, for an hour, and you never see the value.`;
   }
   return `The person saved ${label} to the file ${saved.file}. Read it only inside a command, such as TOKEN="$(cat '${saved.file}')"; never print, echo, log or copy it anywhere else. It is deleted after 24 hours.`;
 }
@@ -104,10 +104,10 @@ function customRequest(body: Record<string, unknown>): { label: string; reason: 
     : "";
   const label = text(body.label, CUSTOM_SECRET_LABEL_MAX);
   const reason = text(body.reason, CUSTOM_SECRET_REASON_MAX);
-  if (!label) return { error: "request_credential needs credential_id for a key OpenMausBot keeps, or label for any other secret." };
+  if (!label) return { error: "request_credential needs credential_id for a key Hezuo keeps, or label for any other secret." };
   if (!reason) return { error: "request_credential needs reason: one short line on what the secret is for and where the person finds it." };
   if (!SECRET_DELIVERIES.includes(body.delivery as SecretDelivery)) {
-    return { error: "request_credential needs delivery: ref for OpenMausBot's own tools such as mcp_server, or file for your own commands." };
+    return { error: "request_credential needs delivery: ref for Hezuo's own tools such as mcp_server, or file for your own commands." };
   }
   return { label, reason, placeholder: text(body.placeholder, CUSTOM_SECRET_LABEL_MAX), delivery: body.delivery as SecretDelivery };
 }
@@ -125,8 +125,8 @@ export function createSecretCards(deps: SecretCardsDeps) {
   function updateText(messageId: string, secret: SecretRequestCardData, outcome: "provided" | "dismissed"): string {
     if (!custom(secret)) return credentialUpdateText(secret.label, outcome);
     return outcome === "provided"
-      ? `OpenMausBot secret update: ${savedSecretText(secret.label, vault.savedFor(messageId))} Continue the task that paused for it.`
-      : `OpenMausBot secret update: the person declined to provide ${secret.label}. Continue without it if you can, or say briefly what you cannot do. Do not ask for it in chat.`;
+      ? `Hezuo secret update: ${savedSecretText(secret.label, vault.savedFor(messageId))} Continue the task that paused for it.`
+      : `Hezuo secret update: the person declined to provide ${secret.label}. Continue without it if you can, or say briefly what you cannot do. Do not ask for it in chat.`;
   }
 
   function sweepBases(): string[] {
@@ -381,7 +381,7 @@ export function createSecretCards(deps: SecretCardsDeps) {
     return { status: 201, body: { messageId: message.id, label: target.label } };
   }
 
-  /** A secret OpenMausBot does not keep: the same bot asking again for one already saved here gets it back, and a newer
+  /** A secret Hezuo does not keep: the same bot asking again for one already saved here gets it back, and a newer
    * card replaces its pending one with the same name. */
   function requestCustomSecret(from: BotRecord, threadId: string, room: boolean, body: Record<string, unknown>): { status: number; body: Record<string, unknown> } {
     const asked = customRequest(body);

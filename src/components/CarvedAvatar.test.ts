@@ -3,9 +3,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { CarvedAvatar, REST_POSE, carvedFills, carvedGeometry } from "./CarvedAvatar";
-import { MausAvatar } from "./Avatar";
+import { HezuoAvatar } from "./Avatar";
 import { HALLOWEEN_BODIES, HALLOWEEN_BODY_IDS } from "../../shared/halloween-bodies";
-import { MAUS_COLORS } from "@/lib/mascot";
+import { HEZUO_COLORS } from "@/lib/mascot";
 
 const render = (body: (typeof HALLOWEEN_BODY_IDS)[number], color: "orange" | "purple" = "orange") =>
   renderToStaticMarkup(createElement(CarvedAvatar, { body, color, animated: false, label: body }));
@@ -22,15 +22,15 @@ describe("CarvedAvatar", () => {
     }
   });
 
-  it("is what MausAvatar wears for a Halloween body", () => {
-    const markup = renderToStaticMarkup(createElement(MausAvatar, { color: "orange", bodyId: "pumpkin", animated: false }));
+  it("is what HezuoAvatar wears for a Halloween body", () => {
+    const markup = renderToStaticMarkup(createElement(HezuoAvatar, { color: "orange", bodyId: "pumpkin", animated: false }));
     expect(markup).toContain('data-carved-body="pumpkin"');
     expect(markup).not.toContain("linearGradient");
   });
 
   it("fills flat with the bot's colour, pale for the ghost, bone for the skull", () => {
     expect(render("pumpkin")).not.toContain("linearGradient");
-    expect(carvedFills(HALLOWEEN_BODIES.pumpkin, "orange").body).not.toBe(MAUS_COLORS.orange);
+    expect(carvedFills(HALLOWEEN_BODIES.pumpkin, "orange").body).not.toBe(HEZUO_COLORS.orange);
     expect(carvedFills(HALLOWEEN_BODIES.ghost, "purple").body).toMatch(/^#[e-f]/);
     expect(carvedFills(HALLOWEEN_BODIES.skull, "purple").body).toBe(HALLOWEEN_BODIES.skull.bone);
   });

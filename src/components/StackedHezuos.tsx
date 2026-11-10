@@ -4,7 +4,7 @@ import type { SidebarDensity } from "@/lib/sidebar-preferences";
 import type { Bot } from "@/state/store";
 import { BotAvatar } from "./Avatar";
 
-export function StackedMauses({ members, density, large = false }: { members: Bot[]; density: SidebarDensity; large?: boolean }) {
+export function StackedHezuos({ members, density, large = false }: { members: Bot[]; density: SidebarDensity; large?: boolean }) {
   const iconOnly = density === "icons";
   const slotSize = iconOnly ? "size-12" : large ? "size-9" : "size-8";
   const singleSize = iconOnly ? 44 : large ? 36 : 32;

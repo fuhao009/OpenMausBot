@@ -138,12 +138,12 @@ describe("main.mjs's wiring of included X research access", () => {
     account = { xResearchAccess: vi.fn(async () => null) };
     proc = { postMessage: (message) => posted.push(message) };
     await x.onState(paid("device-2"));
-    expect(posted).toEqual([{ type: "openmausbot:included-x", access: null, offered: false }]);
+    expect(posted).toEqual([{ type: "hezuo:included-x", access: null, offered: false }]);
     account.xResearchAccess.mockResolvedValue(access);
     await x.onState(paid("device-3"));
     proc = { postMessage: (message) => posted.push({ restarted: message }) };
     x.serverStarted();
-    expect(posted.slice(1)).toEqual([{ type: "openmausbot:included-x", access }, { restarted: { type: "openmausbot:included-x", access } }]);
+    expect(posted.slice(1)).toEqual([{ type: "hezuo:included-x", access }, { restarted: { type: "hezuo:included-x", access } }]);
     proc = { postMessage: () => { throw new Error("port closed"); } };
     x.serverStarted();
     expect(logged).toEqual(["X research access sync failed: port closed"]);

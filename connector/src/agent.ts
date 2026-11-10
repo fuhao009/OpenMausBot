@@ -125,7 +125,7 @@ export class Agent {
     try {
       this.socket!.send(text);
     } catch (error) {
-      this.options.log(`could not send to MausBot: ${errorText(error)}`);
+      this.options.log(`could not send to Hezuo: ${errorText(error)}`);
     }
   }
 
@@ -135,7 +135,7 @@ export class Agent {
     try {
       socket = (this.options.socket ?? nodeSocket)(connectUrl(this.options.admin), { authorization: `Bearer ${this.options.token}` });
     } catch (error) {
-      this.options.log(`could not open the connection to MausBot: ${errorText(error)}`);
+      this.options.log(`could not open the connection to Hezuo: ${errorText(error)}`);
       this.scheduleRetry(backoffMs(this.attempt++, this.random()));
       return;
     }
@@ -144,7 +144,7 @@ export class Agent {
       if (this.socket !== socket) return;
       this.openedAt = this.now();
       this.options.status?.({ connected: true, unauthorized: false, lastConnectedAt: this.openedAt, lastError: null });
-      this.options.log("connected to MausBot");
+      this.options.log("connected to Hezuo");
       for (const { text } of this.unacked.values()) socket.send(text);
       this.startBeat();
       this.onConnected?.();
@@ -160,13 +160,13 @@ export class Agent {
       this.stopBeat();
       if (lasted >= STABLE_MS) this.attempt = 0;
       if (event.code === CLOSE_UNAUTHORIZED) {
-        this.options.status?.({ connected: false, unauthorized: true, lastError: "MausBot no longer knows this server" });
-        this.options.log("MausBot no longer knows this server; run the install command again with a new code to connect it");
+        this.options.status?.({ connected: false, unauthorized: true, lastError: "Hezuo no longer knows this server" });
+        this.options.log("Hezuo no longer knows this server; run the install command again with a new code to connect it");
         this.scheduleRetry(UNAUTHORIZED_RETRY_MS);
         return;
       }
-      this.options.status?.({ connected: false, lastError: wasOpen ? `the connection closed (${event.code})` : "MausBot could not be reached" });
-      if (wasOpen) this.options.log(`the connection to MausBot closed (${event.code}${event.reason ? `: ${event.reason}` : ""})`);
+      this.options.status?.({ connected: false, lastError: wasOpen ? `the connection closed (${event.code})` : "Hezuo could not be reached" });
+      if (wasOpen) this.options.log(`the connection to Hezuo closed (${event.code}${event.reason ? `: ${event.reason}` : ""})`);
       this.scheduleRetry(event.code === CLOSE_REPLACED ? REPLACED_RETRY_MS : backoffMs(this.attempt++, this.random()));
     };
   }
@@ -205,14 +205,14 @@ export class Agent {
   private received(data: unknown): void {
     const text = typeof data === "string" ? data : Buffer.isBuffer(data) ? data.toString("utf8") : data instanceof ArrayBuffer ? Buffer.from(data).toString("utf8") : null;
     if (text === null || text.length > MAX_MESSAGE_BYTES) {
-      this.options.log("ignored a message from MausBot that is not a job");
+      this.options.log("ignored a message from Hezuo that is not a job");
       return;
     }
     let message: unknown;
     try {
       message = JSON.parse(text);
     } catch {
-      this.options.log("ignored a message from MausBot that is not JSON");
+      this.options.log("ignored a message from Hezuo that is not JSON");
       return;
     }
     if (isAck(message)) {

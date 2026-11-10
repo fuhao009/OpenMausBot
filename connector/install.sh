@@ -1,12 +1,12 @@
 #!/bin/sh
-# MausBot on a server of your own: checks the server, installs the bot box's two security profiles, starts the MausBot
-# connector and connects it to MausBot with the one-time code MausBot shows. Running it again repairs the install.
+# Hezuo on a server of your own: checks the server, installs the bot box's two security profiles, starts the Hezuo
+# connector and connects it to Hezuo with the one-time code Hezuo shows. Running it again repairs the install.
 #
 #   curl -fsSL https://cloud.openmausbot.com/install.sh | sudo sh -s -- <code>
 #   curl -fsSL https://cloud.openmausbot.com/install.sh | sudo sh -s -- uninstall               (keeps your data)
 #   curl -fsSL https://cloud.openmausbot.com/install.sh | sudo sh -s -- uninstall --delete-data (deletes it too)
 #
-# MausBot serves this file with its own address and the connector's image (pinned by digest) filled in below.
+# Hezuo serves this file with its own address and the connector's image (pinned by digest) filled in below.
 set -eu
 
 ADMIN_URL="${MAUSBOT_ADMIN_URL:-@MAUSBOT_ADMIN_URL@}"
@@ -45,10 +45,10 @@ need_root() {
 
 need_settings() {
   case "$ADMIN_URL" in
-    @*) fail "This installer was not downloaded from MausBot. Copy the install command from MausBot and run that." ;;
+    @*) fail "This installer was not downloaded from Hezuo. Copy the install command from Hezuo and run that." ;;
   esac
   case "$CONNECTOR_IMAGE" in
-    @*) fail "This installer was not downloaded from MausBot. Copy the install command from MausBot and run that." ;;
+    @*) fail "This installer was not downloaded from Hezuo. Copy the install command from Hezuo and run that." ;;
   esac
 }
 
@@ -58,7 +58,7 @@ tty_available() {
 }
 
 check_os() {
-  [ -r /etc/os-release ] || fail "This server's operating system can't be identified. MausBot runs on Ubuntu 22.04 or 24.04, or Debian 12."
+  [ -r /etc/os-release ] || fail "This server's operating system can't be identified. Hezuo runs on Ubuntu 22.04 or 24.04, or Debian 12."
   os_id=$(. /etc/os-release && printf '%s' "${ID:-}")
   os_version=$(. /etc/os-release && printf '%s' "${VERSION_ID:-}")
   os_name=$(. /etc/os-release && printf '%s' "${PRETTY_NAME:-$os_id $os_version}")
@@ -66,9 +66,9 @@ check_os() {
     "ubuntu 22.04" | "ubuntu 24.04" | "debian 12") note "operating system: $os_name" ;;
     *)
       if [ "${MAUSBOT_ALLOW_UNTESTED_OS:-}" = 1 ]; then
-        note "operating system: $os_name (not one MausBot is tested on; going on as asked)"
+        note "operating system: $os_name (not one Hezuo is tested on; going on as asked)"
       else
-        fail "MausBot runs on Ubuntu 22.04 or 24.04, or Debian 12. This server runs $os_name. Please pick one of those, or run again with MAUSBOT_ALLOW_UNTESTED_OS=1 to try anyway."
+        fail "Hezuo runs on Ubuntu 22.04 or 24.04, or Debian 12. This server runs $os_name. Please pick one of those, or run again with MAUSBOT_ALLOW_UNTESTED_OS=1 to try anyway."
       fi
       ;;
   esac
@@ -76,7 +76,7 @@ check_os() {
 
 check_arch() {
   arch=$(uname -m)
-  [ "$arch" = x86_64 ] || fail "This server has an ARM processor ($arch). MausBot runs on Intel or AMD (x86-64) servers for now. Please pick an x86-64 server."
+  [ "$arch" = x86_64 ] || fail "This server has an ARM processor ($arch). Hezuo runs on Intel or AMD (x86-64) servers for now. Please pick an x86-64 server."
   note "processor: x86-64"
 }
 
@@ -113,10 +113,10 @@ check_docker() {
   fi
   major=${server%%.*}
   case "$major" in '' | *[!0-9]*) major=0 ;; esac
-  [ "$major" -ge "$MIN_DOCKER" ] || fail "Docker $server is too old; MausBot needs Docker $MIN_DOCKER or newer. Update it with: curl -fsSL https://get.docker.com | sudo sh"
+  [ "$major" -ge "$MIN_DOCKER" ] || fail "Docker $server is too old; Hezuo needs Docker $MIN_DOCKER or newer. Update it with: curl -fsSL https://get.docker.com | sudo sh"
   security=$(docker info --format '{{json .SecurityOptions}}' 2>/dev/null || true)
   case "$security" in
-    *rootless*) fail "Docker runs in rootless mode here. MausBot needs the standard Docker service: run curl -fsSL https://get.docker.com | sudo sh" ;;
+    *rootless*) fail "Docker runs in rootless mode here. Hezuo needs the standard Docker service: run curl -fsSL https://get.docker.com | sudo sh" ;;
   esac
   note "Docker: $server"
 }
@@ -143,15 +143,15 @@ check_userns() {
 
 check_resources() {
   cpus=$(nproc 2>/dev/null || echo 1)
-  [ "$cpus" -ge "$MIN_CPUS" ] || fail "This server has $cpus processor core. MausBot needs at least $MIN_CPUS. Please pick a bigger server."
+  [ "$cpus" -ge "$MIN_CPUS" ] || fail "This server has $cpus processor core. Hezuo needs at least $MIN_CPUS. Please pick a bigger server."
   memory_mb=$(awk '/^MemTotal:/ { print int($2 / 1024) }' /proc/meminfo)
   memory_gb=$(awk -v m="$memory_mb" 'BEGIN { printf "%.1f", m / 1024 }')
-  [ "$memory_mb" -ge "$MIN_MEMORY_MB" ] || fail "This server has $memory_gb GB of memory. MausBot needs at least 4 GB (and 32 GB for a team of five). Please pick a bigger server."
+  [ "$memory_mb" -ge "$MIN_MEMORY_MB" ] || fail "This server has $memory_gb GB of memory. Hezuo needs at least 4 GB (and 32 GB for a team of five). Please pick a bigger server."
   root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /var/lib/docker)
   [ -d "$root" ] || root=/
   free_gb=$(df -Pk "$root" | awk 'NR == 2 { print int($4 / 1048576) }')
   used_pct=$(df -Pk "$root" | awk 'NR == 2 { sub("%", "", $5); print $5 }')
-  [ "$free_gb" -ge "$MIN_DISK_GB" ] || fail "Your server has only $free_gb GB free. MausBot needs at least $MIN_DISK_GB GB: free some space or add a disk."
+  [ "$free_gb" -ge "$MIN_DISK_GB" ] || fail "Your server has only $free_gb GB free. Hezuo needs at least $MIN_DISK_GB GB: free some space or add a disk."
   note "size: $cpus cores, $memory_gb GB memory, $free_gb GB free disk"
   if [ "$memory_mb" -lt 7500 ]; then note "note: with $memory_gb GB of memory, bots will be slow when several work at once. We suggest at least 8 GB."; fi
   if [ "${used_pct:-0}" -ge 85 ]; then note "note: the disk is $used_pct% full. Free some space or add a disk before it fills up."; fi
@@ -171,11 +171,11 @@ check_network() {
   done
   if [ -n "$blocked" ]; then
     if [ -n "${https_proxy:-}${HTTPS_PROXY:-}" ]; then
-      fail "This server reaches the internet only through a web proxy, and MausBot can't use a web proxy yet. It needs direct outbound HTTPS (port 443) to:$blocked"
+      fail "This server reaches the internet only through a web proxy, and Hezuo can't use a web proxy yet. It needs direct outbound HTTPS (port 443) to:$blocked"
     fi
     fail "Your network blocks outbound HTTPS (port 443) to:$blocked. Ask your IT team to allow it, then run this command again."
   fi
-  note "network: MausBot, ghcr.io and Cloudflare reachable"
+  note "network: Hezuo, ghcr.io and Cloudflare reachable"
 }
 
 check_clock() {
@@ -186,7 +186,7 @@ check_clock() {
       skew=$(( $(date +%s) - theirs ))
       [ "$skew" -lt 0 ] && skew=$(( -skew ))
       if [ "$skew" -gt 300 ]; then
-        fail "Your server's clock is $(( skew / 60 )) minutes off, so it can't check MausBot's messages. Run: sudo timedatectl set-ntp true  and then run this command again."
+        fail "Your server's clock is $(( skew / 60 )) minutes off, so it can't check Hezuo's messages. Run: sudo timedatectl set-ntp true  and then run this command again."
       fi
     fi
   fi
@@ -197,7 +197,7 @@ check_clock() {
 
 pull_connector() {
   if ! docker image inspect "$CONNECTOR_IMAGE" >/dev/null 2>&1; then
-    docker pull -q "$CONNECTOR_IMAGE" >/dev/null || fail "The MausBot connector could not be downloaded from ghcr.io. Check that this server can reach https://ghcr.io, then run this command again."
+    docker pull -q "$CONNECTOR_IMAGE" >/dev/null || fail "The Hezuo connector could not be downloaded from ghcr.io. Check that this server can reach https://ghcr.io, then run this command again."
   fi
 }
 
@@ -217,7 +217,7 @@ install_profiles() {
 }
 
 start_connector() {
-  say "Starting the MausBot connector..."
+  say "Starting the Hezuo connector..."
   docker volume create "$STATE_VOLUME" >/dev/null
   docker rm -f "$CONNECTOR" "$CONNECTOR_NEXT" >/dev/null 2>&1 || true
   instance=$(cat /proc/sys/kernel/random/uuid)
@@ -231,12 +231,12 @@ start_connector() {
     --security-opt no-new-privileges=true --cap-drop ALL --read-only --tmpfs /tmp \
     -v /var/run/docker.sock:/var/run/docker.sock -v "$STATE_VOLUME:/state" -v "$ETC_DIR:/etc/mausbot:ro" \
     --log-opt max-size=10m --log-opt max-file=3 \
-    "$@" "$CONNECTOR_IMAGE" run >/dev/null || fail "The MausBot connector could not be started (Docker's message is above). Run this command again."
+    "$@" "$CONNECTOR_IMAGE" run >/dev/null || fail "The Hezuo connector could not be started (Docker's message is above). Run this command again."
   for _ in 1 2 3 4 5 6 7 8 9 10; do
     if docker exec "$CONNECTOR" mausbot-connector version >/dev/null 2>&1; then return; fi
     sleep 1
   done
-  fail "The MausBot connector did not start. Its log: $(docker logs --tail 5 "$CONNECTOR" 2>&1 | tr '\n' ' ')"
+  fail "The Hezuo connector did not start. Its log: $(docker logs --tail 5 "$CONNECTOR" 2>&1 | tr '\n' ' ')"
 }
 
 check_box() {
@@ -252,13 +252,13 @@ check_box() {
 connect() {
   code=$1
   if [ -n "$code" ]; then
-    say "Connecting to MausBot..."
+    say "Connecting to Hezuo..."
     # The code works once: its refusal is read from this one attempt.
     if ! refusal=$(printf '%s\n' "$code" | docker exec -i -e "MAUSBOT_ADMIN_URL=$ADMIN_URL" "$CONNECTOR" mausbot-connector enroll 2>&1 >/dev/null); then
       fail "$(printf '%s\n' "$refusal" | tail -n 1)"
     fi
   elif ! docker exec "$CONNECTOR" mausbot-connector status | grep -q '"enrolled":true'; then
-    fail "Add the one-time code MausBot shows next to the install command, like this: $(command_line '<code>')"
+    fail "Add the one-time code Hezuo shows next to the install command, like this: $(command_line '<code>')"
   fi
   waited=0
   while [ "$waited" -lt 60 ]; do
@@ -266,7 +266,7 @@ connect() {
     sleep 1
     waited=$((waited + 1))
   done
-  fail "The connector could not reach MausBot at $ADMIN_URL. Its log: $(docker logs --tail 5 "$CONNECTOR" 2>&1 | tr '\n' ' ')"
+  fail "The connector could not reach Hezuo at $ADMIN_URL. Its log: $(docker logs --tail 5 "$CONNECTOR" 2>&1 | tr '\n' ' ')"
 }
 
 install_connector() {
@@ -279,7 +279,7 @@ install_connector() {
     esac
   done
   case "$code" in
-    *[!A-Za-z0-9-]*) fail "That code doesn't look right. Copy the install command from MausBot again." ;;
+    *[!A-Za-z0-9-]*) fail "That code doesn't look right. Copy the install command from Hezuo again." ;;
   esac
   need_root "${code:-<code>}"
   need_settings
@@ -298,7 +298,7 @@ install_connector() {
   check_box
   connect "$code"
   say ""
-  say "Connected. Your server shows up in MausBot in a minute."
+  say "Connected. Your server shows up in Hezuo in a minute."
 }
 
 # Removal never deletes the data, its safety copy or its backups unless --delete-data is typed.
@@ -311,8 +311,8 @@ uninstall() {
     esac
   done
   need_root uninstall
-  command -v docker >/dev/null 2>&1 || fail "Docker isn't installed here, so MausBot isn't either."
-  say "Stopping MausBot on this server..."
+  command -v docker >/dev/null 2>&1 || fail "Docker isn't installed here, so Hezuo isn't either."
+  say "Stopping Hezuo on this server..."
   docker rm -f "$CONNECTOR" "$CONNECTOR_NEXT" >/dev/null 2>&1 || true
   docker stop -t 30 "$HOME_CONTAINER" >/dev/null 2>&1 || true
   for container in "$HOME_CONTAINER" $(docker ps -aq --filter "label=$ROLE_LABEL=helper" 2>/dev/null); do
@@ -321,15 +321,15 @@ uninstall() {
   if command -v apparmor_parser >/dev/null 2>&1 && [ -f "$APPARMOR_DIR/$PROFILE" ]; then apparmor_parser -R "$APPARMOR_DIR/$PROFILE" >/dev/null 2>&1 || true; fi
   rm -f "$APPARMOR_DIR/$PROFILE" "$ETC_DIR/$SECCOMP"
   rmdir "$ETC_DIR" 2>/dev/null || true
-  # The connector's own state (its token, the home's settings) is not your data: MausBot hands both out again.
+  # The connector's own state (its token, the home's settings) is not your data: Hezuo hands both out again.
   docker volume rm "$STATE_VOLUME" >/dev/null 2>&1 || true
   if [ "$delete" = yes ]; then
     for volume in "$DATA_VOLUME" "$SNAPSHOT_VOLUME" $(docker volume ls -q --filter "label=$ROLE_LABEL=backup" 2>/dev/null); do
       docker volume rm "$volume" >/dev/null 2>&1 || true
     done
-    say "MausBot is removed from this server, and so is its data."
+    say "Hezuo is removed from this server, and so is its data."
   else
-    say "MausBot is removed from this server. Your data is kept in the Docker volume $DATA_VOLUME, with its backups."
+    say "Hezuo is removed from this server. Your data is kept in the Docker volume $DATA_VOLUME, with its backups."
     say "To delete the data too, run: $(command_line uninstall --delete-data)"
   fi
 }

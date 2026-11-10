@@ -2,7 +2,7 @@
 
 The sidecar a phone talks to.
 
-OpenMausBot's harness listens on `127.0.0.1` and nothing else, which is the
+Hezuo's harness listens on `127.0.0.1` and nothing else, which is the
 right default and one it has recently gone out of its way to enforce: it now
 rejects any request whose `Host` is not loopback, defeating DNS rebinding.
 
@@ -121,12 +121,21 @@ it is switched on, so the opt-in is never implicit.
 | `OMB_COMPANION_PORT` | `8810` | where devices connect |
 | `OMB_CONTROL_PORT` | `8811` | the pairing page, loopback only, behind a per-launch token |
 | `OMB_CONTROL_TOKEN` | random | that token (43 base64url characters), for a script that starts the sidecar; the desktop app ignores it |
-| `OMB_COMPANION_DIR` | `~/.openmausbot-companion` | paired devices live here |
+| `OMB_COMPANION_DIR` | `~/.hezuo-companion` | paired devices live here |
 | `OMB_COMPANION_NAME` | your name, from the harness | what the phone calls this computer |
+
+On the first default-path launch, `~/.openmausbot-companion` is moved to
+`~/.hezuo-companion`, preserving paired-device records and bearer hashes. If
+both roots exist, startup refuses to choose a fleet; reconcile them explicitly.
+An explicit `OMB_COMPANION_DIR` is never migrated. Existing `omb_` bearer tokens
+retain their format and validity; Hezuo renames the local headers, IPC and
+Bonjour service to `x-hezuo-*`, `hezuo:*` and `_hezuo._tcp` together with their
+desktop/harness counterparts, not the bearer format.
+
 
 `OMB_COMPANION_NAME` overrides a name the sidecar otherwise asks the harness
 for: the computer name set in Settings → Remote access, else the profile from
-onboarding, as *"Ada's computer"*. It falls back to `OpenMausBot` when neither
+onboarding, as *"Ada's computer"*. It falls back to `Hezuo` when neither
 is set. The sidecar asks again every 30 seconds; a changed name withdraws the
 old Bonjour record (a goodbye) before advertising the new one, so the phone
 does not see two computers.

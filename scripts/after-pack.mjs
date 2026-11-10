@@ -113,13 +113,13 @@ async function thinMacPlatformTools(resources, arch) {
 // either artifact target is assembled.
 
 // The packaged .app is named after the build's productName: the upstream
-// distribution ships "OpenMausBot.app", while a managed product build ships
-// "OpenMausBot Product.app". Prefer electron-builder's own resolution, then
+// distribution ships "Hezuo.app", while a managed product build ships
+// "Hezuo Product.app". Prefer electron-builder's own resolution, then
 // the context's product filename, and keep the upstream name only as the
 // fallback for bare unit fixtures.
 function macResourcesDir(context) {
   const productFilename = context.packager?.appInfo?.productFilename;
-  const appName = `${productFilename || "OpenMausBot"}.app`;
+  const appName = `${productFilename || "Hezuo"}.app`;
   return path.join(context.appOutDir, appName, "Contents", "Resources");
 }
 

@@ -30,7 +30,7 @@ interface RoutineBody {
   name: string;
   prompt: string;
   botId: string;
-  runOn: "maus";
+  runOn: "hezuo";
   schedule: { type: "once"; at: number };
 }
 
@@ -51,9 +51,9 @@ posixOnly("routine failure notification wiring", () => {
   beforeAll(async () => {
     chmodSync(FAKE_CLI, 0o755);
     home = mkdtempSync(join(tmpdir(), "omb-notifications-e2e-"));
-    mkdirSync(join(home, ".openmausbot"), { recursive: true });
+    mkdirSync(join(home, ".hezuo"), { recursive: true });
     writeFileSync(
-      join(home, ".openmausbot", "config.json"),
+      join(home, ".hezuo", "config.json"),
       JSON.stringify({
         instances: {
           grok: {
@@ -118,7 +118,7 @@ posixOnly("routine failure notification wiring", () => {
         name: "Broken nightly report",
         prompt: "Prepare the report",
         botId: bot.id,
-        runOn: "maus",
+        runOn: "hezuo",
         schedule: { type: "once", at: Date.now() + 60_000 },
       });
       expect(created.status).toBe(201);

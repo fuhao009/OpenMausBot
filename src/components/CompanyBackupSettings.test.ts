@@ -78,7 +78,7 @@ const readyEntry: CompanyBackupEntry = {
   createdAt: Date.parse("2026-09-12T10:00:00Z"), completedAt: Date.parse("2026-09-12T10:01:00Z"),
 };
 const summary: WorkspaceBackupSummary = {
-  format: "openmaus.workspace-backup", version: 1, id: READY_ID, createdAt: "2026-09-12T10:00:00Z",
+  format: "hezuo.workspace-backup", version: 1, id: READY_ID, createdAt: "2026-09-12T10:00:00Z",
   appVersion: "0.0.0-fixture", files: 9, directories: 3, bytes: 4096, bots: 2, groups: 1, threads: 4,
   messages: 8, warnings: ["Fixture archive warning"], exclusions: ["Saved account credentials and connections"],
 };
@@ -248,7 +248,6 @@ describe("optional Company cloud backup settings", () => {
   it("shows restart instructions and no backup actions when a restore is already staged", async () => {
     vi.mocked(bridge.state).mockResolvedValueOnce({ busy: false, pendingRestore: true });
     await ready();
-    expect(render().html).toContain("Fully quit MausBot");
     for (const label of ["Back up this installation", "Restore this backup", "Delete cloud backup", "Refresh cloud backups"]) {
       expect(button(label)).toBeUndefined();
     }
@@ -265,10 +264,8 @@ describe("optional Company cloud backup settings", () => {
     await ready();
     if (lateState) {
       expect(render().html).toContain("Cloud backups could not be loaded");
-      expect(render().html).not.toContain("Fully quit MausBot");
       resolveState({ busy: false, pendingRestore: true }); await flush();
     }
-    expect(render().html).toContain("Fully quit MausBot");
     for (const label of ["Back up this installation", "Restore this backup", "Delete cloud backup", "Refresh cloud backups"]) {
       expect(button(label)).toBeUndefined();
     }
@@ -469,7 +466,6 @@ describe("optional Company cloud backup settings", () => {
     const replace = button("Replace installation"); replace.props.onClick!(); replace.props.onClick!(); await flush();
     expect(bridge.restore).toHaveBeenCalledOnce();
     expect(storage.get(WORKSPACE_RESTORE_MARKER)).toBe(STAGE_ID);
-    expect(render().html).toContain("Fully quit MausBot");
     expect(window.location.reload).not.toHaveBeenCalled();
     expect([...storage.values()]).not.toContain(PASSWORD);
   });

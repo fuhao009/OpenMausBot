@@ -104,8 +104,8 @@ curl -s -X POST http://127.0.0.1:PORT/api/live/session -H 'content-type: applica
 curl -s http://127.0.0.1:PORT/api/live/call
 curl -s -X POST http://127.0.0.1:PORT/api/live/call/end -H 'content-type: application/json' \
   -d '{"callId":"CALL_ID"}'
-pnpm control:omb ui wait-settle --ui /tmp/openmausbot-verify-data-XXXXXX/ui.json --timeout 60
-pnpm control:omb ui snapshot --ui /tmp/openmausbot-verify-data-XXXXXX/ui.json
+pnpm control:omb ui wait-settle --ui /tmp/hezuo-verify-data-XXXXXX/ui.json --timeout 60
+pnpm control:omb ui snapshot --ui /tmp/hezuo-verify-data-XXXXXX/ui.json
 curl -s "http://127.0.0.1:PORT/api/threads/THREAD_ID/messages?limit=20"
 ```
 

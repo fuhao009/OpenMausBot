@@ -1,5 +1,5 @@
 // A product account's model catalog owns every choice: one managed route, no personal engine, and a catalog that goes
-// away never rewrites a transcript. MausBot's product intro is a plain line, and it is not crowned Chief.
+// away never rewrites a transcript. Hezuo's product intro is a plain line, and it is not crowned Chief.
 import { rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -183,7 +183,7 @@ describe("reconciling saved choices against a managed catalog", () => {
   });
 });
 
-describe("MausBot's product welcome", () => {
+describe("Hezuo's product welcome", () => {
   it("says a plain line in English or Chinese, never the look-around intro", () => {
     expect(productWelcomeMessage("zh")).toEqual({ role: "bot", kind: "text", text: productWelcomeText("zh") });
     expect(productWelcomeMessage().helperIntro).toBeUndefined();
@@ -192,22 +192,22 @@ describe("MausBot's product welcome", () => {
 
   it("welcome, not crowned: chief: false makes an ordinary default bot, and a custom intro is its first message", () => {
     const store = new Store(() => productSelection);
-    const maus = ensureDefaultBot(store, { dataDir: DATA_DIR, intro: () => productWelcomeMessage("en"), chief: false })!;
-    expect(maus).toMatchObject({ name: "MausBot", defaultBot: {} });
-    expect(maus.chiefOfStaff).toBeFalsy();
-    expect(store.messagesFor(maus.threadId).filter((message) => message.role === "bot").some((message) => message.text === productWelcomeText("en"))).toBe(true);
-    expect(store.messagesFor(maus.threadId).some((message) => message.helperIntro)).toBe(false);
+    const hezuo = ensureDefaultBot(store, { dataDir: DATA_DIR, intro: () => productWelcomeMessage("en"), chief: false })!;
+    expect(hezuo).toMatchObject({ name: "Hezuo", defaultBot: {} });
+    expect(hezuo.chiefOfStaff).toBeFalsy();
+    expect(store.messagesFor(hezuo.threadId).filter((message) => message.role === "bot").some((message) => message.text === productWelcomeText("en"))).toBe(true);
+    expect(store.messagesFor(hezuo.threadId).some((message) => message.helperIntro)).toBe(false);
   });
 
-  it("keeps a renamed, used MausBot and its transcript on the next start", () => {
+  it("keeps a renamed, used Hezuo and its transcript on the next start", () => {
     const store = new Store(() => productSelection);
-    const maus = ensureDefaultBot(store, { dataDir: DATA_DIR, intro: () => productWelcomeMessage("en"), chief: false })!;
-    store.patchBot(maus.id, { name: "Jarvis" });
-    store.appendMessage(maus.threadId, { role: "user", kind: "text", text: "Hello" });
+    const hezuo = ensureDefaultBot(store, { dataDir: DATA_DIR, intro: () => productWelcomeMessage("en"), chief: false })!;
+    store.patchBot(hezuo.id, { name: "Jarvis" });
+    store.appendMessage(hezuo.threadId, { role: "user", kind: "text", text: "Hello" });
     const restarted = new Store(() => productSelection);
-    expect(ensureDefaultBot(restarted, { dataDir: DATA_DIR, intro: () => productWelcomeMessage("en"), chief: false })?.id).toBe(maus.id);
-    expect(restarted.bot(maus.id)).toMatchObject({ name: "Jarvis" });
-    expect(restarted.messagesFor(maus.threadId).filter((message) => message.text === productWelcomeText("en"))).toHaveLength(1);
+    expect(ensureDefaultBot(restarted, { dataDir: DATA_DIR, intro: () => productWelcomeMessage("en"), chief: false })?.id).toBe(hezuo.id);
+    expect(restarted.bot(hezuo.id)).toMatchObject({ name: "Jarvis" });
+    expect(restarted.messagesFor(hezuo.threadId).filter((message) => message.text === productWelcomeText("en"))).toHaveLength(1);
   });
 
   it("keeps the existing auto-Chief behaviour when no chief option is given", () => {
@@ -215,9 +215,9 @@ describe("MausBot's product welcome", () => {
     expect(ensureDefaultBot(store, { dataDir: DATA_DIR })).toMatchObject({ chiefOfStaff: true });
   });
 
-  it("gives an adopted seeded MausBot the product welcome too, on top of its history, and does not crown it", () => {
+  it("gives an adopted seeded Hezuo the product welcome too, on top of its history, and does not crown it", () => {
     const store = new Store(() => productSelection);
-    const seeded = store.createBot({ name: "MausBot", color: "silver" });
+    const seeded = store.createBot({ name: "Hezuo", color: "silver" });
     const first = seeded.threadId;
     store.appendMessage(first, { role: "user", kind: "text", text: "Book my flights." });
     const before = store.messagesFor(first).map((message) => message.id);

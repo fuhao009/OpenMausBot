@@ -113,7 +113,7 @@ describe("drawing a widget", () => {
     mount(row(sample("pullRequests")));
     const card = find('[data-widget="w1"]')!;
     expect(card.getAttribute("aria-label")).toBe("Pull requests");
-    expect(card.textContent).toContain("mausbot-mobile");
+    expect(card.textContent).toContain("hezuo-mobile");
     expect(card.textContent).toContain("3 open");
     const rows = all('[role="listitem"] > button');
     expect(rows.map((item) => item.textContent)).toEqual([
@@ -191,7 +191,7 @@ describe("drawing a widget", () => {
     act(() => find<HTMLButtonElement>(`button[title="${t("attach.externalHidden")}"]`)!.click());
     const image = find<HTMLImageElement>("img")!;
     expect(image.getAttribute("src")).toBe("https://mausbot.com/og.png");
-    expect(image.getAttribute("alt")).toBe("MausBot");
+    expect(image.getAttribute("alt")).toBe("Hezuo");
     expect(image.getAttribute("loading")).toBe("lazy");
     expect(image.getAttribute("referrerpolicy")).toBe("no-referrer");
     expect(Number.parseFloat(image.style.aspectRatio)).toBeCloseTo(16 / 9);

@@ -61,7 +61,7 @@ function buildMime(message, fromEmail) {
   const text = String(message.text ?? "");
   const html = String(message.html ?? "");
   const headers = [
-    `From: ${encodeHeader(message.from?.name ?? "OpenMausBot")} <${fromEmail}>`,
+    `From: ${encodeHeader(message.from?.name ?? "Hezuo")} <${fromEmail}>`,
     `To: ${normalizeRecipients(message).join(", ")}`,
     `Subject: ${encodeHeader(message.subject ?? "")}`,
     "MIME-Version: 1.0",

@@ -17,7 +17,7 @@ const MAX_ERROR_BYTES = 64 * 1024;
 export function desktopCompanionRendererArguments(localOrigin, remoteAccess) {
   return [
     `--omb-local-origin=${localOrigin}`,
-    ...(remoteAccess ? ["--openmausbot-remote-client"] : []),
+    ...(remoteAccess ? ["--hezuo-remote-client"] : []),
   ];
 }
 
@@ -123,7 +123,7 @@ export async function pairDesktopCompanion({
 }) {
   const endpoint = normalizeDesktopCompanionEndpoint(rawEndpoint);
   if (!endpoint) {
-    throw new Error("Enter the OpenMausBot HTTPS companion address or full Tailscale name ending in .ts.net");
+    throw new Error("Enter the Hezuo HTTPS companion address or full Tailscale name ending in .ts.net");
   }
   const code = String(rawCode ?? "").trim();
   if (!PAIRING_CODE.test(code)) throw new Error("Enter the six-digit code shown on the other computer");

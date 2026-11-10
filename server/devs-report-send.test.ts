@@ -5,7 +5,7 @@ import { askReportStatus, bugReportEndpoint, bugReportsHomeSignature, bugReportS
 
 const PAYLOAD: DevsReportPayload = {
   installId: "4b7c1f2e-0a9d-4c2b-9f1e-6d5a4b3c2d1e", source: "bot", description: "it broke", appVersion: "0.1.128", platform: "darwin arm64, desktop app",
-  diagnostics: "OpenMausBot @devs report", contactEmail: "ada@example.com", contact: "ada@example.com",
+  diagnostics: "Hezuo @devs report", contactEmail: "ada@example.com", contact: "ada@example.com",
 };
 
 function endpoint(...answers: Array<Response | Error>) {
@@ -91,7 +91,7 @@ describe("asking what became of the reports this app sent", () => {
   });
 
   it("signs exactly as the Admin checks it", () => {
-    // The same vector is pinned in openmaus-cloud tests/bug-report-fixes.test.ts.
+    // The same vector is pinned in hezuo-cloud tests/bug-report-fixes.test.ts.
     expect(bugReportsHomeSignature("s".repeat(43), "cm-test-home", "1792670400", "nonce-nonce-nonce-1", '{"installId":"install_0001","ids":[]}')).toBe("yk4dl82CpryMBfCaT18e_sJ6uihfo3dPHVP4prToXL8");
   });
 

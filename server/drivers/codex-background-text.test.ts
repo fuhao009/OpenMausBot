@@ -116,7 +116,7 @@ describe("Codex generateMemoryText (fake CLI)", () => {
         HOME: scratch,
         CODEX_HOME: join(scratch, ".codex"),
         FAKE_CODEX_TEXT_LOG: log,
-        ...(managed ? { OPENMAUSBOT_COMPANY_API_KEY: "synthetic-company-fixture" } : {}),
+        ...(managed ? { HEZUO_COMPANY_API_KEY: "synthetic-company-fixture" } : {}),
         ...environment,
       },
       enabled: true,
@@ -188,10 +188,10 @@ describe("Codex generateMemoryText (fake CLI)", () => {
     await codex.generateMemoryText!("hello");
     const [call] = calls();
     expect(call!.argv[call!.argv.indexOf("--model") + 1]).toBe("gpt-6-luna");
-    expect(call!.argv).toContain('model_provider="openmaus_company"');
-    expect(call!.env.OPENMAUSBOT_COMPANY_API_KEY).toBe("synthetic-company-fixture");
+    expect(call!.argv).toContain('model_provider="hezuo_company"');
+    expect(call!.env.HEZUO_COMPANY_API_KEY).toBe("synthetic-company-fixture");
     await codex.dispose();
-    const keyless = await create({ OPENMAUSBOT_COMPANY_API_KEY: "" }, true);
+    const keyless = await create({ HEZUO_COMPANY_API_KEY: "" }, true);
     await expect(keyless.generateMemoryText!("hello")).rejects.toThrow(/Company model access is unavailable/);
   });
 

@@ -13,7 +13,7 @@ const bot = (id: string, extra: Partial<Bot> = {}): Bot => ({
 } as Bot);
 
 const notes = (): GrokSetupNotes => grokImportPreview({
-  format: "openmaus.grok/1",
+  format: "hezuo.grok/1",
   name: "Overheard",
   instructions: "Watch for mentions.",
   routines: [
@@ -29,7 +29,7 @@ describe("Chief of Staff finishes a Grok Bot setup", () => {
     expect(grokSetupLeft(notes())).toBe(true);
     expect(grokSetupLeft({ apps: [], unmatched: [], leftOut: [] })).toBe(false);
     expect(grokSetupLeft(undefined)).toBe(false);
-    expect(grokImportPreview({ format: "openmaus.grok/1", name: "Plain", instructions: "Hi." }).grokSetup).toEqual({ apps: [], unmatched: [], leftOut: [] });
+    expect(grokImportPreview({ format: "hezuo.grok/1", name: "Plain", instructions: "Hi." }).grokSetup).toEqual({ apps: [], unmatched: [], leftOut: [] });
   });
 
   it("asks the Chief of Staff, or the imported bot when there is none", () => {

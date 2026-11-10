@@ -58,7 +58,7 @@ describe("companionPairingRoute", () => {
       port: 8810,
       tailnetName: "mac.tail1234.ts.net",
       lan: "192.168.1.42",
-      hosts: ["mac.tail1234.ts.net", "192.168.1.42", "openmausbot-aa.local"],
+      hosts: ["mac.tail1234.ts.net", "192.168.1.42", "hezuo-aa.local"],
       endpoints: [
         { url: "http://mac.tail1234.ts.net:8810", kind: "tailnet" as const, priority: 0 },
         { url: "http://192.168.1.42:8810", kind: "lan" as const, priority: 100 },
@@ -139,12 +139,12 @@ describe("companionPairingRoute", () => {
       port: 8810,
       tailnetName: "mac.tail1234.ts.net",
       lan: "192.168.1.42",
-      hosts: ["mac.tail1234.ts.net", "192.168.1.42", "openmausbot-aa.local"],
+      hosts: ["mac.tail1234.ts.net", "192.168.1.42", "hezuo-aa.local"],
       endpoints: [
         { url: "https://device.openmausbot.com", kind: "hosted", priority: 0 },
         { url: "http://mac.tail1234.ts.net:8810", kind: "tailnet", priority: 100 },
         { url: "http://192.168.1.42:8810", kind: "lan", priority: 200 },
-        { url: "http://openmausbot-aa.local:8810", kind: "bonjour", priority: 300 },
+        { url: "http://hezuo-aa.local:8810", kind: "bonjour", priority: 300 },
       ],
     }, "local");
 
@@ -152,14 +152,14 @@ describe("companionPairingRoute", () => {
     expect(route?.port).toBe(8810);
     expect(route?.hosts).toEqual([
       "192.168.1.42",
-      "openmausbot-aa.local",
+      "hezuo-aa.local",
     ]);
     const link = phonePairingLink({ ...route!, code: "004209", token });
     expect(new URL(link!).searchParams.get("address")).toBe("192.168.1.42:8810");
     expect(decodedEndpoints(link!)).toEqual([
       { url: "http://192.168.1.42:8810", kind: "lan", priority: 0 },
       { url: "https://device.openmausbot.com", kind: "hosted", priority: 100 },
-      { url: "http://openmausbot-aa.local:8810", kind: "bonjour", priority: 200 },
+      { url: "http://hezuo-aa.local:8810", kind: "bonjour", priority: 200 },
     ]);
   });
 
@@ -168,12 +168,12 @@ describe("companionPairingRoute", () => {
       port: 8810,
       tailnetName: "mac.tail1234.ts.net",
       lan: "192.168.1.42",
-      hosts: ["mac.tail1234.ts.net", "192.168.1.42", "openmausbot-aa.local"],
+      hosts: ["mac.tail1234.ts.net", "192.168.1.42", "hezuo-aa.local"],
       endpoints: [
         { url: "https://device.openmausbot.com", kind: "hosted", priority: 0 },
         { url: "http://mac.tail1234.ts.net:8810", kind: "tailnet", priority: 100 },
         { url: "http://192.168.1.42:8810", kind: "lan", priority: 200 },
-        { url: "http://openmausbot-aa.local:8810", kind: "bonjour", priority: 300 },
+        { url: "http://hezuo-aa.local:8810", kind: "bonjour", priority: 300 },
       ],
     }, "tailscale");
 
@@ -215,27 +215,27 @@ describe("companionPairingRoute", () => {
   it("uses an advertised Bonjour route when no LAN address is available", () => {
     const route = companionPairingRoute({
       port: 8810,
-      hosts: ["mac.tail1234.ts.net", "openmausbot-aa.local"],
-      discovery: { advertising: true, name: "openmausbot-aa.local" },
+      hosts: ["mac.tail1234.ts.net", "hezuo-aa.local"],
+      discovery: { advertising: true, name: "hezuo-aa.local" },
       endpoints: [
         { url: "https://device.openmausbot.com", kind: "hosted", priority: 0 },
-        { url: "http://openmausbot-aa.local:8810", kind: "bonjour", priority: 300 },
+        { url: "http://hezuo-aa.local:8810", kind: "bonjour", priority: 300 },
       ],
     }, "local");
 
-    expect(route?.address).toBe("openmausbot-aa.local");
-    expect(route?.hosts?.[0]).toBe("openmausbot-aa.local");
+    expect(route?.address).toBe("hezuo-aa.local");
+    expect(route?.hosts?.[0]).toBe("hezuo-aa.local");
     expect(route?.endpoints?.map((endpoint) => endpoint.kind)).toEqual(["bonjour", "hosted"]);
   });
 
   it("does not treat an inactive synthetic Bonjour name as a reachable local route", () => {
     expect(companionPairingRoute({
       port: 8810,
-      hosts: ["mac.tail1234.ts.net", "openmausbot-aa.local"],
-      discovery: { advertising: false, name: "openmausbot-aa.local" },
+      hosts: ["mac.tail1234.ts.net", "hezuo-aa.local"],
+      discovery: { advertising: false, name: "hezuo-aa.local" },
       endpoints: [
         { url: "https://device.openmausbot.com", kind: "hosted", priority: 0 },
-        { url: "http://openmausbot-aa.local:8810", kind: "bonjour", priority: 300 },
+        { url: "http://hezuo-aa.local:8810", kind: "bonjour", priority: 300 },
       ],
     }, "local")).toBeNull();
   });

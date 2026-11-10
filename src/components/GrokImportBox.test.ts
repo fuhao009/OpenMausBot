@@ -60,7 +60,7 @@ describe("From Grok Bot", () => {
 
   it("titles what an export could not carry as Left out in the preview", () => {
     const pending = grokImportPreview({
-      format: "openmaus.grok/1", name: "Overheard", instructions: "Watch for mentions.",
+      format: "hezuo.grok/1", name: "Overheard", instructions: "Watch for mentions.",
       routines: [{ name: "On mention", schedule: "When someone mentions the brand", prompt: "Flag it." }],
     });
     const shown = text(renderToStaticMarkup(createElement(TeamImportDetails, { pending, importedNames: ["Overheard"] })));

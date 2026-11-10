@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { createServer } from "node:net";
 import test from "node:test";
 
-import { installServerSessions, reportOwnListeners, targetsServer } from "./server-session.mjs";
+import { installServerSessions, reportOwnListeners } from "./server-session.mjs";
 
 const SERVER_PORT = 48799;
 
@@ -37,13 +37,13 @@ const request = (session, url) => new Promise((resolve) => session.hooks.request
 test("the app window's own requests to the server carry the owner header on http and WebSocket alike", async () => {
   const { defaultSession, setToken } = install();
   for (const url of [`http://127.0.0.1:${SERVER_PORT}/api/bots`, `ws://127.0.0.1:${SERVER_PORT}/api/desktop-viewer/local/shared/websockify`]) {
-    assert.equal((await sendHeaders(defaultSession, url))["X-OpenMausBot-Desktop-Owner"], "a".repeat(43), url);
+    assert.equal((await sendHeaders(defaultSession, url))["X-Hezuo-Desktop-Owner"], "a".repeat(43), url);
   }
   for (const url of [`http://127.0.0.1:${SERVER_PORT + 1}/`, `https://127.0.0.1:${SERVER_PORT}/`, "https://example.com/", `http://localhost:${SERVER_PORT}/`, "not a url"]) {
-    assert.equal((await sendHeaders(defaultSession, url))["X-OpenMausBot-Desktop-Owner"], undefined, url);
+    assert.equal((await sendHeaders(defaultSession, url))["X-Hezuo-Desktop-Owner"], undefined, url);
   }
   setToken(null);
-  assert.equal((await sendHeaders(defaultSession, `http://127.0.0.1:${SERVER_PORT}/api/bots`))["X-OpenMausBot-Desktop-Owner"], undefined);
+  assert.equal((await sendHeaders(defaultSession, `http://127.0.0.1:${SERVER_PORT}/api/bots`))["X-Hezuo-Desktop-Owner"], undefined);
 });
 
 test("no session but the app window's may reach the server, in any spelling of this machine", async () => {
@@ -72,14 +72,14 @@ test("switching account partitions revokes the old owner and unblocks the new ow
   assert.equal(second.hooks.request, null);
   assert.equal(first.hooks.headers, null);
   assert.equal(await request(first, `http://127.0.0.1:${SERVER_PORT}/`), true);
-  assert.equal((await sendHeaders(second, `http://127.0.0.1:${SERVER_PORT}/`))["X-OpenMausBot-Desktop-Owner"], "second");
+  assert.equal((await sendHeaders(second, `http://127.0.0.1:${SERVER_PORT}/`))["X-Hezuo-Desktop-Owner"], "second");
   assert.equal(app.listenerCount("session-created"), 1);
 });
 
 test("the server hears about every port this app listens on, and about new ones as they open", async () => {
   const messages = [];
   reportOwnListeners({ postMessage: (message) => messages.push(message) }, [8810]);
-  assert.equal(messages.at(-1).type, "openmausbot:own-listeners");
+  assert.equal(messages.at(-1).type, "hezuo:own-listeners");
   assert.ok(messages.at(-1).ports.includes(8810));
   const server = createServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));

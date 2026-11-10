@@ -6,14 +6,14 @@ import test from "node:test";
 import { installProductAccountIpc } from "./product-account-ipc.mjs";
 import { createProductAccountWindow, normalizeAccountDocumentUrl, normalizeLocalDocumentUrl } from "./product-account-window.mjs";
 
-const ACCOUNT_URL = "file:///Applications/OpenMausBot.app/Contents/Resources/ui/product-account.html";
+const ACCOUNT_URL = "file:///Applications/Hezuo.app/Contents/Resources/ui/product-account.html";
 const OTHER_ACCOUNT_URL = "file:///Users/person/Downloads/product-account.html";
 const WORKSPACE_URL = "http://127.0.0.1:8799/";
 
-const model = (id = "maus-default") => ({ id, label: id, protocol: "chat", pricingVersion: "v1",
+const model = (id = "hezuo-default") => ({ id, label: id, protocol: "chat", pricingVersion: "v1",
   inputMicroPointsPerMillion: 2_000_000, cachedInputMicroPointsPerMillion: 500_000, outputMicroPointsPerMillion: 4_000_000,
   maxContextTokens: 1000, maxOutputTokens: 100 });
-const status = () => ({ state: "ready", unit: "points", availableMicroPoints: 3000, reservedMicroPoints: 0, defaultModel: "maus-default", models: [model()] });
+const status = () => ({ state: "ready", unit: "points", availableMicroPoints: 3000, reservedMicroPoints: 0, defaultModel: "hezuo-default", models: [model()] });
 const accountState = () => ({ auth: "signed_in", runtime: "ready", user: { id: "user-1", email: "person@example.test" }, ai: status() });
 
 function fakeWindow(url) {
@@ -52,7 +52,7 @@ function service(overrides = {}) {
     requestCode: async email => { calls.push(["requestCode", email]); return { auth: "signing_in", runtime: "stopped", user: { id: "user-1", email } }; },
     verifyCode: async (email, code) => { calls.push(["verifyCode", email, code]); return accountState(); },
     refresh: async () => { calls.push(["refresh"]); return accountState(); },
-    ledger: async cursor => { calls.push(["ledger", cursor]); return { items: [{ id: "r1", kind: "request", createdAt: 5, model: "maus-default", state: "settled", chargedMicroPoints: 2100, prompt: "private words", accountToken: "secret" }], nextCursor: null }; },
+    ledger: async cursor => { calls.push(["ledger", cursor]); return { items: [{ id: "r1", kind: "request", createdAt: 5, model: "hezuo-default", state: "settled", chargedMicroPoints: 2100, prompt: "private words", accountToken: "secret" }], nextCursor: null }; },
     signOut: async () => { calls.push(["signOut"]); return { auth: "signed_out", runtime: "stopped" }; },
     methods: async () => { calls.push(["methods"]); return { auth: "signed_out", runtime: "stopped", authMethods: { password: { enabled: true, minLength: 10, maxLength: 128 }, emailCode: { enabled: true }, emailVerification: "required" } }; },
     signInWithPassword: async (email, password) => { calls.push(["signInWithPassword", email, password]); return accountState(); },
@@ -118,7 +118,7 @@ test("the account page's exact top frame alone reaches the service", async () =>
   await handlers.get("product-account:verify-code")(eventFor(account), "person@example.test", " 12345678 ");
   await handlers.get("product-account:refresh")(eventFor(account));
   assert.deepEqual(await handlers.get("product-account:ledger")(eventFor(account), "abc_DEF-123"),
-    { items: [{ id: "r1", kind: "request", createdAt: 5, model: "maus-default", state: "settled", chargedMicroPoints: 2100 }], nextCursor: null });
+    { items: [{ id: "r1", kind: "request", createdAt: 5, model: "hezuo-default", state: "settled", chargedMicroPoints: 2100 }], nextCursor: null });
   await handlers.get("product-account:sign-out")(eventFor(account));
   assert.deepEqual(calls, [["state"], ["requestCode", "person@example.test"], ["verifyCode", "person@example.test", "12345678"], ["refresh"], ["ledger", "abc_DEF-123"], ["signOut"]]);
 });

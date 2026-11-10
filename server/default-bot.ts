@@ -9,11 +9,11 @@ import { serverLine } from "./server-lines.ts";
 
 export type DefaultBotStore = Pick<Store, "bots" | "bot" | "createBot" | "patchBot" | "appendMessage" | "messagesFor" | "createTask" | "setChiefOfStaff">;
 
-/** Where each place (key "") and Team Cloud member (their email) is recorded as having had its MausBot, so one that is
+/** Where each place (key "") and Team Cloud member (their email) is recorded as having had its Hezuo, so one that is
  * gone is never made twice. */
 const LEDGER = "default-bot.json";
 
-/** The colour a new install gave its MausBot before Chrome, which an adopted MausBot trades for Chrome. */
+/** The colour a new install gave its Hezuo before Chrome, which an adopted Hezuo trades for Chrome. */
 const STARTER_COLOR = "silver";
 
 export const HELPER_ASKS = ["What are my bots up to?", "Set up a bot for my inbox", "Make me a morning routine", "How do I connect my email?"];
@@ -25,7 +25,7 @@ export function defaultBotRefusal(name: string): string {
 /** Why a PATCH may not change this bot so, or null. */
 export function defaultBotPatchRefusal(bot: BotRecord | null, body: Record<string, unknown>): string | null {
   for (const key of ["sidebarHidden", "welcomed"]) if (body[key] !== undefined && typeof body[key] !== "boolean") return `${key} must be true or false`;
-  if ((body.sidebarHidden !== undefined || body.welcomed !== undefined) && !bot?.defaultBot) return "Only MausBot is hidden this way; archive or delete other bots.";
+  if ((body.sidebarHidden !== undefined || body.welcomed !== undefined) && !bot?.defaultBot) return "Only Hezuo is hidden this way; archive or delete other bots.";
   return body.hidden === true && bot?.defaultBot ? defaultBotRefusal(bot.name) : null;
 }
 
@@ -33,7 +33,7 @@ export function ownsDefaultBot(bot: BotRecord | null | undefined, email: string 
   return Boolean(email && bot?.defaultBot && defaultBotPerson(bot) === email.trim().toLowerCase());
 }
 
-/** The English intro: who MausBot is, what it does here, and that it is looking around (its follow-up comes after, from
+/** The English intro: who Hezuo is, what it does here, and that it is looking around (its follow-up comes after, from
  * helper-followup.ts). Clients that know `helperIntro` say it in the viewer's own language. */
 export function helperIntroMessage(bot: Pick<BotRecord, "name" | "chiefOfStaff">, team?: string | null): Omit<Message, "id" | "at"> {
   const title = bot.chiefOfStaff ? `Hey! I'm ${bot.name}. I'm new here.` : `Hi! I'm ${bot.name}, your helper for everything here.`;
@@ -66,7 +66,7 @@ function remember(dataDir: string, person: string, botId: string): void {
   writeFileAtomic(join(dataDir, LEDGER), JSON.stringify({ v: 1, places: { ...places, [person]: botId } }), { mode: 0o600 });
 }
 
-/** A member who left: should they join again, they are given a MausBot of their own again. */
+/** A member who left: should they join again, they are given a Hezuo of their own again. */
 export function forgetDefaultBot(dataDir: string, person: string): void {
   const places = ledger(dataDir);
   if (!person || !Object.hasOwn(places, person)) return;
@@ -74,12 +74,13 @@ export function forgetDefaultBot(dataDir: string, person: string): void {
   writeFileAtomic(join(dataDir, LEDGER), JSON.stringify({ v: 1, places }), { mode: 0o600 });
 }
 
-/** A new install's own MausBot from before it was marked: the place's oldest bot, still live, outside any department,
- * not installed from a package, and still named MausBot or still in the colour a new install gave it. */
-export function seededMausBot(bots: readonly BotRecord[]): BotRecord | undefined {
+/** A new install's own Hezuo from before it was marked: the place's oldest bot, still live, outside any department,
+ * not installed from a package, and still named Hezuo or still in the colour a new install gave it. */
+export function seededHezuo(bots: readonly BotRecord[]): BotRecord | undefined {
   const oldest = bots.reduce<BotRecord | undefined>((first, bot) => !first || bot.createdAt < first.createdAt ? bot : first, undefined);
   if (!oldest || oldest.hidden || oldest.movedTo || oldest.section?.trim() || oldest.installedPackage) return undefined;
-  return oldest.name === DEFAULT_BOT_NAME || oldest.color === STARTER_COLOR ? oldest : undefined;
+  // Historical seeded helpers retain their persisted id and Chief assignment across the rename.
+  return oldest.name === DEFAULT_BOT_NAME || oldest.name === "MausBot" || oldest.color === STARTER_COLOR ? oldest : undefined;
 }
 
 /** Puts the intro where its person sees it next: in its open conversation while nobody has written there, else at the
@@ -90,19 +91,19 @@ function introduce(store: DefaultBotStore, bot: BotRecord, team?: string | null,
   if (threadId) store.appendMessage(threadId, intro?.(bot) ?? helperIntroMessage(bot, team));
 }
 
-/** The first message a new MausBot says instead of its intro. */
+/** The first message a new Hezuo says instead of its intro. */
 export type DefaultBotIntro = (bot: BotRecord) => Omit<Message, "id" | "at">;
 
 export function productWelcomeText(language?: string): string {
   return serverLine(language, "server.product.welcome");
 }
 
-/** The intro a product-managed workspace gives its MausBot; it never triggers helper-followup.ts. */
+/** The intro a product-managed workspace gives its Hezuo; it never triggers helper-followup.ts. */
 export function productWelcomeMessage(language?: string): Omit<Message, "id" | "at"> {
   return { role: "bot", kind: "text", text: productWelcomeText(language) };
 }
 
-/** A new MausBot, with its intro as its first message. On a Team Cloud it is its member's alone. */
+/** A new Hezuo, with its intro as its first message. On a Team Cloud it is its member's alone. */
 export function createDefaultBot(store: DefaultBotStore, options: { person?: string; team?: string | null; chief?: (id: string) => void; intro?: DefaultBotIntro } = {}): BotRecord {
   const person = options.person?.trim().toLowerCase() ?? "";
   const taken = new Set(person ? [] : store.bots.map((bot) => bot.name.trim().toLowerCase()));
@@ -117,9 +118,9 @@ export function createDefaultBot(store: DefaultBotStore, options: { person?: str
   return bot;
 }
 
-/** Makes sure this place (no `person`) or this Team Cloud member has had its MausBot once: the one it has, the new
- * install's own adopted, or a new one. A MausBot that is gone is never made again. Two marked ones keep the oldest. A
- * place with no Chief of Staff at all gets MausBot as its Chief, so someone keeps an eye on the day; one that has a
+/** Makes sure this place (no `person`) or this Team Cloud member has had its Hezuo once: the one it has, the new
+ * install's own adopted, or a new one. A Hezuo that is gone is never made again. Two marked ones keep the oldest. A
+ * place with no Chief of Staff at all gets Hezuo as its Chief, so someone keeps an eye on the day; one that has a
  * Chief keeps it. `chief: false` opts out of making it the place's Chief (a product workspace starts with one ordinary
  * bot); existing callers keep the default. */
 export function ensureDefaultBot(store: DefaultBotStore, options: { dataDir: string; person?: string; team?: string | null; intro?: DefaultBotIntro; chief?: boolean }): BotRecord | null {
@@ -132,7 +133,7 @@ export function ensureDefaultBot(store: DefaultBotStore, options: { dataDir: str
     return marked[0];
   }
   if (Object.hasOwn(ledger(options.dataDir), person)) return null;
-  const adoptable = person ? undefined : seededMausBot(store.bots);
+  const adoptable = person ? undefined : seededHezuo(store.bots);
   const chief = options.chief !== false && !person && !store.bots.some((bot) => bot.chiefOfStaff && !bot.hidden)
     ? (id: string) => store.setChiefOfStaff(id) : undefined;
   let bot: BotRecord;
@@ -147,7 +148,7 @@ export function ensureDefaultBot(store: DefaultBotStore, options: { dataDir: str
   return bot;
 }
 
-/** A move brought this place's MausBot from another computer: it becomes the one MausBot here, and the one this place
+/** A move brought this place's Hezuo from another computer: it becomes the one Hezuo here, and the one this place
  * had becomes an ordinary bot (retireUnusedStarter archives it when nobody used it). */
 export function takeArrivingDefaultBot(store: Pick<Store, "bots" | "patchBot">, id: string): void {
   const arriving = store.bots.find((bot) => bot.id === id);
@@ -158,8 +159,8 @@ export function takeArrivingDefaultBot(store: Pick<Store, "bots" | "patchBot">, 
   if (!arriving.defaultBot || defaultBotPerson(arriving)) store.patchBot(id, { defaultBot: {} });
 }
 
-/** After a bot arrives by a move: the MausBot this place made for itself (by id, from the ledger), once it is neither
- * the MausBot nor the Chief and nobody has used it, is archived, so the move leaves one MausBot and nothing of the
+/** After a bot arrives by a move: the Hezuo this place made for itself (by id, from the ledger), once it is neither
+ * the Hezuo nor the Chief and nobody has used it, is archived, so the move leaves one Hezuo and nothing of the
  * person's is lost. */
 export function retireUnusedStarter(store: Pick<Store, "bot" | "patchBot" | "messagesFor">, dataDir: string): void {
   const own = ledger(dataDir)[""];

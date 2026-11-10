@@ -60,7 +60,7 @@ it("shows a teammate's line in a shared chat as theirs, with their name, and onl
   expect(own.querySelector("[data-chat-bubble]")!.className).toContain("user-bubble-colored");
 });
 
-it("says a member's own MausBot is theirs, not everyone's", () => {
+it("says a member's own Hezuo is theirs, not everyone's", () => {
   draw(luna([], { defaultBot: { person: "ada@acme.test" } } as Partial<Bot>));
   expect(container.textContent).not.toContain(t("team.sharedHeader", { team: "Acme" }));
   expect(container.textContent).toContain(t("team.ownHelperHeader"));

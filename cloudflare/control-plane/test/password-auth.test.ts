@@ -6,10 +6,10 @@ import { createAuth, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "../src/aut
 import { readAuthConfig } from "../src/config";
 import worker from "../src/index";
 
-const BASE_URL = "https://auth.openmausbot.test";
+const BASE_URL = "https://auth.hezuo.test";
 const PASSWORD = "correct horse battery staple";
 /** The fixture deployment carries a sender and the suite's `EMAIL` binding. */
-const MAIL = { EMAIL_FROM: "noreply@openmausbot.test", AUTH_EMAIL_VERIFICATION: "required" };
+const MAIL = { EMAIL_FROM: "noreply@hezuo.test", AUTH_EMAIL_VERIFICATION: "required" };
 
 /** A deployment with no mail transport at all: the verification toggle must be
  * off (no sender, no EMAIL binding) or the Worker refuses to start. */
@@ -189,7 +189,7 @@ describe("password accounts", () => {
 
     const message = mail.captured.at(-1);
     expect(message?.to).toBe(email);
-    expect(message?.from.email).toBe("noreply@openmausbot.test");
+    expect(message?.from.email).toBe("noreply@hezuo.test");
     const code = message?.text.match(/\b\d{8}\b/)?.[0] ?? "";
     expect(code).toMatch(/^\d{8}$/);
     expect(message?.html).toContain(code);

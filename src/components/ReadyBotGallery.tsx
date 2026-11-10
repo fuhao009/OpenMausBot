@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Plus } from "lucide-react";
-import { MausAvatar } from "./Avatar";
+import { HezuoAvatar } from "./Avatar";
 import { NewBotDialog } from "./lazy-screens";
 import { READY_BOT_CATEGORIES, READY_BOTS, matchesReadyBot, type ReadyBotCategory } from "@/lib/ready-bots";
 import { cn } from "@/lib/cn";
@@ -51,7 +51,7 @@ export function ReadyBotGallery({ search, onDialog, onAdded }: {
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
       {visible.map((bot) => <article key={bot.id} data-ready-bot={bot.id} className="flex flex-col rounded-2xl border border-hairline/40 bg-card p-4">
         <div className="flex items-center gap-3">
-          <MausAvatar color={bot.look.color} bodyId={bot.look.mascotBody} size={40} animated={false} label={bot.name} />
+          <HezuoAvatar color={bot.look.color} bodyId={bot.look.mascotBody} size={40} animated={false} label={bot.name} />
           <div className="min-w-0 flex-1">
             <h4 className="truncate text-[14px] font-medium text-ink">{bot.name}</h4>
             <p className="truncate text-[12px] text-ink-secondary">{bot.title} · {t(CATEGORY_KEYS[bot.category])}</p>

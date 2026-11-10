@@ -138,7 +138,7 @@ it("keeps the bot's own engine on the cloud computer, and a failed place never b
     expect(sent.argv[sent.argv.indexOf("--allowedTools") + 1].split(",")).toContain("mcp__computer");
     const client = mcpClient(computer);
     try {
-      expect((await client.request("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "fixture", version: "1" } })).result.serverInfo.name).toBe("openmausbot-computer");
+      expect((await client.request("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "fixture", version: "1" } })).result.serverInfo.name).toBe("hezuo-computer");
       expect((await client.request("tools/list")).result.tools).toHaveLength(10);
       const shot = await client.request("tools/call", { name: "screenshot", arguments: {} });
       expect(shot.result.content[0]).toMatchObject({ type: "image", mimeType: "image/jpeg" });

@@ -16,7 +16,7 @@ The rail's sheets cover the window while open. Its circles are small and named
 on hover; the place on screen wears a ring. Beside the rail the sidebar's
 switcher and the profile menu's Switch to… step aside. The person can hide the
 rail; the page then has the whole window, and those two come back.
-Nothing here needs a real MausBot Cloud account, a payment or the Electron app.
+Nothing here needs a real Hezuo Cloud account, a payment or the Electron app.
 
 ## Contract
 

@@ -1,7 +1,6 @@
-// Asking before a bot uses the person's own computer. "Just do it" covers what a bot does in its own places (its
-// browser, a cloud desktop, its files), never taking over the person's screen: when a turn reaches this computer without
-// the person having picked it as the place, its first screen call waits on one plain card, Allow once or Deny, at every
-// approval level. The answer covers that turn only. Pending asks live in memory; a card left by a previous run is closed.
+// Screen-consent cards for the person's own computer. The workspace/device policy decides whether this card is needed;
+// Always allow skips only this question, never action review or OS permissions. Ask keeps consent within one turn.
+// Pending asks live in memory; a card left by a previous run is closed, never silently granted.
 import { newId } from "./contracts.ts";
 import { optionCardsForTools } from "./message-db.ts";
 import { buildNotification, type Notification } from "./notify.ts";
@@ -21,7 +20,7 @@ export interface YourComputerBus {
 }
 
 export const YOUR_COMPUTER_WAITING =
-  "OpenMausBot is asking the person whether you may use their own computer, and they have not answered yet, so this call was NOT performed and nothing happened on their screen. Do not ask them again in chat: the question is already in front of them. To keep waiting, take a screenshot (each call waits up to 45 seconds); meanwhile you may work on anything that does not need their computer.";
+  "Hezuo is asking the person whether you may use their own computer, and they have not answered yet, so this call was NOT performed and nothing happened on their screen. Do not ask them again in chat: the question is already in front of them. To keep waiting, take a screenshot (each call waits up to 45 seconds); meanwhile you may work on anything that does not need their computer.";
 
 /** The claim fails with this, so the turn is told why without a failed-turn row: the person chose, nothing broke. */
 export const YOUR_COMPUTER_DECLINED =
@@ -128,6 +127,16 @@ export function cancelYourComputerAsks(threadId: string, generation?: string): v
     pending.delete(requestId);
     settle(entry, "deny", "system");
     entry.resolve(false, YOUR_COMPUTER_ENDED);
+  }
+}
+
+/** Revocation only closes our live asks; never answers an unknown persisted request. */
+export function cancelWorkspaceYourComputerAsks(store: Store): void {
+  for (const [requestId, entry] of pending) {
+    if (entry.store !== store) continue;
+    pending.delete(requestId);
+    settle(entry, "deny", "system");
+    entry.resolve(false, "Computer permission changed in Settings; this pending call was not performed.");
   }
 }
 

@@ -61,7 +61,7 @@ describe("the fixture's X research relay", () => {
 });
 
 describe("the fixture's @devs reports", () => {
-  it("go to a loopback fake endpoint, else to a closed port: never to the MausBot team", () => {
+  it("go to a loopback fake endpoint, else to a closed port: never to the Hezuo team", () => {
     const closed = "http://127.0.0.1:9/api/bug-reports";
     expect(childEnv({ OMB_BUG_REPORT_URL: " http://127.0.0.1:4400/api/bug-reports " }).OMB_BUG_REPORT_URL).toBe("http://127.0.0.1:4400/api/bug-reports");
     for (const url of ["https://cloud.openmausbot.com/api/bug-reports", "http://localhost:4400/api/bug-reports", "http://192.0.2.1:4400/x", "http://127.0.0.1:4400/../x?y", ""]) {

@@ -42,7 +42,7 @@ describe("Share team", () => {
   it("shows exactly what the file holds, what never travels, and what was removed or left out", () => {
     const document = parsePackageDocument(fixture());
     const preview: ShareResponse = {
-      document, filename: "sales-desk-1.3.0.openmaus.json", summary: packageSummary(document), choices: { skills: [] },
+      document, filename: "sales-desk-1.3.0.hezuo.json", summary: packageSummary(document), choices: { skills: [] },
       redacted: ["agents[scout].soul"],
       skipped: [{ part: "connections[local-tool]", reason: "stdio_server" }, { part: "routines[daily-digest].attachments", reason: "files_not_shared" }],
     };
@@ -86,8 +86,8 @@ describe("Share team", () => {
     vi.stubGlobal("window", { document: { createElement: () => link, body: { appendChild: vi.fn() } }, setTimeout: vi.fn() });
     vi.spyOn(URL, "createObjectURL").mockImplementation((blob) => { saved = blob as Blob; return "blob:share"; });
     const document = parsePackageDocument(fixture());
-    saveShareFile("sales-desk-1.3.0.openmaus.json", document);
-    expect(clicks).toEqual([{ href: "blob:share", download: "sales-desk-1.3.0.openmaus.json" }]);
+    saveShareFile("sales-desk-1.3.0.hezuo.json", document);
+    expect(clicks).toEqual([{ href: "blob:share", download: "sales-desk-1.3.0.hezuo.json" }]);
     expect(parsePackageDocument(JSON.parse(await saved!.text()))).toEqual(document);
   });
 });

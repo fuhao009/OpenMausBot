@@ -103,7 +103,8 @@ export const DEFAULT_MAX_PENDING_RUNS = 3;
 export const MAX_PENDING_RUNS_LIMIT = 50;
 const maxPendingRunsSchema = z.number().int().min(1).max(MAX_PENDING_RUNS_LIMIT);
 
-const runOnSchema = z.enum(["maus", "cloud"]);
+// Persisted pre-Hezuo webhooks retain their execution target when read.
+const runOnSchema = z.preprocess((value) => value === "maus" ? "hezuo" : value, z.enum(["hezuo", "cloud"]));
 const deliverySchema = z.enum(["run", "post"]);
 const eventTypesSchema = z.array(z.string()).max(20).optional();
 const triggerInputSchema = z.object({
@@ -217,10 +218,10 @@ function cleanInput(input: WebhookTriggerInput): CleanWebhookInput {
   const name = input.name.trim().slice(0, 80);
   const prompt = input.prompt.trim().slice(0, 20_000);
   const botId = input.botId.trim();
-  const runOn = input.runOn ?? "maus";
+  const runOn = input.runOn ?? "hezuo";
   if (!name) fail(400, "Give the webhook a name");
-  if (!botId) fail(400, "Choose a MAUS");
-  if (runOn !== "maus" && runOn !== "cloud") fail(400, "Choose where this webhook runs");
+  if (!botId) fail(400, "Choose a HEZUO");
+  if (runOn !== "hezuo" && runOn !== "cloud") fail(400, "Choose where this webhook runs");
   const eventTypes = Array.from(new Set(
     (input.eventTypes ?? [])
       .map((value) => value.trim().slice(0, 200))
@@ -273,7 +274,7 @@ function serializePayload(payload: JsonValue): string {
     }
   }
   if (text.length <= MAX_EVENT_CHARS) return text;
-  return `${text.slice(0, MAX_EVENT_CHARS)}\n\n[Payload truncated by OpenMausBot]`;
+  return `${text.slice(0, MAX_EVENT_CHARS)}\n\n[Payload truncated by Hezuo]`;
 }
 
 function previewPayload(payload: JsonValue): string {
@@ -410,7 +411,7 @@ export class WebhookManager {
   create(input: JsonValue): CreatedWebhook {
     this.assertWritable();
     const clean = cleanInput(parseTriggerInput(input));
-    if (this.options.botState(clean.botId) === "missing") fail(400, "That MAUS no longer exists");
+    if (this.options.botState(clean.botId) === "missing") fail(400, "That HEZUO no longer exists");
     if (clean.groupId) this.assertRoomMember(clean.botId, clean.groupId);
     const now = this.now();
     const secret = newSecret();
@@ -473,7 +474,7 @@ export class WebhookManager {
       eventTypes: patch.eventTypes ?? trigger.eventTypes,
       maxPendingRuns: patch.maxPendingRuns === undefined ? trigger.maxPendingRuns : patch.maxPendingRuns,
     });
-    if (this.options.botState(clean.botId) === "missing") fail(400, "That MAUS no longer exists");
+    if (this.options.botState(clean.botId) === "missing") fail(400, "That HEZUO no longer exists");
     if (clean.groupId) this.assertRoomMember(clean.botId, clean.groupId);
     Object.assign(trigger, clean, { updatedAt: this.now() });
     if (!clean.eventTypes?.length) delete trigger.eventTypes;
@@ -555,7 +556,7 @@ export class WebhookManager {
     this.deliveries = this.deliveries.filter((delivery) => !endpoints.some((prefix) => delivery.key.startsWith(prefix)));
     for (const trigger of gone) {
       this.rate.delete(trigger.endpointId);
-      this.options.cancelQueued?.(trigger.id, "The assigned MAUS was deleted");
+      this.options.cancelQueued?.(trigger.id, "The assigned HEZUO was deleted");
     }
     this.save();
     for (const trigger of gone) this.options.emit?.({ kind: "webhook.deleted", webhookId: trigger.id });
@@ -594,18 +595,18 @@ export class WebhookManager {
     this.recordRejectedForTrigger(trigger, status, error instanceof Error ? error.message : String(error), event);
   }
 
-  test(id: string, payload: JsonValue = { event: "openmaus.test", message: "Test webhook delivery" }): WebhookReceiveResult | null {
+  test(id: string, payload: JsonValue = { event: "hezuo.test", message: "Test webhook delivery" }): WebhookReceiveResult | null {
     const trigger = this.webhooks.find((candidate) => candidate.id === id);
     if (!trigger) return null;
     // A room delivery synthesizes voice and stores images asynchronously; the test route stays synchronous.
     if (trigger.delivery === "post" && trigger.groupId) fail(400, "a room webhook posts through its webhook URL, not the test button");
-    const eventName = trigger.eventTypes?.[0] ?? "openmaus.test";
+    const eventName = trigger.eventTypes?.[0] ?? "hezuo.test";
     // Run now is the person's own test: like a schedule's, it runs while paused.
     return this.dispatch(trigger, {
       payload,
       contentType: "application/json",
       eventName,
-      userAgent: "OpenMausBot webhook tester",
+      userAgent: "Hezuo webhook tester",
       deliveryId: `test-${randomUUID()}`,
     }, true);
   }
@@ -620,7 +621,7 @@ export class WebhookManager {
    *  An ignored or duplicate event comes back as its finished receipt. */
   private admit(trigger: StoredWebhookTrigger, event: WebhookEvent, byPerson: boolean, now: number): { deliveryId: string } | { receipt: WebhookReceiveResult } {
     if (!trigger.enabled && !byPerson) fail(409, "This webhook is paused");
-    if (this.options.botState(trigger.botId) === "missing") fail(410, "The assigned MAUS no longer exists");
+    if (this.options.botState(trigger.botId) === "missing") fail(410, "The assigned HEZUO no longer exists");
 
     const allowed = trigger.eventTypes ?? [];
     if (allowed.length > 0 && (!event.eventName || !allowed.includes(event.eventName))) {
@@ -808,7 +809,7 @@ export class WebhookManager {
       outcome: "captured",
       statusCode: 202,
       deliveryId,
-      reason: "Test event captured; enable the webhook to start MAUS tasks",
+      reason: "Test event captured; enable the webhook to start HEZUO tasks",
     });
     this.save();
     this.emit(trigger);

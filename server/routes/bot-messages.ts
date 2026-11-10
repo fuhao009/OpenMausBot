@@ -424,8 +424,8 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
     m = path.match(/^\/api\/bots\/([\w-]+)\/helper-followup$/);
     if (m && method === "POST") {
       const bot = store.bot(m[1]!);
-      if (!bot?.defaultBot || bot.hidden) return json(res, 404, { error: "no such MausBot" });
-      if (!mayFollowUp(bot, auth)) return json(res, 403, { error: "only MausBot's own person can do this" });
+      if (!bot?.defaultBot || bot.hidden) return json(res, 404, { error: "no such Hezuo" });
+      if (!mayFollowUp(bot, auth)) return json(res, 403, { error: "only Hezuo's own person can do this" });
       const parsed = helperFollowupBody.safeParse(await readBody(req));
       if (!parsed.success) return json(res, 400, { error: "body must be { ai, apps?, threadId? }" });
       const threadId = parsed.data.threadId ?? bot.threadId;

@@ -15,7 +15,7 @@ type Decision = "card-shown" | "user-approved" | "user-denied";
 
 const MCP_CARD_PROPOSED = "A card is now visible to the person. End this turn and wait for the decision.";
 export const MCP_KEY_EXPIRED = "The key expired. Ask for it again with request_credential.";
-const RESTARTED = "OpenMausBot restarted, so this request expired. Ask again if you still need it.";
+const RESTARTED = "Hezuo restarted, so this request expired. Ask again if you still need it.";
 
 /** The negative option is "Cancel": phones send deny only for Deny, Cancel, Dismiss or Skip. */
 const CARDS: Record<McpCardAction, { title: ServerLineKey; option: string; denied: (name: string) => string }> = {
@@ -33,7 +33,7 @@ const FRAMED: Record<McpChangeResult["state"], (text: string) => string> = {
 
 export function mcpDecisionText(request: McpChangeRequest): string {
   const result = request.result;
-  return `OpenMausBot MCP server decision ${request.requestId}: ${result ? FRAMED[result.state](result.text) : "not answered yet."}`;
+  return `Hezuo MCP server decision ${request.requestId}: ${result ? FRAMED[result.state](result.text) : "not answered yet."}`;
 }
 
 type CardLine = { id: string; card?: OptionCardData };
@@ -92,11 +92,11 @@ export class McpRequestService {
     if (!message || !card || !request) return null;
     if (request.botId !== args.botId || request.threadId !== args.threadId) return { status: 403, body: { error: "This card belongs to another conversation." } };
     if (args.behavior !== "allow" && args.behavior !== "deny") return { status: 400, body: { error: `Answer with ${card.options.join(" or ")}.` } };
-    if (args.behavior === "allow" && !ownerReview) {
+    const duplicate = Boolean(card.answered || card.dismissed || card.expired);
+    if (!duplicate && args.behavior === "allow" && !ownerReview) {
       return { status: 403, body: { error: this.options.teamCloud ? "Ask a workspace admin to approve this."
         : "Approve MCP server changes from the desktop app or a paired Full-access device. In a local browser, wait until every bot is idle." } };
     }
-    const duplicate = Boolean(card.answered || card.dismissed || card.expired);
     let settled = request;
     if (!duplicate) {
       if (this.resolving.has(request.requestId)) return { status: 409, body: { error: "This change is already being applied." } };

@@ -98,7 +98,7 @@ async function managed(input: {
     instanceId: "product-ai", displayName: "Product", enabled: true,
     environment: input.environment ?? {},
     config: OpenAICompatDriver.decodeConfig({
-      url: input.url, apiKeyEnv: "OPENMAUSBOT_PRODUCT_AI_TOKEN", provider: "", model: "product-model",
+      url: input.url, apiKeyEnv: "HEZUO_PRODUCT_AI_TOKEN", provider: "", model: "product-model",
       ...(input.modelProtocols ? { modelProtocols: input.modelProtocols } : {}),
     }),
     requestCredential: input.credential,
@@ -142,10 +142,10 @@ describe("a managed credential is read per request", () => {
   });
 
   it("refuses a turn on the getter's own words, without a request and without falling back to an environment key", async () => {
-    vi.stubEnv("OPENMAUSBOT_PRODUCT_AI_TOKEN", "stray-environment-key");
+    vi.stubEnv("HEZUO_PRODUCT_AI_TOKEN", "stray-environment-key");
     const f = await upstream(chatOnce("must not run"));
     const instance = await managed({
-      url: f.url, environment: { OPENMAUSBOT_PRODUCT_AI_TOKEN: "stray-instance-key" },
+      url: f.url, environment: { HEZUO_PRODUCT_AI_TOKEN: "stray-instance-key" },
       credential: () => { throw new Error("Your account AI access has expired. Refresh your account status."); },
     });
     await expect(instance.adapter.sendTurn({ threadId: "refused", text: "hi" })).rejects.toThrow("account AI access has expired");
@@ -155,7 +155,7 @@ describe("a managed credential is read per request", () => {
 
   it("treats an empty getter answer as a refusal, never as a reason to read the static key", async () => {
     const f = await upstream(chatOnce("must not run"));
-    const instance = await managed({ url: f.url, environment: { OPENMAUSBOT_PRODUCT_AI_TOKEN: "stray-instance-key" }, credential: () => ({ apiKey: "", expiresAt: 0 }) });
+    const instance = await managed({ url: f.url, environment: { HEZUO_PRODUCT_AI_TOKEN: "stray-instance-key" }, credential: () => ({ apiKey: "", expiresAt: 0 }) });
     await expect(instance.generateText!("helper")).rejects.toThrow(/account's AI access is not available/);
     expect(f.calls).toEqual([]);
   });
@@ -178,8 +178,8 @@ const REFUSAL_TOOLS_NEED_RESPONSES = JSON.stringify({ error: { message: "Functio
 
 describe("a managed credential and the liveness probe", () => {
   it("sends the current token with every probe, so a renewal reaches the probe too", async () => {
-    vi.stubEnv("OPENMAUS_OPENAI_COMPAT_PROBE_MS", "120");
-    vi.stubEnv("OPENMAUS_OPENAI_COMPAT_IDLE_TIMEOUT_MS", "60000");
+    vi.stubEnv("HEZUO_OPENAI_COMPAT_PROBE_MS", "120");
+    vi.stubEnv("HEZUO_OPENAI_COMPAT_IDLE_TIMEOUT_MS", "60000");
     const probes: Array<string | undefined> = [];
     const server: Server = createServer((request, response) => {
       if (request.method === "GET" && request.url === "/v1/models") {
@@ -213,8 +213,8 @@ describe("a managed credential and the liveness probe", () => {
   }, 20_000);
 
   it("stops a stalled reply when the getter refuses the probe's token", async () => {
-    vi.stubEnv("OPENMAUS_OPENAI_COMPAT_PROBE_MS", "80");
-    vi.stubEnv("OPENMAUS_OPENAI_COMPAT_IDLE_TIMEOUT_MS", "60000");
+    vi.stubEnv("HEZUO_OPENAI_COMPAT_PROBE_MS", "80");
+    vi.stubEnv("HEZUO_OPENAI_COMPAT_IDLE_TIMEOUT_MS", "60000");
     const server: Server = createServer((request, response) => {
       if (request.method === "GET" && request.url === "/v1/models") {
         response.writeHead(200, { "content-type": "application/json" });

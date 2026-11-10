@@ -312,7 +312,7 @@ function emitSwift(): string {
 // from \`scripts/gen-halloween-bodies.ts\`.
 //
 // Paths are absolute \`M\`, \`C\`, \`Z\` only, in a 240-unit square centred on x = 120, with
-// newlines as separators — what \`MausSilhouette.parse\` reads.
+// newlines as separators — what \`HezuoSilhouette.parse\` reads.
 import CoreGraphics
 
 enum HalloweenBodies {
@@ -395,7 +395,7 @@ function emitKotlin(): string {
  * from \`scripts/gen-halloween-bodies.ts\`.
  *
  * Paths are absolute \`M\`, \`C\`, \`Z\` only, in a 240-unit square centred on x = 120, with
- * newlines as separators — what [MausSilhouette] parses.
+ * newlines as separators — what [HezuoSilhouette] parses.
  */
 internal object HalloweenBodies {
     data class Eyes(

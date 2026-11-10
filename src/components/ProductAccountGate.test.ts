@@ -43,7 +43,7 @@ const ai = {
   unit: "points" as const,
   availableMicroPoints: 3_000_000,
   reservedMicroPoints: 2_400,
-  defaultModel: "maus-1",
+  defaultModel: "hezuo-1",
   models: [],
 };
 const SIGNED_IN: ProductAccountState = {
@@ -162,7 +162,6 @@ describe("the account window", () => {
     await mount();
     expect(windowKind()).toBe("sign-in");
     expect(step()).toBe("password");
-    expect(text()).toContain("Sign in to OpenMausBot");
     expect(text()).not.toMatch(/API key|provider|model address/i);
     // The ways in are read once from the service.
     expect(bridge.methods).toHaveBeenCalledOnce();

@@ -44,7 +44,7 @@ it("shares New bot defaults as a preset, imports it, and creates bots from file 
     expect(existsSync(published)).toBe(false);
     expect(preview.summary).toMatchObject({ kind: "library", counts: { bots: 0, skills: 1, presets: 1 }, presetNames: ["Support agent"] });
     const saved = await ok("POST", "/api/teams/export", body);
-    expect(saved.filename).toBe("support-agent-1.0.0.openmaus.json");
+    expect(saved.filename).toBe("support-agent-1.0.0.hezuo.json");
     expect(saved.redacted).toEqual(["presets[new-bot-defaults].bot.soul"]);
     expect(existsSync(published)).toBe(true);
     const preset = saved.document.package.presets[0];
@@ -148,7 +148,7 @@ it("offers an organization library's presets in New bot until the publisher with
     });
     const relay = (body: string) => call("POST", "/api/testing/org-library", {
       library: { adminOrigin: "https://admin.example.com", organizationId: "11111111-1111-4111-8111-111111111111", organizationName: "Customer Co", digest: sha(body), catalog: body },
-    }, { "x-openmausbot-test-org-library": key });
+    }, { "x-hezuo-test-org-library": key });
     expect((await relay(catalog(false))).status).toBe(200);
     const added = await call("POST", "/api/org-library/add", { packageId });
     expect(added.status).toBe(201);

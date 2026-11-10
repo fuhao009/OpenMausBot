@@ -67,7 +67,7 @@ function harness(extra: Partial<RoutineManagerOptions> = {}) {
     advance: async (ms: number) => { now += ms; await manager.tick(); },
     runs: () => manager.listRuns(),
     run: (id: string) => manager.listRuns().find((run) => run.id === id)!,
-    routine: (botId = "maus-1", name = "Inbox sweep") =>
+    routine: (botId = "hezuo-1", name = "Inbox sweep") =>
       manager.create({ name, prompt: "Sweep the inbox", botId, schedule: { type: "daily", time: "09:00", weekdays: [3] } }),
     start: async (routineId: string) => {
       const run = manager.runNow(routineId)!;
@@ -272,7 +272,7 @@ describe("an unattended run that fails for a passing reason", () => {
 
   it("never starts a room goal again by itself", async () => {
     const h = harness({ goalState: () => "ready", createGoalTask: () => ({ threadId: "goal-1" }), startGoal: async () => {} });
-    const routine = h.manager.create({ name: "Team goal", prompt: "Ship it", botId: "maus-1", target: "room-goal", groupId: "group-1",
+    const routine = h.manager.create({ name: "Team goal", prompt: "Ship it", botId: "hezuo-1", target: "room-goal", groupId: "group-1",
       schedule: { type: "daily", time: "09:00", weekdays: [1] } });
     const run = await h.start(routine.id);
     h.manager.failThread("goal-1", "Claude is overloaded right now (HTTP 529).");
@@ -308,7 +308,7 @@ describe("an unattended run whose bot is busy when it starts", () => {
     h.refuse(null);
     await h.advance(2 * SECOND);
     expect(h.started.map((turn) => turn.threadId)).toEqual(["thread-1"]);
-    expect(h.started[0]!.prompt).not.toContain("OpenMausBot: this run's first start");
+    expect(h.started[0]!.prompt).not.toContain("Hezuo: this run's first start");
     h.complete("thread-1");
     expect(h.run(run.id)).toMatchObject({ status: "completed", attention: undefined });
     expect(h.run(run.id).retried).toBeUndefined();
@@ -333,7 +333,7 @@ describe("an unattended run whose bot is busy when it starts", () => {
 describe("an unattended run only its owner can fix", () => {
   it("fails a sign-in error at once, and tells the owner once per bot until one of its runs completes", async () => {
     const h = harness();
-    const first = await h.start(h.routine("maus-1", "Inbox sweep").id);
+    const first = await h.start(h.routine("hezuo-1", "Inbox sweep").id);
     h.fail("thread-1", SIGNED_OUT, { setup: true, stopReason: "auth_required" });
     expect(h.run(first.id)).toMatchObject({ status: "failed", error: `${SIGN_IN_ACTION} The AI said: “${SIGNED_OUT}”` });
     expect(h.run(first.id).retried).toBeUndefined();
@@ -341,13 +341,13 @@ describe("an unattended run only its owner can fix", () => {
     await h.advance(5 * MINUTE);
     expect(h.attempts).toHaveLength(1);
 
-    const second = await h.start(h.routine("maus-1", "Calendar check").id);
+    const second = await h.start(h.routine("hezuo-1", "Calendar check").id);
     h.fail(second.threadId!, SIGNED_OUT, { setup: true, stopReason: "auth_required" });
-    const elsewhere = await h.start(h.routine("maus-2", "Other bot").id);
+    const elsewhere = await h.start(h.routine("hezuo-2", "Other bot").id);
     h.fail(elsewhere.threadId!, SIGNED_OUT, { setup: true, stopReason: "auth_required" });
     expect(h.failed.map(({ alert }) => alert)).toEqual([{ detail: SIGN_IN_ACTION }, null, { detail: SIGN_IN_ACTION }]);
     expect(JSON.parse(readFileSync(h.options.file!, "utf8")).ownerNotices).toMatchObject([
-      { botId: "maus-1", cause: "signed_out" }, { botId: "maus-2", cause: "signed_out" },
+      { botId: "hezuo-1", cause: "signed_out" }, { botId: "hezuo-2", cause: "signed_out" },
     ]);
 
     // Across a restart it stays told; a completed run of that bot is what clears it.
@@ -364,8 +364,8 @@ describe("an unattended run only its owner can fix", () => {
 
   it("starts a signed-out run once more on the backup the person chose, and fails it as before when there is none", async () => {
     const scopes: unknown[] = [];
-    const h = harness({ limitBackup: (botId, scope) => { scopes.push(scope); return botId === "maus-1"; } });
-    const run = await h.start(h.routine("maus-1").id);
+    const h = harness({ limitBackup: (botId, scope) => { scopes.push(scope); return botId === "hezuo-1"; } });
+    const run = await h.start(h.routine("hezuo-1").id);
     h.fail(run.threadId!, SIGNED_OUT, { setup: true, stopReason: "auth_required" });
     expect(scopes).toEqual(["signed-out"]);
     expect(h.run(run.id)).toMatchObject({ status: "queued", retried: "failed", attention: "Starting again on the backup AI: this bot's AI is signed out" });
@@ -373,7 +373,7 @@ describe("an unattended run only its owner can fix", () => {
     await h.advance(20 * SECOND);
     expect(h.attempts).toEqual([run.threadId, run.threadId]);
 
-    const other = await h.start(h.routine("maus-2").id);
+    const other = await h.start(h.routine("hezuo-2").id);
     h.fail(other.threadId!, SIGNED_OUT, { setup: true, stopReason: "auth_required" });
     expect(h.run(other.id)).toMatchObject({ status: "failed", error: `${SIGN_IN_ACTION} The AI said: “${SIGNED_OUT}”` });
   });
@@ -381,12 +381,12 @@ describe("an unattended run only its owner can fix", () => {
   it("fails an out-of-credit refusal at once with what to do, and the trial credit says to sign in", async () => {
     const h = harness();
     const credits = "Your xAI account is out of credits (xAI says: \"Your team has run out of credits\"). Add credits with xAI, then run it again.";
-    const run = await h.start(h.routine("maus-1").id);
+    const run = await h.start(h.routine("hezuo-1").id);
     h.fail("thread-1", credits, { stopReason: "rpc_error" });
     expect(h.run(run.id)).toMatchObject({ status: "failed", error: credits });
     expect(h.failed[0]!.alert).toEqual({ detail: "This bot's AI account is out of credit. Add credit with the provider, or choose another AI for this bot." });
 
-    const trial = await h.start(h.routine("maus-2").id);
+    const trial = await h.start(h.routine("hezuo-2").id);
     h.fail(trial.threadId!, TRIAL_CREDIT_REFUSED.used_up, { setup: true, trialCredit: "used_up" });
     expect(h.run(trial.id)).toMatchObject({ status: "failed", error: TRIAL_CREDIT_REFUSED.used_up });
     expect(h.failed[1]!.alert).toEqual({ detail: "The trial Claude credit can't run this. Sign in with your own Claude or ChatGPT account, or add an API key." });
@@ -418,10 +418,10 @@ describe("an unattended run only its owner can fix", () => {
 
   it("fails a usage limit with no reset time, or one too far off, and tells the owner", async () => {
     const h = harness();
-    const run = await h.start(h.routine("maus-1").id);
+    const run = await h.start(h.routine("hezuo-1").id);
     h.fail("thread-1", "You've hit your weekly limit · resets Oct 12 at 2:30pm (Asia/Calcutta)", { stopReason: "quota" });
     expect(h.run(run.id).status).toBe("failed");
-    const far = await h.start(h.routine("maus-2").id);
+    const far = await h.start(h.routine("hezuo-2").id);
     h.fail(far.threadId!, "This Claude account has reached its weekly limit.", { stopReason: "quota", limitResetsAt: START + 13 * 3_600_000 });
     expect(h.run(far.id).status).toBe("failed");
     const action = "This bot's AI reached its usage limit. Its routines work again once it resets, or choose another AI for this bot now.";
@@ -430,7 +430,7 @@ describe("an unattended run only its owner can fix", () => {
   });
 });
 
-describe("a run that OpenMausBot's shutdown cuts off", () => {
+describe("a run that Hezuo's shutdown cuts off", () => {
   it("stays running through the shutdown, and the next start picks it up once in its own thread", async () => {
     const h = harness();
     const run = await h.start(h.routine().id);
@@ -443,7 +443,7 @@ describe("a run that OpenMausBot's shutdown cuts off", () => {
     expect(h.failed).toEqual([]);
 
     h.restart();
-    expect(h.run(run.id)).toMatchObject({ status: "queued", retried: "restarted", threadId: "thread-1", attention: "Starting again shortly after OpenMausBot restarted while it ran" });
+    expect(h.run(run.id)).toMatchObject({ status: "queued", retried: "restarted", threadId: "thread-1", attention: "Starting again shortly after Hezuo restarted while it ran" });
     expect(h.cut.map((cut) => cut.id)).toEqual([run.id]);
     h.restart();
     expect(h.cut).toHaveLength(1);

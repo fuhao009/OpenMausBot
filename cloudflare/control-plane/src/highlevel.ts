@@ -33,6 +33,7 @@ const CODE = /^[\x21-\x7e]{1,1024}$/;
 const REFRESH_TOKEN = /^[\x21-\x7e]{1,8192}$/;
 const CLIENT_ID = /^[\x21-\x7e]{1,256}$/;
 const SCOPES = /^[A-Za-z0-9_./-]+(?: [A-Za-z0-9_./-]+)*$/;
+// Persisted relay credential format: retain this salt until a versioned re-encryption migration.
 const HKDF_SALT = "openmausbot-highlevel-relay-v1";
 const encoder = new TextEncoder();
 
@@ -292,11 +293,11 @@ function page(title: string, text: string, status = 200): Response {
 }
 
 const PAGES = {
-  connected: () => page("Connected", "Close this tab and go back to OpenMausBot."),
-  cancelled: () => page("Connection cancelled", "Go back to OpenMausBot and try again when you are ready."),
-  expired: () => page("Connection expired", "This link is no longer valid. Go back to OpenMausBot and try again.", 400),
-  failed: () => page("Connection failed", "Go back to OpenMausBot and try again.", 502),
-  unavailable: () => page("Connection failed", "Go back to OpenMausBot and try again.", 503),
+  connected: () => page("Connected", "Close this tab and go back to Hezuo."),
+  cancelled: () => page("Connection cancelled", "Go back to Hezuo and try again when you are ready."),
+  expired: () => page("Connection expired", "This link is no longer valid. Go back to Hezuo and try again.", 400),
+  failed: () => page("Connection failed", "Go back to Hezuo and try again.", 502),
+  unavailable: () => page("Connection failed", "Go back to Hezuo and try again.", 503),
 };
 
 interface FlowRow {

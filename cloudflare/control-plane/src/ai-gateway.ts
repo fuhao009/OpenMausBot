@@ -900,7 +900,7 @@ export async function routeAiGateway(
           created: 0,
           id: model.id,
           object: "model",
-          owned_by: "openmausbot",
+          owned_by: "hezuo",
         })),
         object: "list",
       });

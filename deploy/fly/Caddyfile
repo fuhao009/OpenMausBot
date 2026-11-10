@@ -1,7 +1,7 @@
 # Edge for one OMB Cloud Pro home machine (docs/cloud-pro.md). Fly's proxy
 # terminates TLS for <app>.fly.dev and reaches this machine on :8080 (on an own
 # server, the Cloudflare tunnel does, in this home's network namespace). The
-# OpenMausBot server listens only on 127.0.0.1, and every request forwarded
+# Hezuo server listens only on 127.0.0.1, and every request forwarded
 # to it carries X-Forwarded-*, so it is never the loopback owner
 # (server/request-auth.ts): a remote client needs a paired session.
 #

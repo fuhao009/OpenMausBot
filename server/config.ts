@@ -1,5 +1,8 @@
-// ~/.openmausbot/config.json, with env vars overriding its credentials.
-import { readFileSync, mkdirSync, existsSync, renameSync } from "node:fs";
+import type { ComputerUsePolicy } from "../shared/computer-use-policy.ts";
+import { migrateStoredBrowserProfiles } from "./browser-profile-migration.ts";
+// ~/.hezuo/config.json, with env vars overriding its credentials.
+import { readFileSync, mkdirSync } from "node:fs";
+import { migrateDefaultDataRoot } from "../electron/default-data-root-migration.mjs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -118,97 +121,6 @@ const legacyBrowserProfileSchema = z.object({
   browser: z.literal("chrome").optional(),
 }).strict();
 
-interface StoredBrowserProfileMigration {
-  profiles: BrowserProfile[];
-  aliases: ReadonlyMap<string, string>;
-}
-
-function suffixedBrowserProfileId(base: string, unavailable: ReadonlySet<string>): string {
-  for (let suffix = 2; ; suffix += 1) {
-    const ending = `-${suffix}`;
-    const candidate = `${base.slice(0, 40 - ending.length)}${ending}`;
-    if (candidate !== "guest" && !unavailable.has(candidate)) return candidate;
-  }
-}
-
-function migrateStoredBrowserProfiles(
-  profiles: Array<z.output<typeof legacyBrowserProfileSchema>>,
-): StoredBrowserProfileMigration {
-  const requestedPartitions = profiles.map((profile) => profile.partitionId ?? profile.id);
-  const rawBases = profiles.map((profile) => profile.id.toLowerCase());
-
-  const canonicalIds: Array<string | undefined> = Array(profiles.length).fill(undefined);
-  const used = new Set<string>();
-  const baseOwner = new Map<string, number>();
-  rawBases.forEach((base, index) => {
-    if (base === "guest") return;
-    const current = baseOwner.get(base);
-    if (current === undefined || (profiles[index]!.id === base && profiles[current]!.id !== base)) {
-      baseOwner.set(base, index);
-    }
-  });
-  for (const [base, index] of baseOwner) {
-    canonicalIds[index] = base;
-    used.add(base);
-  }
-  const reserved = new Set([
-    "guest",
-    ...rawBases,
-    ...requestedPartitions.map((partitionId) => partitionId.toLowerCase()),
-  ]);
-  rawBases.forEach((base, index) => {
-    if (canonicalIds[index] !== undefined) return;
-    const id = suffixedBrowserProfileId(base, new Set([...reserved, ...used]));
-    canonicalIds[index] = id;
-    used.add(id);
-  });
-
-  const partitionWinner = new Map<string, number>();
-  requestedPartitions.forEach((partitionId, index) => {
-    const folded = partitionId.toLowerCase();
-    const current = partitionWinner.get(folded);
-    if (current === undefined) {
-      partitionWinner.set(folded, index);
-      return;
-    }
-    const score = (candidate: number) => canonicalIds[candidate] === folded ? 1 : 0;
-    if (score(index) > score(current)) partitionWinner.set(folded, index);
-  });
-
-  let effectivePartitions = requestedPartitions.map((partitionId, index) =>
-    partitionWinner.get(partitionId.toLowerCase()) === index ? partitionId : canonicalIds[index]!,
-  );
-
-  const conflictingIdOwners = new Set<number>();
-  canonicalIds.forEach((id, owner) => {
-    effectivePartitions.forEach((partitionId, partitionOwner) => {
-      if (partitionOwner !== owner && partitionId.toLowerCase() === id) conflictingIdOwners.add(owner);
-    });
-  });
-  const unavailable = new Set([...reserved, ...used]);
-  for (const owner of conflictingIdOwners) {
-    const id = suffixedBrowserProfileId(rawBases[owner]!, unavailable);
-    canonicalIds[owner] = id;
-    unavailable.add(id);
-  }
-  if (conflictingIdOwners.size > 0) {
-    effectivePartitions = requestedPartitions.map((partitionId, index) =>
-      partitionWinner.get(partitionId.toLowerCase()) === index ? partitionId : canonicalIds[index]!,
-    );
-  }
-
-  const aliases = new Map<string, string>();
-  const canonical: BrowserProfile[] = profiles.map((profile, index) => {
-    const id = canonicalIds[index]!;
-    const partitionId = effectivePartitions[index]!;
-    const migrated: BrowserProfile = { id, name: profile.name };
-    if (profile.browser) migrated.browser = profile.browser;
-    if (partitionId !== id) migrated.partitionId = partitionId;
-    if (!aliases.has(profile.id)) aliases.set(profile.id, id);
-    return migrated;
-  });
-  return { profiles: canonical, aliases };
-}
 
 const legacyBrowserProfilesSchema = z.array(legacyBrowserProfileSchema).max(20);
 const storedBrowserProfilesSchema = legacyBrowserProfilesSchema.transform(
@@ -453,6 +365,8 @@ const appConfigSchema = z.object({
   mcpServers: z.record(z.string(), z.unknown()).optional(),
 });
 const storedAppConfigSchema = appConfigSchema.extend(helperStoredShape).extend({
+  computerUsePolicy: z.enum(["ask", "allow", "deny"]).optional(),
+  computerUsePolicyDevice: z.string().max(100).optional(),
   browserProfiles: storedBrowserProfilesSchema.optional(),
   /** Loose like mcpServers: a bad provider key is dropped later, never the whole file. */
   opencodeGo: z.object({
@@ -467,6 +381,9 @@ const appConfigPatchSchema = appConfigSchema.omit({ instances: true, mcpServers:
 const jsonObjectSchema = z.record(z.string(), z.json());
 
 export interface AppConfig extends HelperConfig {
+  /** Workspace-local consent; only the desktop private channel may change it. */
+  computerUsePolicy?: ComputerUsePolicy;
+  computerUsePolicyDevice?: string;
   customDomain?: string;
   signIn?: { admins?: string[]; members?: string[] };
   /** Preferred selection for newly created bots; existing bots keep theirs. */
@@ -733,18 +650,11 @@ export function changedInstanceIds(before: Record<string, unknown>, after: Recor
     .filter((id) => !isDeepStrictEqual(before[id], after[id]));
 }
 
-export const DATA_DIR = process.env.OMB_DATA_DIR ?? join(homedir(), ".openmausbot");
-const LEGACY_DATA_DIR = join(homedir(), ".opengrokbot");
+export const DATA_DIR = migrateDefaultDataRoot(homedir(), process.env.OMB_DATA_DIR);
 export const EVENTS_DIR = join(DATA_DIR, "events");
 export const NATIVE_DIR = join(DATA_DIR, "native");
 
 export function ensureDirs() {
-  if (!existsSync(DATA_DIR) && existsSync(LEGACY_DATA_DIR)) {
-    try {
-      renameSync(LEGACY_DATA_DIR, DATA_DIR);
-    } catch {
-    }
-  }
   for (const dir of [DATA_DIR, EVENTS_DIR, NATIVE_DIR]) mkdirSync(dir, { recursive: true });
   migrateLegacyFeatureFlags(DATA_DIR);
 }
@@ -886,7 +796,7 @@ function openCodeProviderKeyNameRefusal(name: string): string | undefined {
   const reserved = name.startsWith("OPENCODE_") || name.startsWith("OMB_")
     || (WORKSPACE_CREDENTIAL_ENV as readonly string[]).includes(name)
     || ((PROVIDER_CREDENTIAL_ENV as readonly string[]).includes(name) && !(OPENCODE_PROVIDER_ENV as readonly string[]).includes(name));
-  return reserved ? `OpenMaus keeps ${name} for itself, so OpenCode can't be given it here. Put this key in opencode.json instead.` : undefined;
+  return reserved ? `Hezuo keeps ${name} for itself, so OpenCode can't be given it here. Put this key in opencode.json instead.` : undefined;
 }
 
 export function openCodeProviderKeys(cfg: Pick<AppConfig, "opencodeGo">): Record<string, string> {
@@ -943,7 +853,7 @@ export function saveConfig(
     if (parsed.success) disk = parsed.data;
   } catch {
   }
-  const checkedPatch = appConfigSchema.partial().extend({ threads: threadsPatchSchema.optional(), newBots: newBotsPatchSchema.optional() }).parse(patch);
+  const checkedPatch = appConfigSchema.partial().extend({ computerUsePolicy: z.enum(["ask", "allow", "deny"]).optional(), computerUsePolicyDevice: z.string().max(100).optional(), threads: threadsPatchSchema.optional(), newBots: newBotsPatchSchema.optional() }).parse(patch);
   const before = configSaveListeners.size ? structuredClone(disk) : disk;
   const storedProfiles = storedBrowserProfilesSchema.safeParse(disk.browserProfiles);
   if (storedProfiles.success) disk.browserProfiles = storedProfiles.data;
@@ -962,6 +872,8 @@ export function saveConfig(
     disk[key] = merged;
   }
   if (checkedPatch.vps !== undefined) disk.vps = normalizeVpsConfig(checkedPatch.vps);
+  if (checkedPatch.computerUsePolicy !== undefined) disk.computerUsePolicy = checkedPatch.computerUsePolicy;
+  if (checkedPatch.computerUsePolicyDevice !== undefined) disk.computerUsePolicyDevice = checkedPatch.computerUsePolicyDevice;
   for (const key of ["language", "computerName"] as const) if (checkedPatch[key] !== undefined) disk[key] = checkedPatch[key];
   if (checkedPatch.customDomain !== undefined) disk.customDomain = checkedPatch.customDomain;
   if (checkedPatch.signIn !== undefined) disk.signIn = checkedPatch.signIn;

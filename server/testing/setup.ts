@@ -1,4 +1,4 @@
-// Every test file gets a throwaway home, so DATA_DIR (~/.openmausbot) never touches the real one;
+// Every test file gets a throwaway home, so DATA_DIR (~/.hezuo) never touches the real one;
 // os.homedir() reads HOME / USERPROFILE at call time, and this runs before server/config.ts is imported.
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,7 +15,7 @@ delete process.env.OMB_DATA_DIR;
 // Do not let a developer's Hermes global config path leak into per-test homes.
 delete process.env.HERMES_HOME;
 // Named explicitly although homedir() already covers it: the device tests delete this directory wholesale.
-process.env.OMB_COMPANION_DIR = join(home, ".openmausbot-companion");
+process.env.OMB_COMPANION_DIR = join(home, ".hezuo-companion");
 
 // Product code follows navigator.language; pin it so English assertions do not depend on the host locale.
 Object.defineProperty(globalThis.navigator, "language", { value: "en", configurable: true });

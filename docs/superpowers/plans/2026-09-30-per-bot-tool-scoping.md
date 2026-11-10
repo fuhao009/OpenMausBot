@@ -21,7 +21,7 @@
 - No new runtime dependency, branding change, generated `dist-server` edits, or release changes.
 - Node 24 and portable process launching; no shell commands in production process launches.
 - All verification uses disposable fixtures and explicit isolated targets.
-- Leave other projects and live OpenMausBot data untouched.
+- Leave other projects and live Hezuo data untouched.
 - No new upstream submission until behavior and validation are reviewable; never merge.
 
 ## Review Focus

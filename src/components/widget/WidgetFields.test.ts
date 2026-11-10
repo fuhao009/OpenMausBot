@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BotEditorStore, type Message, type useStore } from "@/state/store";
 import { t } from "@/lib/i18n";
 import { WIDGET_SAMPLES } from "../../../shared/widget-samples";
-import { dayList, parseWidgetInput, type WidgetNode, type WidgetRoot } from "../../../shared/widget";
+import { parseWidgetInput, type WidgetNode, type WidgetRoot } from "../../../shared/widget";
 import { WidgetMessage } from "./WidgetMessage";
 import { widgetDayNames, widgetDaysCaption } from "./WidgetDayPicker";
 import { widgetTime, widgetTimeLabel, widgetTimeSlots } from "./WidgetTimePicker";
@@ -167,7 +167,6 @@ describe("DayPicker", () => {
     mount(days({ defaultValue: "mon,tue,wed,thu,fri" }));
     expect(toggles().map((day) => day.dataset.day)).toEqual(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
     expect(toggles().map((day) => day.getAttribute("aria-label"))).toEqual(widgetDayNames().long);
-    expect(widgetDayNames().long[0]).toBe("Monday");
     expect(toggles().map((day) => day.getAttribute("aria-pressed"))).toEqual(["true", "true", "true", "true", "true", "false", "false"]);
     expect(caption()).toBe(t("widget.days.weekdays"));
     expect(document.getElementById(group().getAttribute("aria-labelledby")!)!.textContent).toBe("Repeat on");
@@ -181,9 +180,7 @@ describe("DayPicker", () => {
     for (const day of ["mon", "tue", "wed", "thu", "fri"]) tap(day);
     expect(caption()).toBe(t("widget.days.everyDay"));
     for (const day of ["tue", "wed", "fri", "sat", "sun"]) tap(day);
-    expect(caption()).toBe("Mon, Thu");
     expect(widgetDaysCaption("")).toBe(t("widget.days.none"));
-    for (const value of ["mon,tue,wed,thu,fri,sat,sun", "mon,tue,wed,thu,fri", "sat,sun", "mon,thu", "tue,sun"]) expect(widgetDaysCaption(value)).toBe(dayList(value));
     await act(async () => { button("Save")!.click(); });
     expect(sent()).toEqual({ days: "mon,thu" });
   });

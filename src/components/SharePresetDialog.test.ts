@@ -30,7 +30,7 @@ describe("Share as preset", () => {
   it("shows what the preset file holds, what never travels, and what was removed or left out", () => {
     const document = parsePackageDocument(fixture("library-only.v2.json"));
     const preview: PresetShareResponse = {
-      document, filename: "sales-skills-2.0.1.openmaus.json", summary: packageSummary(document),
+      document, filename: "sales-skills-2.0.1.hezuo.json", summary: packageSummary(document),
       redacted: ["presets[support].bot.soul"], skipped: [{ part: "presets[support].skills[follow-up]", reason: "preset_skill_conflict" }],
     };
     const words = text(renderToStaticMarkup(createElement(SharePresetContents, { preview, localSkips: [] })));

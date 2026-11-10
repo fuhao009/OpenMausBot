@@ -56,7 +56,7 @@ These endpoints belong to the remote Cloud service, not the local app server.
 
 There is no credential-bearing deep link and no checkout-result callback.
 Device polling completes browser approval automatically. The existing
-`openmausbot://organization` action is unchanged.
+`hezuo://organization` action is unchanged.
 
 ## Automated fixtures
 

@@ -12,6 +12,12 @@ test("skips build folders, system litter, lock and temporary files, and sync's o
   assert.equal(skipped("node_modules", false), false, "only a directory by that name is skipped");
 });
 
+test("current and predecessor private roots never enter sync", () => {
+  for (const dir of [".hezuo", ".hezuo-secrets", ".openmausbot", ".openmausbot-secrets"]) {
+    assert.equal(skipped(dir, true), true, dir);
+  }
+});
+
 test("a wire path is relative, slash-separated and NFC", () => {
   for (const good of ["a.txt", "a/b.txt", "Café/x.md"]) assert.equal(validWirePath(good), true, good);
   for (const bad of ["", "/a", "a//b", "a/./b", "../a", "a/..", "a\\b", "a\0b", "Café.txt", 7, null]) assert.equal(validWirePath(bad), false, String(bad));

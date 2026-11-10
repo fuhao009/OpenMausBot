@@ -1,7 +1,7 @@
 # Per-bot tool selection
 
 All checks below use disposable homes, workspaces and MCP servers. They do
-not read the user's OpenMausBot data or connect a real mail account.
+not read the user's Hezuo data or connect a real mail account.
 
 ## Repeatable automated checks
 

@@ -2,7 +2,7 @@
 // The real app, the real Worker, the real gateway, in one disposable place.
 //
 //   node scripts/verify-product-account.mjs
-//   node scripts/verify-product-account.mjs --app "/absolute/OpenMausBot Product.app"
+//   node scripts/verify-product-account.mjs --app "/absolute/Hezuo Product.app"
 //   node scripts/verify-product-account.mjs --keep     (keep the disposable profile)
 //
 // Real here means:
@@ -39,7 +39,6 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const ACCOUNT_A = "person-a@fixture.test";
 const ACCOUNT_B = "person-b@fixture.test";
 const PASSWORD = "fixture password 2026";
-const PENDING_TEXT = "Waiting for administrator activation";
 
 function parseCli() {
   const { values } = parseArgs({
@@ -188,7 +187,7 @@ async function main() {
     receipt.origin = worker.origin;
     trustFixtureCertificate(worker.certPath);
     if (options["bundled-trust"]) {
-      const copy = join(root, "OpenMausBot Product.app");
+      const copy = join(root, "Hezuo Product.app");
       cpSync(options.app, copy, { recursive: true, verbatimSymlinks: true });
       writeFileSync(join(copy, "Contents", "Resources", "product-service.json"), JSON.stringify({
         version: 2, origin: worker.origin, ca: readFileSync(worker.certPath, "utf8"),
@@ -312,10 +311,26 @@ async function main() {
     assert.ok(!modelSurface.includes(MODELS[0].label) && !modelSurface.includes(MODELS[0].id), "account page must not disclose execution models");
     await capture(page, "03-account-ready");
     record("ready status", { balance: readyBalance, state: await accountSnapshot(page) });
+    assert.equal(await page.evaluate("window.ogb.computerUsePolicy.get()"), "ask");
+    await page.evaluate("document.querySelector('[data-settings-page=computer], [data-settings-section=computer]').click()");
+    await page.until("Boolean(document.querySelector('select[aria-label=\"Execute on this computer\"]:not(:disabled)'))", { label: "computer permission control" });
+    await page.evaluate(`(() => {
+      const select = document.querySelector('select[aria-label="Execute on this computer"]');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(select, "allow");
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    })()`);
+    await page.until("document.querySelector('select[aria-label=\"Execute on this computer\"]')?.value === 'allow' && !document.querySelector('select[aria-label=\"Execute on this computer\"]')?.disabled", { label: "saved computer permission" });
+    assert.equal(await page.evaluate("window.ogb.computerUsePolicy.get()"), "allow");
+    await capture(page, "03-computer-permission-allow");
+    await page.evaluate("document.querySelector('[data-settings-page=botAccess], [data-settings-section=botAccess]').click()");
+    await page.until("[...document.querySelectorAll('button')].some(button => button.textContent.trim() === 'Configure permissions')", { label: "per-bot permission settings" });
+    await capture(page, "03-permissions-settings");
+    await openAccountSettings(page);
+    record("persistent computer permission", { policy: "allow" });
 
     // The workspace model catalog must be the account's, and the default bot is there.
     await closeSettings(page);
-    await page.until("document.querySelectorAll('[data-sidebar-product-default]').length > 0", { label: "the default MausBot", timeoutMs: 90_000 });
+    await page.until("document.querySelectorAll('[data-sidebar-product-default]').length > 0", { label: "the default Hezuo", timeoutMs: 90_000 });
     await page.until("Boolean(document.querySelector('textarea[aria-label]'))", { label: "the composer" });
     assert.equal(await page.evaluate("document.querySelectorAll('[data-tour=model], [data-testid=model-badge]').length"), 0, "managed chat has no model picker or provider badge");
     const botId = await page.evaluate(`(() => {
@@ -466,6 +481,7 @@ async function main() {
     });
     const noticeB = await pageB.evaluate("document.querySelector('[data-product-account]').textContent.trim()");
     assert.equal(await pageB.evaluate("document.querySelector('[data-product-balance]').textContent.trim()"), "0.000000");
+    assert.equal(await pageB.evaluate("window.ogb.computerUsePolicy.get()"), "ask", "B must not inherit A's computer permission");
     assert.equal((await pageB.evaluate("window.ogb.productAccount.operatorStatus()")).eligible, false);
     assert.equal((await pageB.evaluate("window.ogb.productAccount.grantMaximum()")).outcome, "failed");
     await capture(pageB, "10-account-b-insufficient");
@@ -500,6 +516,7 @@ async function main() {
     await pageA.until("document.querySelector('[data-sidebar-product-email]')?.textContent?.trim()", { label: "A's sidebar again" });
     assert.equal(await pageA.evaluate("document.querySelector('[data-sidebar-product-email]').textContent.trim()"), ACCOUNT_A);
     await pageA.until("document.body.innerText.includes('Hello from your account.')", { label: "A's own history", timeoutMs: 90_000 });
+    assert.equal(await pageA.evaluate("window.ogb.computerUsePolicy.get()"), "allow", "A's permission persists across workspace restart");
     receipt.accounts.aRestored = true;
     await capture(pageA, "12-account-a-returned");
     record("account switch", { isolated: true, restored: true });
@@ -673,7 +690,7 @@ async function main() {
     assert.equal(existsSync(join(userData, "product-account.bin")), false, "sign-out removed the encrypted login record");
     const accountRoots = (await import("node:fs")).readdirSync(join(userData, "product-accounts"));
     assert.equal(accountRoots.length, 2, `one workspace root per account (${accountRoots.join(", ")})`);
-    assert.equal(existsSync(join(root, "home", ".openmausbot")), false, "no legacy ~/.openmausbot was created or read");
+    assert.equal(existsSync(join(root, "home", ".hezuo")), false, "no legacy ~/.hezuo was created or read");
     receipt.userData = { loginRecordRemoved: true, accountRoots: accountRoots.length, legacyUntouched: true };
 
     receipt.mailCount = worker.mail.count();

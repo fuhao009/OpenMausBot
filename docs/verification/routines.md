@@ -144,7 +144,7 @@ result and scheduled/manual trigger must agree with the saved server record.
 
 ## Run on startup
 
-A repeating routine's **Advanced** section offers **Also run when OpenMausBot
+A repeating routine's **Advanced** section offers **Also run when Hezuo
 starts**. In the isolated renderer, create a daily routine with it ticked, then
 reopen the editor: the box stays ticked. A one-time routine does not offer it.
 Startup needs a restart on the same data, which this launcher does not do;
@@ -202,7 +202,7 @@ parity, restart recovery, duplicate completion events and atomic cursor/counter
 rollback on a failed save. The MCP fixture verifies reviewed policy changes
 and the listing through the actual tool and API, using no live accounts.
 
-The routine tool defaults to `maus` (the bot's configured model and computer,
+The routine tool defaults to `hezuo` (the bot's configured model and computer,
 including VPS); `box` explicitly selects the bot's Boat cloud computer, which the
 bot's own model drives through its computer tools. Legacy `cloud`
 values remain accepted without migrating existing routines. The cron tool

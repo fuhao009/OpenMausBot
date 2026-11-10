@@ -1,6 +1,6 @@
 # Sharing a whole department
 
-The sidebar groups bots into departments. **Share department…** saves one department as a single file (`<team>-<version>.openmaus.json`).
+The sidebar groups bots into departments. **Share department…** saves one department as a single file (`<team>-<version>.hezuo.json`).
 Someone else adds it in **Templates → Import**, or an organization uploads it
 in Admin → Packages and its desktops add it from **Templates → From
 {Organization}** ([org-library.md](org-library.md)). Open it from the department's menu in the sidebar (right-click
@@ -106,20 +106,20 @@ If any step fails, everything the import created is removed again.
 
 ## From Grok Bot
 
-A shared Grok Bot link (`https://x.ai/bot/<id>`) can become a Maus bot from
+A shared Grok Bot link (`https://x.ai/bot/<id>`) can become a Hezuo bot from
 **Templates → Import → From Grok Bot**. Pasting the link into the GitHub box,
-or opening `openmausbot://install?url=https://x.ai/bot/<id>`, does the same.
+or opening `hezuo://install?url=https://x.ai/bot/<id>`, does the same.
 The same Grok Bot import is on **Settings → Import** (next to Backups, with
 **From your AI apps**: the welcome tour's skills and MCP tools import from
 Claude Code, Codex, Cursor, Claude Desktop and Gemini) and as an optional
 "Have a Grok Bot? Paste its link" row in the welcome tour's import step.
 
-1. Paste the link. Maus reads the public page and shows a card with the
+1. Paste the link. Hezuo reads the public page and shows a card with the
    bot's name, creator and description. That is all the public page holds:
    its instructions, skills and routines are visible only inside Grok Bot.
 2. Press **Copy export prompt**, paste it into your own Grok Bot (the one you
    added from the link, or made yourself), and paste its reply into the box.
-   The reply is one JSON block (`"format": "openmaus.grok/1"`).
+   The reply is one JSON block (`"format": "hezuo.grok/1"`).
    [pi-grokbot-import](https://github.com/Shixuuu/pi-grokbot-import)'s
    `grokbot-bundle/v1` files work too, pasted or dropped as a `.json` file.
 3. The usual preview opens. **Add** imports it like any shared team.
@@ -140,12 +140,12 @@ and description alone, credited "Based on x.ai/bot/<id>".
 paste. Grok Bot templates live on Cursor's servers, and their full setup needs
 a signed-in Cursor account; a free one is enough. The button opens Cursor's
 own sign-in page in your browser (the PKCE flow Cursor's CLI uses). Once you
-approve it there, the card loads the whole bot and the preview opens. Maus
+approve it there, the card loads the whole bot and the preview opens. Hezuo
 keeps the sign-in in `cursor-session.json` in the data folder (mode 0600),
 sends it only to `api2.cursor.sh`, uses it only to read the template you
 pasted, and never reads another app's files or stored logins. **Sign out** on
 the card deletes it. If anything goes wrong (signed out, an expired sign-in,
-an answer Maus does not understand, no network), the card stays with the copy
+an answer Hezuo does not understand, no network), the card stays with the copy
 and paste steps and one line saying why. The request shapes follow
 [pi-grokbot-import](https://github.com/Shixuuu/pi-grokbot-import) (MIT).
 
@@ -156,16 +156,16 @@ ready, never sent: which bot came from which link, the apps to connect (with
 their Composio names), Grok Bot tools with no match, and the left-out
 routines with their original text.
 
-Maus reads `https://x.ai/bot/<id>` (redirects must stay on x.ai, 20 s,
+Hezuo reads `https://x.ai/bot/<id>` (redirects must stay on x.ai, 20 s,
 2 MB) through `POST /api/team-library/grok`; the Cursor routes are
 `GET /api/team-library/cursor`, `POST /api/team-library/cursor/sign-in` and
-`POST /api/team-library/cursor/sign-out`. All are admin scope. Maus never
+`POST /api/team-library/cursor/sign-out`. All are admin scope. Hezuo never
 opens `grokbot://` links. The mapping lives in `shared/grok-import.ts`, the
 Cursor session in `server/cursor-session.ts`.
 
 ## The file format
 
-`openmaus.package` version 2, defined in `shared/package-format.ts`, the one
+`hezuo.package` version 2, defined in `shared/package-format.ts`, the one
 module the app, the import preview and Admin all validate with. It still
 reads version 1 files (JSON and the BotMRR Markdown playbook). Older apps
 refuse version 2 files with their existing "not supported" message; Admin can

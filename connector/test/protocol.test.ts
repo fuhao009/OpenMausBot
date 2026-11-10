@@ -75,7 +75,7 @@ describe("the connector protocol", () => {
     }
   });
 
-  it("keeps an enrolment answer only when every field is the Admin's shape, and a code only as MausBot shows it", () => {
+  it("keeps an enrolment answer only when every field is the Admin's shape, and a code only as Hezuo shows it", () => {
     const good = { serverId: "srv_1a2b", cloudId: "cloud_3c4d", agentToken: "ombs_" + "t".repeat(43) };
     expect(checkEnrollResponse(good)).toEqual({ ok: true, value: good });
     expect(checkEnrollResponse({ ...good, extra: 1 })).toEqual({ ok: true, value: good });

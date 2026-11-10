@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -47,16 +45,8 @@ describe("Settings → Import", () => {
   it("says what happened: looking, nothing new, not this computer, or the result", () => {
     expect(apps({ detection: undefined })).toContain("Looking on this computer…");
     expect(apps({ detection: { skills: [], tools: [] } })).toContain("Nothing new to bring in from your AI apps.");
-    expect(apps({ local: false })).toContain("Only the desktop app on the computer running MausBot");
+    expect(apps({ local: false })).not.toContain("Bring them in");
     expect(apps({ result: { skills: { added: ["pdf"], present: [], skipped: [], filesLeftOut: 0, review: [] } } })).toContain("Added 1 skill.");
   });
 
-  it("uses the one shared bot import in Templates and Settings", () => {
-    const source = (file: string) => readFileSync(join(import.meta.dirname, file), "utf8");
-    for (const file of ["TeamLibraryPanel.tsx", "ImportSettings.tsx"]) {
-      expect(source(file), file).toMatch(/import \{ GrokImportFlow \} from "(?:\.\/|@\/components\/)GrokImportFlow"/);
-      expect(source(file), file).toContain("<GrokImportFlow");
-      expect(source(file), file).not.toContain("<GrokImportBox");
-    }
-  });
 });

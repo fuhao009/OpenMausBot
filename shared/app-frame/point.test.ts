@@ -75,7 +75,7 @@ describe("the page's point script", () => {
     say(pointMessage(true));
     expect(document.documentElement.style.cursor).toBe("crosshair");
     pro.dispatchEvent(new PointerEvent("pointermove", { bubbles: true }));
-    expect(document.querySelector("[data-mausbot-point]")).not.toBeNull();
+    expect(document.querySelector("[data-hezuo-point]")).not.toBeNull();
     const event = new MouseEvent("click", { bubbles: true, cancelable: true });
     pro.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);

@@ -45,7 +45,7 @@ const fixture = (displayName: string, dump?: string) => ({
 
 beforeAll(async () => {
   home = mkdtempSync(join(tmpdir(), "omb-peer-allowlist-"));
-  const data = join(home, ".openmausbot");
+  const data = join(home, ".hezuo");
   const staticDir = join(home, "static");
   mkdirSync(data, { recursive: true });
   mkdirSync(staticDir, { recursive: true });
@@ -143,7 +143,7 @@ const mintCapability = async (botId: string, threadId: string): Promise<string> 
     "POST",
     "/api/testing/internal-capability",
     { botId, threadId, kind: "agents" },
-    { "x-openmausbot-test-capability": TEST_CAPABILITY_KEY },
+    { "x-hezuo-test-capability": TEST_CAPABILITY_KEY },
   );
   expect(minted.status).toBe(201);
   return String(minted.body.token);
@@ -151,7 +151,7 @@ const mintCapability = async (botId: string, threadId: string): Promise<string> 
 
 let seededId = "";
 const hideSeededBot = async () => {
-  // The seeded bot is the unsectioned team's Chief and the install's MausBot, which is never archived: it steps down into
+  // The seeded bot is the unsectioned team's Chief and the install's Hezuo, which is never archived: it steps down into
   // a department of its own, and the roster checks below leave it out, since every bot can reach it.
   const seeded = (await api("GET", "/api/bots?messages=0")).body.bots[0];
   seededId = seeded.id;

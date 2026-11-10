@@ -112,7 +112,7 @@ describe("the owner's routines", () => {
   let dir = "";
   afterEach(() => { if (dir) rmSync(dir, { recursive: true, force: true }); dir = ""; });
   const routine = { prompt: "Tidy ~/Downloads on my Mac", target: "bot", botId: "b1", attachments: [{ id: "a1", path: "/x" }],
-    schedule: { type: "interval", everyMinutes: 1440, anchorAt: 1_790_000_000_000 }, runOn: "maus" };
+    schedule: { type: "interval", everyMinutes: 1440, anchorAt: 1_790_000_000_000 }, runOn: "hezuo" };
   it("records what the owner wrote; any change to the instructions, target or attachments no longer matches", () => {
     dir = mkdtempSync(join(tmpdir(), "omb-cloud-lending-"));
     const authors = createCloudRoutineAuthors(join(dir, "lending-routines.json"));

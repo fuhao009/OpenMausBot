@@ -71,7 +71,7 @@ describe("the host page", () => {
     page.load();
     page.viewSays({ jsonrpc: "2.0", id: 1, method: "ui/initialize", params: { protocolVersion: "2026-01-26" } });
     await page.tick();
-    expect(page.fromView[0]).toMatchObject({ id: 1, result: { hostInfo: { name: "mausbot", version: "1.4.0" }, hostContext: { theme: "light" } } });
+    expect(page.fromView[0]).toMatchObject({ id: 1, result: { hostInfo: { name: "hezuo", version: "1.4.0" }, hostContext: { theme: "light" } } });
     page.viewSays({ jsonrpc: "2.0", method: "ui/notifications/initialized" });
     expect(page.toNative.at(-1)).toEqual({ v: 1, type: "initialized" });
     page.viewSays({ jsonrpc: "2.0", method: "ui/notifications/size-changed", params: { height: 900 } });

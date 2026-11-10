@@ -9,7 +9,7 @@ import { createAuth } from "../src/auth";
 import { readAuthConfig } from "../src/config";
 import worker from "../src/index";
 
-const BASE_URL = "https://auth.openmausbot.test";
+const BASE_URL = "https://auth.hezuo.test";
 const DEVICE_A = "11111111-1111-4111-8111-111111111111";
 const DEVICE_B = "22222222-2222-4222-8222-222222222222";
 const UPSTREAM_KEY = "test-only-upstream-key-0123456789";

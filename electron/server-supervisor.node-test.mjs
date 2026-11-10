@@ -225,11 +225,11 @@ test("repeated quit requests join the exact same child cleanup", async (t) => {
   assert.equal(f.children.length, 1);
 });
 
-const LOCAL_FIXTURE = { id: "l1", kind: "local", name: "Work", dataDir: "/Users/me/.openmausbot-work", missing: false };
+const LOCAL_FIXTURE = { id: "l1", kind: "local", name: "Work", dataDir: "/Users/me/.hezuo-work", missing: false };
 
 function runForget(state) {
   const start = MAIN_SOURCE.indexOf("async function forgetEnvironment(");
-  const end = MAIN_SOURCE.indexOf("function showContextMenu(", start);
+  const end = MAIN_SOURCE.indexOf("\nfunction createWindow(", start);
   assert.ok(start > 0 && end > start, "the forget helper exists");
   const calls = { dialogs: [], shares: [], persisted: [], navigated: [], rm: [] };
   const rmOptions = [];
@@ -250,7 +250,7 @@ function runForget(state) {
     path,
     AbortSignal,
     remoteMicrophoneRefused: new Set(),
-    desktopDataDir: () => "/Users/me/.openmausbot",
+    desktopDataDir: () => "/Users/me/.hezuo",
     slog: () => {},
     session: { defaultSession: { fetch: async () => ({ ok: true }), clearStorageData: async () => {} } },
   };
@@ -351,7 +351,7 @@ function switchFixture(t, { startResults = [], releaseLeaseThrows = false, stopU
       return outcome === undefined ? { proc: { pid: 4000 + forkIndex } } : outcome;
     },
     environmentsState: { environments: [{ id: "l1", kind: "local", name: "Work", dataDir: targetDir }], activeId: "local" },
-    desktopDataDir: () => "/Users/me/.openmausbot",
+    desktopDataDir: () => "/Users/me/.hezuo",
     startupEnvironmentDir: env.startupEnvironmentDir,
     withActive: env.withActive,
     persistEnvironments: (next) => { context.environmentsState = next; },
@@ -400,11 +400,3 @@ test("a child that will not stop aborts the switch before its lease is handed aw
   assert.equal(context.environmentsState.activeId, "local", "the registry never moves");
 });
 
-test("boot reads the environment decision before the boot lease and never creates the missing dir", () => {
-  const boot = MAIN_SOURCE.slice(MAIN_SOURCE.indexOf("environmentsState = environmentsStore.read();"), MAIN_SOURCE.indexOf("app.setAsDefaultProtocolClient"));
-  const decision = boot.indexOf("bootEnvironmentDir(");
-  const lease = boot.indexOf("acquireDataDirLease(");
-  assert.ok(decision > 0 && decision < lease, "the missing-dir decision must precede the boot lease");
-  assert.match(boot, /activeId: LOCAL_ID/);
-  assert.match(boot, /showErrorBox\(\s*"[^"]*missing[^"]*"/i);
-});

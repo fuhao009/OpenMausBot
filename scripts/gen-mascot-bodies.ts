@@ -308,10 +308,10 @@ function emitSwift(bodies: Baked[]): string {
 // \`scale\`/\`tx\`/\`ty\` directly.
 //
 // Path data is absolute \`M\`, \`C\`, \`Z\` only — the same twenty-line parser convention as
-// \`MausSilhouette\` in \`ios/App/MausAvatar.swift\`, which treats newlines as separators.
+// \`HezuoSilhouette\` in \`ios/App/HezuoAvatar.swift\`, which treats newlines as separators.
 import CoreGraphics
 
-enum MausBodies {
+enum HezuoBodies {
     struct Body {
         let id: String
         let name: String
@@ -377,21 +377,21 @@ function emitKotlin(bodies: Baked[]): string {
 
 /**
  * The mascot bodies a bot can wear — the Android half of the same solve that bakes
- * \`shared/mascot-bodies.ts\` and \`ios/Sources/CompanionCore/MausBodies.swift\`.
+ * \`shared/mascot-bodies.ts\` and \`ios/Sources/CompanionCore/HezuoBodies.swift\`.
  *
  * GENERATED FILE — do not hand-edit. Run \`pnpm gen:bodies\` to rebuild it from
  * \`scripts/gen-mascot-bodies.ts\`, which solves each face placement against the real
  * expression geometry and verifies that nothing clips. One solve, three writers, so the
  * three renderers cannot drift apart the way desktop's 0.74 and iOS's 0.84 already did once.
  *
- * Plain Kotlin, no Compose: [MausSilhouette] parses the path and caches the result per
+ * Plain Kotlin, no Compose: [HezuoSilhouette] parses the path and caches the result per
  * body. The fit is numbers, not an SVG transform string. The bounds are the tight bounds
  * of the fitted outline: Android's native path bounds are the cubic control hull, which is
  * wider than the drawn shape, and the gradient's corners have to sit on the shape.
  *
  * Path data is absolute \`M\`, \`C\`, \`Z\` only, with newlines as separators.
  */
-internal object MausBodies {
+internal object HezuoBodies {
     data class Body(
         val id: String,
         val name: String,

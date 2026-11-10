@@ -41,7 +41,7 @@ const { automationsFrom } = await import("@/lib/automations");
 const now = Date.now();
 const botA = { id: "bot-a", name: "Scout", threadId: "thread-a", hidden: false, messages: [{ id: "m1", at: now - 5_000 }] } as unknown as Bot;
 const botB = { id: "bot-b", name: "Ledger", threadId: "thread-b", hidden: false, messages: [{ id: "m2", at: now - 50_000 }] } as unknown as Bot;
-const webhook = { id: "hook-1", endpointId: "wh_abc", name: "Sales form leads", prompt: "Draft a follow-up for the lead.", botId: "bot-a", runOn: "maus", enabled: true, createdAt: now, updatedAt: now, deliveryCount: 1 };
+const webhook = { id: "hook-1", endpointId: "wh_abc", name: "Sales form leads", prompt: "Draft a follow-up for the lead.", botId: "bot-a", runOn: "hezuo", enabled: true, createdAt: now, updatedAt: now, deliveryCount: 1 };
 
 let root: Root | null = null;
 function mount(element: ReturnType<typeof createElement>) {
@@ -130,7 +130,7 @@ describe("the automation panel", () => {
 describe("a routine's panel", () => {
   it("is titled with the routine's name, says when it runs and who runs it, and shows its whole instructions", () => {
     const prompt = "Every weekday at 9 AM, search for the latest AI news from the last 24 hours (new models, funding, research) and send a 5-bullet brief, each with a source link.";
-    const routine = { id: "routine-1", name: "Daily AI News Brief", prompt, botId: "bot-a", runOn: "maus", enabled: true, createdAt: now, updatedAt: now,
+    const routine = { id: "routine-1", name: "Daily AI News Brief", prompt, botId: "bot-a", runOn: "hezuo", enabled: true, createdAt: now, updatedAt: now,
       schedule: { type: "daily", time: "09:00", weekdays: [1, 2, 3, 4, 5] }, nextRunAt: now + 86_400_000, durationMinutes: 30 };
     const [automation] = automationsFrom({ routines: [routine] as never, webhooks: [], runs: [] });
     const container = mount(createElement(AutomationPanel, { automation: automation!, sentence: "Every weekday at 9 AM, Scout searches for the latest AI news from the last 24 hours (new…", onClose: vi.fn(), onEdit: vi.fn(), onDeleted: vi.fn() }));
@@ -181,7 +181,7 @@ describe("Copy address", () => {
 });
 
 describe("the Automations list switch", () => {
-  const routine = { id: "routine-1", name: "Morning summary", prompt: "Send me a summary of my inbox.", target: "bot", botId: "bot-a", runOn: "maus", enabled: true,
+  const routine = { id: "routine-1", name: "Morning summary", prompt: "Send me a summary of my inbox.", target: "bot", botId: "bot-a", runOn: "hezuo", enabled: true,
     schedule: { type: "daily", time: "09:00", weekdays: [0, 1, 2, 3, 4, 5, 6] }, durationMinutes: 30, nextRunAt: now + 3_600_000, createdAt: now, updatedAt: now };
   let container: HTMLElement;
   /** The page, re-rendered from the store each time it changes, as the app's provider would. */
@@ -272,10 +272,12 @@ describe("on a Cloud", () => {
   it("never asks the person to keep the app open for another app's automation", () => {
     const [automation] = automationsFrom({ routines: [], webhooks: [webhook] as never, runs: [] });
     const props = { automation: automation!, sentence: "s", onClose: vi.fn(), onEdit: vi.fn(), onDeleted: vi.fn() };
-    expect(mount(createElement(AutomationPanel, props)).textContent).toContain("Keep MausBot open so it can receive.");
+    const local = mount(createElement(AutomationPanel, props));
+    expect(button(local, "Copy address").closest("section")!.querySelector(":scope > p")).not.toBeNull();
     root!.unmount();
     fixture.state.config = { cloudHome: true };
-    expect(mount(createElement(AutomationPanel, props)).textContent).not.toContain("Keep MausBot open");
+    const cloud = mount(createElement(AutomationPanel, props));
+    expect(button(cloud, "Copy address").closest("section")!.querySelector(":scope > p")).toBeNull();
   });
 });
 
@@ -285,7 +287,7 @@ describe("the calendar", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 9, 14, 8, 0));
     const at = new Date(2026, 9, 14, 17, 0).getTime();
-    const daily = (id: string, name: string, botId = "bot-a") => ({ id, name, prompt: `${name}.`, target: "bot", botId, runOn: "maus", enabled: true,
+    const daily = (id: string, name: string, botId = "bot-a") => ({ id, name, prompt: `${name}.`, target: "bot", botId, runOn: "hezuo", enabled: true,
       schedule: { type: "daily", time: "17:00", weekdays: [0, 1, 2, 3, 4, 5, 6] }, durationMinutes: 30, nextRunAt: at, createdAt: 0, updatedAt: 0 });
     fixture.state.routines = [daily("failing", "Sales inbox check"), daily("fine", "Morning summary"), daily("orphan", "Orphan check", "deleted-bot")];
     // Last week's failure: its own receipt is off this week's grid, so only the future event can say Needs you.

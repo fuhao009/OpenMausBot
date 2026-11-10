@@ -1,4 +1,5 @@
-export const LAST_CONVERSATION_KEY = "openmausbot.lastConversation.v1";
+import "./hezuo-preferences-migration";
+export const LAST_CONVERSATION_KEY = "hezuo.lastConversation.v1";
 
 export function readLastConversation(): string | null {
   try {

@@ -69,7 +69,7 @@ async function listen(handler: (call: Call, response: ServerResponse) => void) {
 }
 
 const model = (id: string, protocol: "chat" | "responses" = "chat", over: Record<string, unknown> = {}) => ({
-  id, label: id === "maus-default" ? "MausBot" : id, protocol, pricingVersion: "v1",
+  id, label: id === "hezuo-default" ? "Hezuo" : id, protocol, pricingVersion: "v1",
   inputMicroPointsPerMillion: 2_000_000, cachedInputMicroPointsPerMillion: 500_000, outputMicroPointsPerMillion: 4_000_000,
   maxContextTokens: 1_000, maxOutputTokens: 100, ...over,
 });
@@ -101,7 +101,7 @@ async function launchHarness(options: {
   closers.push(upstream.close);
   const registry = new ProviderRegistry([OpenAICompatDriver], { npmAvailable: () => false });
   const provider = new ProductAiProviders({ registry, now: options.now ?? (() => Date.now()), allowLoopbackOrigin: true });
-  const models = options.models ?? [model("maus-default")];
+  const models = options.models ?? [model("hezuo-default")];
   await provider.apply({
     state: "ready",
     connection: {
@@ -142,13 +142,13 @@ describe("the account engine over the real driver and registry", () => {
       const chat = harness.calls.filter(call => call.path === "/v1/ai/chat/completions");
       expect(chat).toHaveLength(1);
       expect(chat[0]!.authorization).toBe(`Bearer ${TOKEN}`);
-      expect(chat[0]!.body).toMatchObject({ model: "maus-default", stream: true });
+      expect(chat[0]!.body).toMatchObject({ model: "hezuo-default", stream: true });
       expect(chat[0]!.body.messages).toEqual(expect.arrayContaining([expect.objectContaining({ role: "user", content: "hello" })]));
       // Nothing crossed the wire with the workspace key, in any header or body.
       expect(JSON.stringify(harness.calls)).not.toContain(PERSONAL_KEY);
       expect(harness.events.some(event => event.type === "runtime.error")).toBe(false);
       // The engine's own catalog is the account's, so a picker cannot offer another engine's models.
-      expect(harness.instance.models.options.map(option => option.id)).toEqual(["maus-default"]);
+      expect(harness.instance.models.options.map(option => option.id)).toEqual(["hezuo-default"]);
     } finally { delete process.env.OPENAI_COMPAT_API_KEY; }
   });
 
@@ -190,7 +190,7 @@ describe("the account engine over the real driver and registry", () => {
       route: (call, response) => call.path.endsWith("/models")
         ? (response.writeHead(200), response.end("{}"))
         : responsesText(response, call.path === "/v1/ai/responses" ? "Answered on Responses." : "wrong route"),
-      models: [model("maus-pro", "responses")],
+      models: [model("hezuo-pro", "responses")],
     });
     const turns = recordEvents(harness.instance.adapter);
     await harness.instance.adapter.sendTurn({ threadId: "pinned", text: "hello" });
@@ -218,7 +218,7 @@ describe("the account engine over the real driver and registry", () => {
       state: "ready",
       connection: {
         origin: harness.origin, userId: "user-1", tokenId: "token-2", token: NEXT_TOKEN,
-        expiresAt: Date.now() + 15 * 60_000, defaultModel: "maus-default", models: [model("maus-default")],
+        expiresAt: Date.now() + 15 * 60_000, defaultModel: "hezuo-default", models: [model("hezuo-default")],
       },
     });
     expect(harness.registry.get(PRODUCT_AI_INSTANCE_ID)).toBe(harness.instance);

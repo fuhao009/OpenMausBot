@@ -18,7 +18,7 @@ function fixture() {
   const messages = new Map<string, unknown[]>();
   const bots = [
     { id: "scout", tasks: [{ threadId: "scout-main" }, { threadId: "bob-private" }] },
-    { id: "bobs-mausbot", defaultBot: { person: BOB }, tasks: [{ threadId: "mausbot-main" }, { threadId: "mausbot-second" }] },
+    { id: "bobs-hezuo", defaultBot: { person: BOB }, tasks: [{ threadId: "hezuo-main" }, { threadId: "hezuo-second" }] },
   ];
   const deleted: string[] = [];
   const deletedBots: string[] = [];
@@ -54,24 +54,24 @@ function fixture() {
 }
 
 describe("createTeamMemberLeft", () => {
-  it("deletes the departing member's own MausBot with its chats, and counts them", async () => {
+  it("deletes the departing member's own Hezuo with its chats, and counts them", async () => {
     const fx = fixture();
-    fx.messages.set("mausbot-main", [{ role: "user", text: "LC-L2-MAIN-9081" }]);
+    fx.messages.set("hezuo-main", [{ role: "user", text: "LC-L2-MAIN-9081" }]);
     const result = await createTeamMemberLeft(fx.deps)(BOB);
-    expect(fx.deletedBots).toEqual(["bobs-mausbot"]);
+    expect(fx.deletedBots).toEqual(["bobs-hezuo"]);
     expect(fx.bots.map((bot) => bot.id)).toEqual(["scout"]);
     expect(result).toMatchObject({ chats: 3, bots: 1 });
   });
 
-  it("stops the departing member's MausBot at work (a routine, a room turn) before deleting it", async () => {
+  it("stops the departing member's Hezuo at work (a routine, a room turn) before deleting it", async () => {
     const fx = fixture();
-    fx.working.add("bobs-mausbot");
+    fx.working.add("bobs-hezuo");
     const result = await createTeamMemberLeft(fx.deps)(BOB);
-    expect(fx.deletedBots).toEqual(["bobs-mausbot"]);
+    expect(fx.deletedBots).toEqual(["bobs-hezuo"]);
     expect(result).toMatchObject({ bots: 1, botsKept: 0 });
   });
 
-  it("reports a MausBot it could not delete", async () => {
+  it("reports a Hezuo it could not delete", async () => {
     const fx = fixture();
     const result = await createTeamMemberLeft({ ...fx.deps, deleteBot: async () => false })(BOB);
     expect(result).toMatchObject({ bots: 0, botsKept: 1 });

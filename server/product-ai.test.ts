@@ -32,9 +32,9 @@ const NEXT_TOKEN = `omb_product_ai_${"c".repeat(22)}.${"d".repeat(43)}`;
 const ORIGIN = "https://operator.example";
 const NOW = 1_800_000_000_000;
 
-function model(id = "maus-default", protocol: "chat" | "responses" = "chat", over: Partial<Record<string, unknown>> = {}) {
+function model(id = "hezuo-default", protocol: "chat" | "responses" = "chat", over: Partial<Record<string, unknown>> = {}) {
   return {
-    id, label: "MausBot", protocol, pricingVersion: "v1",
+    id, label: "Hezuo", protocol, pricingVersion: "v1",
     inputMicroPointsPerMillion: 2_000_000, cachedInputMicroPointsPerMillion: 500_000, outputMicroPointsPerMillion: 4_000_000,
     maxContextTokens: 1_000, maxOutputTokens: 100,
     ...over,
@@ -42,7 +42,7 @@ function model(id = "maus-default", protocol: "chat" | "responses" = "chat", ove
 }
 function connection(over: Record<string, unknown> = {}) {
   return { origin: ORIGIN, userId: "user-1", tokenId: "token-1", token: TOKEN, expiresAt: NOW + 15 * 60_000,
-    defaultModel: "maus-default", models: [model()], ...over };
+    defaultModel: "hezuo-default", models: [model()], ...over };
 }
 const ready = (over: Record<string, unknown> = {}) => ({ state: "ready", connection: connection(over) });
 
@@ -148,8 +148,8 @@ describe("the private capability parser", () => {
   it("accepts exactly the documented wire shape", () => {
     expect(parsed(ready())).toEqual({ state: "ready", connection: {
       origin: ORIGIN, userId: "user-1", tokenId: "token-1", token: TOKEN, expiresAt: NOW + 15 * 60_000,
-      defaultModel: "maus-default", models: [model()] } });
-    expect(parsed({ type: "openmausbot:product-ai", requestId: "r-1", state: "ready", connection: connection() }).state).toBe("ready");
+      defaultModel: "hezuo-default", models: [model()] } });
+    expect(parsed({ type: "hezuo:product-ai", requestId: "r-1", state: "ready", connection: connection() }).state).toBe("ready");
     for (const state of ["pending", "suspended", "unavailable"] as const) {
       expect(parsed({ state, connection: null })).toEqual({ state, connection: null });
     }
@@ -177,17 +177,17 @@ describe("the private capability parser", () => {
       ready({ expiresAt: 0 }),
       ready({ models: [] }),
       ready({ models: [model(), model()] }),
-      ready({ models: [model("maus-default", "chat", { maxOutputTokens: 2_000 })] }),
-      ready({ models: [model("maus-default", "audio" as "chat")] }),
+      ready({ models: [model("hezuo-default", "chat", { maxOutputTokens: 2_000 })] }),
+      ready({ models: [model("hezuo-default", "audio" as "chat")] }),
       ready({ models: [model("bad model")] }),
-      ready({ models: [model("maus-default", "chat", { inputMicroPointsPerMillion: -1 })] }),
-      ready({ models: [model("maus-default", "chat", { maxContextTokens: 1.5 })] }),
+      ready({ models: [model("hezuo-default", "chat", { inputMicroPointsPerMillion: -1 })] }),
+      ready({ models: [model("hezuo-default", "chat", { maxContextTokens: 1.5 })] }),
       ready({ defaultModel: "not-there" }),
       ready({ userId: "" }),
       ready({ extra: true }),
       ready({ models: [{ ...model(), upstreamModel: "secret" }] }),
       { state: "ready", connection: connection(), extra: true },
-      { type: "openmausbot:managed-desktop", state: "pending", connection: null },
+      { type: "hezuo:managed-desktop", state: "pending", connection: null },
     ];
     for (const value of bad) expect(() => parsed(value), JSON.stringify(value)).toThrow(/invalid_product_ai/);
     // A loopback HTTP origin exists only for an explicit fixture or development deployment.
@@ -214,15 +214,15 @@ describe("the private capability parser", () => {
 
 describe("the account engine's config", () => {
   it("is one OpenAI-compatible instance on the gateway, with no token in anything persistable", () => {
-    const configs = productAiInstanceConfigs(ORIGIN, [model(), model("maus-pro", "responses")], "maus-default");
+    const configs = productAiInstanceConfigs(ORIGIN, [model(), model("hezuo-pro", "responses")], "hezuo-default");
     expect(Object.keys(configs)).toEqual([PRODUCT_AI_INSTANCE_ID]);
     const entry = configs[PRODUCT_AI_INSTANCE_ID]!;
-    expect(entry).toMatchObject({ driver: "openai-compat", displayName: "OpenMausBot AI", access: "api", enabled: true });
+    expect(entry).toMatchObject({ driver: "openai-compat", displayName: "Hezuo AI", access: "api", enabled: true });
     expect(entry.environment).toBeUndefined();
     expect(entry.config).toEqual({
-      url: `${ORIGIN}/v1/ai`, apiKeyEnv: PRODUCT_AI_KEY_ENV, provider: "", model: "maus-default",
-      managedModels: ["maus-default", "maus-pro"],
-      modelProtocols: { "maus-default": "chat", "maus-pro": "responses" },
+      url: `${ORIGIN}/v1/ai`, apiKeyEnv: PRODUCT_AI_KEY_ENV, provider: "", model: "hezuo-default",
+      managedModels: ["hezuo-default", "hezuo-pro"],
+      modelProtocols: { "hezuo-default": "chat", "hezuo-pro": "responses" },
     });
     expect(JSON.stringify(entry)).not.toContain(TOKEN);
     expect(JSON.stringify(entry)).not.toMatch(/OPENAI_COMPAT_API_KEY|OPENAI_API_KEY|sk-/);
@@ -236,7 +236,7 @@ describe("ProductAiProviders", () => {
     await provider.apply(ready());
     expect(provider.status()).toBe("ready");
     expect(provider.origin()).toBe(ORIGIN);
-    expect(provider.defaultModel()).toBe("maus-default");
+    expect(provider.defaultModel()).toBe("hezuo-default");
     expect(onState).toHaveBeenCalled();
     expect(afterReplace).toHaveBeenCalledWith([PRODUCT_AI_INSTANCE_ID]);
     const instance = registry.get(PRODUCT_AI_INSTANCE_ID);
@@ -249,7 +249,7 @@ describe("ProductAiProviders", () => {
     // No bundled certificate: the driver keeps the platform trust store.
     expect(input.requestTrust).toBeUndefined();
     // The catalog, not the driver's, is what a picker sees.
-    expect(instance!.models).toEqual({ default: "maus-default", options: [{ id: "maus-default", label: "MausBot", contextWindow: 1_000 }] });
+    expect(instance!.models).toEqual({ default: "hezuo-default", options: [{ id: "hezuo-default", label: "Hezuo", contextWindow: 1_000 }] });
     // A product engine is never installed or signed in to.
     expect(instance!.installRuntime).toBeUndefined();
     expect(instance!.startAuthentication).toBeUndefined();
@@ -300,13 +300,13 @@ describe("ProductAiProviders", () => {
   it("keeps bot model choices through a pause and releases only the engine, never the catalog", async () => {
     const { registry, provider } = setup();
     await provider.apply(ready());
-    const selected = { instanceId: PRODUCT_AI_INSTANCE_ID, model: "maus-default" };
+    const selected = { instanceId: PRODUCT_AI_INSTANCE_ID, model: "hezuo-default" };
     expect(provider.select(selected)).toEqual(selected);
     expect(provider.select({ instanceId: "openai", model: "gpt-personal" })).toEqual(selected);
     await provider.apply({ state: "suspended", connection: null });
     expect(provider.status()).toBe("suspended");
     expect(registry.get(PRODUCT_AI_INSTANCE_ID)).toBeNull();
-    expect(provider.models().map(entry => entry.id)).toEqual(["maus-default"]);
+    expect(provider.models().map(entry => entry.id)).toEqual(["hezuo-default"]);
     // A paused provider still names the catalog: a person's saved choice is not erased, it is refused at admission.
     expect(provider.allows(selected)).toBe(true);
     expect(provider.select(selected)).toEqual(selected);
@@ -354,14 +354,14 @@ describe("ProductAiProviders", () => {
     const { fixture, registry, provider } = setup();
     await provider.apply(ready());
     const before = registry.get(PRODUCT_AI_INSTANCE_ID)!;
-    await provider.apply(ready({ token: NEXT_TOKEN, models: [model("maus-pro", "responses")], defaultModel: "maus-pro" }));
+    await provider.apply(ready({ token: NEXT_TOKEN, models: [model("hezuo-pro", "responses")], defaultModel: "hezuo-pro" }));
     expect(registry.get(PRODUCT_AI_INSTANCE_ID)).not.toBe(before);
     expect(fixture.disposed).toContain(PRODUCT_AI_INSTANCE_ID);
     // Pricing-only changes keep the same route and therefore the same engine.
     const current = registry.get(PRODUCT_AI_INSTANCE_ID)!;
-    await provider.apply(ready({ models: [model("maus-pro", "responses", { inputMicroPointsPerMillion: 3_000_000 })], defaultModel: "maus-pro" }));
+    await provider.apply(ready({ models: [model("hezuo-pro", "responses", { inputMicroPointsPerMillion: 3_000_000 })], defaultModel: "hezuo-pro" }));
     expect(registry.get(PRODUCT_AI_INSTANCE_ID)).toBe(current);
-    expect(provider.select()).toEqual({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "maus-pro" });
+    expect(provider.select()).toEqual({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "hezuo-pro" });
   });
 
   it("keeps the engine for a balance-empty account with a live credential, and replaces it for another account", async () => {
@@ -385,7 +385,7 @@ describe("ProductAiProviders", () => {
     const { fixture, registry, provider } = setup();
     await provider.apply(ready());
     const instance = registry.get(PRODUCT_AI_INSTANCE_ID)!;
-    await instance.adapter.sendTurn({ threadId: "thread", text: "ok", model: "maus-default" });
+    await instance.adapter.sendTurn({ threadId: "thread", text: "ok", model: "hezuo-default" });
     expect(fixture.turns).toHaveLength(1);
     await expect(instance.adapter.sendTurn({ threadId: "thread", text: "no", model: "gpt-personal" }))
       .rejects.toThrow(PRODUCT_AI_MODEL_MESSAGE);
@@ -411,26 +411,26 @@ describe("ProductAiProviders", () => {
     await settle();
     expect(registry.get(PRODUCT_AI_INSTANCE_ID)).toBeNull();
     // Expiry keeps the catalog the same way a pause does.
-    expect(provider.select()).toEqual({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "maus-default" });
+    expect(provider.select()).toEqual({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "hezuo-default" });
   });
 
   it("selects, allows and resets exactly like the hosted policy shape it stands in for", async () => {
     const { provider } = setup();
     expect(provider.select()).toEqual({ instanceId: "", model: "" });
     expect(provider.error()).toBe(PRODUCT_AI_UNAVAILABLE_MESSAGE);
-    await provider.apply(ready({ models: [model("maus-default"), model("maus-pro")], defaultModel: "maus-pro" }));
-    expect(provider.select()).toEqual({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "maus-pro" });
-    expect(provider.select({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "maus-default" })).toEqual({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "maus-default" });
-    expect(provider.allows({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "maus-pro" })).toBe(true);
-    expect(provider.allows({ instanceId: "openai", model: "maus-pro" })).toBe(false);
-    expect(provider.allows({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "maus-default", effort: "high" })).toBe(true);
+    await provider.apply(ready({ models: [model("hezuo-default"), model("hezuo-pro")], defaultModel: "hezuo-pro" }));
+    expect(provider.select()).toEqual({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "hezuo-pro" });
+    expect(provider.select({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "hezuo-default" })).toEqual({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "hezuo-default" });
+    expect(provider.allows({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "hezuo-pro" })).toBe(true);
+    expect(provider.allows({ instanceId: "openai", model: "hezuo-pro" })).toBe(false);
+    expect(provider.allows({ instanceId: PRODUCT_AI_INSTANCE_ID, model: "hezuo-default", effort: "high" })).toBe(true);
     expect(provider.resetTask(
-      { instanceId: PRODUCT_AI_INSTANCE_ID, model: "maus-default" },
-      { instanceId: PRODUCT_AI_INSTANCE_ID, model: "maus-pro" },
+      { instanceId: PRODUCT_AI_INSTANCE_ID, model: "hezuo-default" },
+      { instanceId: PRODUCT_AI_INSTANCE_ID, model: "hezuo-pro" },
     )).toEqual({ resumeCursors: {}, lastInstanceId: undefined, rewound: true, lastContextModel: undefined, appliedCompactionId: undefined });
     expect(provider.resetTask(
-      { instanceId: PRODUCT_AI_INSTANCE_ID, model: "maus-default" },
-      { instanceId: PRODUCT_AI_INSTANCE_ID, model: "maus-default" },
+      { instanceId: PRODUCT_AI_INSTANCE_ID, model: "hezuo-default" },
+      { instanceId: PRODUCT_AI_INSTANCE_ID, model: "hezuo-default" },
     )).toEqual({});
     expect(provider.owns(PRODUCT_AI_INSTANCE_ID)).toBe(true);
     expect(provider.owns("company.abc.openrouter")).toBe(false);
@@ -451,7 +451,7 @@ describe("ProductAiProviders", () => {
     await expect(provider.apply({ state: "ready", connection: connection({ token: "nope" }) })).rejects.toThrow(/invalid_product_ai/);
     expect(provider.status()).toBe("ready");
     fixture.breakDecode();
-    const outcome = provider.apply(ready({ models: [model("maus-pro")], defaultModel: "maus-pro" })).catch(() => "failed");
+    const outcome = provider.apply(ready({ models: [model("hezuo-pro")], defaultModel: "hezuo-pro" })).catch(() => "failed");
     expect(await outcome).toBe("failed");
     expect(provider.status()).toBe("unavailable");
     expect(provider.origin()).toBeNull();

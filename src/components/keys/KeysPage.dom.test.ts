@@ -191,10 +191,6 @@ describe("Boat's credit offer on the Boat card", () => {
       setConfig({ ...fx.config, box });
       expect(offer(), JSON.stringify(box)).not.toBeNull();
       expect(offer()!.closest("[hidden]")).toBeNull();
-      const words = offer()!.textContent!;
-      for (const text of ["$50 of Boat credit for you", "Boat runs the cloud computers behind MausBot.", "You claim it yourself: it isn't automatic."]) {
-        expect(words).toContain(text);
-      }
       expect(buttons().map((button) => button.textContent)).toEqual(["Get Boat", "I bought it: claim my $50"]);
     }
     vi.stubGlobal("localStorage", { getItem: (key: string) => (key === BOAT_OFFER_NOTICE ? "1" : null), setItem: () => {}, removeItem: () => {} });

@@ -112,7 +112,7 @@ export function resolveWidgetAction(payload: WidgetPayload, ref: string, values:
 - Modify: `Models.kt` (`Kind.WIDGET`, serializer, `widget` field last), `StateSnapshot.kt` and its test, `ChatPreferences.kt`, `ChatPolicy.kt` kind switches, `Client.kt`, `Session.kt` (`sendWidgetAction`), `MessageRow.kt` (dispatch), the three `strings.xml`
 
 - [ ] Core tests first, mirroring Task 4 on the shared fixture.
-- [ ] Implement core, then composables with `Maus.colors`, `Space`, `MausShapes`; charts on a Canvas; https images through a small bounded loader.
+- [ ] Implement core, then composables with `Hezuo.colors`, `Space`, `HezuoShapes`; charts on a Canvas; https images through a small bounded loader.
 - [ ] Run `:core:test :app:testDebugUnitTest` and `:app:assembleDebug`. Read the real counts from `build/test-results`. Commit.
 
 ### Task 6: End-to-end verification and review

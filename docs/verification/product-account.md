@@ -6,8 +6,8 @@ account, model key or Cloud account.
 
 ```sh
 node scripts/verify-product-account.mjs                      # this checkout's Electron, emailed codes
-node scripts/verify-product-account.mjs --app "/Applications/OpenMausBot Product.app"
-node scripts/verify-product-account.mjs --app "…/OpenMausBot Product.app" --bundled-trust
+node scripts/verify-product-account.mjs --app "/Applications/Hezuo Product.app"
+node scripts/verify-product-account.mjs --app "…/Hezuo Product.app" --bundled-trust
 node scripts/verify-product-account.mjs --keep               # keep the disposable profile
 node scripts/verify-product-account.mjs --password           # password form, no mail transport
 ```

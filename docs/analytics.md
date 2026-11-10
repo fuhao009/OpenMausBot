@@ -1,6 +1,6 @@
 # Usage analytics
 
-OpenMausBot can send anonymous product analytics to PostHog (US cloud, `us.i.posthog.com`), so its maintainers can see
+Hezuo can send anonymous product analytics to PostHog (US cloud, `us.i.posthog.com`), so its maintainers can see
 which features people set up and use. This page lists every event and every property the app can send. Nothing else is
 sent.
 
@@ -11,7 +11,7 @@ sent.
 - Autocapture, pageviews, surveys and feature flags are off. Events come only from the calls listed on this page, and
   switching analytics back on sends no event of its own.
 - Every event carries `app_version` (for example `0.1.112`) and `surface`: `local` for the desktop app's own window,
-  `server` for a page a server serves (MausBot Cloud, a self-hosted server, or the app in a browser).
+  `server` for a page a server serves (Hezuo Cloud, a self-hosted server, or the app in a browser).
 - PostHog adds its standard device facts to every event: operating system, browser and its version, device type,
   screen and window size, language and time zone. Like any server, PostHog sees the IP address a request comes from.
 - Events are tied to a random id that PostHog keeps in the page's storage. Nothing ties them to you: the app never sends
@@ -26,7 +26,7 @@ The desktop app keeps the switch for this computer's page itself, so it holds wh
 (it moves to another when its usual one is taken). It is read before anything loads, and before any email is tied to
 your events. A switch turned off only in the page's storage, before the app kept it, does not hold on another port until
 the app serves its page on that port again, which moves it to the app; while the app has kept no choice yet, its page on
-a port other than its first ties no email to your events. Each server page (your MausBot Cloud, a self-hosted server,
+a port other than its first ties no email to your events. Each server page (your Hezuo Cloud, a self-hosted server,
 each browser you use) keeps its own switch in that page's storage. With the switch off in the desktop app, a server page
 that the app's window shows, My Cloud's included, starts with it off too once that server runs this version; turning it
 on there lasts until that page reloads. In a browser, switch it off on each server's page.
@@ -69,7 +69,7 @@ use their own Boat key, and how many bots run on cloud computers, without sendin
 - It counts what the app has already loaded. It also asks, once: this server for its signed-in devices (counted, never
   listed) and its connected-app inventory; on the desktop app, the app itself for the number of paired phones and the
   Cloud plan; and, when a Boat account is set, this server for the number of cloud computers. To answer that, the server
-  lists the computers once at boat.dev with your Boat key, or at MausBot Cloud's relay for computers included with a
+  lists the computers once at boat.dev with your Boat key, or at Hezuo Cloud's relay for computers included with a
   plan. That listing only reads: it never changes a computer.
 - When a source fails, its properties are left out and the rest is sent.
 
@@ -109,7 +109,7 @@ use their own Boat key, and how many bots run on cloud computers, without sendin
 | `paired_devices` | count | Devices signed in to this server without an email, other than this one |
 | `phone_paired` | true/false | Either count above is more than zero |
 | `members` | count | People signed in to this server with an email, other than you |
-| `cloud_home` | true/false | This server is a MausBot Cloud |
+| `cloud_home` | true/false | This server is a Hezuo Cloud |
 | `cloud_plan` | `starter`, `personal`, `pro`, `max`, `other`, `none`, `unknown` | The Cloud plan: `none` when free or signed out, `unknown` when the app cannot tell |
 | `cloud_trial` | true/false | A Cloud trial is running |
 | `edition` | `oss`, `enterprise` | The edition |
@@ -129,7 +129,7 @@ use their own Boat key, and how many bots run on cloud computers, without sendin
 | `onboarding_step` | A first-run screen is shown | `step`: `meet`, `chief`; `replay`: true/false |
 | `onboarding_completed` | The first run ends in the chat | `reason`: `completed`; `at`: the screen it ended on; `replay`: true/false |
 | `setup_import_applied` | You bring in the skills and MCP servers found from other AI tools on this computer, in Settings → Import | `skills`, `tools`: how many were added. Never their names or where they came from |
-| `onboarding_cloud` | You tap Try Cloud under MausBot's first messages, which opens Add a Cloud | `action`: `start_trial` |
+| `onboarding_cloud` | You tap Try Cloud under Hezuo's first messages, which opens Add a Cloud | `action`: `start_trial` |
 | `message_sent` | You send a message | To a bot: `driver`: engine; `queued`: true/false. To a room: `room`: true; `mode`: `chat`, `goal`; `queued`: true/false |
 | `call_started` | You start a call with a bot | `driver`: engine; `mode`: `turns`, `live` |
 | `group_call_started` | You start a call with a room | `memberCount`: count |
@@ -143,13 +143,13 @@ use their own Boat key, and how many bots run on cloud computers, without sendin
 | `engine_signed_in` | You finish signing in to an engine inside the app | `engine`: `claude`, `codex`, `grok`, `kimi`; `method`: `code`, `device_code`, `browser` |
 | `connector_connect` | A Connect you started in Connected apps ends | `app`: app; `result`: `connected` (the account it added works), `failed` or `expired` (that account failed or expired), `timed_out` (neither within two minutes) |
 | `app_snapshot` | Once a day, as described above | The properties in the snapshot table |
-| `cloud_card_shown` | The MausBot Cloud card is shown | `variant`: `signed_out`, `free` |
-| `cloud_card_action` | You act on the MausBot Cloud card | `action`: `start`, `howto`, `signin`, `not_now`, `close` |
-| `whats_new` | The What's new popup (once per person after an update, on this computer's page): a slide comes on screen, counted once per slide each time the popup is up, or you act on it | `action`: `seen`, `next`, `back` (the slide changed, by its buttons, its dots or the arrow keys), `get_pro` (Get Pro, which opens Add a Cloud), `see_cloud` (See the new Cloud, which opens the Cloud website), `start_team` (Start a Team, which opens the Team plan's checkout on the Cloud website, or Add a Cloud for someone with a plan of their own), `not_now`, `close` (the X, Escape or a click outside); `slide`: the slide it happened on: `pro` (the new MausBot Cloud), `team` (Team); `audience`: `no_plan` (both slides), `own_plan` (a Cloud plan of one's own: the Team slide only); `signed_in`: true/false, signed in to MausBot Cloud in the app; `campaign`: the popup's campaign, `whats-new-2026-11` |
+| `cloud_card_shown` | The Hezuo Cloud card is shown | `variant`: `signed_out`, `free` |
+| `cloud_card_action` | You act on the Hezuo Cloud card | `action`: `start`, `howto`, `signin`, `not_now`, `close` |
+| `whats_new` | The What's new popup (once per person after an update, on this computer's page): a slide comes on screen, counted once per slide each time the popup is up, or you act on it | `action`: `seen`, `next`, `back` (the slide changed, by its buttons, its dots or the arrow keys), `get_pro` (Get Pro, which opens Add a Cloud), `see_cloud` (See the new Cloud, which opens the Cloud website), `start_team` (Start a Team, which opens the Team plan's checkout on the Cloud website, or Add a Cloud for someone with a plan of their own), `not_now`, `close` (the X, Escape or a click outside); `slide`: the slide it happened on: `pro` (the new Hezuo Cloud), `team` (Team); `audience`: `no_plan` (both slides), `own_plan` (a Cloud plan of one's own: the Team slide only); `signed_in`: true/false, signed in to Hezuo Cloud in the app; `campaign`: the popup's campaign, `whats-new-2026-11` |
 | `cloud_howto` | The "Show me how" tip ends | `result`: `no_button`, `skipped`, `closed` |
-| `cloud_dialog_shown` | The Add a Cloud dialog opens | `source`: `app_card`, `app_howto`, `app_menu`, `app_settings`, `app_routines`, `app_whats_new_pro` (Get Pro in the What's new popup), `app_whats_new_team` (Start a Team in it, for someone with a plan of their own), `app_onboarding` (Try Cloud under MausBot's first messages); `view`: the dialog's first screen |
+| `cloud_dialog_shown` | The Add a Cloud dialog opens | `source`: `app_card`, `app_howto`, `app_menu`, `app_settings`, `app_routines`, `app_whats_new_pro` (Get Pro in the What's new popup), `app_whats_new_team` (Start a Team in it, for someone with a plan of their own), `app_onboarding` (Try Cloud under Hezuo's first messages); `view`: the dialog's first screen |
 | `cloud_dialog_view` | The Add a Cloud dialog reaches a step | `view`: `received`, `starting`, `ready` |
-| `cloud_signin` | Signing in to MausBot Cloud inside the Add a Cloud dialog takes a step | `step`: `code_sent` (a sign-in code was emailed), `signed_in`, `browser` (Continue in browser); `source`: as for `cloud_dialog_shown` |
+| `cloud_signin` | Signing in to Hezuo Cloud inside the Add a Cloud dialog takes a step | `step`: `code_sent` (a sign-in code was emailed), `signed_in`, `browser` (Continue in browser); `source`: as for `cloud_dialog_shown` |
 | `cloud_checkout_opened` | A Cloud checkout opens in the browser | `plan`: Cloud plan; `trial`: true/false; `source`: as for `cloud_dialog_shown` |
 | `cloud_add_another` | Buying another Cloud, for someone who has one, takes a step | `step`: `plan` (a plan chosen), `checkout_opened`, `ready`; `plan`: Cloud plan, for `plan` and `checkout_opened` |
 | `rail_place_opened` | You open a place from the rail of Clouds at the window's left edge | `kind`: `computer`, `cloud`, `team`, `server` |

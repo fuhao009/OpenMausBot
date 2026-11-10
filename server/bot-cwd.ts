@@ -32,7 +32,7 @@ export function folderToFollow(bot: { id: string; cwd?: string }, threadId: stri
   return isOwnThreadFolder(threadCwd, bot.id, threadId) ? bot.cwd : undefined;
 }
 
-/** A conversation's folder a teammate may be sent to: one that still exists, outside OpenMausBot's own data (a bot's private workspace). */
+/** A conversation's folder a teammate may be sent to: one that still exists, outside Hezuo's own data (a bot's private workspace). */
 export function sharedProjectFolder(cwd: string | null | undefined, dataDir: string): string | undefined {
   const checked = cwd ? validateBotCwd(cwd) : undefined;
   if (!checked?.ok || !checked.cwd) return undefined;

@@ -21,7 +21,7 @@ describe("team import preview", () => {
   });
   it("previews portable backups and validates their references before confirmation", () => {
     const backup = {
-      format: "openmaus.backup", version: 1, name: "Saved team", exportedAt: 0,
+      format: "hezuo.backup", version: 1, name: "Saved team", exportedAt: 0,
       bots: [{ key: "bot", name: "Scout", title: "Research", description: "", color: "cyan", chiefOfStaff: false,
         hidden: true, playbooks: [], activeTask: "thread", tasks: [{ key: "thread", title: "Chat", createdAt: 0,
           activeLeafId: "message", messages: [{ id: "message", parentId: null, role: "user", text: "Hello", at: 0 }] }] }],
@@ -35,7 +35,7 @@ describe("team import preview", () => {
 
   it.each([1, 2])("previews version %s team files", (version) => {
     const preview = teamImportPreview({
-      format: "openmaus.team",
+      format: "hezuo.team",
       version,
       team: {
         name: " Engineering ",
@@ -55,15 +55,15 @@ describe("team import preview", () => {
   });
 
   it("rejects unsupported and empty files", () => {
-    expect(() => teamImportPreview({ format: "openmaus.team", version: 3, team: {} })).toThrow("not supported");
+    expect(() => teamImportPreview({ format: "hezuo.team", version: 3, team: {} })).toThrow("not supported");
     expect(() =>
-      teamImportPreview({ format: "openmaus.team", version: 2, team: { name: "Empty", members: [] } }),
+      teamImportPreview({ format: "hezuo.team", version: 2, team: { name: "Empty", members: [] } }),
     ).toThrow("no members");
   });
 
   it("previews the complete package setup before installation", () => {
     const preview = teamImportPreview({
-      format: "openmaus.package",
+      format: "hezuo.package",
       version: 1,
       package: {
         name: "Lead Desk",
@@ -177,7 +177,7 @@ Create the team.`);
 
 describe("Grok Bot import preview", () => {
   const reply = {
-    format: "openmaus.grok/1",
+    format: "hezuo.grok/1",
     name: "Overheard",
     description: "Watches the web for mentions of your brand.",
     instructions: "Watch Reddit, Hacker News and X for mentions. Stay quiet on dead days.",
@@ -208,7 +208,7 @@ describe("Grok Bot import preview", () => {
       "Routine “On mention”: it starts on an event, not a clock. It said: When: When someone mentions the brand on X\nFlag it.",
     ]);
     // What Add sends is the converted package, never the raw reply.
-    expect((pending.manifest as { format: string }).format).toBe("openmaus.package");
+    expect((pending.manifest as { format: string }).format).toBe("hezuo.package");
   });
 
   it("previews a dropped grokbot-bundle/v1 file, and a reply without the format through the Grok box", () => {

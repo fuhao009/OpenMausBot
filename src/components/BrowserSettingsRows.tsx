@@ -62,7 +62,7 @@ export function BuiltInBrowserRow() {
 }
 
 /** Self-hosted servers only, for the owner: browserEngine.egress.localNetwork lets bots' browsers open this server's
- * own sites and its local network. OpenMausBot's own ports, cloud metadata and link-local addresses stay closed. */
+ * own sites and its local network. Hezuo's own ports, cloud metadata and link-local addresses stay closed. */
 export function ServerSitesRow() {
   const { state } = useStore();
   const owner = useOwnerOrAdmin();
@@ -87,7 +87,7 @@ export function ServerSitesRow() {
   );
 }
 
-/** browserEngine.engine: the bots' browsers run on OpenMausBot's own Chrome driver instead of agent-browser. */
+/** browserEngine.engine: the bots' browsers run on Hezuo's own Chrome driver instead of agent-browser. */
 export function NewBrowserSettings() {
   const { state } = useStore();
   const on = state.config?.browserEngine?.engine === "chrome";

@@ -40,7 +40,8 @@ vi.mock("./DesktopCapabilities", () => ({
   useCaptionChrome: () => ({}),
 }));
 vi.mock("react-dom", async (original) => ({ ...await original<object>(), createPortal: (children: unknown) => children }));
-import { GroupView, RoomToolChip } from "./GroupView";
+import { GroupView } from "./GroupView";
+import { RoomToolChip } from "./RoomToolChip";
 import { RunRow } from "./UsageSection";
 import { TeamMapPage } from "./TeamMapPage";
 import { BotInstructionsDialog } from "./BotInstructionsDialog";

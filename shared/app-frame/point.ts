@@ -1,16 +1,16 @@
 // Point mode: the person picks a part of a bot's page in the preview and it reaches the composer as a chip.
 //
-//   host → frame  { jsonrpc: "2.0", method: "mausbot/point", params: { on: boolean } }
-//   frame → host  { jsonrpc: "2.0", method: "mausbot/pointed", params: { tag, role, text, selector, html } }
-//                 { jsonrpc: "2.0", method: "mausbot/point-ended", params: {} }   Escape in the page
+//   host → frame  { jsonrpc: "2.0", method: "hezuo/point", params: { on: boolean } }
+//   frame → host  { jsonrpc: "2.0", method: "hezuo/pointed", params: { tag, role, text, selector, html } }
+//                 { jsonrpc: "2.0", method: "hezuo/point-ended", params: {} }   Escape in the page
 //
 // The script below runs inside the page, beside the helper. The page's own scripts can post the same messages, so
 // everything a pick carries is the page's word: the host keeps only the frame's own window, clips every field, and
 // the server hands it to the model only inside a records block.
 
-export const POINT_METHOD = "mausbot/point";
-export const POINTED_METHOD = "mausbot/pointed";
-export const POINT_ENDED_METHOD = "mausbot/point-ended";
+export const POINT_METHOD = "hezuo/point";
+export const POINTED_METHOD = "hezuo/pointed";
+export const POINT_ENDED_METHOD = "hezuo/point-ended";
 
 export const POINT_LIMITS = {
   text: 200,
@@ -131,7 +131,7 @@ export const APP_POINT_SOURCE = `(function () {
   var place = function (element) {
     if (!box) {
       box = document.createElement("div");
-      box.setAttribute("data-mausbot-point", "");
+      box.setAttribute("data-hezuo-point", "");
       box.setAttribute("aria-hidden", "true");
       box.style.cssText = "position:fixed;z-index:2147483647;pointer-events:none;box-sizing:border-box;border:2px solid #3b82f6;" +
         "background:rgba(59,130,246,0.12);border-radius:4px;transition:all 60ms ease-out;display:none";

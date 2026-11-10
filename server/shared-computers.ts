@@ -66,7 +66,7 @@ const RECONNECTING_MS = 60_000;
 const RECONNECT_WAIT_MS = 15_000;
 const OFFLINE = "This shared computer is offline. Keep its desktop app open; do not substitute files on the server.";
 const RESTARTING = "This server is restarting. Lending resumes by itself once it is back.";
-const lentButOffline = (name: string, seen: number, device: "PC" | "Mac" | "computer" = "computer") => `${name} is lent but has been offline for ${Math.max(1, Math.round((Date.now() - seen) / 60_000))} min: OpenMausBot on it is closed, the ${device} is asleep or locked, or its desktop app is signed out of MausBot Cloud. Tell the person in one sentence to open OpenMausBot on that ${device}; do not substitute files on the server.`;
+const lentButOffline = (name: string, seen: number, device: "PC" | "Mac" | "computer" = "computer") => `${name} is lent but has been offline for ${Math.max(1, Math.round((Date.now() - seen) / 60_000))} min: Hezuo on it is closed, the ${device} is asleep or locked, or its desktop app is signed out of Hezuo Cloud. Tell the person in one sentence to open Hezuo on that ${device}; do not substitute files on the server.`;
 
 /** Aborts when the client of a long poll goes away before it is answered. */
 export function responseGone(res: { once(event: "close", listener: () => void): unknown; readonly writableEnded: boolean }): AbortSignal {
@@ -80,7 +80,7 @@ export function sharedComputerScopeRefusal(registration: Registration, operation
   switch (operation.action) {
     case "run_command":
       if (!registration.terminal && askTool) return `${registration.name} doesn't let this Cloud run commands right now. Call ${askTool} with need "terminal" and why: it asks them with a one-tap Turn on, and you carry on once it's on. Never run the command another way or anywhere else.`;
-      return registration.terminal ? null : `${registration.name} does not lend its terminal, so commands cannot run there. Do not try to run the command another way or anywhere else; use its folders, or tell the person in one sentence what to run themselves, or, when it is their own Cloud, that they can turn on "Let Clouds run commands on this ${deviceWord(registration.platform)}" from the OpenMausBot icon in its menu bar or taskbar.`;
+      return registration.terminal ? null : `${registration.name} does not lend its terminal, so commands cannot run there. Do not try to run the command another way or anywhere else; use its folders, or tell the person in one sentence what to run themselves, or, when it is their own Cloud, that they can turn on "Let Clouds run commands on this ${deviceWord(registration.platform)}" from the Hezuo icon in its menu bar or taskbar.`;
     case "computer_tools":
     case "computer_call":
       if (!registration.computer && askTool) return `Apps and screen are not lent to this Cloud right now. ${askHint(askTool, "screen")}`;
@@ -96,7 +96,7 @@ export function sharedComputerScopeRefusal(registration: Registration, operation
       if (operation.action === "list_files" || operation.action === "read_file") return null;
       if (!lent.write) return "This folder is read-only.";
       return operation.action === "write_file" || registration.fileEdits ? null
-        : `${registration.name} runs an older OpenMausBot that only writes whole files: read the file and write it whole with write_file, and tell the person that updating OpenMausBot there lets you change files by a passage.`;
+        : `${registration.name} runs an older Hezuo that only writes whole files: read the file and write it whole with write_file, and tell the person that updating Hezuo there lets you change files by a passage.`;
     }
   }
 }
@@ -326,7 +326,7 @@ export class SharedComputers {
     const refusal = sharedComputerScopeRefusal(entry.registration, operation, this.askTool);
     if (refusal) throw failure(refusal, 403);
     if (operation.action === "run_command" && entry.registration.commandTimeouts && !entry.registration.longCommands && (operation.timeout_seconds ?? 0) > OLD_MAX_COMMAND_SECONDS) {
-      throw failure(`${entry.registration.name} runs an older OpenMausBot that stops a command after at most ${OLD_MAX_COMMAND_SECONDS} seconds. Give timeout_seconds of ${OLD_MAX_COMMAND_SECONDS} or less, or run longer jobs in the background with output to a file.`, 400);
+      throw failure(`${entry.registration.name} runs an older Hezuo that stops a command after at most ${OLD_MAX_COMMAND_SECONDS} seconds. Give timeout_seconds of ${OLD_MAX_COMMAND_SECONDS} or less, or run longer jobs in the background with output to a file.`, 400);
     }
     if (entry.jobs.size >= 1) throw failure("This shared computer is busy. Wait for its current action to finish.");
     if (!active()) throw failure("The requesting turn ended", 401);
@@ -346,7 +346,7 @@ export class SharedComputers {
     if (!known) return OFFLINE;
     const device = deviceWord(known.platform);
     return known.stoppedAt === null
-      ? `${known.name} is offline: OpenMausBot on that ${device} is closed, or the ${device} is asleep or off. Ask them to open it; it reconnects by itself. Do not substitute files on the server.`
+      ? `${known.name} is offline: Hezuo on that ${device} is closed, or the ${device} is asleep or off. Ask them to open it; it reconnects by itself. Do not substitute files on the server.`
       : `${known.name} is no longer lent: lending was turned off on that ${device}. Do not substitute files on the server.`;
   }
   close() {

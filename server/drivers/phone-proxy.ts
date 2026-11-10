@@ -62,7 +62,7 @@ export function resolveAdbPath(env: NodeJS.ProcessEnv = process.env, platform = 
 
 async function runAdb(args: string[], options: { binary?: boolean; timeoutMs?: number } = {}): Promise<Buffer> {
   const adb = resolveAdbPath();
-  if (!adb) throw new Error("Android platform tools are unavailable. Reopen OpenMausBot or install adb.");
+  if (!adb) throw new Error("Android platform tools are unavailable. Reopen Hezuo or install adb.");
   return new Promise((resolve, reject) => {
     const child = spawn(adb, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     const stdout: Buffer[] = [];
@@ -214,7 +214,7 @@ async function readNodes(serial: string) {
   const streamedStart = streamed.indexOf("<?xml");
   if (streamedStart >= 0) return parseUiNodes(streamed.slice(streamedStart));
 
-  const remotePath = "/data/local/tmp/openmaus-window.xml";
+  const remotePath = "/data/local/tmp/hezuo-window.xml";
   await onDevice(serial, ["shell", "uiautomator", "dump", remotePath]);
   const saved = (await onDevice(serial, ["shell", "cat", remotePath])).toString("utf8");
   void onDevice(serial, ["shell", "rm", "-f", remotePath]).catch(() => undefined);
@@ -270,9 +270,9 @@ export function createPhoneClaim(
       if (response.status === 401 || response.status === 403) {
         return { ok: false, message: "This turn no longer has phone access. Start a new turn to use the phone." };
       }
-      return { ok: false, message: "OpenMausBot could not reserve the phone for this call. This call was not performed; try again, or start a new turn if it keeps failing." };
+      return { ok: false, message: "Hezuo could not reserve the phone for this call. This call was not performed; try again, or start a new turn if it keeps failing." };
     } catch {
-      return { ok: false, message: "OpenMausBot could not be reached to reserve the phone. This call was not performed; try again." };
+      return { ok: false, message: "Hezuo could not be reached to reserve the phone. This call was not performed; try again." };
     }
   };
 }
@@ -364,7 +364,7 @@ async function handle(message: Json, ensureClaim: () => Promise<ClaimOutcome>) {
   const id = message.id;
   const method = message.method;
   const params = (message.params ?? {}) as Json;
-  if (method === "initialize") return ok(id, { protocolVersion: String(params.protocolVersion ?? "2024-11-05"), capabilities: { tools: {} }, serverInfo: { name: "openmausbot-phone", version: "1" } });
+  if (method === "initialize") return ok(id, { protocolVersion: String(params.protocolVersion ?? "2024-11-05"), capabilities: { tools: {} }, serverInfo: { name: "hezuo-phone", version: "1" } });
   if (method === "notifications/initialized" || method === "notifications/cancelled") return;
   if (method === "ping") return ok(id, {});
   if (method === "tools/list") return ok(id, { tools: TOOLS });

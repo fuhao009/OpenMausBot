@@ -68,7 +68,7 @@ async function managed(url: string, trust: { origin: string; ca: string }) {
   const instance = await OpenAICompatDriver.create({
     instanceId: "product-ai", displayName: "Product", enabled: true,
     environment: {},
-    config: OpenAICompatDriver.decodeConfig({ url, apiKeyEnv: "OPENMAUSBOT_PRODUCT_AI_TOKEN", provider: "", model: "product-model" }),
+    config: OpenAICompatDriver.decodeConfig({ url, apiKeyEnv: "HEZUO_PRODUCT_AI_TOKEN", provider: "", model: "product-model" }),
     requestCredential: () => ({ apiKey: `omb_product_ai_${"a".repeat(22)}.${"b".repeat(43)}`, expiresAt: Date.now() + 60_000 }),
     requestTrust: trust,
   });

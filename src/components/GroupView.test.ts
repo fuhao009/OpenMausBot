@@ -12,7 +12,8 @@ vi.mock("./DesktopCapabilities", () => ({
   useCaptionChrome: () => ({}),
 }));
 
-import { GroupView, RoomToolChip } from "./GroupView";
+import { GroupView } from "./GroupView";
+import { RoomToolChip } from "./RoomToolChip";
 
 const chip = (patch: Partial<Message> = {}): Message => ({
   id: "chip",

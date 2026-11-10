@@ -8,14 +8,14 @@ import { normalizeProductCa, productCaBindsOrigin } from "../electron/product-ca
 import { validateProductOrigin } from "../electron/product-service.mjs";
 
 export const PRODUCT_NAME = "Hezuo";
-export const PRODUCT_APP_ID = "com.openmausbot.product";
-export const PRODUCT_PROTOCOL = "openmausbot-product";
+export const PRODUCT_APP_ID = "com.hezuo.product";
+export const PRODUCT_PROTOCOL = "hezuo-product";
 export const PRODUCT_ARTIFACT_PREFIX = "Hezuo";
 export const PRODUCT_SERVICE_RESOURCE = "product-service.json";
 
 /** Domains owned by the upstream open-source project. A product build must
  * never point at them: its operator owns a different service. */
-export const AUTHOR_DOMAINS = ["openmausbot.com", "mausbot.si"];
+export const AUTHOR_DOMAINS = ["openmausbot.com", "hezuo.si"];
 
 /** Names that can never identify the operator's service: the RFC 2606/6761
  * reserved names (`.invalid`, `.test`, `.example`, `.local`, `localhost`) and

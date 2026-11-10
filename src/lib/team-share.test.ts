@@ -26,7 +26,7 @@ import {
 import { packageSummary, parsePackageDocument } from "../../shared/package-format";
 
 const document = parsePackageDocument({
-  format: "openmaus.package", version: 2,
+  format: "hezuo.package", version: 2,
   package: {
     id: "desk", release: "1.0.0", name: "Desk", tagline: "A desk.", summary: "A desk team.", category: "Sales",
     author: { name: "Mira" }, license: "MIT", outcomes: ["Answers."], setupMinutes: 2, requirements: { apps: [], capabilities: [] },
@@ -89,7 +89,7 @@ describe("skill choices", () => {
 
 describe("the dialog's state", () => {
   const answer = (skills: string[], extra: Partial<ShareResponse> = {}): ShareResponse => ({
-    document, filename: "desk-1.0.0.openmaus.json", redacted: [], skipped: [], summary: packageSummary(document), choices: { skills }, ...extra,
+    document, filename: "desk-1.0.0.hezuo.json", redacted: [], skipped: [], summary: packageSummary(document), choices: { skills }, ...extra,
   });
 
   it("starts with pictures and starter notes included, and says so under the notes box", () => {
@@ -102,7 +102,7 @@ describe("the dialog's state", () => {
   it("shows counts from an answer, and sets the starting ticks only from the first look", () => {
     const first = shareAnswered({ ...SHARE_VIEW_START, error: "old" }, answer(["a", "b"], { document: full, skipped: [leadOverLimit] }), true);
     expect(first).toMatchObject({ available: ["a", "b"], included: ["research-brief", "objection-handling"], error: "" });
-    expect(first.preview?.filename).toBe("desk-1.0.0.openmaus.json");
+    expect(first.preview?.filename).toBe("desk-1.0.0.hezuo.json");
     const chosen = shareAnswered({ ...first, included: ["a"] }, answer(["a", "b", "c"]), false);
     expect(chosen).toMatchObject({ available: ["a", "b", "c"], included: ["a"] });
   });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { mascotFaceColorSchema } from "./bot-avatar.ts";
 
-import { CONNECTOR_SLUG_PATTERN, CONNECTOR_TOOL_NAME_PATTERN, MAUS_COLOR_NAMES } from "./wire.ts";
+import { CONNECTOR_SLUG_PATTERN, CONNECTOR_TOOL_NAME_PATTERN, HEZUO_COLOR_NAMES } from "./wire.ts";
 import { parseToolScope, type ToolScope } from "./tool-scope.ts";
 
 export const MAX_TEAM_BACKUP_BYTES = 50 * 1024 * 1024;
@@ -11,7 +11,7 @@ export const TEAM_BACKUP_EXCLUSIONS = "Files, images, custom avatars, account co
 const key = z.string().min(1).max(200);
 const name = z.string().trim().min(1).max(200);
 const timestamp = z.number().finite().nonnegative();
-const color = z.enum(MAUS_COLOR_NAMES);
+const color = z.enum(HEZUO_COLOR_NAMES);
 const message = z.object({
   id: key,
   role: z.enum(["bot", "user"]),
@@ -91,7 +91,7 @@ function knownRoomResponder(value: unknown): unknown {
 }
 
 const backupSchema = z.object({
-  format: z.literal("openmaus.backup"),
+  format: z.preprocess((value) => value === "openmaus.backup" ? "hezuo.backup" : value, z.literal("hezuo.backup")),
   version: z.literal(1),
   name,
   exportedAt: timestamp,
@@ -133,7 +133,7 @@ const backupSchema = z.object({
   routines: z.array(z.object({
     name, prompt: z.string().trim().min(1).max(200_000),
     target: z.enum(["bot", "room-goal"]), botId: key, groupId: key.optional(),
-    runOn: z.enum(["maus", "cloud"]), schedule,
+    runOn: z.preprocess((value) => value === "maus" ? "hezuo" : value, z.enum(["hezuo", "cloud"])), schedule,
     durationMinutes: z.number().finite().positive(),
     timeoutMinutes: z.number().int().min(5).max(240).optional(),
     checks: z.array(z.enum(["calendar", "mail", "runs"])).max(3).optional(),
@@ -182,7 +182,7 @@ export function parseTeamBackup(input: unknown): TeamBackup {
   for (const routine of backup.routines) {
     if (!bots.has(routine.botId)) throw new Error("Invalid backup: unknown routine bot");
     if (routine.target === "room-goal") {
-      if (routine.runOn !== "maus") throw new Error("Invalid backup: room goals must run on this computer");
+      if (routine.runOn !== "hezuo") throw new Error("Invalid backup: room goals must run on this computer");
       const group = backup.groups.find((candidate) => candidate.key === routine.groupId);
       if (routine.groupId !== undefined && (!groups.has(routine.groupId) || !group || group.dm || !group.memberIds.includes(routine.botId))) {
         throw new Error("Invalid backup: unknown routine room or coordinator");

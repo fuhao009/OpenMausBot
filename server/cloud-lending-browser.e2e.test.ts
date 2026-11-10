@@ -58,7 +58,7 @@ async function api(method: string, path: string, options: { body?: unknown; toke
 }
 
 async function adminPairing(): Promise<string> {
-  const body = JSON.stringify({ label: "OpenMausBot app (Cloud)", ttlSeconds: 300 });
+  const body = JSON.stringify({ label: "Hezuo app (Cloud)", ttlSeconds: 300 });
   const timestamp = String(Math.floor(Date.now() / 1000)), nonce = randomBytes(16).toString("base64url");
   const response = await fetch(`${base}/api/cloud/pairing`, { method: "POST", headers: {
     ...edge, "content-type": "application/json",
@@ -131,7 +131,7 @@ readline.createInterface({ input: process.stdin }).on("line", async line => {
 
 beforeAll(async () => {
   home = mkdtempSync(join(tmpdir(), "omb-lent-browser-"));
-  const dataDir = join(home, ".openmausbot");
+  const dataDir = join(home, ".hezuo");
   mkdirSync(dataDir, { recursive: true });
   const cli = join(home, "fixture-claude.mjs");
   writeFileSync(cli, `#!/usr/bin/env node
@@ -260,7 +260,7 @@ it("a screen the PC's own server cannot check says so in one sentence, never tha
   const refused = await screenCall("get_desktop_state");
   leaseUrl = right;
   expect(refused.isError).toBe(true);
-  expect(said(refused)).toMatch(/^OpenMausBot on this computer could not check whether its screen is free \(its server answered 404.*\), so this call was not performed\. This is not a person using the computer\./);
+  expect(said(refused)).toMatch(/^Hezuo on this computer could not check whether its screen is free \(its server answered 404.*\), so this call was not performed\. This is not a person using the computer\./);
   expect((await screenCall("get_desktop_state")).isError).toBeFalsy();
 }, hostTimeout(30_000));
 
@@ -293,7 +293,7 @@ it("a quarantined driver says how to restore it; restored, the next action works
   const stopped = await screenCall("get_desktop_state");
   expect(said(stopped)).toMatch(/^Computer control stopped on this computer: its helper, cua-driver, exited\. Try the action once more/);
   const working = driver;
-  driver = { mcpCommand: join(home, "Program Files", "OpenMausBot", "resources", "cua-driver.exe"), mcpArgs: ["mcp"], mcpEnv: {} };
+  driver = { mcpCommand: join(home, "Program Files", "Hezuo", "resources", "cua-driver.exe"), mcpArgs: ["mcp"], mcpEnv: {} };
   const missing = await screenCall("get_desktop_state");
   expect(said(missing)).toBe(helperMissing());
   expect(said(missing)).not.toContain(home);

@@ -1,4 +1,4 @@
-# The MausBot connector, published as ghcr.io/milind-soni/mausbot-connector for linux/amd64 and linux/arm64. It runs on
+# The Hezuo connector, published as ghcr.io/milind-soni/mausbot-connector for linux/amd64 and linux/arm64. It runs on
 # a server of its owner's with the Docker socket, its state volume and /etc/mausbot (read-only), and talks only outward.
 # Node runs its TypeScript as it is; it has no npm dependencies. bubblewrap is here only for the box probe, which runs
 # from this image with the home's own security settings.

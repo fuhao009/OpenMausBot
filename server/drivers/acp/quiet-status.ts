@@ -13,7 +13,7 @@ import { redactSecretsInText } from "../../redact.ts";
 // one model request (its SDK waits up to 600 s); a wedged OpenCode turn goes silent forever.
 export const DEFAULT_ACP_PROMPT_IDLE_MS = 15 * 60_000;
 export const promptIdleTimeoutMs = (): number => {
-  const raw = process.env.OPENMAUS_ACP_PROMPT_IDLE_TIMEOUT_MS;
+  const raw = process.env.HEZUO_ACP_PROMPT_IDLE_TIMEOUT_MS;
   if (raw === undefined) return DEFAULT_ACP_PROMPT_IDLE_MS;
   const ms = Number(raw);
   return Number.isFinite(ms) && ms > 0 ? ms : 0;

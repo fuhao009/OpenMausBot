@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { COSTUME_FOR_COLOR, isHalloweenBody, type BotBodyId } from "../../shared/bot-body";
-import type { MausColor } from "@/lib/mascot";
+import type { HezuoColor } from "@/lib/mascot";
 
 export const HALLOWEEN_DRESS_KEY = "omb-halloween-dress";
 
@@ -79,7 +79,7 @@ export function useHalloweenDressed(): boolean {
 }
 
 /** The body a bot shows: its own, or its colour's costume while dressed up. A Halloween body it already wears is kept. */
-export function wornBody(body: BotBodyId | null | undefined, color: MausColor, dressed: boolean): BotBodyId | undefined {
+export function wornBody(body: BotBodyId | null | undefined, color: HezuoColor, dressed: boolean): BotBodyId | undefined {
   if (!dressed || isHalloweenBody(body) || color === "silver" || color === "chrome") return body ?? undefined;
   return COSTUME_FOR_COLOR[color];
 }

@@ -1,10 +1,10 @@
 import { BotAvatar } from "./Avatar";
 import { cn } from "@/lib/cn";
-import { MAUS_COLOR_NAMES, normalizeState, type MausColor } from "@/lib/mascot";
+import { HEZUO_COLOR_NAMES, normalizeState, type HezuoColor } from "@/lib/mascot";
 import type { Bot } from "@/state/store";
 
-function isPaletteColor(color: string): color is MausColor {
-  return (MAUS_COLOR_NAMES as readonly string[]).includes(color);
+function isPaletteColor(color: string): color is HezuoColor {
+  return (HEZUO_COLOR_NAMES as readonly string[]).includes(color);
 }
 
 export function ClusterLabel({ bot, name, color }: { bot?: Bot; name: string; color: string }) {

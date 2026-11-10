@@ -24,7 +24,7 @@ export function createLendingIndicator({ Tray, Menu, nativeImage, iconPath, onPa
     if (!tray || tray.isDestroyed()) return;
     const { line, title, screen } = indicatorText(view, device);
     const fix = screen ? screenFixLabel(view.screen) : null;
-    tray.setToolTip(`OpenMausBot: ${line}${screen ? `. ${screen}` : ""}`);
+    tray.setToolTip(`Hezuo: ${line}${screen ? `. ${screen}` : ""}`);
     // Electron shows a tray title beside the icon on macOS only.
     tray.setTitle?.(title);
     tray.setContextMenu(Menu.buildFromTemplate([

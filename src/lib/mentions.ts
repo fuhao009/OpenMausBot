@@ -1,11 +1,11 @@
 import { t } from "./i18n";
-import { MAUS_COLORS, type MausColor } from "./mascot";
+import { HEZUO_COLORS, type HezuoColor } from "./mascot";
 import { isMentionBoundary, isMentionNameContinuation } from "../../shared/mention-boundary";
 import { personTagAt, personTagNames } from "../../shared/person-mention";
 import { devsTagAt } from "../../shared/devs-mention";
 
 /** A name the @ list offers: a bot's, or (`person`) a teammate's on a Team Cloud. */
-export type MentionPeer = { name: string; hidden?: boolean; color?: MausColor; person?: true };
+export type MentionPeer = { name: string; hidden?: boolean; color?: HezuoColor; person?: true };
 export type MentionRange = { start: number; end: number; color?: string; you?: true; person?: true };
 export type MentionPerson = { profileName?: string | null };
 
@@ -78,7 +78,7 @@ export function mentionRanges(text: string, peers: readonly MentionPeer[], every
     const length = all ? 8 : peer?.name.length ?? devsTagAt(rest, botNames);
     if (length === undefined) continue;
     // Only palette values enter CSS.
-    const color = !all && peer?.color && Object.hasOwn(MAUS_COLORS, peer.color) ? MAUS_COLORS[peer.color] : undefined;
+    const color = !all && peer?.color && Object.hasOwn(HEZUO_COLORS, peer.color) ? HEZUO_COLORS[peer.color] : undefined;
     ranges.push({ start: at, end: at + length + 1, ...(color ? { color } : {}), ...(!all && peer?.person ? { person: true as const } : {}) });
     at += length;
   }

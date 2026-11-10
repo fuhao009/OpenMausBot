@@ -1,6 +1,6 @@
-// Values a person typed into a bot's card for a secret OpenMausBot does not keep itself.
+// Values a person typed into a bot's card for a secret Hezuo does not keep itself.
 // Security: a `ref` value stays in this process's memory, behind a one-use reference bound to the asking bot and
-// conversation that only OpenMausBot's own tools accept. A `file` value goes to an owner-only file in a private folder
+// conversation that only Hezuo's own tools accept. A `file` value goes to an owner-only file in a private folder
 // of that bot's own workspace (or the Local VM workspace its turn runs in); nothing that syncs, backs up, moves, links,
 // attaches, publishes or uploads workspace files carries that folder (inSecretFolder). Neither value is ever logged,
 // and while either lives, held-secret redaction masks it in transcripts, events and logs.
@@ -67,12 +67,12 @@ function refText(ref: string, reason: "unknown" | "used" | "expired" | "owner"):
     case "owner":
       return `${ref} was given to another bot or conversation. Ask the person here with request_credential.`;
     default:
-      return `${ref} is not a secretRef OpenMausBot holds: it is mistyped, or OpenMausBot restarted before it was used. Ask again with request_credential.`;
+      return `${ref} is not a secretRef Hezuo holds: it is mistyped, or Hezuo restarted before it was used. Ask again with request_credential.`;
   }
 }
 
 export const NOT_A_REF_TEXT =
-  "That is a secret file for your own commands, not a secretRef: it is deleted after 24 hours, and OpenMausBot's tools take only a secretRef. Ask again with request_credential and delivery ref.";
+  "That is a secret file for your own commands, not a secretRef: it is deleted after 24 hours, and Hezuo's tools take only a secretRef. Ask again with request_credential and delivery ref.";
 
 export class SecretVault {
   private readonly refs = new Map<string, RefEntry>();
@@ -97,7 +97,7 @@ export class SecretVault {
     return ref;
   }
 
-  /** Writes the card's value to `<home>/.openmausbot-secrets/<thread>/<card>` (0600, in 0700 folders); returns its path
+  /** Writes the card's value to `<home>/.hezuo-secrets/<thread>/<card>` (0600, in 0700 folders); returns its path
    * as the bot's commands see it. */
   saveFile(owner: SecretOwner, messageId: string, value: string, home: SecretFileHome): string {
     if (!ID.test(owner.threadId) || !ID.test(messageId)) throw new Error("invalid conversation or card id");

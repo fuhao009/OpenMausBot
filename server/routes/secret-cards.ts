@@ -22,7 +22,7 @@ export interface SecretAnswerContext {
 
 /** Stricter than an ordinary card: only the conversation's own person, never another member or an admin on their behalf. */
 export function secretAnswerRefusal(auth: RequestAuth, context: SecretAnswerContext): string | null {
-  if (auth.kind === "loopback") return auth.trust === "service" ? "A local service cannot enter a secret. Enter it in OpenMausBot." : null;
+  if (auth.kind === "loopback") return auth.trust === "service" ? "A local service cannot enter a secret. Enter it in Hezuo." : null;
   const admin = auth.scopes.includes("admin");
   if (context.personalCloud) return admin ? null : "Only the owner of this Cloud can enter this secret.";
   if (!context.shared) return null;
@@ -60,10 +60,10 @@ export function createSecretCardRoutes(deps: SecretCardRouteDeps): RouteHandler 
     // An HPKE envelope bound to the paired device, bot, task, card and target; only the embedded Electron server holds the key to open it.
     m = path.match(/^\/api\/bots\/([\w-]+)\/secret-cards\/([\w-]+)\/provide$/);
     if (m && method === "POST") {
-      if (req.headers["x-openmausbot-companion"] !== "1") {
+      if (req.headers["x-hezuo-companion"] !== "1") {
         return json(res, 403, { error: "Secure phone entry must come from a paired phone" });
       }
-      const rawDeviceId = req.headers["x-openmausbot-companion-device"];
+      const rawDeviceId = req.headers["x-hezuo-companion-device"];
       const authenticatedDeviceId = Array.isArray(rawDeviceId) ? "" : String(rawDeviceId ?? "");
       if (!/^[\w-]{1,128}$/.test(authenticatedDeviceId)) {
         return json(res, 401, { error: "This paired phone could not be verified" });

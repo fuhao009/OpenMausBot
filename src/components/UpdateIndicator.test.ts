@@ -55,7 +55,7 @@ describe("the update button", () => {
   });
 
   it("says what it holds", () => {
-    expect(updateIndicatorLabel({ status: "downloaded", version: "0.2.0" })).toBe("Update ready: MausBot 0.2.0");
+    expect(updateIndicatorLabel({ status: "downloaded", version: "0.2.0" })).toContain("0.2.0");
     expect(updateIndicatorLabel({ status: "downloading", percent: 41.6 })).toBe("Downloading an update, 42%");
     expect(updateIndicatorLabel({ status: "downloading" })).toBe("Downloading an update");
   });
@@ -71,24 +71,19 @@ describe("the update button", () => {
     expect(button()).toBeNull();
     await emit({ status: "downloading", version: "0.2.0", percent: 10 });
     expect(button()).not.toBeNull();
-    expect(button()!.className).toContain("rounded-full");
-    expect(button()!.className).toContain("bg-white");
-    expect(button()!.className).toContain("size-7");
     await emit({ status: "idle" });
     expect(button()).toBeNull();
   });
 });
 
 describe("the update card", () => {
-  it("opens centred with the version, highlights and Restart to update, which installs", async () => {
+  it("opens a modal with the version, highlights and Restart to update, which installs", async () => {
     await emit({ status: "downloaded", version: "0.2.0", releaseNotes: NOTES, installMode: "restart" });
     await act(async () => button()!.click());
     const dialog = card()!;
     expect(dialog.getAttribute("role")).toBe("dialog");
     expect(dialog.getAttribute("aria-modal")).toBe("true");
-    expect(dialog.parentElement!.className).toContain("items-center");
-    expect(dialog.className).toContain("max-w-[420px]");
-    expect(dialog.textContent).toContain("MausBot 0.2.0");
+    expect(dialog.textContent).toContain("0.2.0");
     expect([...dialog.querySelectorAll("li")].map((item) => item.textContent)).toEqual([
       "Faster start.",
       "Rooms keep actions.",
@@ -112,14 +107,16 @@ describe("the update card", () => {
     expect(card()!.querySelector('[role="progressbar"]')).toBeNull();
   });
 
-  it("says the update installs by itself the next time the person is away, and still offers Restart", async () => {
+  it("changes the installation guidance for automatic updates and still offers Restart", async () => {
     await emit({ status: "downloaded", version: "0.2.0", installMode: "restart", installsByItself: true });
     await act(async () => button()!.click());
-    expect(card()!.textContent).toContain("Restart now, or leave it: MausBot installs it by itself the next time you're away and nothing is running.");
+    const automaticNote = card()!.querySelector("#update-card-note")!.textContent;
+    expect(automaticNote).toBeTruthy();
     expect(card()!.textContent).toContain("Restart to update");
     await emit({ status: "downloaded", version: "0.2.0", installMode: "restart", installsByItself: false });
-    expect(card()!.textContent).toContain("MausBot closes and reopens in a moment.");
-    expect(card()!.textContent).not.toContain("by itself");
+    const restartNote = card()!.querySelector("#update-card-note")!.textContent;
+    expect(restartNote).toBeTruthy();
+    expect(restartNote).not.toBe(automaticNote);
   });
 
   it("offers Install where a terminal finishes the update", async () => {

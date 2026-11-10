@@ -1,9 +1,33 @@
-# OpenMausBot control plane
+# Hezuo control plane
 
 This directory is an isolated Cloudflare Worker for cloud account identity,
 installation ownership, and per-installation managed companion endpoints. It
 does **not** store or move local bots, chats, desktop SQLite state, prompts, or
 tool output.
+
+### Hezuo identity migration boundaries
+
+Product presentation uses Hezuo. The deployed `openmausbot-control-plane`
+health service identifier stays unchanged because released hosted clients gate
+sign-in on that exact value. Real `openmausbot.com` and `mausbot.si` domains,
+Cloudflare account/database/Worker identities and the corresponding secret
+names remain deployment identifiers, not new Hezuo hosting promises. Historical
+SQL migrations are immutable.
+
+The HighLevel relay retains `openmausbot-highlevel-relay-v1` as its HKDF salt:
+changing it would invalidate existing encrypted relay credentials. This is the
+legacy token-format boundary, not a product name to substitute. A future salt
+change requires an explicitly versioned credential migration.
+
+The connector targets the separately operated Cloud Admin and its pinned
+published images. Its `MAUSBOT_*` installer placeholders/environment, Docker
+container/volume/label identities, `/etc/mausbot` host configuration, legacy
+image data-directory lease paths and image user `maus` remain that external
+deployment protocol. Renaming them without the Admin and published image
+cutover would break repair, self-update, rollback or access to existing data.
+Actual registry URLs and their allowlists remain unchanged for the same reason.
+`OMB`/`omb` protocol and token abbreviations are not part of the rename.
+
 
 Authentication and `/healthz` require only the authentication URL, secret,
 mail binding and sender, allowed origins, and D1. Tunnel credentials are
@@ -224,7 +248,7 @@ Account bearer tokens are rejected.
   recoverable from GET or D1. After an idle reclaim the same call allocates a
   new tunnel behind the **same hostname**, so a paired phone keeps its
   address; it may also take back an endpoint whose reclaim is still pending.
-  The desktop app (Remote access on) and `openmausbot serve --tunnel` ask
+  The desktop app (Remote access on) and `hezuo serve --tunnel` ask
   `GET` every 15 minutes, even while their connector reports ready, and make
   this call when the endpoint is gone or in `error`; a `401` from `GET` (the
   90-day installation credential expired) sends them through account
@@ -702,7 +726,7 @@ Workers Free, four accounts with `OMB_CLEANUP_SWEEP_LIMIT` 4 use the whole
 
 ### HighLevel OAuth relay
 
-OpenMausBot's native HighLevel (GoHighLevel, and white-labels such as Growably)
+Hezuo's native HighLevel (GoHighLevel, and white-labels such as Growably)
 integration signs a person in through a Marketplace app registered to us. The
 app's client secret lives only in this Worker; the harness (desktop or a Cloud
 home) never sees it. Routes, none of which need an installation credential: the
@@ -756,8 +780,8 @@ non-production scoped `CLOUDFLARE_API_TOKEN`, apply the migrations locally, and
 start Wrangler:
 
 ```sh
-pnpm --filter @openmausbot/control-plane exec wrangler d1 migrations apply DB --local --config wrangler.jsonc
-pnpm --filter @openmausbot/control-plane exec wrangler dev --config wrangler.jsonc
+pnpm --filter @hezuo/control-plane exec wrangler d1 migrations apply DB --local --config wrangler.jsonc
+pnpm --filter @hezuo/control-plane exec wrangler dev --config wrangler.jsonc
 ```
 
 Do not commit `.dev.vars`. Because `wrangler.jsonc` declares
@@ -795,7 +819,7 @@ companion on port `8810` also does not prove managed HTTPS is ready.
 2. Check the scope of failures without exporting account or installation data:
 
    ```sh
-   pnpm --filter @openmausbot/control-plane exec wrangler d1 execute DB --remote --command "SELECT provider_account, status, last_error_code, COUNT(*) AS endpoints FROM installation_endpoints GROUP BY provider_account, status, last_error_code"
+   pnpm --filter @hezuo/control-plane exec wrangler d1 execute DB --remote --command "SELECT provider_account, status, last_error_code, COUNT(*) AS endpoints FROM installation_endpoints GROUP BY provider_account, status, last_error_code"
    ```
 
 3. Check **account-wide** undeleted tunnel usage in the endpoint's Cloudflare

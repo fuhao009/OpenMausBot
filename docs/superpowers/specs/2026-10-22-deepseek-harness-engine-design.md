@@ -1,4 +1,4 @@
-# DeepSeek Harness as a MausBot engine
+# DeepSeek Harness as a Hezuo engine
 
 Date: 2026-10-22. Status: design, approved for build under stated assumptions
 (the request was "wire this"; the calls below are the builder's, marked as such).
@@ -6,9 +6,9 @@ Date: 2026-10-22. Status: design, approved for build under stated assumptions
 ## Intent
 
 People should be able to pick DeepSeek Harness (`dsh`, github.com/deepseek-ai/deepseek-harness)
-as the engine behind a MausBot bot, the same way they pick Kimi, Droid or
+as the engine behind a Hezuo bot, the same way they pick Kimi, Droid or
 Hermes today: it appears on the Engines page, Settings can install it, a
-DeepSeek API key pasted in MausBot makes it ready, and bots run turns on it
+DeepSeek API key pasted in Hezuo makes it ready, and bots run turns on it
 with the normal approval cards, model picker and reasoning-effort control.
 
 ## Verified facts about dsh (0.2.1-rc.2, probed 2026-10-22)
@@ -90,7 +90,7 @@ with the normal approval cards, model picker and reasoning-effort control.
   `session/new` in a temp cwd, read `configOptions[id=model]`, `session/close`,
   end stdin, kill. Options become `<provider>/<model>` with dsh's own names as
   labels; `currentValue` becomes the default. Any failure throws so the core
-  keeps the last usable catalog. Timeout 60 s (`OPENMAUS_DEEPSEEK_MODELS_TIMEOUT_MS`).
+  keeps the last usable catalog. Timeout 60 s (`HEZUO_DEEPSEEK_MODELS_TIMEOUT_MS`).
   `resolveModelsOnCreate: false`.
 - Model and reasoning effort ride the core's existing OpenCode-shaped path
   (builder's call, replacing the `effortLevels` + `configureSession` draft

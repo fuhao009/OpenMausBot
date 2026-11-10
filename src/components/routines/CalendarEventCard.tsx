@@ -4,7 +4,7 @@ import { Video } from "lucide-react";
 import { BotAvatar } from "@/components/Avatar";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
-import { MAUS_COLORS, type MausState } from "@/lib/mascot";
+import { HEZUO_COLORS, type HezuoState } from "@/lib/mascot";
 import { CALENDAR_SLOT_MINUTES } from "@/lib/routine-calendar";
 import { partlyDone, routineHeldNote, routineRunLabel } from "@/lib/routine-display";
 import type { RoutineRunStatus } from "@/lib/routines";
@@ -15,7 +15,7 @@ import { EVENT_DRAG_TYPE } from "./LimitResetMarkers";
 
 export const HOUR_HEIGHT = 64;
 
-export function statusState(status: RoutineRunStatus): MausState {
+export function statusState(status: RoutineRunStatus): HezuoState {
   if (status === "running") return "working";
   if (status === "waiting") return "curious";
   if (status === "completed") return "proud";
@@ -60,7 +60,7 @@ export function CalendarEventCard({
   const ownerBots = ownerIds.flatMap((id) => bots.find((bot) => bot.id === id) ?? []);
   const primary = ownerBots[0];
   const name = isCall ? item.call.name : run?.routineName ?? routine?.name ?? "Automation";
-  const color = isCall ? "var(--color-accent)" : primary ? MAUS_COLORS[primary.color] : "var(--color-ink-tertiary)";
+  const color = isCall ? "var(--color-accent)" : primary ? HEZUO_COLORS[primary.color] : "var(--color-ink-tertiary)";
   const paused = Boolean(routine && !run && !routine.enabled);
   const [previewDuration, setPreviewDuration] = useState(item.durationMinutes);
   useEffect(() => setPreviewDuration(item.durationMinutes), [item.durationMinutes]);

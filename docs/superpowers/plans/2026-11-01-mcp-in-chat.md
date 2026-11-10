@@ -17,9 +17,9 @@ tool", "What a bot may touch", "Error handling") are the requirements.
 
 ## Global Constraints
 
-- Work only in `/Users/omkar/Desktop/openmaus/OpenGrokBot-mcp-in-chat` (branch `feat/mcp-in-chat`). Never touch the
+- Work only in `/Users/omkar/Desktop/hezuo/OpenGrokBot-mcp-in-chat` (branch `feat/mcp-in-chat`). Never touch the
   `OpenGrokBot/` checkout.
-- Phone work goes only in a mausbot-mobile worktree, never in OpenMausBot.
+- Phone work goes only in a mausbot-mobile worktree, never in Hezuo.
 - Never push and never open a PR. Commit locally only.
 - Run tests with `pnpm vitest run <files>`, typecheck with `pnpm typecheck`, lint with `pnpm lint`.
 - Regenerate catalog goldens with `UPDATE_AGENTS_CATALOG_GOLDENS=1 pnpm vitest run server/drivers/agents-catalog-wire.test.ts server/drivers/agents-bridge-wire.test.ts`.
@@ -272,7 +272,7 @@ tool", "What a bot may touch", "Error handling") are the requirements.
   - The MCP card is `kind: "connector"` with
     `connector: { source: "mcp", slug: <server name>, label: <readable name>, description, status: "required", resumeKey }`.
   - `description` follows the spec: "Kiwi added Linear's MCP server (mcp.linear.app). Sign in so Kiwi can use it."
-  - The fallback `text` names the server and says "Open this conversation in OpenMausBot to sign in". It never
+  - The fallback `text` names the server and says "Open this conversation in Hezuo to sign in". It never
     includes the URL.
   - `authorize` returns `{ url }` and refuses with 409 plus these exact sentences:
     - Companion phone on a home with no public https origin: "Open this chat on your Mac to sign in to Linear."

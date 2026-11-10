@@ -447,7 +447,7 @@ default branch):
 The same rule through the API, keeping the ruleset's existing check:
 
 ```sh
-gh api -X PUT repos/<org>/OpenMausBot/rulesets/<main-ci-gate id> --input - <<'JSON'
+gh api -X PUT repos/<org>/Hezuo/rulesets/<main-ci-gate id> --input - <<'JSON'
 {"rules": [
   {"type": "required_status_checks", "parameters": {"required_status_checks": [{"context": "CI", "integration_id": 15368}],
     "strict_required_status_checks_policy": false, "do_not_enforce_on_create": false}},

@@ -8,39 +8,39 @@ import {
   HERMES_ACP_MODELS_TIMEOUT_ENV,
   HERMES_ACP_MODELS_DEFAULT_TIMEOUT_MS,
   HERMES_CONFIG_MODEL_ID,
-  HERMES_OPENMAUS_SCREENSHOT_COMPAT,
-  HERMES_OPENMAUS_SCREENSHOT_COMPAT_MODEL,
+  HERMES_HEZUO_SCREENSHOT_COMPAT,
+  HERMES_HEZUO_SCREENSHOT_COMPAT_MODEL,
   bindHermesScreenshotCompat,
   fetchHermesAcpModels,
   hermesAcpModelId,
   hermesConfiguredModel,
 } from "./hermes.ts";
 
-describe("Hermes OpenMaus screenshot compatibility binding", () => {
+describe("Hermes Hezuo screenshot compatibility binding", () => {
   it("binds the exact leaf model for an injected local picker model", () => {
     const env = {
-      [HERMES_OPENMAUS_SCREENSHOT_COMPAT]: undefined,
-      [HERMES_OPENMAUS_SCREENSHOT_COMPAT_MODEL]: undefined,
+      [HERMES_HEZUO_SCREENSHOT_COMPAT]: undefined,
+      [HERMES_HEZUO_SCREENSHOT_COMPAT_MODEL]: undefined,
     };
 
     bindHermesScreenshotCompat(env, "omlx::gemma-4-31b-it-bf16");
 
-    expect(env[HERMES_OPENMAUS_SCREENSHOT_COMPAT]).toBe("1");
-    expect(env[HERMES_OPENMAUS_SCREENSHOT_COMPAT_MODEL]).toBe("gemma-4-31b-it-bf16");
+    expect(env[HERMES_HEZUO_SCREENSHOT_COMPAT]).toBe("1");
+    expect(env[HERMES_HEZUO_SCREENSHOT_COMPAT_MODEL]).toBe("gemma-4-31b-it-bf16");
   });
 
   it.each([undefined, "", "anthropic/claude-opus-4.6", "unknown::model"])(
     "clears inherited compatibility for an unbound model %s",
     (model) => {
       const env = {
-        [HERMES_OPENMAUS_SCREENSHOT_COMPAT]: "1",
-        [HERMES_OPENMAUS_SCREENSHOT_COMPAT_MODEL]: "stale/model",
+        [HERMES_HEZUO_SCREENSHOT_COMPAT]: "1",
+        [HERMES_HEZUO_SCREENSHOT_COMPAT_MODEL]: "stale/model",
       };
 
       bindHermesScreenshotCompat(env, model);
 
-      expect(env[HERMES_OPENMAUS_SCREENSHOT_COMPAT]).toBeUndefined();
-      expect(env[HERMES_OPENMAUS_SCREENSHOT_COMPAT_MODEL]).toBeUndefined();
+      expect(env[HERMES_HEZUO_SCREENSHOT_COMPAT]).toBeUndefined();
+      expect(env[HERMES_HEZUO_SCREENSHOT_COMPAT_MODEL]).toBeUndefined();
     },
   );
 });

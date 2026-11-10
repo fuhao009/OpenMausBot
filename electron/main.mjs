@@ -1,3 +1,6 @@
+import { installRendererSmokeProbe } from "./renderer-smoke-probe.mjs";
+import { createDesktopViewerWindow } from "./desktop-viewer-window.mjs";
+import { showContextMenu } from "./window-context-menu.mjs";
 import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, Tray, WebContentsView, clipboard, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, powerSaveBlocker, safeStorage, screen, session, shell, systemPreferences, utilityProcess, nativeTheme } from "electron";
 import { createRequire } from "node:module";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -5,19 +8,22 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { buildErrorPage, desktopViewerErrorPage } from "./error-pages.mjs";
+import { buildErrorPage } from "./error-pages.mjs";
 import { resolveProductService } from "./product-service.mjs";
 import { createProductAccountService } from "./product-account.mjs";
 import { createEncryptedRecordStore } from "./encrypted-record-store.mjs";
 import { createProductAccountWindow } from "./product-account-window.mjs";
 import { installProductAccountIpc } from "./product-account-ipc.mjs";
 import { productVerificationEntry } from "./product-verification-entry.mjs";
+import { migrateProductProfile } from "./product-profile-migration.mjs";
+import { migrateDefaultDataRoot } from "./default-data-root-migration.mjs";
 const productFixture = productVerificationEntry();
-if (!productFixture && app.getName() === "Hezuo") {
-  app.setName("OpenMausBot Product");
-  const accountStorage = path.join(app.getPath("appData"), "OpenMausBot Product");
-  app.setPath("userData", accountStorage);
-  app.setPath("sessionData", accountStorage);
+try {
+  const metadata = app.isPackaged ? JSON.parse(fs.readFileSync(path.join(app.getAppPath(), "package.json"), "utf8")) : null;
+  migrateProductProfile({ app, isProduct: metadata?.ombProductManaged === true, fixture: Boolean(productFixture) });
+} catch (error) {
+  dialog.showErrorBox("Hezuo Product", `Cannot safely open the Product profile: ${error.message}`);
+  process.exit(1);
 }
 if (productFixture) {
   app.setPath("userData", productFixture.userData);
@@ -31,7 +37,6 @@ import { finishSpeech, speechBusy, startSpeech, stopSpeech } from "./speech.mjs"
 import { installTalk, isTalkPanel } from "./talk-main.mjs";
 import { openBlankTerminal } from "./terminal-launch.mjs";
 import { linuxDisablesGpu } from "./linux-gpu.mjs";
-import { pasteMenuItem } from "./paste-menu-item.mjs";
 import { attachUpdaterWindow, startUpdater, registerUpdaterIpc, sendUpdaterState, reopenedOutOfSight, quietSignals } from "./updater.mjs";
 import {
   appendDesktopCrashRecord,
@@ -62,7 +67,6 @@ import { createScreenControl } from "./screen-control.mjs"; import { createAskPr
 let startupScreen = null;
 let desktopTray = null;
 import { collisionFreeDownloadPath, defaultSaveName, openLogsFolder, revealDownloadWhenDone, revealInFolder, withSavableFile } from "./save-file.mjs";
-import { desktopViewerPermissionAllowed } from "./desktop-viewer-permissions.mjs";
 import { appPermissionHandlers, externalLinkUrl } from "./app-permissions.mjs";
 import { appFrameNavigationAllowed } from "./app-frame-guard.mjs";
 import { writeClipboardText } from "./clipboard-write.mjs";
@@ -141,10 +145,9 @@ const require = createRequire(import.meta.url);
 const { createDisplayMediaGuard, invokeDisplayMediaCallback, selectCaptureSource } = require(
   "./screen-preview.cjs",
 );
-const { STAGE_PREFIX: APPIMAGE_CUA_STAGE_PREFIX } = require("./cua-linux-bundle.cjs");
-const { desktopViewerUrl, sameDesktopViewerOrigin } = require("./desktop-viewer.cjs");
 const { createDesktopWorkspaceManager } = require("./desktop-workspace.cjs");
 const { createTrustedApprovalModeCoordinator } = require("./approval-trusted-mode.cjs");
+const { createComputerUsePolicyBridge } = require("./computer-use-policy.cjs");
 const { DESKTOP_MUTATION_HEADER, desktopServerHeaders } = require("./desktop-server-auth.cjs");
 const { MIN_BOUNDS, normalizeUnreadCount, resolveWindowState } = require("./window-state.cjs");
 
@@ -198,11 +201,11 @@ function applyUnreadBadge(win = mainWindow) {
 // GNOME groups the window with its desktop entry only when both identities match; set before ready.
 if (process.platform === "linux") {
   if (linuxDisablesGpu()) app.disableHardwareAcceleration();
-  app.setDesktopName("com.openmausbot.app.desktop");
+  app.setDesktopName("com.hezuo.app.desktop");
 }
 
 if (!app.requestSingleInstanceLock()) {
-  console.log("[desktop] OpenMausBot is already running — focusing that window");
+  console.log("[desktop] Hezuo is already running — focusing that window");
   process.exit(0);
 }
 
@@ -267,7 +270,7 @@ app.on("open-url", (event, url) => {
 
 app.on("second-instance", (_event, commandLine) => {
   if (takeOrganizationDeepLink(commandLine)) {
-    queueOrganizationEntry("openmausbot://organization");
+    queueOrganizationEntry("hezuo://organization");
     return;
   }
   if (cloudEntry.fromArgs(commandLine)) return;
@@ -316,6 +319,18 @@ const cloudPower = createCloudPowerGate({ power: () => cloudAccount?.power() ?? 
 const utilityServerExits = new WeakMap();
 const UTILITY_SERVER_STOP_TIMEOUT_MS = 6_500;
 const trustedApprovalMode = createTrustedApprovalModeCoordinator({ randomId: randomUUID });
+const computerUsePolicyBridge = createComputerUsePolicyBridge({ randomId: randomUUID });
+let computerPermissionDevice;
+function computerPermissionDeviceId() {
+  if (computerPermissionDevice) return computerPermissionDevice;
+  const storage = jsonFile(path.join(app.getPath("userData"), "computer-permission-device.json"));
+  let stored;
+  try { stored = storage.read(); } catch (error) { if (error?.code !== "ENOENT") throw error; }
+  if (typeof stored?.id === "string" && /^[A-Za-z0-9_-]{32,100}$/.test(stored.id)) return (computerPermissionDevice = stored.id);
+  const id = randomUUID();
+  storage.write({ id });
+  return (computerPermissionDevice = id);
+}
 const desktopMutationToken = randomBytes(32).toString("base64url");
 const desktopLaunchId = randomUUID();
 const companionMutationToken = randomBytes(32).toString("base64url");
@@ -356,7 +371,7 @@ const serverSupervisor = createServerSupervisor({
     slog("server recovery paused after repeated failures; quit and reopen to retry");
     dialog.showErrorBox(
       "The bot server stopped",
-      "Automatic recovery could not restart the background server. Quit and reopen OpenMausBot to try again. Interrupted chat turns were not resent.\n\n" +
+      "Automatic recovery could not restart the background server. Quit and reopen Hezuo to try again. Interrupted chat turns were not resent.\n\n" +
         `Server log: ${path.join(LOG_DIR, "server.log")}`,
     );
   },
@@ -368,8 +383,7 @@ function desktopDataDir() {
     if (!productAccountRoot) throw new Error("product_account_required");
     return path.join(productAccountRoot, "workspace");
   }
-  // An empty OMB_DATA_DIR falls back here too; server/config.ts would not, so the child gets this path.
-  return process.env.OMB_DATA_DIR || path.join(app.getPath("home"), ".openmausbot");
+  return migrateDefaultDataRoot(app.getPath("home"), process.env.OMB_DATA_DIR);
 }
 
 async function stopUtilityServer(proc, timeoutMs = UTILITY_SERVER_STOP_TIMEOUT_MS) {
@@ -857,7 +871,7 @@ function syncPhoneSecretKey(proc) {
 
 function ensureCloudAccount() {
   if (cloudAccount) return cloudAccount;
-  if (!app.isPackaged || desktopRemoteAccess) throw new Error("MausBot Cloud sign-in requires the local desktop app.");
+  if (!app.isPackaged || desktopRemoteAccess) throw new Error("Hezuo Cloud sign-in requires the local desktop app.");
   cloudAccount = createCloudAccountClient({
     store: createEncryptedRecordStore({ file: path.join(app.getPath("userData"), cloudTarget(process.env).file), encryption: {
       available: async () => (await safeStorage.isAsyncEncryptionAvailable()) &&
@@ -1106,11 +1120,11 @@ async function runCompanyBackup(kind, input, scheduled = null) {
     const status = await localBackupStatus(proc);
     if (status.pendingRestore) {
       publishCompanyBackupState({ busy: false, pendingRestore: true });
-      throw new Error("Restart OpenMausBot to finish the pending restore before starting another backup operation.");
+      throw new Error("Restart Hezuo to finish the pending restore before starting another backup operation.");
     }
     if (status.busy) throw companyBackupDeferred();
     const transfers = createCompanyBackups({
-      tempRoot: path.join(app.getPath("temp"), "openmaus-company-backups"),
+      tempRoot: path.join(app.getPath("temp"), "hezuo-company-backups"),
       localRequest: (route, init) => localBackupRequest(proc, route, init),
       portalRequest: (route, options) => client.requestBackup(route, { ...options, generation }),
       availableBytes: async temporary => {
@@ -1140,9 +1154,10 @@ async function runCompanyBackup(kind, input, scheduled = null) {
 function syncDesktopMutationToken(proc) {
   try {
     proc.postMessage({
-      type: "openmausbot:desktop-mutation-token",
+      type: "hezuo:desktop-mutation-token",
       token: desktopMutationToken,
       companionToken: companionMutationToken,
+      computerPermissionDevice: computerPermissionDeviceId(),
     });
   } catch (error) {
     slog(`desktop mutation capability sync failed: ${error?.message ?? error}`);
@@ -1196,7 +1211,7 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
   });
   if (productService) {
     for (const key of Object.keys(childEnv)) {
-      if (/^(ANTHROPIC_|OPENAI_|OPENROUTER_|XAI_|GROQ_|CEREBRAS_|MISTRAL_|DEEPSEEK_|AI_UPSTREAM_|AI_OPERATOR_|OMB_OPERATOR_|OMB_CLOUD_|OMB_COMPANY_|OPENMAUSBOT_PRODUCT_AI_TOKEN$)/.test(key)) delete childEnv[key];
+      if (/^(ANTHROPIC_|OPENAI_|OPENROUTER_|XAI_|GROQ_|CEREBRAS_|MISTRAL_|DEEPSEEK_|AI_UPSTREAM_|AI_OPERATOR_|OMB_OPERATOR_|OMB_CLOUD_|OMB_COMPANY_|HEZUO_PRODUCT_AI_TOKEN$)/.test(key)) delete childEnv[key];
     }
     delete childEnv.OMB_PRODUCT_SERVICE_URL;
   }
@@ -1285,7 +1300,7 @@ function syncManagedComposioCredentials() {
   if (!serverProc) return;
   try {
     serverProc.postMessage({
-      type: "openmausbot:managed-composio",
+      type: "hezuo:managed-composio",
       access: managedComposioAccess(composioBrokerUrl(), secureCredentials),
     });
   } catch (error) {
@@ -1309,117 +1324,17 @@ function respondToDisplayMediaRequest(callback, response) {
   }
 }
 
-function notifyDesktopViewer(open) {
-  if (!desktopViewerOwner?.isDestroyed()) {
-    desktopViewerOwner.send("desktop-viewer:state", {
-      open,
-      contextId: desktopViewerContextId,
-    });
-  }
-}
-
-function openDesktopViewer(owner, rawUrl, rawTitle, contextId) {
-  if (!owner || owner.isDestroyed()) throw new Error("The OpenMausBot window is unavailable");
-  const url = desktopViewerUrl(rawUrl);
-  const titleCandidate = Object.prototype.toString.call(rawTitle) === "[object String]" ? rawTitle.trim() : "";
-  const title = titleCandidate ? titleCandidate.slice(0, 80) : "Live desktop";
-
-  const nextContextId =
-    Object.prototype.toString.call(contextId) === "[object String]" ? contextId.slice(0, 120) : null;
-
-  // Clear the ref first so the stale window's close handler no-ops; a token-bearing URL is never retained.
-  if (desktopViewerWindow && !desktopViewerWindow.isDestroyed()) {
-    const previous = desktopViewerWindow;
-    const previousOwner = desktopViewerOwner;
-    const previousContextId = desktopViewerContextId;
-    desktopViewerWindow = null;
-    previous.close();
-    if (previousContextId !== nextContextId && previousOwner && !previousOwner.isDestroyed()) {
-      previousOwner.send("desktop-viewer:state", { open: false, contextId: previousContextId });
-    }
-  }
-  desktopViewerOwner = owner.webContents;
-  desktopViewerContextId = nextContextId;
-
-  const viewer = new BrowserWindow({
-    width: 1220,
-    height: 820,
-    minWidth: 760,
-    minHeight: 520,
-    parent: owner,
-    modal: false,
-    show: false,
-    title,
-    icon: APP_ICON,
-    backgroundColor: windowBackground(nativeTheme.shouldUseDarkColors),
-    autoHideMenuBar: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: true,
-      // Non-persistent partition: provider cookies stay out of the app renderer and die on exit.
-      partition: "openmausbot-desktop-viewer",
-    },
-  });
-  desktopViewerWindow = viewer;
-  const viewerOrigin = url.origin;
-
-  viewer.webContents.session.setPermissionCheckHandler((_webContents, permission, requestingOrigin) =>
-    desktopViewerPermissionAllowed(permission, requestingOrigin, viewerOrigin),
-  );
-  viewer.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) =>
-    callback(desktopViewerPermissionAllowed(permission, details?.requestingUrl || webContents.getURL(), viewerOrigin)),
-  );
-
-  // A child window gets keystrokes only once focused; unfocused, typing lands in the app's composer.
-  viewer.once("ready-to-show", () => {
-    if (viewer.isDestroyed()) return;
-    viewer.show();
-    viewer.focus();
-    viewer.webContents.focus();
-  });
-  viewer.on("closed", () => {
-    if (desktopViewerWindow !== viewer) return;
-    desktopViewerWindow = null;
-    notifyDesktopViewer(false);
-    desktopViewerOwner = null;
-    desktopViewerContextId = null;
-  });
-  viewer.on("page-title-updated", (event) => {
-    event.preventDefault();
-    viewer.setTitle(title);
-  });
-  viewer.webContents.setWindowOpenHandler(({ url: target }) => {
-    try {
-      const external = desktopViewerUrl(target);
-      void shell.openExternal(external.toString());
-    } catch {
-    }
-    return { action: "deny" };
-  });
-  viewer.webContents.on("will-navigate", (event, target) => {
-    if (sameDesktopViewerOrigin(target, viewerOrigin)) return;
-    event.preventDefault();
-    try {
-      void shell.openExternal(desktopViewerUrl(target).toString());
-    } catch {
-    }
-  });
-  viewer.webContents.on("did-fail-load", (_event, code, description, failedUrl, isMainFrame) => {
-    if (!isMainFrame || code === -3 || viewer.isDestroyed() || failedUrl.startsWith("data:")) return;
-    void viewer.loadURL(desktopViewerErrorPage(description || "The viewer did not respond.", url.toString()));
-  });
-
-  notifyDesktopViewer(true);
-  void viewer.loadURL(url.toString()).catch((error) => {
-    if (viewer.isDestroyed()) return;
-    void viewer.loadURL(desktopViewerErrorPage(error?.message ?? "The viewer did not respond.", url.toString()));
-  });
-  return true;
-}
+const openDesktopViewer = createDesktopViewerWindow({
+  APP_ICON, windowBackground,
+  state: {
+    get desktopViewerWindow() { return desktopViewerWindow; }, set desktopViewerWindow(value) { desktopViewerWindow = value; },
+    get desktopViewerOwner() { return desktopViewerOwner; }, set desktopViewerOwner(value) { desktopViewerOwner = value; },
+    get desktopViewerContextId() { return desktopViewerContextId; }, set desktopViewerContextId(value) { desktopViewerContextId = value; },
+  },
+});
 
 function ensureDesktopWorkspace(owner) {
-  if (!owner || owner.isDestroyed()) throw new Error("The OpenMausBot window is unavailable");
+  if (!owner || owner.isDestroyed()) throw new Error("The Hezuo window is unavailable");
   if (desktopWorkspaceManager) {
     if (desktopWorkspaceOwner !== owner) {
       throw new Error("The two-desktop view belongs to another app window");
@@ -1431,7 +1346,7 @@ function ensureDesktopWorkspace(owner) {
   const manager = createDesktopWorkspaceManager({
     owner,
     createView: (options) => new WebContentsView(options),
-    partitionPrefix: `openmausbot-desktop-workspace-${randomUUID()}`,
+    partitionPrefix: `hezuo-desktop-workspace-${randomUUID()}`,
     notify: (state) => {
       if (!owner.isDestroyed() && !owner.webContents.isDestroyed()) {
         owner.webContents.send("desktop-workspace:state", state);
@@ -1610,7 +1525,7 @@ function refreshApplicationMenu() {
       onSwitch: (id) => void workspaceMenuAction(() => switchEnvironment(id)),
       onAddFromClipboard: () => void addServerFromClipboard(),
       onConnect: () => void workspaceMenuAction(openWorkspaceSettings),
-      onOrganizationSignIn: () => queueOrganizationEntry("openmausbot://organization"),
+      onOrganizationSignIn: () => queueOrganizationEntry("hezuo://organization"),
       onForget: (id) => void workspaceMenuAction(() => forgetEnvironment(id)),
       onOpenSettings: () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("app:open-settings"); },
       openAtLogin: loginItem.available() ? { checked: loginItem.chosen(), onToggle: on => { loginItem.choose(on); refreshApplicationMenu(); } } : null,
@@ -1643,9 +1558,7 @@ function navigateMainWindow(url) {
 let rememberedHome = null;
 
 function acquireDataDirLeaseFor(dir) {
-  return dir === desktopDataDir()
-    ? acquireDataDirLease(dir, { legacyDataDir: path.join(app.getPath("home"), ".opengrokbot") })
-    : acquireDataDirLease(dir);
+  return acquireDataDirLease(dir);
 }
 
 /** Pause the supervisor first, or its recovery forks on the wrong data dir; resume() stays in the finally. */
@@ -1659,7 +1572,7 @@ async function switchLocalEnvironmentTo(targetDir, targetId) {
   const failedSwitch = () => {
     dialog.showErrorBox(
       "Could not switch environments",
-      "OpenMausBot could not switch to that environment. The app log has the details.",
+      "Hezuo could not switch to that environment. The app log has the details.",
     );
     return { ok: false, error: "switch-failed" };
   };
@@ -1773,7 +1686,7 @@ function createLocalEnvironment(name, dataDir) {
       ? name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
       : "";
     if (typeof name !== "string" || !name.trim()) return { ok: false, error: "name", state };
-    candidateDir = path.join(os.homedir(), `.openmausbot-${slug || randomUUID().slice(0, 8)}`);
+    candidateDir = path.join(os.homedir(), `.hezuo-${slug || randomUUID().slice(0, 8)}`);
   } else {
     candidateDir = typeof dataDir === "string" ? dataDir.trim() : "";
     if (
@@ -1848,8 +1761,8 @@ async function deliverOrganizationEntry() {
 }
 
 async function openCloudEntry() {
-  if (!app.isPackaged) throw new Error("MausBot Cloud requires the installed desktop app.");
-  if (desktopRemoteAccess) throw new Error("This app is connected to another computer. Disconnect it to use MausBot Cloud on this computer.");
+  if (!app.isPackaged) throw new Error("Hezuo Cloud requires the installed desktop app.");
+  if (desktopRemoteAccess) throw new Error("This app is connected to another computer. Disconnect it to use Hezuo Cloud on this computer.");
   if (!serverReady) throw new Error("This installation is unavailable. Restart the app and open My Cloud again.");
   await cloudAccountRestored();
   if ((await homeWindow.refresh()).kind !== "computer") { await showHome({ place: "cloud" }); return true; }
@@ -2007,7 +1920,7 @@ async function forgetEnvironment(id, purge = false, confirmed = false) {
     const resolvedCanon = canonical(resolved);
     const rootCanon = canonical(root);
     if (runningDataDir && canonical(runningDataDir) === resolvedCanon) return { ok: false, error: "active" };
-    if (path.basename(resolved).startsWith(".openmausbot") && resolvedCanon !== rootCanon && !resolvedCanon.startsWith(rootCanon + path.sep)) {
+    if (path.basename(resolved).startsWith(".hezuo") && resolvedCanon !== rootCanon && !resolvedCanon.startsWith(rootCanon + path.sep)) {
       try {
         await fs.promises.rm(resolved, { recursive: true, force: true });
       } catch (error) {
@@ -2038,37 +1951,6 @@ async function forgetEnvironment(id, purge = false, confirmed = false) {
   return { ok: true };
 }
 
-function showContextMenu(win, params) {
-  if (!params.isEditable && !params.linkURL && !params.misspelledWord && !params.selectionText) return;
-  const menuItems = [];
-  if (params.misspelledWord) {
-    for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
-      menuItems.push({
-        label: suggestion,
-        click: () => win.webContents.replaceMisspelling(suggestion),
-      });
-    }
-    if (menuItems.length) menuItems.push({ type: "separator" });
-  }
-  if (params.linkURL) {
-    menuItems.push(
-      { label: "Copy Link", click: () => clipboard.writeText(params.linkURL) },
-      { type: "separator" },
-    );
-  }
-  menuItems.push(
-    { label: "Undo", role: "undo", enabled: params.editFlags.canUndo },
-    { label: "Redo", role: "redo", enabled: params.editFlags.canRedo },
-    { type: "separator" },
-    { label: "Cut", role: "cut", enabled: params.editFlags.canCut },
-    { label: "Copy", role: "copy", enabled: params.editFlags.canCopy },
-    pasteMenuItem(params, clipboard, win.webContents),
-    { label: "Paste and Match Style", role: "pasteAndMatchStyle", enabled: params.editFlags.canPaste },
-    { type: "separator" },
-    { label: "Select All", role: "selectAll", enabled: params.editFlags.canSelectAll },
-  );
-  Menu.buildFromTemplate(menuItems).popup({ window: win, frame: params.frame });
-}
 
 function createWindow({ deferNavigation = false } = {}) {
   const waitsForSkinSync = process.platform === "win32";
@@ -2193,111 +2075,7 @@ function createWindow({ deferNavigation = false } = {}) {
     showContextMenu(win, params);
   });
 
-  if (process.env.OMB_SMOKE_TEST === "1") {
-    win.webContents.once("did-finish-load", async () => {
-      try {
-        const result = await win.webContents.executeJavaScript(`
-          (async () => {
-            if (!window.ogb?.getCapabilities) throw new Error("desktop preload bridge is unavailable");
-            let crashPromise = null;
-            if (${JSON.stringify(process.env.OMB_SMOKE_CUA === "1")}) {
-              crashPromise = new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                  unsubscribe?.();
-                  reject(new Error("timed out waiting for CUA crash invalidation"));
-                }, 10000);
-                const unsubscribe = window.ogb.onCapabilitiesChanged((next) => {
-                  if (next.localComputer.reasonCode !== "daemon-exited") return;
-                  clearTimeout(timeout);
-                  unsubscribe();
-                  resolve(next.localComputer.reasonCode);
-                });
-              });
-            }
-            const [initialCapabilities, healthResponse, ownerMutationResponse] = await Promise.all([
-              window.ogb.getCapabilities(),
-              fetch("/api/health"),
-              fetch("/api/auth/stream-ticket", { method: "POST" }),
-            ]);
-            if (!healthResponse.ok) {
-              throw new Error(\`health request failed: \${healthResponse.status} \${healthResponse.statusText}\`);
-            }
-            const health = await healthResponse.json();
-            if (!ownerMutationResponse.ok) {
-              throw new Error(
-                \`desktop mutation capability failed: \${ownerMutationResponse.status} \${ownerMutationResponse.statusText}\`,
-              );
-            }
-            let capabilities = initialCapabilities;
-            let cuaCrashReason = null;
-            let cuaRetryStatus = null;
-            if (crashPromise) {
-              if (!initialCapabilities.localComputer.available) {
-                throw new Error("CUA was not ready before the simulated crash");
-              }
-              cuaCrashReason = await crashPromise;
-              cuaRetryStatus = await window.ogb.localControl.retry();
-              capabilities = await window.ogb.getCapabilities();
-            }
-            return {
-              initialCapabilities,
-              capabilities,
-              cuaCrashReason,
-              cuaRetryStatus,
-              health,
-              location: window.location.href,
-              title: document.title,
-            };
-          })()
-        `);
-        const expectedLocation = `http://127.0.0.1:${SERVER_PORT}/`;
-        if (result.location !== expectedLocation) {
-          throw new Error(
-            `unexpected packaged renderer URL: ${result.location} (expected ${expectedLocation})`,
-          );
-        }
-        if (process.env.OMB_SMOKE_BUNDLED_CUA === "1") {
-          const connection = await cuaReady;
-          const expectedDriver = path.join(
-            process.resourcesPath,
-            "cua-linux-x64",
-            "cua-driver",
-          );
-          let exactBundledPath = false;
-          try {
-            exactBundledPath =
-              Boolean(connection?.driver?.path) &&
-              fs.realpathSync(connection.driver.path) === fs.realpathSync(expectedDriver);
-          } catch {}
-          result.cuaRuntime = {
-            driverSource: connection?.driver?.source,
-            exactBundledPath,
-            appImagePrivateStage:
-              Boolean(process.env.APPIMAGE) &&
-              connection?.driver?.path !== expectedDriver &&
-              path.basename(path.dirname(connection?.driver?.path ?? "")).startsWith(
-                APPIMAGE_CUA_STAGE_PREFIX,
-              ),
-            driverPath: connection?.driver?.path,
-            driverVersion: connection?.driver?.version,
-            daemonPid: connection?.daemon?.pid,
-            socketPath: connection?.daemon?.socketPath,
-            pidFile: connection?.daemon?.socketPath
-              ? path.join(path.dirname(connection.daemon.socketPath), "driver.pid")
-              : undefined,
-            mcpEnv: connection?.mcp?.env,
-          };
-        }
-        result.hardwareAccelerationEnabled = app.isHardwareAccelerationEnabled();
-        result.displayMediaRequests = displayMediaRequestCount;
-        console.log(`[smoke] renderer-ready ${JSON.stringify(result)}`);
-      } catch (error) {
-        console.error(`[smoke] renderer-failed ${error?.stack ?? error}`);
-      } finally {
-        if (process.env.OMB_SMOKE_KEEP_OPEN !== "1") win.close();
-      }
-    });
-  }
+  installRendererSmokeProbe(win, { serverPort: () => SERVER_PORT, cuaReady: () => cuaReady, displayMediaRequestCount: () => displayMediaRequestCount });
 
   const remote = activeRemote(environmentsState);
   if (!serverReady && (desktopRemoteAccess || (app.isPackaged && !remote))) serverUnavailableWindows.add(win);
@@ -2368,7 +2146,7 @@ ipcMain.handle("desktop:export-diagnostics", localOrHome("desktop:export-diagnos
   return result.filePath;
 }));
 
-// The path is renderer-controlled: it must resolve inside ~/.openmausbot to a regular file, never a symlink escape.
+// The path is renderer-controlled: it must resolve inside ~/.hezuo to a regular file, never a symlink escape.
 ipcMain.handle("desktop:save-file", localOnly("desktop:save-file", async (event, rawPath) => {
   return withSavableFile(rawPath, { home: os.homedir() }, async ({ defaultName, copyTo }) => {
     const parent = BrowserWindow.fromWebContents(event.sender);
@@ -2603,7 +2381,7 @@ for (const method of ["state", "begin", "signInAgain", "reopen", "cancel", "refr
   ipcMain.handle(`cloud-account:${method}`, localWorkspaceOnly(`cloud-account:${method}`, () => ensureCloudAccount()[method]()));
 }
 ipcMain.handle("cloud-account:checkout", localWorkspaceOnly("cloud-account:checkout", async (_event, plan, source) => {
-  if (!(await cloudOffersReady())) throw new Error("MausBot Cloud isn't offered in this app.");
+  if (!(await cloudOffersReady())) throw new Error("Hezuo Cloud isn't offered in this app.");
   const client = ensureCloudAccount();
   if (typeof plan !== "string" || !CHECKOUT_SOURCES.includes(source)) throw new Error("Choose a plan to continue.");
   const offer = await client.offer();
@@ -2720,7 +2498,7 @@ const cloudLook = createCloudLook({ store: lookFile(() => path.join(app.getPath(
 const cloudBuy = installCloudBuy({ ipcMain, guard: localWorkspaceOnly, client: ensureCloudAccount, offersReady: cloudOffersReady, clipboard, look: cloudLook });
 const localServerRequest = (route, init = {}) => (serverProc && serverReady ? fetch(`http://127.0.0.1:${SERVER_PORT}${route}`, { ...init, redirect: "error", credentials: "omit", headers: { ...init.headers, [DESKTOP_MUTATION_HEADER]: desktopMutationToken } }) : Promise.reject(new Error("not running")));
 const teamProfileSeeds = createTeamProfileSeeds({ teamFetch: (...args) => session.defaultSession.fetch(...args), localRequest: localServerRequest, log: slog });
-const oneHome = installOneHome({ ipcMain, cloudPage: cloudPageAsking, server: () => serverProc, cookieFetch: (...args) => session.defaultSession.fetch(...args), home: () => (myCloud() && cloudAccount ? { origin: myCloud(), grant: () => cloudAccount.pairHome() } : null), power: cloudPower, file: () => path.join(app.getPath("userData"), "cloud-send.json"), localRequest: localServerRequest, space: { disk: () => cloudPlanDisk(ensureCloudAccount().state()), grow: sizeGb => ensureCloudAccount().growDisk(sizeGb) }, reconnect: origin => signInCloudSession({ origin, mine: myCloud(), pair: () => ensureCloudAccount().pairHome(), fetch: (...args) => session.defaultSession.fetch(...args) }), window: () => (desktopRemoteAccess ? null : mainWindow), localOrigin: rendererOrigin, account: () => cloudAccount, journalFile: () => path.join(app.getPath("userData"), "one-home.json"), tempRoot: () => path.join(app.getPath("temp"), "openmaus-one-home"), lend: projects => sharingController().lendProjects(projects), phone: { paired: () => companionEnabledAtRest(), stop: () => stopDesktopCompanion({ remember: false }).then(() => {}), start: () => startDesktopCompanion({ waitForHosted: false, remember: false }).then(() => {}) }, openHome: () => void showHome({ place: "cloud" }), openTeam: team => void showHome({ place: { team: team.id, name: team.name } }), openLocal: () => void showHome(), restart: () => relaunchAfterDesktopRemoteChange(), version: app.getVersion(), log: slog, other: () => ownHome }); ownHome = installOwnHome({ localRequest: localServerRequest, fetch: (...args) => session.defaultSession.fetch(...args), environments: () => environmentsState.environments, handoff: what => oneHome.handoff(what), cloudJournal: () => oneHome.journal(), journal: jsonFile(path.join(app.getPath("userData"), "own-home.json")), choice: jsonFile(path.join(app.getPath("userData"), "own-home-choice.json")), sendState: jsonFile(path.join(app.getPath("userData"), "own-home-send.json")), lend: (projects, place) => sharingController().lendProjects(projects, place), phone: { paired: () => companionEnabledAtRest(), stop: () => stopDesktopCompanion({ remember: false }).then(() => {}), start: () => startDesktopCompanion({ waitForHosted: false, remember: false }).then(() => {}) }, openHome: place => void workspaceMenuAction(() => switchEnvironment(place.id)), lastInput: oneHome.lastInput, version: app.getVersion(), log: slog, onChange: () => { oneHome.publish(); computerSharing?.cloudChanged(); railChanged(); } }); twoPlaces = installTwoPlacesMain({ ipcMain, guard: localWorkspaceOnly, localRequest: localServerRequest, fetch: (...args) => session.defaultSession.fetch(...args), environments: () => environmentsState.environments, cloud: () => ({ origin: myCloud(), asleep: cloudPower.asleep() }), oneHome, ownHome, dismissed: jsonFile(path.join(app.getPath("userData"), "two-places.json")), log: slog, tell: () => { if (mainWindow && !mainWindow.isDestroyed() && senderIsLocal({ sender: mainWindow.webContents })) mainWindow.webContents.send("two-places:changed"); } });
+const oneHome = installOneHome({ ipcMain, cloudPage: cloudPageAsking, server: () => serverProc, cookieFetch: (...args) => session.defaultSession.fetch(...args), home: () => (myCloud() && cloudAccount ? { origin: myCloud(), grant: () => cloudAccount.pairHome() } : null), power: cloudPower, file: () => path.join(app.getPath("userData"), "cloud-send.json"), localRequest: localServerRequest, space: { disk: () => cloudPlanDisk(ensureCloudAccount().state()), grow: sizeGb => ensureCloudAccount().growDisk(sizeGb) }, reconnect: origin => signInCloudSession({ origin, mine: myCloud(), pair: () => ensureCloudAccount().pairHome(), fetch: (...args) => session.defaultSession.fetch(...args) }), window: () => (desktopRemoteAccess ? null : mainWindow), localOrigin: rendererOrigin, account: () => cloudAccount, journalFile: () => path.join(app.getPath("userData"), "one-home.json"), tempRoot: () => path.join(app.getPath("temp"), "hezuo-one-home"), lend: projects => sharingController().lendProjects(projects), phone: { paired: () => companionEnabledAtRest(), stop: () => stopDesktopCompanion({ remember: false }).then(() => {}), start: () => startDesktopCompanion({ waitForHosted: false, remember: false }).then(() => {}) }, openHome: () => void showHome({ place: "cloud" }), openTeam: team => void showHome({ place: { team: team.id, name: team.name } }), openLocal: () => void showHome(), restart: () => relaunchAfterDesktopRemoteChange(), version: app.getVersion(), log: slog, other: () => ownHome }); ownHome = installOwnHome({ localRequest: localServerRequest, fetch: (...args) => session.defaultSession.fetch(...args), environments: () => environmentsState.environments, handoff: what => oneHome.handoff(what), cloudJournal: () => oneHome.journal(), journal: jsonFile(path.join(app.getPath("userData"), "own-home.json")), choice: jsonFile(path.join(app.getPath("userData"), "own-home-choice.json")), sendState: jsonFile(path.join(app.getPath("userData"), "own-home-send.json")), lend: (projects, place) => sharingController().lendProjects(projects, place), phone: { paired: () => companionEnabledAtRest(), stop: () => stopDesktopCompanion({ remember: false }).then(() => {}), start: () => startDesktopCompanion({ waitForHosted: false, remember: false }).then(() => {}) }, openHome: place => void workspaceMenuAction(() => switchEnvironment(place.id)), lastInput: oneHome.lastInput, version: app.getVersion(), log: slog, onChange: () => { oneHome.publish(); computerSharing?.cloudChanged(); railChanged(); } }); twoPlaces = installTwoPlacesMain({ ipcMain, guard: localWorkspaceOnly, localRequest: localServerRequest, fetch: (...args) => session.defaultSession.fetch(...args), environments: () => environmentsState.environments, cloud: () => ({ origin: myCloud(), asleep: cloudPower.asleep() }), oneHome, ownHome, dismissed: jsonFile(path.join(app.getPath("userData"), "two-places.json")), log: slog, tell: () => { if (mainWindow && !mainWindow.isDestroyed() && senderIsLocal({ sender: mainWindow.webContents })) mainWindow.webContents.send("two-places:changed"); } });
 // Teams from the verified session as places this window shows (home-places.mjs): the one to open next time, and its lines.
 const homePlaces = createHomePlaces({ store: jsonFile(path.join(app.getPath("userData"), "home-place.json")), environments: () => environmentsState, persist: persistEnvironments, makeId: randomUUID, homeOrigin: myCloud, log: slog });
 const homeWindow = createHomeWindow({ journal: oneHome.journal, frozen: oneHome.marker, account: () => (app.isPackaged && !desktopRemoteAccess ? cloudAccount : null), restored: cloudAccountRestored,
@@ -2918,6 +2696,20 @@ ipcMain.handle("approvals:set-trusted-mode", localOnly("approvals:set-trusted-mo
   return trustedApprovalMode.request(serverProc, botId, mode, options);
 }));
 
+for (const operation of ["get", "set"]) {
+  const channel = `computer-use-policy:${operation}`;
+  ipcMain.handle(channel, localOnly(channel, async (event, policy) => {
+    if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !app.isPackaged || !serverProc || localSwitchInFlight) {
+      throw new Error("Computer permission requires the local desktop main frame and embedded workspace");
+    }
+    if (operation === "set" && !["ask", "allow", "deny"].includes(policy)) throw new Error("Invalid computer permission");
+    const proc = serverProc;
+    const value = await computerUsePolicyBridge.request(proc, operation === "set" ? policy : undefined);
+    if (serverProc !== proc || !senderIsLocal(event)) throw new Error("The workspace changed during the computer permission request");
+    return value;
+  }));
+}
+
 // Electron fixes a Windows window's title bar when the window is made; on macOS the choice applies at once.
 const windowFrameNow = () => (process.platform === "win32" ? windowFrameMade : null) ?? desktopPrefs?.windowFrame() !== false;
 async function broadcastDesktopCapabilities() {
@@ -2961,7 +2753,7 @@ async function startProductDesktop() {
     cloudOffered: async () => false,
     languageChanged: language => mainWindow?.webContents.send("desktop-language:changed", language),
   });
-  if (app.isPackaged) app.setAsDefaultProtocolClient("openmausbot-product");
+  if (app.isPackaged) app.setAsDefaultProtocolClient("hezuo-product");
   const encryption = {
     available: async () => await safeStorage.isAsyncEncryptionAvailable() &&
       (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"),
@@ -3061,7 +2853,7 @@ app.whenReady().then(async () => {
   try {
     productService = await resolveProductService({ isPackaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath, fixtureOrigin: productFixture?.origin });
   } catch {
-    dialog.showErrorBox("OpenMausBot", "The product service configuration is missing or invalid.");
+    dialog.showErrorBox("Hezuo", "The product service configuration is missing or invalid.");
     app.quit(); return;
   }
   if (productService) { await startProductDesktop(); return; }
@@ -3107,7 +2899,7 @@ app.whenReady().then(async () => {
       persistEnvironments({ ...environmentsState, activeId: LOCAL_ID });
       dialog.showErrorBox(
         "The environment's folder is missing",
-        `${boot.missingDir} is not there anymore, so OpenMausBot came up on this computer's default data folder instead. Restore or remount that folder, then choose the environment again from the Server menu.`,
+        `${boot.missingDir} is not there anymore, so Hezuo came up on this computer's default data folder instead. Restore or remount that folder, then choose the environment again from the Server menu.`,
       );
     }
     bootDataDir = boot.dataDir;
@@ -3115,14 +2907,12 @@ app.whenReady().then(async () => {
   if (app.isPackaged) {
     try {
       // Acquire before either plaintext credential migration touches config.json.
-      desktopDataDirLease = acquireDataDirLease(bootDataDir, {
-        legacyDataDir: path.join(app.getPath("home"), ".opengrokbot"),
-      });
+      desktopDataDirLease = acquireDataDirLease(bootDataDir);
       runningDataDir = bootDataDir;
     } catch (error) {
       dialog.showErrorBox(
-        "OpenMausBot could not start safely",
-        error?.message ?? "Another process is using this OpenMausBot data folder.",
+        "Hezuo could not start safely",
+        error?.message ?? "Another process is using this Hezuo data folder.",
       );
       app.quit();
       return;
@@ -3130,7 +2920,7 @@ app.whenReady().then(async () => {
   }
   installServerSessions({ app, defaultSession: session.defaultSession, serverPort: () => SERVER_PORT,
     ownerToken: () => (app.isPackaged && serverReady ? desktopMutationToken : null) });
-  if (app.isPackaged) app.setAsDefaultProtocolClient("openmausbot");
+  if (app.isPackaged) app.setAsDefaultProtocolClient("hezuo");
   if (process.platform === "darwin") app.dock.setIcon(APP_ICON);
   secureCredentials = await loadSecureCredentials();
   // An orphaned third-party key with no clear handler left: drop it rather than keep it at rest.
@@ -3249,14 +3039,12 @@ app.whenReady().then(async () => {
       }
       desktopDataDirLease = null;
       try {
-        desktopDataDirLease = acquireDataDirLease(desktopDataDir(), {
-          legacyDataDir: path.join(app.getPath("home"), ".opengrokbot"),
-        });
+        desktopDataDirLease = acquireDataDirLease(desktopDataDir());
         runningDataDir = desktopDataDir();
       } catch (error) {
         dialog.showErrorBox(
-          "OpenMausBot could not start safely",
-          error?.message ?? "Another process is using this OpenMausBot data folder.",
+          "Hezuo could not start safely",
+          error?.message ?? "Another process is using this Hezuo data folder.",
         );
         app.quit();
         return;
@@ -3265,12 +3053,12 @@ app.whenReady().then(async () => {
       if (retried) {
         dialog.showErrorBox(
           "The environment was unhealthy",
-          `OpenMausBot could not start on ${bootDataDir} and came up on this computer's default data folder instead. Choose that environment again from the Server menu once it is available.`,
+          `Hezuo could not start on ${bootDataDir} and came up on this computer's default data folder instead. Choose that environment again from the Server menu once it is available.`,
         );
       } else {
         dialog.showErrorBox(
-          "OpenMausBot could not start",
-          `OpenMausBot could not start on ${bootDataDir} or on this computer's default data folder. Check that both folders are readable, then start the app again.`,
+          "Hezuo could not start",
+          `Hezuo could not start on ${bootDataDir} or on this computer's default data folder. Check that both folders are readable, then start the app again.`,
         );
         app.quit();
       }

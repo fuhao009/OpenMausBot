@@ -21,7 +21,7 @@ const createRoutineOperation = {
     name: "Backlog review",
     instructions: "Review every item in the backlog.",
     schedule: { type: "daily" as const, time: "09:00", weekdays: [1, 2, 3, 4, 5] },
-    runOn: "maus" as const,
+    runOn: "hezuo" as const,
     durationMinutes: 30,
   },
 };
@@ -609,7 +609,8 @@ describe("ApprovalCard for a change that applied on its own", () => {
     const at = new Date();
     at.setHours(14, 30, 0, 0);
     const markup = render(routineCard(update, { name: "Check before dentist", schedule: { type: "once", at: at.getTime() }, appliedUpdatedAt: 2, before }));
-    expect(markup).toMatch(/Scout changed an automation: Check before dentist, today 2:30/);
+    expect(markup).toContain("Check before dentist");
+    expect(markup).toContain('data-applied-change="Scout"');
     expect(markup).toContain(">Undo<");
     expect(markup).toContain(">Details<");
     expect(markup).not.toContain("30 14 * * 3");

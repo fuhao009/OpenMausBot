@@ -45,23 +45,23 @@ jobs:
           # npm attaches its lowercase tarball independently after publishing.
           # The legacy updater bridge mirrors only the desktop/feed assets.
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir assets \
-            --pattern '*.yml' --pattern 'OpenMausBot*' --pattern 'SHA256SUMS-ubuntu-x64.txt'
+            --pattern '*.yml' --pattern 'Hezuo*' --pattern 'SHA256SUMS-ubuntu-x64.txt'
           required=(
             latest-linux.yml latest-mac.yml latest.yml
-            "OpenMausBot-$version-amd64.deb"
-            "OpenMausBot-$version-arm64.dmg"
-            "OpenMausBot-$version-arm64.dmg.blockmap"
-            "OpenMausBot-$version-arm64.zip"
-            "OpenMausBot-$version-arm64.zip.blockmap"
-            "OpenMausBot-$version-setup.exe"
-            "OpenMausBot-$version-setup.exe.blockmap"
-            "OpenMausBot-$version-x64.dmg"
-            "OpenMausBot-$version-x64.dmg.blockmap"
-            "OpenMausBot-$version-x64.zip"
-            "OpenMausBot-$version-x64.zip.blockmap"
-            "OpenMausBot-$version-x86_64.AppImage"
-            OpenMausBot-amd64.deb OpenMausBot-intel.dmg OpenMausBot-setup.exe
-            OpenMausBot.AppImage OpenMausBot.dmg SHA256SUMS-ubuntu-x64.txt
+            "Hezuo-$version-amd64.deb"
+            "Hezuo-$version-arm64.dmg"
+            "Hezuo-$version-arm64.dmg.blockmap"
+            "Hezuo-$version-arm64.zip"
+            "Hezuo-$version-arm64.zip.blockmap"
+            "Hezuo-$version-setup.exe"
+            "Hezuo-$version-setup.exe.blockmap"
+            "Hezuo-$version-x64.dmg"
+            "Hezuo-$version-x64.dmg.blockmap"
+            "Hezuo-$version-x64.zip"
+            "Hezuo-$version-x64.zip.blockmap"
+            "Hezuo-$version-x86_64.AppImage"
+            Hezuo-amd64.deb Hezuo-intel.dmg Hezuo-setup.exe
+            Hezuo.AppImage Hezuo.dmg SHA256SUMS-ubuntu-x64.txt
           )
           for file in "${required[@]}"; do
             test -s "assets/$file" || { echo "::error::$TAG is missing $file"; exit 1; }
@@ -80,15 +80,15 @@ jobs:
           const sha512 = (file) => createHash("sha512").update(readFileSync(file)).digest("base64");
           const expected = new Map([
             ["latest-mac.yml", [
-              `OpenMausBot-${version}-x64.zip`,
-              `OpenMausBot-${version}-arm64.zip`,
-              `OpenMausBot-${version}-x64.dmg`,
-              `OpenMausBot-${version}-arm64.dmg`,
+              `Hezuo-${version}-x64.zip`,
+              `Hezuo-${version}-arm64.zip`,
+              `Hezuo-${version}-x64.dmg`,
+              `Hezuo-${version}-arm64.dmg`,
             ]],
-            ["latest.yml", [`OpenMausBot-${version}-setup.exe`]],
+            ["latest.yml", [`Hezuo-${version}-setup.exe`]],
             ["latest-linux.yml", [
-              `OpenMausBot-${version}-x86_64.AppImage`,
-              `OpenMausBot-${version}-amd64.deb`,
+              `Hezuo-${version}-x86_64.AppImage`,
+              `Hezuo-${version}-amd64.deb`,
             ]],
           ]);
           let bad = 0;
@@ -127,7 +127,7 @@ jobs:
             `sha256:${createHash("sha256").update(readFileSync(join("assets", name))).digest("hex")}`,
           ]));
           const inventory = JSON.parse(execFileSync("gh", ["release", "view", tag, "--repo", process.env.GITHUB_REPOSITORY, "--json", "assets"], { encoding: "utf8" })).assets;
-          const npmTarball = `openmausbot-${tag.slice(1)}.tgz`;
+          const npmTarball = `hezuo-${tag.slice(1)}.tgz`;
           const remote = inventory.filter((asset) => asset.name !== npmTarball);
           if (inventory.length - remote.length > 1) throw new Error(`duplicate canonical npm asset: ${npmTarball}`);
           if (remote.length !== expected.size) throw new Error(`canonical release has ${remote.length} assets but ${expected.size} downloaded`);
@@ -172,7 +172,7 @@ jobs:
           const canonical = assets(process.env.GITHUB_REPOSITORY, process.env.CANONICAL_TOKEN);
           // The npm job may attach this optional asset between our download
           // and comparison. It is canonical-only, never an updater artifact.
-          canonical.delete(`openmausbot-${tag.slice(1)}.tgz`);
+          canonical.delete(`hezuo-${tag.slice(1)}.tgz`);
           const legacy = assets("milind-soni/openmausbot-releases", process.env.LEGACY_TOKEN);
           if (canonical.size !== legacy.size) throw new Error(`legacy mirror has ${legacy.size} assets; canonical has ${canonical.size}`);
           for (const [name, digest] of canonical) {

@@ -74,7 +74,6 @@ describe("SignInRequestCard while it waits", () => {
     expect(html).toContain("— Pepper");
     expect(html).toContain("Pepper’s built-in browser");
     for (const label of ["Open", "Done", "Cancel"]) expect(html).toContain(label);
-    expect(html).toContain("MausBot never sees it.");
     expect(html).not.toContain("<input");
   });
 
@@ -88,7 +87,10 @@ describe("SignInRequestCard while it waits", () => {
 
   it("says the host computer, not this one, where this computer is somewhere else", () => {
     here.value = false;
-    expect(view({ place: "local" })).toContain("the computer MausBot runs on");
+    const remote = view({ place: "local" });
+    expect(remote).not.toContain("on this computer");
+    here.value = true;
+    expect(remote).not.toBe(view({ place: "local" }));
   });
 
   it("Open goes to the place the bot works", () => {

@@ -156,7 +156,7 @@ describe("Cursor template import", () => {
     expect(header(blob!, "authorization")).toBeNull();
     expect(blob!.init.redirect).toBe("error");
     expect(x).toMatchObject({
-      format: "openmaus.grok/1",
+      format: "hezuo.grok/1",
       name: "Overheard",
       description: card.description,
       instructions: recipe.profile.description,

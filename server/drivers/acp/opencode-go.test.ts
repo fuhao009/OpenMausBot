@@ -19,7 +19,7 @@ import {
   openCodeOwnedDirectories,
   OpenCodeDriver,
   openCodeProviderKeysAllowed,
-  openMausOwnsWorkingFolder,
+  hezuoOwnsWorkingFolder,
   parseOpenCodeModelsOutput,
   preferredOpenCodeModel,
   resetOpenCodeModelCache,
@@ -349,7 +349,7 @@ describe("OpenCode catalog", () => {
     },
   );
 
-  it("points a rejected Zen key at the key OpenMaus saves", () => {
+  it("points a rejected Zen key at the key Hezuo saves", () => {
     expect(describeOpenCodeAccountError("invalid_credentials", "opencode/big-pickle")).toContain("Settings → API keys");
     for (const model of [undefined, "opencode/big-pickle", "opencode-go/minimax-m3"]) {
       expect(describeOpenCodeAccountError("invalid_credentials", model)).not.toContain("opencode auth login");
@@ -959,7 +959,7 @@ describe("OpenCode catalog probes", () => {
   });
 });
 
-describe("OpenCode access to folders OpenMaus owns", () => {
+describe("OpenCode access to folders Hezuo owns", () => {
   it("names the attachments folder and only this bot's shared folder", () => {
     expect(openCodeOwnedDirectories("bot-7")).toEqual([ATTACHMENTS_DIR, workspaceDir("bot-7")]);
     expect(openCodeOwnedDirectories("..")).toEqual([ATTACHMENTS_DIR]);
@@ -972,7 +972,7 @@ describe("OpenCode access to folders OpenMaus owns", () => {
     ["the bot's shared folder (a room's)", workspaceDir("bot-7")],
     ["a folder inside the shared one", join(workspaceDir("bot-7"), "memory")],
     ["the attachments folder", ATTACHMENTS_DIR],
-    ["OpenMaus's data folder", dirname(ATTACHMENTS_DIR)],
+    ["Hezuo's data folder", dirname(ATTACHMENTS_DIR)],
     ["a project folder", join(tmpdir(), "project")],
   ])("never allows the working folder or a folder above it: %s", (_label, cwd) => {
     const inside = (path: string, folder: string) => {
@@ -984,15 +984,15 @@ describe("OpenCode access to folders OpenMaus owns", () => {
     expect(allowed).not.toContain(join(TASK_WORKSPACES_DIR, "bot-7"));
   });
 
-  it("switches off project config only in OpenMaus's own working folders", () => {
-    expect(openMausOwnsWorkingFolder(join(TASK_WORKSPACES_DIR, "bot-7", "thread-1"))).toBe(true);
-    expect(openMausOwnsWorkingFolder(workspaceDir("bot-7"))).toBe(true);
-    expect(openMausOwnsWorkingFolder(TASK_WORKSPACES_DIR)).toBe(false);
-    expect(openMausOwnsWorkingFolder(join(tmpdir(), "project"))).toBe(false);
-    expect(openMausOwnsWorkingFolder(`${TASK_WORKSPACES_DIR}-elsewhere`)).toBe(false);
+  it("switches off project config only in Hezuo's own working folders", () => {
+    expect(hezuoOwnsWorkingFolder(join(TASK_WORKSPACES_DIR, "bot-7", "thread-1"))).toBe(true);
+    expect(hezuoOwnsWorkingFolder(workspaceDir("bot-7"))).toBe(true);
+    expect(hezuoOwnsWorkingFolder(TASK_WORKSPACES_DIR)).toBe(false);
+    expect(hezuoOwnsWorkingFolder(join(tmpdir(), "project"))).toBe(false);
+    expect(hezuoOwnsWorkingFolder(`${TASK_WORKSPACES_DIR}-elsewhere`)).toBe(false);
   });
 
-  it("keeps the person's single folder rule ahead of OpenMaus's folders", () => {
+  it("keeps the person's single folder rule ahead of Hezuo's folders", () => {
     const scratch = mkdtempSync(join(tmpdir(), "omb-opencode-folder-rule-"));
     try {
       const configDir = join(scratch, "config", "opencode");
@@ -1397,7 +1397,7 @@ describe("OpenCode ready only through its free models", () => {
 });
 
 describe("OpenCode one-off calls (connection checks, memory upkeep)", () => {
-  it("file their session under OpenMaus's own OpenCode project, never the global one the person's other folders share", async () => {
+  it("file their session under Hezuo's own OpenCode project, never the global one the person's other folders share", async () => {
     const scratch = mkdtempSync(join(tmpdir(), "omb-opencode-oneshot-"));
     const requests = join(scratch, "requests.jsonl");
     const driver = createOpenCodeDriver(async () => catalog("opencode/big-pickle"));

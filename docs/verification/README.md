@@ -1,10 +1,15 @@
-# Verifying OpenMausBot
+# Verifying Hezuo
 
-OpenMausBot has one development control surface: `pnpm control:omb`. It runs
-the published `openmausbot` verbs (docs/headless-cli.md), which call the MCP
+Hezuo has one development control surface: `pnpm control:omb`. It runs
+the published `hezuo` verbs (docs/headless-cli.md), which call the MCP
 tools in `scripts/mcp-server.ts`, so verification uses the same URL
 validation, task pinning, bounded transcripts, wait states, and redaction as
 external MCP clients and scripts.
+
+Historical screenshots and captured UI evidence under `docs/verification/` and
+`docs/pr-screenshots/` may show the upstream OpenMausBot or MausBot branding.
+They document the original capture, not the current Hezuo product appearance;
+asset paths and current verification instructions use Hezuo.
 
 ## Launch
 
@@ -20,7 +25,7 @@ it receives Ctrl-C and can stop its child before removing the temporary data.
 It gives the child a temporary data directory and home, chooses a free
 harness/webhook port pair, installs only the repository's fake engine, prints
 the URL, PID, data directory, and persistent log path, then stays attached to
-that exact child. The parent shell and the user's OpenMausBot data are
+that exact child. The parent shell and the user's Hezuo data are
 untouched. Only `FAKE_CLAUDE_*` variables cross from the launcher's
 environment into that child, so a recipe can script the fake engine's mode,
 replies and tool calls without writing a wrapper CLI. Live calls add one
@@ -39,6 +44,16 @@ pnpm control:omb doctor --url http://127.0.0.1:PORT
 Mutating commands refuse silent port discovery. This prevents a verification
 recipe from sending messages to the user's running app by accident.
 
+Protocol regression fixtures should assert tool schemas, scoped dispatch, approval
+outcomes, and preserved user context rather than catalog hashes or prompt wording.
+Remote MCP descriptors may inherit network proxy variables alongside their private
+configuration record; assert that credentials stay in that record and out of argv.
+Fake npm launchers must use the test process's Node executable so a deliberately
+restricted PATH cannot accidentally select a missing or unrelated runtime.
+MCP approval replay must return the saved decision without applying or resuming it
+twice, including while the approved turn is busy again. A new approval still
+requires owner review.
+
 ## Execution connectors
 
 `pnpm verify:execution-connectors` launches a disposable verification server and
@@ -48,6 +63,9 @@ native approval/denial decisions, cancellation, stale approval rejection and
 disconnection. It never uses a personal CLI login or a production server.
 Run `pnpm exec vitest run server/execution-connectors.test.ts` for lifecycle
 regressions, and `pnpm typecheck` for the shared frontend/backend contract.
+Both owner-facing and bot-internal execution connector handlers live in
+`server/routes/execution-connectors.ts`; internal dispatch retains the active
+turn's owner attribution and limits task access to its bot.
 
 For the actual Apps surface, use the isolated connected-apps preview with this
 fixture: connect a tool with explicit consent and a selected bot, submit a task,
@@ -67,7 +85,7 @@ Use only mapped, tested commands:
 - [OpenCode model variants through ACP](opencode-variants.md)
 - [Bot setup, model scope, and file continuity](bot-continuity.md)
 - [Reviewed Chief team setup and scoped deletion](team-setup.md)
-- [MausBot, everyone's helper](mausbot.md)
+- [Hezuo, everyone's helper](hezuo.md)
 - [Profile proposal and credential-card lifecycle](proposal-cards.md)
 - [Full Access without duplicate approvals](full-access.md)
 - [Exact command allowlist UI and saved rules](command-allowlist.md)

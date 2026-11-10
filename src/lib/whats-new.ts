@@ -7,7 +7,7 @@ import { t } from "@/lib/i18n";
 import { WHATS_NEW_NOTICE } from "@/lib/notices";
 
 export type WhatsNewSlide = "pro" | "team";
-/** Who the account is to MausBot Cloud: no plan, a plan of its own, in a team, or something else (being bought, needing
+/** Who the account is to Hezuo Cloud: no plan, a plan of its own, in a team, or something else (being bought, needing
  * attention, not checked). Null until the sign-in is restored and checked. */
 export type WhatsNewAudience = "none" | "own" | "team" | "other";
 

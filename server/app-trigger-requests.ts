@@ -1,4 +1,4 @@
-// App-event automations a bot makes or changes from chat. Every change applies at once (OpenMausBot adds no
+// App-event automations a bot makes or changes from chat. Every change applies at once (Hezuo adds no
 // confirmation card of its own); the conversation gets one receipt card with Pause, Edit and Undo.
 import { z } from "zod";
 
@@ -45,7 +45,7 @@ const definitionSchema = z.object({
   account: z.string().trim().max(128).optional(),
   filter: filterSchema.optional(),
   config: z.record(z.string(), z.unknown()).optional(),
-  runOn: z.enum(["maus", "cloud"]).optional(),
+  runOn: z.enum(["hezuo", "cloud"]).optional(),
 }).strict();
 const changesSchema = definitionSchema.pick({ name: true, instructions: true, filter: true, config: true, runOn: true }).partial().strict()
   .refine((changes) => Object.keys(changes).length > 0, "The update action needs at least one field in changes");

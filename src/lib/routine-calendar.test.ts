@@ -172,7 +172,7 @@ describe("routine calendar geometry", () => {
 describe("routine calendar projection", () => {
   const monthly: Routine = {
     id: "monthly", name: "Monthly report", prompt: "Report", target: "bot", botId: "b1",
-    runOn: "maus", enabled: true, durationMinutes: 30, createdAt: Date.UTC(2026, 8, 1), updatedAt: 1,
+    runOn: "hezuo", enabled: true, durationMinutes: 30, createdAt: Date.UTC(2026, 8, 1), updatedAt: 1,
     schedule: { type: "cron", expression: "0 9 1 * *", timeZone: "Asia/Kolkata" },
     nextRunAt: Date.UTC(2026, 9, 1, 3, 30),
   };
@@ -187,7 +187,7 @@ describe("routine calendar projection", () => {
   it("keeps cron receipts without duplicating them and never projects paused work", () => {
     const at = monthly.nextRunAt!;
     const run: RoutineRun = { id: "cron-run", routineId: monthly.id, routineName: monthly.name,
-      target: "bot", botId: "b1", runOn: "maus", scheduledFor: at, status: "completed", manual: false, createdAt: at };
+      target: "bot", botId: "b1", runOn: "hezuo", scheduledFor: at, status: "completed", manual: false, createdAt: at };
     const items = projectedRoutineItems([monthly], [run], at, Date.UTC(2026, 10, 2));
     expect(items).toHaveLength(2);
     expect(items[0]?.run?.id).toBe(run.id);
@@ -216,7 +216,7 @@ describe("routine calendar projection", () => {
       prompt: "Summarize",
       target: "bot",
       botId: "b1",
-      runOn: "maus",
+      runOn: "hezuo",
       enabled: true,
       schedule: { type: "daily", time: "09:00", weekdays: [1, 2] },
       durationMinutes: 30,
@@ -233,7 +233,7 @@ describe("routine calendar projection", () => {
         routineName: routine.name,
         target: "bot",
         botId: routine.botId,
-        runOn: "maus",
+        runOn: "hezuo",
         scheduledFor: receiptAt,
         status: "completed",
         manual: false,
@@ -256,7 +256,7 @@ describe("routine calendar projection", () => {
       prompt: "Check status",
       target: "bot",
       botId: "b1",
-      runOn: "maus",
+      runOn: "hezuo",
       enabled: true,
       schedule: { type: "interval", everyMinutes: 5, anchorAt: from },
       durationMinutes: 30,
@@ -272,7 +272,7 @@ describe("routine calendar projection", () => {
         routineName: routine.name,
         target: "bot",
         botId: routine.botId,
-        runOn: "maus",
+        runOn: "hezuo",
         scheduledFor: receiptAt,
         status: "completed",
         manual: false,
@@ -296,7 +296,7 @@ describe("routine calendar projection", () => {
       prompt: "Check status",
       target: "bot",
       botId: "b1",
-      runOn: "maus",
+      runOn: "hezuo",
       enabled: true,
       schedule: { type: "interval", everyMinutes: 5, anchorAt: from },
       durationMinutes: 30,
@@ -318,7 +318,7 @@ describe("routine calendar projection", () => {
       prompt: "Check status",
       target: "bot",
       botId: "b1",
-      runOn: "maus",
+      runOn: "hezuo",
       enabled: false,
       schedule: { type: "interval", everyMinutes: 5, anchorAt: from },
       durationMinutes: 30,
@@ -332,7 +332,7 @@ describe("routine calendar projection", () => {
       routineName: routine.name,
       target: "bot",
       botId: routine.botId,
-      runOn: "maus",
+      runOn: "hezuo",
       scheduledFor: from + index * 5 * 60_000,
       status: "completed",
       manual: false,
@@ -353,7 +353,7 @@ describe("routine calendar projection", () => {
       routineName: "Pulse",
       target: "bot",
       botId: "b1",
-      runOn: "maus",
+      runOn: "hezuo",
       scheduledFor: from + (index + 3) * 5 * 60_000,
       status: "completed",
       manual: false,
@@ -365,7 +365,7 @@ describe("routine calendar projection", () => {
       routineName: "Pulse",
       target: "bot",
       botId: "b1",
-      runOn: "maus",
+      runOn: "hezuo",
       scheduledFor: from + index * 5 * 60_000,
       status,
       manual: false,
@@ -393,7 +393,7 @@ describe("routine calendar projection", () => {
       routineName: "Deleted pulse",
       target: "bot",
       botId: "b1",
-      runOn: "maus",
+      runOn: "hezuo",
       scheduledFor: from + index * 5 * 60_000,
       status: "completed",
       manual: false,

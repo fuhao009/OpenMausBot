@@ -1,4 +1,4 @@
-// A stand-in for the MausBot Cloud Admin's side of the connector protocol (connector/src/protocol.ts): one-time codes,
+// A stand-in for the Hezuo Cloud Admin's side of the connector protocol (connector/src/protocol.ts): one-time codes,
 // enrolment, the agent WebSocket with its Bearer token, heartbeats, jobs and their replies, and export uploads. The
 // unit tests drive it in process; the e2e runs it as a program and drives it over its /control routes on loopback:
 //   node connector/test/fake-admin.ts <port> <code>

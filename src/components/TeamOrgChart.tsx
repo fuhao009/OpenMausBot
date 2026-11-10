@@ -11,7 +11,7 @@ import { BotAvatar } from "./Avatar";
 import { PersonFace, requestOwnerPick } from "./TeamOwner";
 
 export type MapMode = "departments" | "people";
-const BOT_DRAG_TYPE = "application/x-openmausbot-org-bot";
+const BOT_DRAG_TYPE = "application/x-hezuo-org-bot";
 
 let mode: MapMode = "departments";
 const listeners = new Set<() => void>();

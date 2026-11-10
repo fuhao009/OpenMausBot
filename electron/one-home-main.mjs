@@ -3,7 +3,7 @@
 // Cloud ends (one-home-again.mjs). The Admin's word decides: a move starts only for an account it lets move, to a Cloud
 // that is ready, and a Cloud it holds after it ended brings everything home, as does its word that the Cloud this computer
 // moved to is gone while My Cloud is another (`gone`). The person's own
-// choice to keep this computer's bots here (Settings → MausBot Cloud, Advanced) is kept beside the journal.
+// choice to keep this computer's bots here (Settings → Hezuo Cloud, Advanced) is kept beside the journal.
 import { createHash } from "node:crypto";
 import { createReadStream, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -33,7 +33,7 @@ export function installationOf(environmentId) {
  * none) and what it is (server/routes/move-freeze.ts). */
 export function freezeAnswer(got) {
   if (got.status === 409 && typeof got.body?.busy === "string") return { busy: got.body.busy, ...(typeof got.body.what === "string" ? { what: got.body.what } : {}) };
-  if (!got.ok || got.body?.frozen !== true) throw Object.assign(new Error("OpenMausBot on this computer could not pause."), { status: got.status });
+  if (!got.ok || got.body?.frozen !== true) throw Object.assign(new Error("Hezuo on this computer could not pause."), { status: got.status });
   return { frozen: true };
 }
 
@@ -117,7 +117,7 @@ async function answer(response) {
  *   keep?: { read(): unknown, write(value: unknown): void },
  *   reportTimers?: { set(work: () => void, ms: number): unknown, clear(timer: unknown): void },
  *   other?(): null | { view(): unknown, seen(): unknown, retry(): Promise<unknown>, active(): boolean },
- * }} deps `localRequest`: this computer's server, as its owner (main adds the owner's header). `account`: the MausBot
+ * }} deps `localRequest`: this computer's server, as its owner (main adds the owner's header). `account`: the Hezuo
  * Cloud sign-in (cloud-account.mjs). `journal`: where the move's journal is kept, journalFile by default; `keep`: the
  * person's choice to keep this computer's bots here, one-home-keep.json beside it by default. `openTeam`:
  * shows a team's page, where a bot moved into it from My Cloud now lives (team-move-main.mjs, whose journal is
@@ -168,7 +168,7 @@ export function installOneHome({ localRequest, account, journalFile, tempRoot, l
       ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }) })),
     async json(route) {
       const got = await local.call("GET", route);
-      if (!got.ok) throw new Error("OpenMausBot on this computer did not answer. Try again in a moment.");
+      if (!got.ok) throw new Error("Hezuo on this computer did not answer. Try again in a moment.");
       return got.body;
     },
   };
@@ -177,7 +177,7 @@ export function installOneHome({ localRequest, account, journalFile, tempRoot, l
   /** This computer's installation (`installationOf`), once its server has said who it is; null until then. */
   const installation = async () => {
     if (known) return known;
-    const id = (await local.json("/.well-known/openmausbot/environment").catch(() => null))?.environmentId;
+    const id = (await local.json("/.well-known/hezuo/environment").catch(() => null))?.environmentId;
     if (typeof id === "string" && id) known = installationOf(id);
     return known;
   };
@@ -195,7 +195,7 @@ export function installOneHome({ localRequest, account, journalFile, tempRoot, l
   const again = createHomeAgain({
     async exportGrant() {
       const asked = await account()?.exportHome({ installation: (await installation()) ?? undefined });
-      if (!asked) throw new Error("Sign in to MausBot Cloud first.");
+      if (!asked) throw new Error("Sign in to Hezuo Cloud first.");
       // The code goes only to the Cloud this computer moved to.
       if ("grant" in asked && asked.grant.origin !== cloudOrigin()) throw new Error("This is not the Cloud this computer moved to.");
       return asked;
@@ -226,7 +226,7 @@ export function installOneHome({ localRequest, account, journalFile, tempRoot, l
       freeze: async (origin) => freezeAnswer(await local.call("POST", "/api/move/freeze", { cloud: origin })),
       async unfreeze(options) {
         const got = await local.call("DELETE", "/api/move/freeze", options?.automations === "off" ? { automations: "off" } : undefined);
-        if (!got.ok) throw Object.assign(new Error("OpenMausBot on this computer could not go on again."), { status: got.status });
+        if (!got.ok) throw Object.assign(new Error("Hezuo on this computer could not go on again."), { status: got.status });
       },
       frozen: async () => (await local.json("/api/move/freeze"))?.frozen === true,
       marker: () => local.json("/api/move/freeze"),
@@ -277,7 +277,7 @@ export function installOneHome({ localRequest, account, journalFile, tempRoot, l
     ...send,
     /** The switch "Keep this computer's bots on this computer", as Settings shows it, and the person turning it. */
     keep: { state: keepState, set: (on) => home.keep(on === true) },
-    /** Goes on with the move, and with any bot moving into a team: at launch, and whenever the MausBot Cloud sign-in changes. */
+    /** Goes on with the move, and with any bot moving into a team: at launch, and whenever the Hezuo Cloud sign-in changes. */
     kick: () => { void teamMove.kick(); return home.kick(); },
     /** Home is My Cloud: this computer's own server is frozen for good, and its phone link stays off. */
     away: () => home.away(),

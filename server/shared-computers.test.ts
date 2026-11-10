@@ -244,7 +244,7 @@ describe("a dropped channel recovers by itself", () => {
     broker.complete(computer.id, alice.session, secret, job!.id, "back");
     await expect(waiting).resolves.toBe("back");
     await vi.advanceTimersByTimeAsync(45_000);
-    const offline = expect(broker.request({ computer_id: computer.id, action: "computer_tools" }, alice.person, () => true)).rejects.toThrow(/^Desktop is lent but has been offline for 1 min: OpenMausBot on it is closed/);
+    const offline = expect(broker.request({ computer_id: computer.id, action: "computer_tools" }, alice.person, () => true)).rejects.toThrow(/^Desktop is lent but has been offline for 1 min: Hezuo on it is closed/);
     await vi.advanceTimersByTimeAsync(15_000);
     await offline;
     broker.close();
@@ -355,7 +355,7 @@ describe("server-side scope check (audit M1)", () => {
       expect(sharedComputerScopeRefusal(current, { action, folder_id: readOnly.id })).toMatch(/read-only/);
       expect(sharedComputerScopeRefusal(current, { action, folder_id: randomUUID() })).toMatch(/not been shared/);
       expect(sharedComputerScopeRefusal(current, { action, folder_id: writable.id })).toBeNull();
-      expect(sharedComputerScopeRefusal(lent, { action, folder_id: writable.id })).toMatch(/older OpenMausBot .* write_file/);
+      expect(sharedComputerScopeRefusal(lent, { action, folder_id: writable.id })).toMatch(/older Hezuo .* write_file/);
     }
   });
   it("names the computer when its terminal isn't lent, sends the bot to no switch, and tells it not to run the command another way", () => {
@@ -366,9 +366,9 @@ describe("server-side scope check (audit M1)", () => {
     expect(sharedComputerScopeRefusal({ ...lent, terminal: true }, { action: "run_command" })).toBeNull();
   });
   it("says where the person lends apps and screen, in the refusal and in the list a bot reads", () => {
-    const steps = "OpenMausBot on that Mac lends them by itself once macOS allows it Accessibility and Screen Recording: tell the person in one sentence to allow both for OpenMausBot in System Settings → Privacy & Security on that Mac, and to update OpenMausBot there if it is an older version.";
+    const steps = "Hezuo on that Mac lends them by itself once macOS allows it Accessibility and Screen Recording: tell the person in one sentence to allow both for Hezuo in System Settings → Privacy & Security on that Mac, and to update Hezuo there if it is an older version.";
     expect(sharedComputerScopeRefusal({ ...lent, platform: "darwin" }, { action: "computer_call" })).toBe(`Apps and screen are not lent to this server. ${steps}`);
-    expect(sharedComputerScopeRefusal({ ...lent, platform: "win32" }, { action: "computer_call" })).toContain("OpenMausBot on that PC lends them by itself once its computer control works");
+    expect(sharedComputerScopeRefusal({ ...lent, platform: "win32" }, { action: "computer_call" })).toContain("Hezuo on that PC lends them by itself once its computer control works");
     expect(sharedComputerScopeRefusal(lent, { action: "computer_call" })).not.toMatch(/Settings|use-my-computer/u);
     const broker = new SharedComputers(() => true);
     const mac = { ...registration(), platform: "darwin" as const };

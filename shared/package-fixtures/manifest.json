@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Expected results of parsePackageDocument(fixture, { trust: \"file\" }). sha256 is over canonicalJson of the parsed document. Regenerate only with a deliberate format change; Admin tests read this file from the pinned runtime.",
+  "about": "Semantic expectations for parsePackageDocument(fixture, { trust: \"file\" }). sha256 records historical pre-Hezuo canonical bytes; identity migration tests assert canonical round-trip stability without repinning those historical hashes. Admin tests read this file from the pinned runtime.",
   "fixtures": {
     "full-team.v2.json": {
       "sha256": "d80e4e49382b88ae41b09ef7c49a699c6b07cf198f76ab1cf10c5b15e5f4981a",
@@ -103,7 +103,7 @@
       },
       "secretFindings": [],
       "downgrade": {
-        "error": "Packages without bots cannot be opened by older versions of OpenMausBot."
+        "error": "Packages without bots cannot be opened by older versions of Hezuo."
       }
     },
     "legacy-team.v1.json": {
@@ -224,7 +224,7 @@
     "newer.v3.json": {
       "error": {
         "code": "newer_version",
-        "message": "This file was made by a newer OpenMausBot. Update the app, then import it again."
+        "message": "This file was made by a newer Hezuo. Update the app, then import it again."
       }
     }
   }
