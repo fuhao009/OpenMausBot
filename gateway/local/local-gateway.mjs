@@ -178,13 +178,13 @@ export function workerVars(config, origin) {
     BETTER_AUTH_URL: origin,
     ALLOWED_ORIGINS: "",
     AUTH_EMAIL_VERIFICATION: config.emailVerification,
+    AI_OPERATOR_USER_IDS: JSON.stringify(config.operatorIds ?? []),
   };
   if (config.emailFrom) vars.EMAIL_FROM = config.emailFrom;
   if (config.upstreamBase && config.models?.some((model) => model.enabled) && config.defaultModel) {
     vars.AI_UPSTREAM_BASE_URL = config.upstreamBase;
     vars.AI_MODELS = JSON.stringify(config.models);
     vars.AI_DEFAULT_MODEL = config.defaultModel;
-    vars.AI_OPERATOR_USER_IDS = JSON.stringify(config.operatorIds ?? []);
   }
   return vars;
 }

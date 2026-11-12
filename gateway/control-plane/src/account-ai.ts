@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { ProductAiStatus, ProductModel } from "../../../packages/shared/product-account";
 import { aiConfigFrom, findModel, publicModels, type AiConfig } from "./ai-config";
+import { loadChannelCatalog, loadRuntimeAiConfig, probeChannel, saveChannelCatalog } from "./channel-store";
 import {
   applyAdjustment,
   getBalance,
@@ -512,11 +513,22 @@ export async function routeAccountAi(
   env: Env,
   auth: ControlPlaneAuth,
   policy: AuthPolicy,
+  fetcher: typeof fetch = fetch,
 ): Promise<Response | null> {
   const { pathname } = new URL(request.url);
   const { method } = request;
   const tokenRoute = pathname.match(ACCOUNT_ROUTE);
   const settleRoute = pathname.match(SETTLE_ROUTE);
+  const channelProbe = pathname.match(/^\/v1\/operator\/channels\/([A-Za-z0-9_-]+)\/probe$/);
+  if (pathname === "/v1/operator/channels" || channelProbe) {
+    const operator = await requireOperator(request, auth, aiConfigFrom(env));
+    if (channelProbe && method === "POST") return wireJSON(await probeChannel(env, channelProbe[1], fetcher));
+    if (!channelProbe && method === "GET") return wireJSON(await loadChannelCatalog(env));
+    if (!channelProbe && method === "POST") {
+      return wireJSON(await saveChannelCatalog(env, operator.user.id, await readBoundedJSON(request, 256 * 1024)));
+    }
+    throw new HTTPError(405, "method_not_allowed");
+  }
   const matched = (pathname === "/v1/account/ai" && method === "GET")
     || (pathname === "/v1/account/ai/tokens" && method === "POST")
     || (pathname === "/v1/account/ai/ledger" && method === "GET")
@@ -527,7 +539,7 @@ export async function routeAccountAi(
     || (pathname === "/v1/operator/ai/requests" && method === "GET")
     || (settleRoute !== null && method === "POST");
   if (!matched) return null;
-  const config = aiConfigFrom(env);
+  const config = await loadRuntimeAiConfig(env);
   if (pathname === "/v1/operator/me") {
     const session = await requireOperator(request, auth, config);
     return wireJSON({

@@ -1,5 +1,6 @@
 import { authenticateModelToken } from "./account-ai";
-import { findModel, publicModels, readAiConfig, type AiConfig, type AiModelConfig } from "./ai-config";
+import { findModel, publicModels, type AiConfig, type AiModelConfig } from "./ai-config";
+import { loadRuntimeAiConfig } from "./channel-store";
 import { markRequestStreaming, reserveRequest, reviewRequest, settleRequest } from "./ai-wallet";
 import { HTTPError, JSON_HEADERS, json, readBoundedJSON } from "./http";
 
@@ -834,8 +835,9 @@ async function dispatch(options: {
   requestId: string;
 }): Promise<Response> {
   const { aiConfig, env, fetcher, mode, prepared, request, requestId } = options;
-  const base = aiConfig.upstreamBaseURL;
-  const apiKey = aiConfig.upstreamApiKey;
+  const route = aiConfig.routes?.get(prepared.model.id);
+  const base = aiConfig.routes ? route?.baseURL : aiConfig.upstreamBaseURL;
+  const apiKey = aiConfig.routes ? route?.apiKey : aiConfig.upstreamApiKey;
   if (!base || !apiKey) {
     await markReview(env, requestId, "ai_unavailable");
     return inferenceError(503, "ai_unavailable", "The AI service is not available.");
@@ -919,7 +921,7 @@ export async function routeAiGateway(
   if (pathname !== MODELS_PATH && pathname !== CHAT_PATH && pathname !== RESPONSES_PATH) return null;
 
   try {
-    const aiConfig = readAiConfig(env);
+    const aiConfig = await loadRuntimeAiConfig(env);
     // Authenticate before touching the (potentially 48 MiB) body.
     const admission = await authenticateModelToken(env, request, aiConfig);
 
@@ -940,7 +942,7 @@ export async function routeAiGateway(
     const mode: InferenceMode = pathname === CHAT_PATH ? "chat" : "responses";
     const body = await readInferenceBody(request);
     const prepared = preparedRequest(body, aiConfig, mode);
-    if (!aiConfig.ready || !aiConfig.upstreamBaseURL || !aiConfig.upstreamApiKey) {
+    if (!aiConfig.ready || (aiConfig.routes ? !aiConfig.routes.has(prepared.model.id) : !aiConfig.upstreamBaseURL || !aiConfig.upstreamApiKey)) {
       throw new HTTPError(503, "ai_unavailable");
     }
     const requestId = await reserve({

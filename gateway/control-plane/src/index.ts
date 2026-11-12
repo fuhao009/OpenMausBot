@@ -107,6 +107,7 @@ async function route(
   cloudflareFetch: CloudflareFetch,
   apnsFetch: typeof fetch,
   highLevelFetch: typeof fetch,
+  aiFetch: typeof fetch,
 ) {
   const url = new URL(request.url);
   if (request.method === "OPTIONS") return preflight(request, config);
@@ -146,7 +147,7 @@ async function route(
   }
 
   const auth = createAuth(env, ctx, config, requestId);
-  const accountAi = await routeAccountAi(request, env, auth, config);
+  const accountAi = await routeAccountAi(request, env, auth, config, aiFetch);
   if (accountAi) return accountAi;
 
   // Public and unauthenticated on purpose: the sign-in page has to know which
@@ -283,10 +284,11 @@ export function createWorker(
           const response = await routeAiGateway(request, env, aiFetch);
           return secureResponse(response ?? routeError(url.pathname, 404, "not_found"), request, config, requestId);
         }
-        const ownsBody = url.pathname.startsWith("/v1/account/ai") || url.pathname.startsWith("/v1/operator/ai/");
+        const ownsBody = url.pathname.startsWith("/v1/account/ai") || url.pathname.startsWith("/v1/operator/ai/")
+          || url.pathname === "/v1/operator/channels";
         const boundedRequest = ownsBody ? request : await withBoundedRequestBody(request);
         return secureResponse(
-          await route(boundedRequest, env, ctx, config, requestId, cloudflareFetch, apnsFetch, highLevelFetch),
+          await route(boundedRequest, env, ctx, config, requestId, cloudflareFetch, apnsFetch, highLevelFetch, aiFetch),
           request,
           config,
           requestId,

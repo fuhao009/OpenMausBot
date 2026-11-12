@@ -66,14 +66,19 @@
 | `GET`、`POST` | `/v1/operator/ai/account` | 仅运营者账号：按邮箱查询、开启或关闭账号 AI |
 | `POST` | `/v1/operator/ai/balance` | 仅运营者账号：增加积分，写审计记录 |
 | `GET`、`POST` | `/v1/operator/ai/requests`、`/v1/operator/ai/requests/:id/settle` | 仅运营者账号：查请求、结算待复核预扣 |
+| `GET` | `/v1/operator/me` | 仅运营者账号：当前身份、公开模型及脱敏能力 |
+| `GET`、`POST` | `/v1/operator/channels` | 仅运营者账号：读取/版本化保存渠道和模型目录，密钥只写 |
+| `POST` | `/v1/operator/channels/:id/probe` | 仅运营者账号：读取已保存渠道的上游模型列表，不自动发布 |
 | `GET` | `/healthz` | 无需登录；网关健康与可用的容量信息，不等于桌面在线或上游可推理 |
 | `POST`、`GET` | `/v1/highlevel/start`、`/v1/highlevel/callback`、`/v1/highlevel/claim`、`/v1/highlevel/refresh` | HighLevel OAuth 跳转/回调/领取/刷新；回调用 `GET`，其余用 `POST`；受随机 state、令牌与限流约束 |
 
-运营者必须是 `operatorIds`（Worker 中的 `AI_OPERATOR_USER_IDS`）列出的**账号 ID**；先注册的账号不会自动成为管理员。注册也不会自动开启 AI 或赠送积分。管理 CLI 是 `gateway/scripts/account-ai-admin.mjs`，目前没有 `/admin` 网页后台。
+运营者必须是 `operatorIds`（Worker 中的 `AI_OPERATOR_USER_IDS`）列出的**账号 ID**；先注册的账号不会自动成为管理员。注册也不会自动开启 AI 或赠送积分。管理 CLI 是 `gateway/scripts/account-ai-admin.mjs`；同源 `/admin` 网页管理账号、积分、请求结算及渠道模型。
 
 ## 配置在哪里改
 
 本机部署配置文件为 `~/Library/ApplicationSupport/HezuoGateway/gateway.json`。以下 `<数据目录>` 指该配置的 `dataDir`，不是源码目录。配置和密钥文件应保持私有权限；不要把真实凭据写进源码、命令行或文档。
+
+渠道管理保存前，下表的单上游字段继续生效；首次通过 `/admin` 保存后，D1 中的版本化渠道目录成为模型和上游配置的唯一来源，保存立即作用于新请求，清空目录不会回退旧配置。认证、监听、TLS 和运营者名单仍由服务器配置管理。详见 [渠道管理](gateway-channels.md)。
 
 | 配置 | 本地位置 / 操作 | Worker 对应项或客户端位置 |
 | --- | --- | --- |
@@ -89,7 +94,7 @@
 | 手机端网关地址 | 登录页手动输入手机可达的网关地址 | Android `mobile/android/app/src/main/kotlin/com/openmausbot/companion/ui/AccountLoginScreen.kt`；iOS `mobile/ios/App/AccountLoginView.swift` |
 | 云端部署 | `gateway/control-plane/wrangler.jsonc` 的 vars、D1、bindings 与 secrets | 部署工具 `gateway/scripts/deploy-product-service.mjs`，不是根目录 `scripts/` |
 
-单价使用每百万 token 的微积分，1 积分 = 1,000,000 微积分。模型目录必须由运营者明确启用和定价；修改公开模型不等于实现按复杂度自动切换上游模型。`init` 的外部模型文件、默认模型和费率参数可能重新生成 `models`，维护配置时应保持来源一致。配置和密钥在启动时读取，修改后需要计划重启才能生效。
+单价使用每百万 token 的微积分，1 积分 = 1,000,000 微积分。模型目录必须由运营者明确启用和定价；修改公开模型不等于实现按复杂度自动切换上游模型。未迁移渠道目录的部署，`init` 的外部模型文件、默认模型和费率参数可能重新生成 `models`，修改这些启动配置后需重启。网页渠道配置立即用于新请求，已预占请求保留原计价快照。
 
 ## 两种部署方式
 
