@@ -6,6 +6,7 @@ import { errorResponse, HTTPError, json, preflight, secureResponse, withBoundedR
 import { limitedOTPResponse } from "./otp-rate-limit";
 import type { CloudflareFetch } from "./cloudflare-api";
 import { routeAccountAi } from "./account-ai";
+import { routeAdminAssets } from "./admin-assets";
 import { routeAiGateway } from "./ai-gateway";
 import { recoverStaleRequests } from "./ai-wallet";
 import {
@@ -268,6 +269,8 @@ export function createWorker(
       let config: AuthConfig | null = null;
       try {
         config = readAuthConfig(env);
+        const adminAsset = routeAdminAssets(request);
+        if (adminAsset) return secureResponse(adminAsset, request, null, requestId);
         const origin = request.headers.get("origin");
         // HighLevel sends the person's browser to the callback: a top-level
         // navigation that may carry any Origin (or `null` after a cross-site

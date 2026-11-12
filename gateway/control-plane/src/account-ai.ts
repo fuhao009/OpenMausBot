@@ -521,12 +521,26 @@ export async function routeAccountAi(
     || (pathname === "/v1/account/ai/tokens" && method === "POST")
     || (pathname === "/v1/account/ai/ledger" && method === "GET")
     || (tokenRoute !== null && method === "DELETE")
+    || (pathname === "/v1/operator/me" && method === "GET")
     || (pathname === "/v1/operator/ai/account" && (method === "GET" || method === "POST"))
     || (pathname === "/v1/operator/ai/balance" && method === "POST")
     || (pathname === "/v1/operator/ai/requests" && method === "GET")
     || (settleRoute !== null && method === "POST");
   if (!matched) return null;
   const config = aiConfigFrom(env);
+  if (pathname === "/v1/operator/me") {
+    const session = await requireOperator(request, auth, config);
+    return wireJSON({
+      user: { id: session.user.id, email: session.user.email, name: session.user.name },
+      capabilities: {
+        ai: config.ready,
+        password: true,
+        emailCode: policy.mailConfigured,
+        emailVerification: policy.emailVerification,
+      },
+      models: publicModels(config),
+    });
+  }
 
   if (pathname === "/v1/account/ai") return accountAiStatus(request, env, auth, config);
   if (pathname === "/v1/account/ai/tokens") return createModelToken(request, env, auth, config);
