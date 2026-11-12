@@ -388,14 +388,15 @@ export function FolderPage({ bot }: PageContext) {
   );
 }
 
-export function BrowserPage({ bot, derived }: PageContext) {
+export function BrowserPage({ bot, derived, onShowComputer }: PageContext & { onShowComputer?: () => void }) {
   const openComputer = useOpenComputer(bot);
-  return <BrowserLogins bot={bot} browserEnabled={derived.browserEnabled} onOpenBrowser={() => openComputer("browser")} />;
+  return <BrowserLogins bot={bot} browserEnabled={derived.browserEnabled} onOpenBrowser={() => { openComputer("browser"); onShowComputer?.(); }} />;
 }
 
-export function PageBody({ page, onOpen, editingInstructions, onEditInstructions, ...context }: PageContext & {
+export function PageBody({ page, onOpen, onShowComputer, editingInstructions, onEditInstructions, ...context }: PageContext & {
   page: SimplePageId;
   onOpen?: (page: SimplePageId) => void;
+  onShowComputer?: () => void;
   editingInstructions?: boolean;
   onEditInstructions?: (open: boolean) => void;
 }): ReactNode {
@@ -415,6 +416,6 @@ export function PageBody({ page, onOpen, editingInstructions, onEditInstructions
     case "folder":
       return <FolderPage {...context} />;
     case "browser":
-      return <BrowserPage {...context} />;
+      return <BrowserPage {...context} onShowComputer={onShowComputer} />;
   }
 }

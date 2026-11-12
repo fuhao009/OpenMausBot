@@ -3828,6 +3828,7 @@
   "botPanel.screen.working": "작업 중이에요. 곧 여기에 화면이 표시돼요. 실시간으로 보려면 전체 보기를 여세요.",
   "botPanel.screen.resting": "지금은 컴퓨터를 쓰고 있지 않아요",
   "botPanel.none": "없음",
+  "botPanel.tab.activity": "활동",
   "botPanel.tab.computer": "컴퓨터",
   "botPanel.tab.details": "세부 정보",
   "botPanel.tab.library": "라이브러리",

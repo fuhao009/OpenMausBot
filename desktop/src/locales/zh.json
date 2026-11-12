@@ -4010,6 +4010,7 @@
   "botPanel.screen.working": "正在处理任务。它的屏幕稍后会显示在这里；打开完整视图即可实时查看。",
   "botPanel.screen.resting": "当前没有在使用它的电脑",
   "botPanel.none": "无",
+  "botPanel.tab.activity": "活动",
   "botPanel.tab.computer": "电脑",
   "botPanel.tab.details": "详情",
   "botPanel.tab.library": "资料库",

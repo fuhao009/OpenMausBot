@@ -122,6 +122,7 @@ const { SettingsPage } = await import("./bot-panel/SettingsPage");
 const { LibraryTab } = await import("./bot-panel/LibraryTab");
 const { ApprovalChip } = await import("./ComposerPlusMenu");
 const { callMode, setCallMode } = await import("@/lib/call-mode");
+const { ActivityPanel, ComputerPanel } = await import("./lazy-screens");
 const { ComputerTab, WherePage } = await import("./bot-panel/ComputerTab");
 const { PageBody, AppsPage, RoutinesPage, MemoryPage, SkillsPage, FolderPage, BrowserPage } = await import("./bot-panel/pages");
 const { BrowserLogins } = await import("./bot-panel/browser-logins");
@@ -269,7 +270,7 @@ beforeEach(() => {
 });
 
 describe("the bot panel in Simple mode", () => {
-  it("has Share, a gear for Bot settings and a close button on top, the hero, and three tabs: Details, Library, Computer", () => {
+  it("has Share, a gear for Bot settings and a close button on top, the hero, and four tabs: Details, Activity, Library, Computer", () => {
     const bot = makeBot();
     const rendered = panel(bot);
     expect(ofType(rendered, ChatShareMenu)!.props.bot).toBe(bot);
@@ -280,8 +281,8 @@ describe("the bot panel in Simple mode", () => {
     const hero = ofType(rendered, PanelHero)!;
     expect(hero.props.bot).toBe(bot);
     expect(hero.props.patch).toBe(patch);
-    const tabs = [...rendered.html.matchAll(/data-panel-tab="(\w+)"[^>]*>([^<]+)<\/button>/g)].map((match) => [match[1], match[2]]);
-    expect(tabs).toEqual([["details", "Details"], ["library", "Library"], ["computer", "Computer"]]);
+    const tabs = [...rendered.html.matchAll(/data-panel-tab="(\w+)"[^>]*><span[^>]*>([^<]+)<\/span>/g)].map((match) => [match[1], match[2]]);
+    expect(tabs).toEqual([["details", "Details"], ["activity", "Activity"], ["library", "Library"], ["computer", "Computer"]]);
     expect(shown(rendered)).toEqual({ tab: "details", page: undefined });
     expect(ofType(rendered, DetailsTab)!.props.bot).toBe(bot);
     expect(rendered.html).toContain('id="bot-settings-title"');
@@ -289,7 +290,7 @@ describe("the bot panel in Simple mode", () => {
 
   it("switches tabs", () => {
     const bot = makeBot();
-    for (const [tab, type] of [["computer", ComputerTab], ["library", LibraryTab], ["details", DetailsTab]] as const) {
+    for (const [tab, type] of [["computer", ComputerTab], ["activity", ActivityPanel], ["library", LibraryTab], ["details", DetailsTab]] as const) {
       click(find(panel(bot), "data-panel-tab", tab));
       const rendered = panel(bot);
       expect(shown(rendered).tab).toBe(tab);
@@ -597,7 +598,7 @@ describe("the Details tab", () => {
     const rendered = botTab(makeBot());
     expect(ofType(rendered, ModelPicker)!.props).toMatchObject({ bot: expect.objectContaining({ id: "scout" }), threadId: "thread-scout", contained: true });
     expect(ofType(rendered, BotConversations)!.props.bot).toMatchObject({ id: "scout" });
-    const order = ['data-panel-row="model"', 'data-panel-card="conversations"', 'data-panel-empty="routines"', 'data-panel-item="find"', 'data-panel-item="activity"']
+    const order = ['data-panel-row="model"', 'data-panel-card="conversations"', 'data-panel-empty="routines"', 'data-panel-item="find"']
       .map((marker) => rendered.html.indexOf(marker));
     expect(order.every((index) => index > -1)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
@@ -634,13 +635,10 @@ describe("the Details tab", () => {
     expect(rowValue(botTab(makeBot()), "routines")).toBe("None");
   });
 
-  it("lists Find and Activity for this conversation as rows that run them, leaving Copy and Download to Share", () => {
+  it("lists Find for this conversation as a row that runs it, leaving Activity to its tab and Copy and Download to Share", () => {
     const rendered = botTab(makeBot());
-    expect([...rendered.html.matchAll(/data-panel-item="(\w+)"/g)].map((match) => match[1])).toEqual(["find", "activity"]);
+    expect([...rendered.html.matchAll(/data-panel-item="(\w+)"/g)].map((match) => match[1])).toEqual(["find"]);
     expect(rendered.html).toContain(">Find in conversation<");
-    const run = (key: string) => (rendered.nodes.find((node) => (node.props.item as { key?: string } | undefined)?.key === key)!.props.item as { onSelect: () => void }).onSelect();
-    run("activity");
-    expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "toggleActivity" });
   });
 });
 
@@ -821,19 +819,17 @@ describe("the Library tab", () => {
 });
 
 describe("the Computer tab", () => {
-  it("shows the screen as one button that opens the full view, the caption, and where it works", () => {
-    const rendered = computer(makeBot());
-    expect(find(rendered, "data-panel-action", "open-computer").props["aria-label"]).toBe("Watch: Scout's screen");
-    expect(rendered.html).toContain(">Not using its computer right now<");
-    expect(rendered.html).toContain(">Watch<");
-    expect(rendered.html).toContain("Scout&#x27;s screen");
+  it("embeds the live computer panel above where it works and the signed-in sites", () => {
+    const bot = makeBot();
+    const rendered = computer(bot);
+    const embedded = ofType(rendered, ComputerPanel)!;
+    expect(embedded.props).toMatchObject({ bot, embedded: true });
     expect(rendered.html).toContain("Where Scout works");
     expect(rowValue(rendered, "where")).toBe("Let it choose");
     expect(has(rendered, "attr", "data-place-choice")).toBe(false);
     expect(switches(rendered.html)).toBe(0);
     click(find(rendered, "data-panel-page", "where"));
     expect(onOpen).toHaveBeenLastCalledWith("where");
-    expect(computer(makeBot({ busy: true })).html).toContain("Working on a task.");
   });
 
   it("values Where it works with the place chosen, and says where it works right now when that differs", () => {
@@ -847,21 +843,13 @@ describe("the Computer tab", () => {
     expect(at("browser", { computer: "browser" })).not.toContain("Right now");
   });
 
-  it("leads to the signed-in sites, and opens the full view from the screen", () => {
+  it("leads to the signed-in sites", () => {
     const rendered = computer(makeBot());
     click(find(rendered, "data-panel-page", "browser"));
     expect(onOpen).toHaveBeenLastCalledWith("browser");
     for (const page of ["folder", "logins", "android"]) expect(has(rendered, "data-panel-page", page)).toBe(false);
     expect(has(rendered, "data-panel-row", "data")).toBe(false);
-    const setItem = vi.fn();
-    vi.stubGlobal("localStorage", { getItem: () => null, setItem });
-    click(find(rendered, "data-panel-action", "open-computer"));
-    expect(setItem).toHaveBeenLastCalledWith("omb-computer-panel-view:scout", "computer");
-    expect((fixture.dispatch as ReturnType<typeof vi.fn>).mock.calls.slice(-2)).toEqual([
-      [{ type: "toggleSettings", open: false }],
-      [{ type: "toggleComputer", open: true }],
-    ]);
-    vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {} });
+    expect(has(rendered, "data-panel-action", "open-computer")).toBe(false);
   });
 });
 

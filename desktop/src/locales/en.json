@@ -4106,6 +4106,7 @@
   "botPanel.screen.working": "Working on a task. Its screen shows here soon; open full view to watch it live.",
   "botPanel.screen.resting": "Not using its computer right now",
   "botPanel.none": "None",
+  "botPanel.tab.activity": "Activity",
   "botPanel.tab.computer": "Computer",
   "botPanel.tab.details": "Details",
   "botPanel.tab.library": "Library",

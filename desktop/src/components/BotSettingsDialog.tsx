@@ -24,7 +24,9 @@ import { VisibilitySection } from "./bot-settings/VisibilitySection";
 import { t } from "@/lib/i18n";
 import { useAdvancedMode } from "@/lib/interface-mode";
 import { BotPanel } from "./bot-panel/PanelShell";
+import type { PanelTab } from "./bot-panel/page-registry";
 import { BOT_PANEL_ID, sidePanelCls } from "./bot-panel/side-panel";
+import { WorkspaceResizeEdge } from "./WorkspaceResizeEdge";
 import { HistoryRollbackDialog, useBotHistory, useBotOverview } from "./bot-settings/useBotOverview";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
 import { ShareBotButton, useTeamName } from "./bot-access/ShareBotButton";
@@ -37,9 +39,10 @@ function sectionMatches(entry: (typeof BOT_SECTIONS)[number], query: string): bo
   return [entry.label, sectionLabel(entry), ...entry.keywords].some((part) => part.toLowerCase().includes(query));
 }
 
-export function BotSettingsDialog({ bot, overlay = false }: {
+export function BotSettingsDialog({ bot, overlay = false, onOpenVmWorkspace }: {
   bot: Bot;
   overlay?: boolean;
+  onOpenVmWorkspace?: (botId: string) => void;
 }) {
   const { state, dispatch } = useStore();
   const section = state.botSettingsSection;
@@ -52,6 +55,13 @@ export function BotSettingsDialog({ bot, overlay = false }: {
   const advanced = useAdvancedMode();
   const product = isProductWorkspace(state.config?.productManaged);
   const simpleView = product || !advanced;
+  const [panelTab, setPanelTab] = useState<PanelTab>(() => state.computerOpen ? "computer" : state.activityOpen ? "activity" : "details");
+  const wide = simpleView && panelTab === "computer";
+  const closeAll = () => {
+    dispatch({ type: "toggleSettings", open: false });
+    dispatch({ type: "toggleComputer", open: false });
+    dispatch({ type: "toggleActivity", open: false });
+  };
   const linkedSection = !collapsed && !state.botSettingsExpandRemembered ? section : null;
   const slackUrl = useSlackManagementUrl(bot.id);
   const ownerOrAdmin = useOwnerOrAdmin();
@@ -89,6 +99,10 @@ export function BotSettingsDialog({ bot, overlay = false }: {
       if (event.key === "Escape" && !event.defaultPrevented) {
         event.preventDefault();
         dispatch({ type: "toggleSettings", open: false });
+        if (simpleView) {
+          dispatch({ type: "toggleComputer", open: false });
+          dispatch({ type: "toggleActivity", open: false });
+        }
       }
     };
 
@@ -97,7 +111,7 @@ export function BotSettingsDialog({ bot, overlay = false }: {
       window.removeEventListener("keydown", onKey);
       previousFocus?.focus();
     };
-  }, [dispatch]);
+  }, [dispatch, simpleView]);
 
   const renderSectionBody = (id: (typeof BOT_SECTIONS)[number]["id"]) => {
     switch (id) {
@@ -170,18 +184,22 @@ export function BotSettingsDialog({ bot, overlay = false }: {
       <aside
         ref={dialogRef}
         id={simpleView ? BOT_PANEL_ID : undefined}
+        data-bot-panel={simpleView ? "" : undefined}
+        data-tab={simpleView ? panelTab : undefined}
         role="dialog"
         data-product-bot-details={product ? "" : undefined}
         aria-labelledby="bot-settings-title"
         tabIndex={-1}
-        className={sidePanelCls(overlay, simpleView)}
+        className={sidePanelCls(overlay, simpleView, wide)}
       >
         {simpleView ? (
           <BotPanel
             bot={bot}
             derived={derived}
             linkedSection={linkedSection}
-            onClose={() => dispatch({ type: "toggleSettings", open: false })}
+            onClose={closeAll}
+            onOpenVmWorkspace={onOpenVmWorkspace}
+            onTabChange={setPanelTab}
           />
         ) : <>
         <div {...dragProps} className="flex shrink-0 items-center justify-between px-4 py-3">
@@ -278,6 +296,7 @@ export function BotSettingsDialog({ bot, overlay = false }: {
           })}
         </div>
         </>}
+        {wide && <WorkspaceResizeEdge target={dialogRef} side="left" storageKey="omb-bot-panel-computer-width" minimum={360} maximum={720} label={t("computer.resizeAria")} />}
       </aside>
       <HistoryRollbackDialog history={history} returnFocusRef={dialogRef} />
     </>

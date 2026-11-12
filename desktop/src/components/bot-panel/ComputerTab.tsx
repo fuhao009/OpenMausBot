@@ -7,11 +7,10 @@ import type { Place } from "@/lib/place";
 import { placeHasIssue, worksOnSimpleLabel } from "@/lib/place-view";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
 import { api, useStore, type Bot } from "@/state/store";
-import { BotAvatar } from "../Avatar";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
 import { LocalComputerAutoWarning } from "../LocalComputerAutoWarning";
 import { usePlaceViews } from "../PlaceChip";
-import { screenFramePreview } from "../ScreenFrame";
+import { ComputerPanel } from "../lazy-screens";
 import type { BotPatch, useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
 import type { SimplePageId } from "./page-registry";
 import { Card, NavRow, RadioRow } from "./rows";
@@ -35,7 +34,6 @@ export function useOpenComputer(bot: Pick<Bot, "id">) {
   const { dispatch } = useStore();
   return (view: ComputerPanelView = "computer") => {
     writeComputerPanelView(bot.id, view);
-    dispatch({ type: "toggleSettings", open: false });
     dispatch({ type: "toggleComputer", open: true });
   };
 }
@@ -127,66 +125,39 @@ export function WherePage({ bot, derived }: { bot: Bot; derived: Derived }) {
   );
 }
 
-export function ComputerTab({ bot, derived, onOpen }: { bot: Bot; derived: Derived; onOpen: (page: SimplePageId) => void }) {
-  const openComputer = useOpenComputer(bot);
+export function ComputerTab({ bot, derived, onOpen, onOpenVmWorkspace }: {
+  bot: Bot;
+  derived: Derived;
+  onOpen: (page: SimplePageId) => void;
+  onOpenVmWorkspace?: (botId: string) => void;
+}) {
   const ownerOrAdmin = useOwnerOrAdmin();
   const { browserEnabled } = derived;
   const signedIn = useSignedInCount(bot, browserEnabled && bot.computer !== "off" && ownerOrAdmin !== false);
   const { currentLabel, usingNow } = usePlaceChoices(bot);
-  const screenOf = t("computer.screenOf", { name: bot.name });
-
-  const screen = [...bot.messages].reverse().find((message) => message.kind === "screen" && (message.hasImage || message.png));
-  const screenSrc = screen ? screenFramePreview({ threadId: bot.threadId, messageId: screen.id }, screen.mime).src : null;
 
   return (
-    <div data-panel-tabpanel="computer">
-      <button
-        type="button"
-        data-panel-action="open-computer"
-        aria-label={`${t("place.action.watch")}: ${screenOf}`}
-        onClick={() => openComputer()}
-        className="group relative mt-2.5 flex aspect-[16/10] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-xl bg-composer ring-1 ring-inset ring-ink/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-border"
-      >
-        {screenSrc ? (
-          <img src={screenSrc} alt="" className="absolute inset-0 size-full object-cover" />
-        ) : bot.busy ? (
-          <>
-            <span className="opacity-55"><BotAvatar bot={bot} size={52} animated={false} /></span>
-            <span className="max-w-[80%] text-center text-[13px] text-ink-secondary">{t("botPanel.screen.working")}</span>
-          </>
-        ) : (
-          <>
-            <span className="opacity-60"><BotAvatar bot={bot} size={44} state="sleeping" animated={false} /></span>
-            <span className="max-w-[80%] text-center text-[13px] font-medium text-ink">{t("botPanel.screen.resting")}</span>
-          </>
-        )}
-        <span
-          aria-hidden="true"
-          className="absolute bottom-2.5 right-2.5 flex h-7 items-center gap-1.5 rounded-full border border-ink/10 bg-panel/80 px-2.5 text-[12px] text-ink opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100"
-        >
-          <Monitor size={13} aria-hidden="true" />
-          {t("place.action.watch")}
-        </span>
-      </button>
-      <div className="mt-3 text-center text-[13px] text-ink-tertiary">{screenOf}</div>
-
-      <Card anchor="where">
-        <NavRow
-          data-panel-page="where"
-          icon={Monitor}
-          title={t("computer.simple.whereWorks", { name: bot.name })}
-          hint={usingNow ? t("computer.simple.usingNow", { place: usingNow }) : undefined}
-          value={currentLabel}
-          onClick={() => onOpen("where")}
-        />
-        <NavRow
-          data-panel-page="browser"
-          icon={KeyRound}
-          title={t("settings.sites.title")}
-          value={signedIn ?? undefined}
-          onClick={() => onOpen("browser")}
-        />
-      </Card>
+    <div data-panel-tabpanel="computer" className="flex min-h-0 flex-1 flex-col">
+      <ComputerPanel bot={bot} onOpenVmWorkspace={onOpenVmWorkspace} embedded />
+      <div className="shrink-0 px-4 pb-4">
+        <Card anchor="where">
+          <NavRow
+            data-panel-page="where"
+            icon={Monitor}
+            title={t("computer.simple.whereWorks", { name: bot.name })}
+            hint={usingNow ? t("computer.simple.usingNow", { place: usingNow }) : undefined}
+            value={currentLabel}
+            onClick={() => onOpen("where")}
+          />
+          <NavRow
+            data-panel-page="browser"
+            icon={KeyRound}
+            title={t("settings.sites.title")}
+            value={signedIn ?? undefined}
+            onClick={() => onOpen("browser")}
+          />
+        </Card>
+      </div>
     </div>
   );
 }

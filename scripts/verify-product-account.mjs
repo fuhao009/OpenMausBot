@@ -526,14 +526,14 @@ async function main() {
     // for. Every assertion reads the real painted geometry, so a panel caught half-way out cannot pass as a layout.
     // A's settings sheet from the account page is a sheet over the workspace, not a column of it.
     assert.equal(await pageA.evaluate("Boolean(document.querySelector('[role=dialog] [data-product-account]'))"), false, "A's account sheet is closed before the layout is measured");
-    // The work panel is where the chat's own header buttons put it: it has no state of its own. Whatever the workspace
-    // restored, a wide window still gives the chat its 420px beside the 260px list and the 340px panel.
-    const panelWasOpen = await pageA.evaluate("Boolean(document.querySelector('[data-product-work-panel]'))");
+    // The bot panel holds details, activity, library and the computer, and the chat's avatar pill opens and closes it.
+    // Whatever the workspace restored, a wide window still gives the chat its 420px beside the 260px list and the panel.
+    const panelWasOpen = await pageA.evaluate("Boolean(document.querySelector('[data-bot-panel]'))");
     if (panelWasOpen) {
-      await pageA.click("the chat's computer button", `(() => document.querySelector('[data-product-work-entry="computer"]'))()`);
-      await pageA.until("!document.querySelector('[data-product-work-panel]')", { label: "the restored work panel closed" });
+      await pageA.click("the chat's bot pill", `(() => document.querySelector('[data-chathead-pill]'))()`);
+      await pageA.until("!document.querySelector('[data-bot-panel]')", { label: "the restored bot panel closed" });
     }
-    receipt.workPanelRestored = panelWasOpen;
+    receipt.botPanelRestored = panelWasOpen;
     const drawerState = `(() => {
       const list = document.querySelector('#product-bot-list');
       const menu = document.querySelector('button[aria-controls="product-bot-list"]');
@@ -574,51 +574,68 @@ async function main() {
       record("viewport", { width, height, overflow, listWidth: list.width, composerClear: true });
     }
 
-    // Wide: the work panel is a real third column, opened from the chat's own header and closed from it again.
+    // Wide: the bot panel is a real third column, opened from the chat's avatar pill and closed from it again. The
+    // computer, tasks and library live in its tabs: the header carries no buttons of their own for them.
     await pageA.setViewport(1440, 900);
-    await pageA.until(`!!document.querySelector('[data-product-work-entry="computer"]')`, { label: "the wide chat header" });
-    await pageA.click("the chat's computer button", `(() => document.querySelector('[data-product-work-entry="computer"]'))()`);
-    const docked = await pageA.untilValue(`(() => {
-      const panel = document.querySelector('[data-product-work-panel]');
+    await pageA.until(`!!document.querySelector('[data-chathead-pill]')`, { label: "the wide chat header" });
+    assert.equal(await pageA.evaluate(`Boolean(document.querySelector('[data-product-work-entry]'))`), false, "the chat header has no work-panel buttons");
+    const panelGeometry = `(() => {
+      const panel = document.querySelector('[data-bot-panel]');
       const chat = document.querySelector('[data-product-chat]');
       if (!panel || !chat) return null;
-      // Only once its entrance has finished: a panel mid-slide is not a layout.
+      // Only once its entrance and width transition have finished: a panel mid-slide is not a layout.
       if (panel.getAnimations().some(animation => animation.playState === "running")) return null;
       const theirs = panel.getBoundingClientRect();
       const ours = chat.getBoundingClientRect();
-      return { width: Math.round(theirs.width), right: Math.round(theirs.right), chat: Math.round(ours.width), overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
-    })()`, { label: "the docked work panel at 1440x900" });
-    assert.ok(docked.right >= 1438, `the work panel ends at the window's right edge (${docked.right})`);
-    assert.ok(docked.width >= 320 && docked.width <= 360, `the work panel is the 340px column (${docked.width}px)`);
+      return { tab: panel.dataset.tab, role: panel.getAttribute('role'), width: Math.round(theirs.width), right: Math.round(theirs.right), chat: Math.round(ours.width), scrim: Boolean(document.querySelector('[data-product-work-scrim]')), overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    })()`;
+    const pressEscape = async () => {
+      for (const type of ["keyDown", "keyUp"]) {
+        await pageA.connection.send("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+      }
+    };
+    const openComputerTab = async label => {
+      await pageA.click(`the chat's bot pill (${label})`, `(() => document.querySelector('[data-chathead-pill]'))()`);
+      await pageA.until(`document.querySelector('[data-bot-panel]')?.dataset.tab === "details"`, { label: "the bot panel on its details tab" });
+      await pageA.click("the computer tab", `(() => document.querySelector('[data-panel-tab="computer"]'))()`);
+      await pageA.until(`document.querySelector('[data-bot-panel]')?.dataset.tab === "computer"`, { label: "the bot panel on its computer tab" });
+    };
+    await pageA.click("the chat's bot pill", `(() => document.querySelector('[data-chathead-pill]'))()`);
+    await pageA.until(`document.querySelector('[data-bot-panel]')?.dataset.tab === "details"`, { label: "the bot panel on its details tab" });
+    await pageA.untilValue(panelGeometry, { label: "the details tab settled" });
+    await capture(pageA, "13-layout-1440x900-details-tab");
+    await pageA.click("the activity tab", `(() => document.querySelector('[data-panel-tab="activity"]'))()`);
+    await pageA.until(`document.querySelector('[data-bot-panel]')?.dataset.tab === "activity"`, { label: "the bot panel on its activity tab" });
+    await pageA.untilValue(panelGeometry, { label: "the activity tab settled" });
+    await capture(pageA, "13-layout-1440x900-activity-tab");
+    await pageA.click("the computer tab", `(() => document.querySelector('[data-panel-tab="computer"]'))()`);
+    await pageA.until(`document.querySelector('[data-bot-panel]')?.dataset.tab === "computer"`, { label: "the bot panel on its computer tab" });
+    const docked = await pageA.untilValue(panelGeometry, { label: "the docked bot panel at 1440x900" });
+    assert.ok(docked.right >= 1438, `the bot panel ends at the window's right edge (${docked.right})`);
+    assert.ok(docked.width >= 440 && docked.width <= 480, `the computer tab is the 460px column (${docked.width}px)`);
     assert.ok(docked.chat >= 420, `the chat keeps its 420px beside the panel (${docked.chat}px)`);
     assert.ok(docked.overflow <= 1, `the docked panel adds no horizontal overflow (${docked.overflow}px)`);
+    assert.equal(await pageA.evaluate(`Boolean(document.querySelector('[data-bot-panel] [data-computer-panel]'))`), true, "the computer tab embeds the computer panel");
     await capture(pageA, "13-layout-1440x900-work-panel");
-    await pageA.click("the chat's computer button again", `(() => document.querySelector('[data-product-work-entry="computer"]'))()`);
-    await pageA.until("!document.querySelector('[data-product-work-panel]')", { label: "the work panel closed again" });
-    receipt.workPanel = docked;
-    record("work panel", docked);
+    await pageA.click("the chat's bot pill again", `(() => document.querySelector('[data-chathead-pill]'))()`);
+    await pageA.until("!document.querySelector('[data-bot-panel]')", { label: "the bot panel closed again" });
+    receipt.botPanel = docked;
+    record("bot panel", docked);
 
-    // Mid: the same panel is a drawer over the chat, and Escape gives the chat back undimmed.
+    // Mid: the computer tab is a drawer over the chat, and Escape gives the chat back.
     await pageA.setViewport(1000, 800);
-    await pageA.until(`!!document.querySelector('[data-product-work-entry="computer"]')`, { label: "the medium chat header" });
-    await pageA.click("the chat's computer button", `(() => document.querySelector('[data-product-work-entry="computer"]'))()`);
-    const overlay = await pageA.untilValue(`(() => {
-      const panel = document.querySelector('[data-product-work-panel]');
-      if (!panel || panel.getAnimations().some(animation => animation.playState === "running")) return null;
-      const box = panel.getBoundingClientRect();
-      return { role: panel.getAttribute('role'), width: Math.round(box.width), right: Math.round(box.right), scrim: Boolean(document.querySelector('[data-product-work-scrim]')) };
-    })()`, { label: "the work panel as a drawer at 1000x800" });
-    assert.equal(overlay.role, "dialog", "below 1200px the work panel is a dialog over the chat");
-    assert.equal(overlay.scrim, true, "the drawer dims the chat behind it");
+    await pageA.until(`!!document.querySelector('[data-chathead-pill]')`, { label: "the medium chat header" });
+    assert.equal(await pageA.evaluate(`Boolean(document.querySelector('[data-product-work-entry]'))`), false, "the medium chat header has no work-panel buttons");
+    await openComputerTab("mid");
+    const overlay = await pageA.untilValue(panelGeometry, { label: "the bot panel as a drawer at 1000x800" });
+    assert.equal(overlay.role, "dialog", "below 1200px the bot panel is a dialog over the chat");
     assert.ok(overlay.right >= 998, `the drawer is flush with the window's right edge (${overlay.right})`);
-    assert.ok(overlay.width >= 300 && overlay.width <= 360, `the drawer keeps the 340px panel width (${overlay.width}px)`);
+    assert.ok(overlay.width >= 360 && overlay.width <= 1000 - 32, `the drawer keeps the computer tab's width, inside the window (${overlay.width}px)`);
     await capture(pageA, "13-layout-1000x800-work-panel");
-    for (const type of ["keyDown", "keyUp"]) {
-      await pageA.connection.send("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
-    }
-    await pageA.until("!document.querySelector('[data-product-work-panel]')", { label: "Escape closed the mid-width work drawer" });
-    receipt.workPanelDrawer = overlay;
-    record("work panel drawer", overlay);
+    await pressEscape();
+    await pageA.until("!document.querySelector('[data-bot-panel]')", { label: "Escape closed the mid-width bot panel drawer" });
+    receipt.botPanelDrawer = overlay;
+    record("bot panel drawer", overlay);
 
     // The phone's list opens over the chat, dims it, and both Escape and its own close button put it away again.
     await pageA.setViewport(390, 844);

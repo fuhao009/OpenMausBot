@@ -16,6 +16,11 @@ export function effectivePlace(bot: Pick<Bot, "computer">, task?: Pick<Task, "su
   return task?.surface ?? bot.computer ?? "auto";
 }
 
+export function browserInUse(bot: Pick<Bot, "computer" | "tasks" | "threadId" | "busy">): boolean {
+  const task = bot.tasks?.find((candidate) => candidate.threadId === bot.threadId);
+  return Boolean(bot.busy) && effectivePlace(bot, task) === "browser";
+}
+
 export function isComputerPlace(place: EffectivePlace): place is "cloud" | "vm" | "local" {
   return place === "cloud" || place === "vm" || place === "local";
 }
