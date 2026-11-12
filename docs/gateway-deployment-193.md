@@ -10,9 +10,9 @@
 - 证书：`/var/lib/hezuo-gateway/tls/gateway-cert.pem`；私钥只留服务器。
 - 本机证书副本：`.omb-scratch/remote-gateway-193/gateway-cert.pem`。
 
-全新部署，未迁移原电脑数据库、账户或上游凭据。密码登录已开启；管理员 `fuhaoliang@admin.com` 已按用户授权创建并显式加入运营者配置。未配置邮件、上游模型或价格，因此邮箱验证码和 AI 推理未启用。没有修改现有 nginx 或其他服务。
+全新部署，未迁移原电脑用户数据库。管理员 `fuhaoliang@admin.com` 已显式授权。现已按用户授权读取 OMP 上游并发布默认模型 `gpt-6-luna`（Responses），渠道目录 revision 1，模型发现成功；真实客户端推理仍待联调。邮件未配置。没有修改 nginx 或其他服务。
 
-管理网页：`https://192.168.66.193:18487/admin`。已部署实现提交 `64b453286`，远端记录在 `/opt/hezuo-gateway/deployed-commit`。随机管理员初始密码保存在服务器 `/root/hezuo-admin-initial-credentials.json`（root，0600），不进入 Git。通过 SSH 私下读取，不粘贴到联调日志。
+管理网页：`https://192.168.66.193:18487/admin`。当前已部署实现提交 `c911aefce`，远端记录在 `/opt/hezuo-gateway/deployed-commit`。本次计费、错误契约、164 项测试及生产渠道参数见 [LAN 内测交付](gateway-v1-delivery.md)。下方初次后台和渠道发布验证记录是历史证据，最新状态以此节和 LAN 交付为准。随机管理员初始密码保存在服务器 `/root/hezuo-admin-initial-credentials.json`（root，0600），不进入 Git。
 
 ## 运维
 
