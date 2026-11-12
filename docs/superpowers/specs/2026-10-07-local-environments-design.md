@@ -9,9 +9,9 @@ mobile-app bot team) want completely separate teams, model choices, MCP servers
 and histories, and want to switch between them at the start of a work session.
 
 Every piece of that isolation already exists in code. `DATA_DIR` resolves once
-at server boot from `OMB_DATA_DIR` (`server/config.ts:963`), and every state
+at server boot from `OMB_DATA_DIR` (`desktop/server/config.ts:963`), and every state
 file derives from it. The desktop shell already has an "environments" registry
-(`electron/environments.cjs`, `DesktopWorkspaceSwitcher.tsx`) that switches
+(`desktop/electron/environments.cjs`, `DesktopWorkspaceSwitcher.tsx`) that switches
 between "This computer" and paired remote servers — but exactly one local
 configuration is possible. This design adds **named local environments**:
 additional data directories, switchable from the existing switcher, one active
@@ -42,7 +42,7 @@ at a time, with a ~15 s in-app restart. The server binary is unchanged.
 
 ## Terminology
 
-Per the product vocabulary (`src/locales/words.test.ts`): a running app is an
+Per the product vocabulary (`desktop/src/locales/words.test.ts`): a running app is an
 installation; this feature's units are **environments** — the word the code
 already uses (`environments.cjs`, `environment-id` per data directory). User
 copy never says "workspace". A bot's directory stays a "folder".
@@ -77,8 +77,8 @@ copy never says "workspace". A bot's directory stays a "folder".
 
 ## Switch flow
 
-All logic lives in a pure, testable module (`electron/environments.cjs`
-grows; the process choreography goes to a new `electron/environment-switch.mjs`
+All logic lives in a pure, testable module (`desktop/electron/environments.cjs`
+grows; the process choreography goes to a new `desktop/electron/environment-switch.mjs`
 wired thinly from `main.mjs`).
 
 1. Renderer asks to switch (existing IPC surface, extended). Confirm dialog
@@ -130,7 +130,7 @@ confirm.
 ## Server changes
 
 None. `OMB_DATA_DIR` already isolates everything, `environment-id` is
-per-directory already, and the CLI attach check (`server/cli.ts:367`) already
+per-directory already, and the CLI attach check (`desktop/server/cli.ts:367`) already
 refuses to attach across directories.
 
 ## Copy / i18n / docs

@@ -17,13 +17,13 @@ Add OpenCode Go as an optional first-class Hezuo engine by launching the maintai
 ## Out of scope
 
 - A direct OpenCode Go HTTP/API driver.
-- OpenCode's HTTP server/SDK lifecycle.
+- OpenCode's HTTP desktop/server/SDK lifecycle.
 - Automatic installation, subscription purchase, billing, usage top-ups, or modification of OpenCode's own auth files.
 - Support for the archived Go-language OpenCode repository.
 
 ## Architecture
 
-`server/drivers/acp/opencode-go.ts` will define the engine-specific executable, environment construction, model catalog metadata, and ACP session behavior on top of `server/drivers/acp/core.ts`. It will use the same registry and contracts as the existing ACP engines, so the engine remains isolated from provider-specific model APIs.
+`desktop/server/drivers/acp/opencode-go.ts` will define the engine-specific executable, environment construction, model catalog metadata, and ACP session behavior on top of `desktop/server/drivers/acp/core.ts`. It will use the same registry and contracts as the existing ACP engines, so the engine remains isolated from provider-specific model APIs.
 
 The catalog layer will fetch `https://opencode.ai/zen/go/v1/models`, normalize only valid provider-qualified model IDs, cache the last successful result in memory, and fall back to a small static availability response when the endpoint is unavailable. The UI will consume the existing engine/model payloads and will not receive the credential.
 

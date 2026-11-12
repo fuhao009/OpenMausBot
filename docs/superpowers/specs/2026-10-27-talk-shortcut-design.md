@@ -49,7 +49,7 @@ showing dismisses the box and starts a new ask. If another app owns the
 shortcut, registration fails and Settings shows "⌃⌥Space is used by another
 app".
 
-### Speech (`electron/speech.mjs`)
+### Speech (`desktop/electron/speech.mjs`)
 
 `startSpeech` takes a sink (`{transcript(line), end(info), replaced()}`) as well
 as a window; window callers are unchanged. New `speechBusy()`. The speech
@@ -61,7 +61,7 @@ box says "Voice is in use in Hezuo" and nothing starts. If the renderer starts
 speech while the talk box is listening, the talk sink's `replaced()` closes the
 box.
 
-### The box (`electron/talk-panel.mjs`)
+### The box (`desktop/electron/talk-panel.mjs`)
 
 Created lazily per ask and destroyed after it fades: `type:"panel"`,
 frameless, transparent, `focusable:false`, `skipTaskbar`, always on top at
@@ -114,7 +114,7 @@ in `REMOTE_SAFE`.
 
 ## Testing
 
-- `electron/*.node-test.mjs`: shortcut registers and unregisters with the pref;
+- `desktop/electron/*.node-test.mjs`: shortcut registers and unregisters with the pref;
   a busy speech session refuses; the sink path receives transcript and end; the
   replaced callback fires; the panel state machine (listening → reply → hide,
   needs-you, empty transcript, server down, timeout) against a fake server and

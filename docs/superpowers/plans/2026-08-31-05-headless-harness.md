@@ -4,7 +4,7 @@
 
 **Goal:** `hezuo serve` — a daemon that runs the harness, the companion sidecar, the webhook receiver, and the managed tunnel with no Electron and no desktop session, so routines and webhooks keep running when the laptop is closed, and the desktop and phone become clients that can list more than one machine.
 
-**Architecture:** Almost nothing new. `server/index.ts` is already a standalone process (`pnpm dev:server`) and the companion is already a separate process. The always-on stack under `electron/` is already dependency-injected — `secure-credentials.mjs`, `control-plane-client.mjs`, `managed-companion-tunnel.mjs`, and `companion-origin-gateway.mjs` take their I/O as parameters and do not import `electron`. Only `electron/companion.mjs` does. So this plan extracts a shared supervisor those two shells both drive, adds a file-backed credential store for the headless case, and teaches the clients that a machine is a thing you pick.
+**Architecture:** Almost nothing new. `desktop/server/index.ts` is already a standalone process (`pnpm dev:server`) and the companion is already a separate process. The always-on stack under `desktop/electron/` is already dependency-injected — `secure-credentials.mjs`, `control-plane-client.mjs`, `managed-companion-tunnel.mjs`, and `companion-origin-gateway.mjs` take their I/O as parameters and do not import `electron`. Only `desktop/electron/companion.mjs` does. So this plan extracts a shared supervisor those two shells both drive, adds a file-backed credential store for the headless case, and teaches the clients that a machine is a thing you pick.
 
 **Tech Stack:** TypeScript, Node 24, Vitest, systemd/launchd unit files.
 
@@ -14,8 +14,8 @@
 
 See [the roadmap](2026-08-31-00-control-plane-roadmap.md#global-constraints). Load-bearing here:
 
-- **Superseded (Sep 2026):** the harness now authenticates remote clients itself (`docs/plans/remote-workspace.md`: pairing codes, sessions, and a "through a proxy" rule for forwarded requests), and `hezuo serve --tunnel` (`server/tunnel.ts`) opens a second, IPC listener for the tunnel gateway on which every request is remote by construction. The loopback bind and its owner trust are unchanged; the sidecar is no longer the only door.
-- **The loopback bind is not negotiable.** The harness listens on `127.0.0.1` and rejects any request whose `Host` is not loopback, defeating DNS rebinding. Headless must not add a second bind to the harness. Network exposure stays entirely in the companion sidecar, which is the design `companion/README.md` argues for at length — do not relitigate it.
+- **Superseded (Sep 2026):** the harness now authenticates remote clients itself (`docs/plans/remote-workspace.md`: pairing codes, sessions, and a "through a proxy" rule for forwarded requests), and `hezuo serve --tunnel` (`desktop/server/tunnel.ts`) opens a second, IPC listener for the tunnel gateway on which every request is remote by construction. The loopback bind and its owner trust are unchanged; the sidecar is no longer the only door.
+- **The loopback bind is not negotiable.** The harness listens on `127.0.0.1` and rejects any request whose `Host` is not loopback, defeating DNS rebinding. Headless must not add a second bind to the harness. Network exposure stays entirely in the companion sidecar, which is the design `desktop/companion/README.md` argues for at length — do not relitigate it.
 - **Fail closed on absent capability.** A headless host has no desktop session, no `safeStorage`, and on Linux may have no seat at all. Every capability that is unavailable must report unavailable, never "off" and never "on".
 - **The capability rule** applies to platform capabilities too: the client must not offer local computer control for a machine that cannot do it.
 
@@ -25,35 +25,35 @@ See [the roadmap](2026-08-31-00-control-plane-roadmap.md#global-constraints). Lo
 
 ## Background
 
-Today the always-on path is: Electron starts, `electron/companion.mjs` spawns the
-sidecar on `:8810`, `electron/companion-origin-gateway.mjs` opens the managed origin on
-`:8812`, `electron/managed-companion-tunnel.mjs` runs `cloudflared` against it, and
-`cloudflare/control-plane` maps one opaque hostname to that installation. Close the app
-and all four stop, taking routines (`server/routines.ts`) and the webhook receiver
-(`server/webhook-ingress.ts`, `:8800`) with them. The README says this plainly in its
+Today the always-on path is: Electron starts, `desktop/electron/companion.mjs` spawns the
+sidecar on `:8810`, `desktop/electron/companion-origin-gateway.mjs` opens the managed origin on
+`:8812`, `desktop/electron/managed-companion-tunnel.mjs` runs `cloudflared` against it, and
+`gateway/control-plane` maps one opaque hostname to that installation. Close the app
+and all four stop, taking routines (`desktop/server/routines.ts`) and the webhook receiver
+(`desktop/server/webhook-ingress.ts`, `:8800`) with them. The README says this plainly in its
 Status section, and it is the single biggest gap between Hezuo and an "AI employee".
 
 The good news, verified: of the five always-on modules, four already take their
 dependencies as injected parameters — `readSecureCredentials` in
-`electron/secure-credentials.mjs` is the pattern, receiving `exists`, `isAvailable`, and
-`readFile` rather than reaching for the keychain itself. Only `electron/companion.mjs`
+`desktop/electron/secure-credentials.mjs` is the pattern, receiving `exists`, `isAvailable`, and
+`readFile` rather than reaching for the keychain itself. Only `desktop/electron/companion.mjs`
 imports `electron`.
 
 ---
 
 ## File map
 
-- Create `server/supervisor.ts`: start/stop the harness, sidecar, webhook receiver, and tunnel as one lifecycle. Runtime-agnostic; takes a host adapter.
-- Create `server/supervisor.test.ts`.
-- Create `server/host-adapter.ts`: the `HostAdapter` interface plus the headless implementation (file-backed credentials, no desktop capabilities).
-- Create `server/host-adapter.test.ts`.
-- Create `server/serve.ts`: the `hezuo serve` entry point — flags, logging, signal handling.
-- Create `server/serve.test.ts`.
-- Modify `electron/companion.mjs`: drive `server/supervisor.ts` through an Electron host adapter instead of owning the lifecycle.
-- Modify `server/index.ts`: `GET /api/machine` reporting this installation's identity and capabilities.
-- Modify `companion/src/routes.ts`: allowlist `/api/machine`.
-- Modify `src/components/Sidebar.tsx` or settings: the machine roster.
-- Create `docs/headless.md`, `build/hezuo.service`, `build/com.hezuo.serve.plist`.
+- Create `desktop/server/supervisor.ts`: start/stop the harness, sidecar, webhook receiver, and tunnel as one lifecycle. Runtime-agnostic; takes a host adapter.
+- Create `desktop/server/supervisor.test.ts`.
+- Create `desktop/server/host-adapter.ts`: the `HostAdapter` interface plus the headless implementation (file-backed credentials, no desktop capabilities).
+- Create `desktop/server/host-adapter.test.ts`.
+- Create `desktop/server/serve.ts`: the `hezuo serve` entry point — flags, logging, signal handling.
+- Create `desktop/server/serve.test.ts`.
+- Modify `desktop/electron/companion.mjs`: drive `desktop/server/supervisor.ts` through an Electron host adapter instead of owning the lifecycle.
+- Modify `desktop/server/index.ts`: `GET /api/machine` reporting this installation's identity and capabilities.
+- Modify `desktop/companion/src/routes.ts`: allowlist `/api/machine`.
+- Modify `desktop/src/components/Sidebar.tsx` or settings: the machine roster.
+- Create `docs/headless.md`, `desktop/build/hezuo.service`, `desktop/build/com.hezuo.serve.plist`.
 - Modify `package.json`: a `serve` script and a `bin` entry.
 
 ---
@@ -61,7 +61,7 @@ imports `electron`.
 ### Task 1: The host adapter seam
 
 **Files:**
-- Create: `server/host-adapter.ts`, `server/host-adapter.test.ts`
+- Create: `desktop/server/host-adapter.ts`, `desktop/server/host-adapter.test.ts`
 
 **Interfaces:**
 - Produces:
@@ -84,9 +84,9 @@ imports `electron`.
 
 - [ ] Write a failing test: `headlessHostAdapter` reports every desktop capability as `"unavailable"`. Assert against the full `HostCapabilities` key set so a capability added later cannot silently default to supported.
 - [ ] Write a failing test that credentials round-trip through a `0600` file under `dataDir`, and that a directory which is group- or world-readable is **refused** rather than written to — a headless box is usually a shared VPS, and this file is the installation credential.
-- [ ] Write a failing test that an unreadable credential file returns `"unavailable"` and never `"empty"`. `electron/secure-credentials.mjs` documents why at length: a caller that cannot tell ignorance from emptiness registers a fresh installation over the top of the real one. The headless store inherits that distinction exactly.
-- [ ] Run `pnpm vitest run server/host-adapter.test.ts`; expect FAIL.
-- [ ] Implement. Reuse `writeFileAtomic` from `server/atomic.ts`. Do not encrypt: on a headless host there is no OS keystore to encrypt against and a key derived from a file next to the ciphertext is theatre. Document that choice in the module header and in `docs/headless.md`, and state the mitigation — file mode plus directory mode, checked on every read.
+- [ ] Write a failing test that an unreadable credential file returns `"unavailable"` and never `"empty"`. `desktop/electron/secure-credentials.mjs` documents why at length: a caller that cannot tell ignorance from emptiness registers a fresh installation over the top of the real one. The headless store inherits that distinction exactly.
+- [ ] Run `pnpm vitest run desktop/server/host-adapter.test.ts`; expect FAIL.
+- [ ] Implement. Reuse `writeFileAtomic` from `desktop/server/atomic.ts`. Do not encrypt: on a headless host there is no OS keystore to encrypt against and a key derived from a file next to the ciphertext is theatre. Document that choice in the module header and in `docs/headless.md`, and state the mitigation — file mode plus directory mode, checked on every read.
 - [ ] Run; expect PASS.
 - [ ] Commit `feat(headless): host adapter with a file-backed credential store`.
 
@@ -95,7 +95,7 @@ imports `electron`.
 ### Task 2: The supervisor
 
 **Files:**
-- Create: `server/supervisor.ts`, `server/supervisor.test.ts`
+- Create: `desktop/server/supervisor.ts`, `desktop/server/supervisor.test.ts`
 
 **Interfaces:**
 - Produces:
@@ -106,12 +106,12 @@ imports `electron`.
   export function createSupervisor(options: SupervisorOptions): Supervisor;
   ```
 
-- [ ] Write a failing test: `start()` brings the harness up and `status()` reports `harness: "up"`; `stop()` brings it down and every child process is reaped. Assert on reaped pids — `server/kill-tree.test.ts` exists because orphaned children are a real failure mode here.
+- [ ] Write a failing test: `start()` brings the harness up and `status()` reports `harness: "up"`; `stop()` brings it down and every child process is reaped. Assert on reaped pids — `desktop/server/kill-tree.test.ts` exists because orphaned children are a real failure mode here.
 - [ ] Write a failing test that a companion that fails to bind does **not** take the harness down — the harness is the thing that must survive; remote access is an enhancement. `status()` reports `companion: "down"` and `start()` still resolves.
 - [ ] Write a failing test that `stop()` is idempotent and that a second `start()` after a `stop()` works, so a supervisor can be restarted in-process without leaking a port.
 - [ ] Write a failing test that `tunnel: false` skips the tunnel entirely and reports `"disabled"` rather than `"down"` — a thing turned off must not read as a thing that is broken.
 - [ ] Run; expect FAIL.
-- [ ] Implement, delegating to the existing modules rather than reimplementing them: the harness is `server/index.ts` in-process, the companion is a spawned `companion/src/index.ts`, and the tunnel wraps `electron/managed-companion-tunnel.mjs` through its injected-dependency surface. Do not copy tunnel logic — import it.
+- [ ] Implement, delegating to the existing modules rather than reimplementing them: the harness is `desktop/server/index.ts` in-process, the companion is a spawned `desktop/companion/src/index.ts`, and the tunnel wraps `desktop/electron/managed-companion-tunnel.mjs` through its injected-dependency surface. Do not copy tunnel logic — import it.
 - [ ] Run; expect PASS.
 - [ ] Commit `feat(headless): one supervisor for harness, companion, and tunnel`.
 
@@ -120,7 +120,7 @@ imports `electron`.
 ### Task 3: The serve entry point
 
 **Files:**
-- Create: `server/serve.ts`, `server/serve.test.ts`
+- Create: `desktop/server/serve.ts`, `desktop/server/serve.test.ts`
 - Modify: `package.json` (`"serve"` script, `"bin": { "hezuo": "..." }`)
 
 - [ ] Write a failing test for the pure flag parser: `parseServeArgs([])` yields the documented defaults (port 8799, webhook 8800, companion 8810, tunnel off); `--port 9000` overrides; `--no-companion` disables it; `--tunnel` enables it; an unknown flag is a typed error naming the flag, not a silent ignore.
@@ -136,15 +136,15 @@ imports `electron`.
 ### Task 4: Report what this machine is
 
 **Files:**
-- Modify: `server/index.ts`
-- Modify: `companion/src/routes.ts` (the default-deny allowlist)
-- Test: `server/index.test.ts`, `companion/test/routes.test.ts`
+- Modify: `desktop/server/index.ts`
+- Modify: `desktop/companion/src/routes.ts` (the default-deny allowlist)
+- Test: `desktop/server/index.test.ts`, `desktop/companion/test/routes.test.ts`
 
 **Interfaces:**
 - Produces: `GET /api/machine` → `{ name, platform, kind: "desktop" | "headless", capabilities: HostCapabilities, appVersion, since }`.
 
 - [ ] Write a failing API test that `/api/machine` reports the adapter's capabilities verbatim and carries no credential, no tunnel hostname, and no installation secret.
-- [ ] Write a failing test in `companion/test/routes.test.ts` that `GET /api/machine` is allowlisted for paired devices and that `POST` to it is refused — the companion is default-deny per method and path, and a new route is closed until someone opens it deliberately.
+- [ ] Write a failing test in `desktop/companion/test/routes.test.ts` that `GET /api/machine` is allowlisted for paired devices and that `POST` to it is refused — the companion is default-deny per method and path, and a new route is closed until someone opens it deliberately.
 - [ ] Run; expect FAIL.
 - [ ] Implement. `name` defaults to the OS hostname and is overridable by `OMB_MACHINE_NAME`, because three VPS boxes all called `localhost` is not a roster.
 - [ ] Run; expect PASS.
@@ -155,13 +155,13 @@ imports `electron`.
 ### Task 5: Electron drives the same supervisor
 
 **Files:**
-- Modify: `electron/companion.mjs`
-- Test: `electron/companion.test.mjs`
+- Modify: `desktop/electron/companion.mjs`
+- Test: `desktop/electron/companion.test.mjs`
 
-- [ ] Write a failing test that the Electron path produces a `desktop` host adapter whose capabilities reflect the real platform checks in `electron/capabilities.cjs`, and that it uses `safeStorage` credentials rather than the file store.
-- [ ] Write a failing test that the existing port-reuse behaviour survives: `electron/companion.mjs:57` documents that the sidecar must survive an app relaunch rather than dying with it, and that property must not regress in the refactor. Pin it.
+- [ ] Write a failing test that the Electron path produces a `desktop` host adapter whose capabilities reflect the real platform checks in `desktop/electron/capabilities.cjs`, and that it uses `safeStorage` credentials rather than the file store.
+- [ ] Write a failing test that the existing port-reuse behaviour survives: `desktop/electron/companion.mjs:57` documents that the sidecar must survive an app relaunch rather than dying with it, and that property must not regress in the refactor. Pin it.
 - [ ] Run; expect FAIL.
-- [ ] Refactor `electron/companion.mjs` to construct a desktop `HostAdapter` and drive `createSupervisor`, deleting its own lifecycle code. This is the task most likely to break a shipped behaviour — run `pnpm test:desktop-viewer`, `pnpm check:electron`, and the full `pnpm test` before committing, and launch the packaged app once by hand.
+- [ ] Refactor `desktop/electron/companion.mjs` to construct a desktop `HostAdapter` and drive `createSupervisor`, deleting its own lifecycle code. This is the task most likely to break a shipped behaviour — run `pnpm test:desktop-viewer`, `pnpm check:electron`, and the full `pnpm test` before committing, and launch the packaged app once by hand.
 - [ ] Run; expect PASS.
 - [ ] Commit `refactor(desktop): drive the shared supervisor`.
 
@@ -170,12 +170,12 @@ imports `electron`.
 ### Task 6: The machine roster
 
 **Files:**
-- Modify: `src/state/store.tsx`, `src/components/SettingsPanel.tsx`
-- Create: `src/components/MachineRoster.tsx`, `src/components/MachineRoster.test.ts`
+- Modify: `desktop/src/state/store.tsx`, `desktop/src/components/SettingsPanel.tsx`
+- Create: `desktop/src/components/MachineRoster.tsx`, `desktop/src/components/MachineRoster.test.ts`
 
 - [ ] Write a failing test for the pure presence reducer: a machine whose last `/api/machine` succeeded within 60s is `online`; older than that is `stale`; one that has never answered is `unreachable`. Three states, because "not online" hides the difference between a box that is off and a box you have never reached.
 - [ ] Run; expect FAIL.
-- [ ] Implement the roster from the account's installations, which `cloudflare/control-plane` already lists at `GET /v1/installations` — this is a client feature over data that exists, not a new backend.
+- [ ] Implement the roster from the account's installations, which `gateway/control-plane` already lists at `GET /v1/installations` — this is a client feature over data that exists, not a new backend.
 - [ ] Render each machine with its name, platform, kind, presence, and the capabilities it reports. A headless row shows local computer control as unavailable rather than off, so nobody assigns a bot a desktop it does not have.
 - [ ] Run the focused test, `pnpm typecheck`, `pnpm check:contrast`.
 - [ ] Commit `feat(headless): machine roster with presence`.
@@ -185,7 +185,7 @@ imports `electron`.
 ### Task 7: Ship it as a service
 
 **Files:**
-- Create: `docs/headless.md`, `build/hezuo.service`, `build/com.hezuo.serve.plist`
+- Create: `docs/headless.md`, `desktop/build/hezuo.service`, `desktop/build/com.hezuo.serve.plist`
 - Modify: `README.md` (the Status section's honest note about always-on)
 
 - [ ] Write the systemd unit: `Type=simple`, `Restart=on-failure`, `RestartSec=5`, a dedicated non-root user, `StateDirectory=hezuo`, and `ProtectSystem=strict` with `~/.hezuo` as the only writable path.

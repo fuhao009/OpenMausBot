@@ -10,8 +10,8 @@ plugins {
 // repository. It reaches a build from one of two places outside version
 // control:
 //
-//   * `android/keystore.properties` — gitignored, for signing by hand. Four
-//     keys: `storeFile` (a path, absolute or relative to `android/`),
+//   * `mobile/android/keystore.properties` — gitignored, for signing by hand. Four
+//     keys: `storeFile` (a path, absolute or relative to `mobile/android/`),
 //     `storePassword`, `keyAlias`, and optionally `keyPassword`.
 //   * the environment — for CI, where the material arrives as secrets:
 //     OPENMAUSBOT_KEYSTORE_FILE, OPENMAUSBOT_KEYSTORE_PASSWORD,

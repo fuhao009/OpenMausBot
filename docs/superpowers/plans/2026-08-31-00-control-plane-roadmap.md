@@ -10,10 +10,10 @@ as (a portable Bot Profile, a real connections surface, and a machine that stays
 
 **Why these seven and not the community's list verbatim:** the community proposal asks
 for a multi-engine architecture, harness-level memory, engine-independent learning, and
-a vendor-neutral control plane. Those exist today — `server/contracts.ts` makes the model
-a data value rather than a service binding, `server/workspace.ts` owns memory outside any
-engine, `server/skills.ts` owns skills, and a mid-thread engine switch already replays the
-thread into the new engine (`server/branching.test.ts:253`). The gap is packaging and
+a vendor-neutral control plane. Those exist today — `desktop/server/contracts.ts` makes the model
+a data value rather than a service binding, `desktop/server/workspace.ts` owns memory outside any
+engine, `desktop/server/skills.ts` owns skills, and a mid-thread engine switch already replays the
+thread into the new engine (`desktop/server/branching.test.ts:253`). The gap is packaging and
 surface area, not architecture. Every plan below is scoped to that gap.
 
 ---
@@ -25,34 +25,34 @@ codebase already enforces; a task that violates one is wrong even if its tests p
 
 - **TypeScript strict**, Node 24+, pnpm. `pnpm typecheck` covers app + server.
 - **Vitest**, `fileParallelism: false`, `testTimeout: 20_000`. Server tests are
-  `server/**/*.test.ts` and colocate with their module.
+  `desktop/server/**/*.test.ts` and colocate with their module.
 - **The test floor.** `pnpm test` runs `scripts/test-floor.mjs` with
   `TEST_COUNT_FLOOR = 1070`. Adding tests never touches it. Only a plan that
   deliberately removes tests may lower it, in the same PR, as a reviewed decision.
 - **Secrets are write-only.** The UI only ever sees a `configured` boolean. No
   endpoint may return a key, token, or secret it stores. This is why
-  `server/config.ts` splits `appConfigSchema` from `appConfigPatchSchema`.
+  `desktop/server/config.ts` splits `appConfigSchema` from `appConfigPatchSchema`.
 - **Persisted files are `0600`**, written through `writeFileAtomic`
-  (`server/atomic.ts`), and anything agent-authored passes `redactSecrets`
-  (`server/redact.ts`) before it reaches disk.
+  (`desktop/server/atomic.ts`), and anything agent-authored passes `redactSecrets`
+  (`desktop/server/redact.ts`) before it reaches disk.
 - **The capability rule.** Never offer a control, tool, or attachment a driver
   cannot actually mount. `ProviderAdapter.capabilities` exists for this — see
-  `agentsMcp`, `computerMcp`, `composioMcp`, `images` in `server/contracts.ts:205`.
+  `agentsMcp`, `computerMcp`, `composioMcp`, `images` in `desktop/server/contracts.ts:205`.
   A new integration means a new capability flag, and the UI reads the flag.
 - **Unknown config round-trips.** A config written by a newer build must load in an
   older one and degrade to "unavailable" rather than throwing. `InstanceConfig.driver`
   is deliberately unvalidated for this reason.
 - **Exports never carry** credentials, transcripts, memory, grants, absolute paths,
-  engine bindings, or a schedule's active state. `server/package-export.ts` states
+  engine bindings, or a schedule's active state. `desktop/server/package-export.ts` states
   this as its contract; every new export path inherits it. The one deliberate
-  exception is the private team backup (`server/team-backup.ts`): it exists to
+  exception is the private team backup (`desktop/server/team-backup.ts`): it exists to
   move a person's own fleet between their own machines, so it carries transcripts
   and memory — redacted — and is never a shareable package.
 - **Imports land disabled.** Skills, connectors, routines, and MCP servers arriving
   from outside are inert until a person enables them after reading. See the policy
-  comment at the top of `server/skills.ts`.
+  comment at the top of `desktop/server/skills.ts`.
 - **Audit what you authorize.** Any new allow/deny decision writes a row through
-  `appendDecision` (`server/decision-log.ts`), fire-and-forget — an audit log must
+  `appendDecision` (`desktop/server/decision-log.ts`), fire-and-forget — an audit log must
   never take down the decision it audits.
 
 ---
@@ -89,10 +89,10 @@ reasons that should be revisited after P1, P2, and P7 land:
    P2's profile gives it success criteria to attach to; P7 gives it tasks to run.
 2. **The comparison needs honest cost.** Most engines never report a price at all
    (`TaskUsage.costUsd` is `null` for the majority — see the field comment in
-   `server/store.ts:205`). Comparing cost across engines needs the pricing table P1
+   `desktop/server/store.ts:205`). Comparing cost across engines needs the pricing table P1
    introduces, or the winner is just "the one that reported a number".
 3. **Per-task routing has an unadvertised tax.** CLI engines carry their own session
-   state. The replay path exists (`server/branching.test.ts:253`), but every switch
+   state. The replay path exists (`desktop/server/branching.test.ts:253`), but every switch
    rebuilds context from scratch. Routing a classification to a local model and the
    next step back to Claude pays a full context rebuild each way. That may still be
    worth it — but the plan must measure it, not assume it.
@@ -108,10 +108,10 @@ comparison. Routing rules come after, driven by that data.
 - **Rebuilding Composio as the architecture.** It stays one connection method. P3
   makes direct MCP a peer of it, which is the community's actual ask.
 - **A hosted multi-tenant backend.** P5 ships a daemon the user runs. The existing
-  `cloudflare/control-plane` worker keeps its current job — identity, installation
+  `gateway/control-plane` worker keeps its current job — identity, installation
   ownership, and one managed tunnel per install — and gains nothing that stores bots,
   chats, prompts, or tool output.
 - **Raising the delegation depth cap globally.** P7 raises it only behind an explicit
   supervisor role with a concurrency cap. `MAX_COMMS_DEPTH = 1` is what makes
-  recursive delegation structurally impossible today (`server/delegations.ts:29`), and
+  recursive delegation structurally impossible today (`desktop/server/delegations.ts:29`), and
   that property is worth keeping by default.

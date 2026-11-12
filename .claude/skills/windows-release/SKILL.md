@@ -54,11 +54,11 @@ Three things silently produce a broken app if wrong. Check all three:
 
 ```powershell
 Test-Path release\win-unpacked\resources\server\index.js   # harness server
-Test-Path release\win-unpacked\resources\ui\desktop/index.html     # built UI
+Test-Path release\win-unpacked\resources\ui\index.html     # built UI
 Get-Content release\win-unpacked\resources\app-update.yml  # feed config
 ```
 
-- Missing `desktop/server/index.js` → `utilityProcess.fork` fails → the 🐭 "Couldn't start
+- Missing `server/index.js` → `utilityProcess.fork` fails → the 🐭 "Couldn't start
   the bot server" page.
 - Missing `ui/index.html` → server has nothing to serve → black window.
 - `app-update.yml` must point at `milind-soni/OpenMausBot` and, while the

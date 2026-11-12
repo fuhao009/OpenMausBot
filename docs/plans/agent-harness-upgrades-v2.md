@@ -6,7 +6,7 @@
 resilience and visibility primitives, and unlock local models — in an order
 where each round pays for the next.
 
-**Architecture:** Hezuo is itself a harness; `server/store.ts` is the
+**Architecture:** Hezuo is itself a harness; `desktop/server/store.ts` is the
 canonical cross-engine record and every path that turns it back into model
 context is load-bearing. This plan keeps v1's reframe and rounds, but corrects
 its scope against the code as it actually is today: two items were partly
@@ -27,10 +27,10 @@ item N", the executor reads that section of v1.
 ## Global Constraints
 
 - Node runs server TS directly via `--experimental-strip-types`; imports use explicit `.ts` extensions.
-- Never break the one-file driver promise: a new provider is one file in `server/drivers/` plus one registration.
+- Never break the one-file driver promise: a new provider is one file in `desktop/server/drivers/` plus one registration.
 - Nothing is ever deleted from the store record; only model-facing rebuilds are bounded.
 - `~/.hezuo` is shared across app versions — every new field or message kind must be ignorable by an older build.
-- e2e tests follow the `server/branching.test.ts` pattern: real server, fake CLI (`server/testing/fake-acp-cli.ts`), POSIX-gated.
+- e2e tests follow the `desktop/server/branching.test.ts` pattern: real server, fake CLI (`desktop/server/testing/fake-acp-cli.ts`), POSIX-gated.
 - All 59 existing test files must stay green (`pnpm test`); v1's "82 test files" figure was wrong.
 
 ---
@@ -42,11 +42,11 @@ Nearly all held. These did not, and they reshape the plan:
 
 | # | v1 said | Repo says | Change |
 |---|---------|-----------|--------|
-| 1 | "Input is text-only", build attachments from scratch | `src/lib/composer-attachments.ts` + tests already implement paste/file attachments, drop handling, size limits, and `composeMessage` folding into the prompt | Item 2 rescoped to **images only**, extending the existing module |
-| 2 | Redaction reuses `auto-approve.ts` patterns | `server/redact.ts` already ships `redactSecrets` with masking, shape preservation, and tests | Item 10 rescoped to a **new call site + content rules** on the existing function |
+| 1 | "Input is text-only", build attachments from scratch | `desktop/src/lib/composer-attachments.ts` + tests already implement paste/file attachments, drop handling, size limits, and `composeMessage` folding into the prompt | Item 2 rescoped to **images only**, extending the existing module |
+| 2 | Redaction reuses `auto-approve.ts` patterns | `desktop/server/redact.ts` already ships `redactSecrets` with masking, shape preservation, and tests | Item 10 rescoped to a **new call site + content rules** on the existing function |
 | 3 | Tool deadlines/loop detection "harness-side so they work for every driver" | CLI drivers run tools *inside* the CLI; the harness observes tool events but can only interrupt the whole turn, and advisory injection needs mid-turn steering (v1 item 17) | Item 9 split: repeat-*detection* stays early (observe + surface), enforcement moves **after** steering |
 | 4 | Generation fencing in Round 2 | No observed instance of the bug; the repo already has two staleness notions and v1 itself warns three is how you get an uncatchable bug | **Deferred** until the raw inspector shows a stale event actually landing |
-| 5 | Open question 1: "Is `cwd` surfaced per bot?" | It is not — `turn.cwd` is accepted by every driver (`claude.ts:399`, `codex.ts:107`, `acp/core.ts:239`, `antigravity.ts:141`) and nothing in `src/` sets it | Promoted to **Round 1** per v1's own criterion; driver side is already done |
+| 5 | Open question 1: "Is `cwd` surfaced per bot?" | It is not — `turn.cwd` is accepted by every driver (`claude.ts:399`, `codex.ts:107`, `acp/core.ts:239`, `antigravity.ts:141`) and nothing in `desktop/src/` sets it | Promoted to **Round 1** per v1's own criterion; driver side is already done |
 | 6 | 82 test files | 59 (`*.test.*` outside `node_modules`) | Migration budget in risks reduced accordingly |
 | 7 | Raw inspector listed 15th, "build it early" | Agreed — so the plan should actually put it early | Moved to **Round 1**, right after the model-switch fix |
 
@@ -60,7 +60,7 @@ Order within the round is execution order (1.3 and 1.6 were skipped on 2026-08-1
 
 Verified broken: a new instance has no `resumeCursors` entry, doesn't set
 `rewound`, isn't grok — so it receives the latest message and nothing else
-(`server/index.ts:806–826`, `:979`). The fix reuses the existing rewind
+(`desktop/server/index.ts:806–826`, `:979`). The fix reuses the existing rewind
 replay branch with a distinct `fresh` marker. Full TDD breakdown in
 **Task 1** below; execute it first.
 
@@ -80,7 +80,7 @@ Round 3 (see 3.4). The finding still stands; the item just isn't next.
 
 The smallest item in the plan: every driver already accepts `turn.cwd`
 and defaults to `homedir()`. Add `cwd?: string` to `BotRecord`
-(`server/store.ts`), pass it at dispatch in `server/index.ts` next to the
+(`desktop/server/store.ts`), pass it at dispatch in `desktop/server/index.ts` next to the
 existing `integrations` wiring, expose it in the bot profile UI with a
 folder picker (Electron dialog), and show the active folder in the chat
 header. Done when a bot pointed at a project folder runs its shell tools
@@ -88,9 +88,9 @@ there on every driver.
 
 ### 1.5 Cost and usage visibility *(v1 item 5)*
 
-Verified: `cost` on `turn.completed` (`server/contracts.ts:92`) and
+Verified: `cost` on `turn.completed` (`desktop/server/contracts.ts:92`) and
 `thread.token-usage.updated` are emitted by all main drivers; the only
-`cost` reference in `src/` is a dormant field in `routines.ts`. Design as
+`cost` reference in `desktop/src/` is a dormant field in `routines.ts`. Design as
 v1 item 5, including the metered-vs-subscription labeling.
 
 ### 1.6 Image attachments *(v1 item 2, rescoped)* — **skipped for now, moved to 3.5**
@@ -109,7 +109,7 @@ included, results land via `switchBranch`).
 ### 2.1 Liveness reaper *(v1 item 6)* — design as v1. Prerequisite for 2.3 and Round 3 steering.
 ### 2.2 Portable context *(v1 item 7)* — design as v1, all four parts (catalog `contextWindow`, activity in replays, compaction kind, target-sized rebuild). The single largest item; the raw inspector (1.2) and the fixed rebuild path (1.1) are its scaffolding.
 ### 2.3 Durable delegations *(v1 item 8)* — design as v1; drain after 2.1's reconciliation.
-### 2.4 Tool-result redaction *(v1 item 10, rescoped)* — a result-side hook that calls the existing `redactSecrets` (`server/redact.ts`) before `store.appendMessage`, extended with *content* patterns (key-shaped values in file reads) alongside its current *key-name* rules, plus the `SENSITIVE` path list from `server/auto-approve.ts`. Redact the stored copy. New tests extend `server/redact.test.ts`.
+### 2.4 Tool-result redaction *(v1 item 10, rescoped)* — a result-side hook that calls the existing `redactSecrets` (`desktop/server/redact.ts`) before `store.appendMessage`, extended with *content* patterns (key-shaped values in file reads) alongside its current *key-name* rules, plus the `SENSITIVE` path list from `desktop/server/auto-approve.ts`. Redact the stored copy. New tests extend `desktop/server/redact.test.ts`.
 ### 2.5 Fail-closed approvals *(v1 item 11)* — design as v1 (`allowed-once | rejected | cancelled | unavailable`, `request.opened` references the tool item by `itemId`). Land alone.
 ### 2.6 Emit inside the store *(v1 item 13)* — design as v1: make `appendMessage`/`patchBot` emit as part of writing; explicitly **not** the universal `commit()` refactor.
 ### 2.7 Server-side activity state *(v1 item 14)* — design as v1: five states, `busy` kept as a derived getter, harness-only readers first (221 refs / 36 files migrate incrementally).
@@ -123,7 +123,7 @@ included, results land via `switchBranch`).
 ### 3.2 Mid-turn steering *(v1 item 17)* — design as v1, including the stdin-EOF verification gate (`claude.ts:536` — answer open question 3 **before** designing the queue) and the 2.1 prerequisite.
 ### 3.3 Tool deadlines and loop **enforcement** *(v1 item 9, second half)* — with steering available, escalate 2.8's detection: inject the advisory note at the next safe point, terminate past the hard threshold. Per-call deadlines only where the harness actually owns the call; for CLI drivers the deadline remains "interrupt the turn", stated honestly in the UI.
 ### 3.4 Auto-retry in the main drivers *(v1 item 3, was 1.3 — skipped on 2026-08-17 and moved here)* — verified: zero retry in `claude.ts` / `codex.ts` / `grok.ts` while `boat.ts`, `webhooks.ts`, and `acp/core.ts` all have it. Design as v1 item 3: classify transient (429, 5xx, overloaded, connection reset) vs terminal (auth, invalid model, quota); backoff + jitter with a small attempt cap; a `turn.retrying` runtime event so the UI shows it (the inspector from 1.2 makes this visible for free); an abort path so an interrupt during a retry cancels the whole turn; a retry after partial output discards the partial rather than duplicating it. Done when a simulated 529 produces a visible retry and a completed turn, and an invalid API key fails immediately without retrying.
-### 3.5 Image attachments *(v1 item 2, was 1.6 — skipped on 2026-08-17 and moved here)* — the paste/file/drop layer already exists in `src/lib/composer-attachments.ts`; only the image path is missing. Design: `POST /api/attachments` (image mimes, ≤10 MB) writes `~/.hezuo/attachments/<uuid>.<ext>` and returns a path; the composer shows a thumbnail chip and `composeMessage` emits `<attached-image path="…"/>` — every CLI engine opens the file by path, no per-driver encoding; the transcript parses the tag into a thumbnail; `capabilities.images` per driver gates the paste (Claude/Codex/Antigravity/ACP true, grok/boxAgent false); `SendTurnInput.images` for API drivers waits for a second API driver (3.1). Done when a pasted screenshot reaches Claude, renders in the transcript, survives reload, and a grok bot refuses it politely.
+### 3.5 Image attachments *(v1 item 2, was 1.6 — skipped on 2026-08-17 and moved here)* — the paste/file/drop layer already exists in `desktop/src/lib/composer-attachments.ts`; only the image path is missing. Design: `POST /api/attachments` (image mimes, ≤10 MB) writes `~/.hezuo/attachments/<uuid>.<ext>` and returns a path; the composer shows a thumbnail chip and `composeMessage` emits `<attached-image path="…"/>` — every CLI engine opens the file by path, no per-driver encoding; the transcript parses the tag into a thumbnail; `capabilities.images` per driver gates the paste (Claude/Codex/Antigravity/ACP true, grok/boxAgent false); `SendTurnInput.images` for API drivers waits for a second API driver (3.1). Done when a pasted screenshot reaches Claude, renders in the transcript, survives reload, and a grok bot refuses it politely.
 
 ---
 
@@ -131,7 +131,7 @@ included, results land via `switchBranch`).
 
 Everything in v1's deferred list stays deferred for v1's reasons (shared
 memory, skills-as-personalities, spill storage, tree-navigation UI, remote
-access groundwork, decomposing `server/index.ts`), plus:
+access groundwork, decomposing `desktop/server/index.ts`), plus:
 
 - **Generation fencing** *(was v1 item 12).* Rare, no observed instance,
   and it would add a third staleness notion beside `rewound` and
@@ -162,9 +162,9 @@ access groundwork, decomposing `server/index.ts`), plus:
 # Task 1: Fix model-switch context loss
 
 **Files:**
-- Create: `server/turn-context.ts`
-- Create: `server/turn-context.test.ts`
-- Modify: `server/index.ts:806-826` (transcript/turnText block), `:979` (resumeCursor line stays as-is — verify only)
+- Create: `desktop/server/turn-context.ts`
+- Create: `desktop/server/turn-context.test.ts`
+- Modify: `desktop/server/index.ts:806-826` (transcript/turnText block), `:979` (resumeCursor line stays as-is — verify only)
 
 > **As built (#180):** the naive rule below — "fresh = this instance has no
 > cursor" — was implemented first and failed manual testing on A → B → A
@@ -177,14 +177,14 @@ access groundwork, decomposing `server/index.ts`), plus:
 > keeps resuming; anything ambiguous replays); a seeded greeting alone never
 > triggers a replay. `resumeCursor` is passed only when `resume` is true.
 > Steps below are kept as written for the record; where they differ, the
-> code and `server/turn-context.test.ts` are authoritative.
+> code and `desktop/server/turn-context.test.ts` are authoritative.
 
 **Interfaces:**
-- Consumes: `store.activePath(threadId)` (exists), `task.resumeCursors: Record<InstanceId, unknown>` (exists, `server/store.ts:117`), `bot.rewound` (exists), `task.lastInstanceId` (new, see above).
-- Produces: `buildTurnContext(input: TurnContextInput): { turnText: string; resume: boolean }` and `engineIsFresh(...)` from `server/turn-context.ts`; `store.markTaskDispatched(botId, threadId, instanceId)` — item 2.2 (portable context) later replaces `buildTurnContext`'s internals; its signature is the seam.
+- Consumes: `store.activePath(threadId)` (exists), `task.resumeCursors: Record<InstanceId, unknown>` (exists, `desktop/server/store.ts:117`), `bot.rewound` (exists), `task.lastInstanceId` (new, see above).
+- Produces: `buildTurnContext(input: TurnContextInput): { turnText: string; resume: boolean }` and `engineIsFresh(...)` from `desktop/server/turn-context.ts`; `store.markTaskDispatched(botId, threadId, instanceId)` — item 2.2 (portable context) later replaces `buildTurnContext`'s internals; its signature is the seam.
 
 ```ts
-// server/turn-context.ts — the produced interface, in full
+// desktop/server/turn-context.ts — the produced interface, in full
 export interface TurnContextInput {
   /** the user's new message */
   text: string;
@@ -206,7 +206,7 @@ export function buildTurnContext(input: TurnContextInput): {
 
 - [ ] **Step 1: Verify the bug still exists**
 
-Read `server/index.ts` around the `slice(-40)` transcript block and confirm:
+Read `desktop/server/index.ts` around the `slice(-40)` transcript block and confirm:
 `rewound` is still the only trigger for inline replay, and
 `task.resumeCursors[instanceId]` is still the only session lookup. If a
 `fresh`/rebuild marker already exists, stop — this task may be done.
@@ -214,7 +214,7 @@ Read `server/index.ts` around the `slice(-40)` transcript block and confirm:
 - [ ] **Step 2: Write the failing unit tests**
 
 ```ts
-// server/turn-context.test.ts
+// desktop/server/turn-context.test.ts
 import { describe, expect, it } from "vitest";
 
 import { buildTurnContext } from "./turn-context.ts";
@@ -263,10 +263,10 @@ describe("buildTurnContext", () => {
 
 - [ ] **Step 3: Run tests to verify they fail**
 
-Run: `pnpm vitest run server/turn-context.test.ts`
+Run: `pnpm vitest run desktop/server/turn-context.test.ts`
 Expected: FAIL — cannot find module `./turn-context.ts`.
 
-- [ ] **Step 4: Implement `server/turn-context.ts`**
+- [ ] **Step 4: Implement `desktop/server/turn-context.ts`**
 
 ```ts
 // Building the text a driver actually receives. Two situations force an
@@ -310,12 +310,12 @@ export function buildTurnContext(input: TurnContextInput): { turnText: string; r
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `pnpm vitest run server/turn-context.test.ts`
+Run: `pnpm vitest run desktop/server/turn-context.test.ts`
 Expected: PASS, 5 tests.
 
 - [ ] **Step 6: Wire it into dispatch**
 
-In `server/index.ts`, replace the inline `rewound`/`turnText` block
+In `desktop/server/index.ts`, replace the inline `rewound`/`turnText` block
 (currently `const rewound = threadId === bot.threadId && ...` through the
 `turnText` ternary) with:
 
@@ -343,12 +343,12 @@ resume the old engine's native session.
 
 - [ ] **Step 7: Typecheck and run the neighbouring suites**
 
-Run: `pnpm typecheck && pnpm vitest run server/turn-context.test.ts server/branching.test.ts server/index.test.ts`
+Run: `pnpm typecheck && pnpm vitest run desktop/server/turn-context.test.ts desktop/server/branching.test.ts desktop/server/index.test.ts`
 Expected: PASS. The branching e2e pins that rewind behaviour is unchanged.
 
 - [ ] **Step 8: e2e verification of the fix itself**
 
-Add to `server/branching.test.ts`'s config a third instance
+Add to `desktop/server/branching.test.ts`'s config a third instance
 `second: { driver: "grokAgent", config: { cli: FAKE_CLI, fullAuto: true } }`,
 then a test that: creates a bot on `happy`, runs one turn mentioning a
 distinctive token (e.g. `Biscuit`), patches the bot's
@@ -366,7 +366,7 @@ after switching back to the first engine must match
 `/joining this conversation[\s\S]*User: my dog is named Biscuit/` too.
 (There is no per-instance log; the tee is per thread.)
 
-Run: `pnpm vitest run server/branching.test.ts`
+Run: `pnpm vitest run desktop/server/branching.test.ts`
 Expected: PASS, including the new test.
 
 - [ ] **Step 9: Full suite and commit**
@@ -375,7 +375,7 @@ Run: `pnpm test`
 Expected: green (59 test files + updater test).
 
 ```bash
-git add server/turn-context.ts server/turn-context.test.ts server/index.ts server/branching.test.ts server/testing/fake-acp-cli.ts
+git add desktop/server/turn-context.ts desktop/server/turn-context.test.ts desktop/server/index.ts desktop/server/branching.test.ts desktop/server/testing/fake-acp-cli.ts
 git commit -m "fix: rebuild context when a bot's engine switches mid-thread"
 ```
 

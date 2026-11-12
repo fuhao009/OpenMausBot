@@ -143,7 +143,7 @@ teammate turns. No direct, queued, resumed, or group path can omit it.
    `tools/list` pages before schemas are handed to the engine. Preserve
    pagination and protocol errors without exposing withheld definitions.
 4. Reject an excluded `tools/call` locally before the upstream sees it.
-   Check raw server/tool identity, not a sanitized provider function name.
+   Check raw desktop/server/tool identity, not a sanitized provider function name.
 5. Apply the same rule to stdio, Streamable HTTP, and legacy SSE servers.
    Reuse the existing remote MCP client for a stdio facade; do not add a
    runtime dependency. Preserve authentication headers and cancellation.

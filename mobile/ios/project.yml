@@ -1,7 +1,7 @@
 # XcodeGen spec. The .xcodeproj is generated, not committed — a project
 # file is a merge-conflict machine and nothing in it is worth reviewing.
 #
-#   brew install xcodegen && cd ios && xcodegen generate && open OpenMausCompanion.xcodeproj
+#   brew install xcodegen && cd mobile/ios && xcodegen generate && open OpenMausCompanion.xcodeproj
 #
 # XcodeGen is a development tool, not a dependency of the app: the app
 # itself has none. If you'd rather not install it, make an iOS App target

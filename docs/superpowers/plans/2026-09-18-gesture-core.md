@@ -6,7 +6,7 @@
 
 **Architecture:** `GestureCore` is a value type holding mode, click-sequence, cursor and zoom state. It is fed `TouchSample`s and `tick(at:)` calls and returns `[GestureIntent]`. It owns every coordinate transform — letterboxing, zoom, pan — so no view and no sink ever does pixel maths. It has no clock, no networking and no platform types, which is what makes it testable under `swift test` and `./gradlew :core:test` with no simulator or emulator.
 
-**Tech Stack:** Swift 5.9 (`ios/Sources/CompanionCore`, XCTest), Kotlin JVM 17 (`android/core`, kotlin.test), JSON fixture shared by both test suites.
+**Tech Stack:** Swift 5.9 (`mobile/ios/Sources/CompanionCore`, XCTest), Kotlin JVM 17 (`mobile/android/core`, kotlin.test), JSON fixture shared by both test suites.
 
 **Spec:** `docs/superpowers/specs/2026-09-18-mobile-touch-control-design.md`
 
@@ -34,8 +34,8 @@ not taken on trust.
 ### Task 1: Value types, constants and viewport mapping (iOS)
 
 **Files:**
-- Create: `ios/Sources/CompanionCore/RemoteGestures.swift`
-- Test: `ios/Tests/CompanionCoreTests/RemoteGestureMappingTests.swift`
+- Create: `mobile/ios/Sources/CompanionCore/RemoteGestures.swift`
+- Test: `mobile/ios/Tests/CompanionCoreTests/RemoteGestureMappingTests.swift`
 
 **Interfaces:**
 - Consumes: nothing.
@@ -104,7 +104,7 @@ Expected: FAIL — `cannot find 'ViewportMapping' in scope`.
 ```swift
 import Foundation
 
-/// Contract values shared with android/core's GestureConstants. A value that
+/// Contract values shared with mobile/android/core's GestureConstants. A value that
 /// differs between the two platforms is a bug the parity fixture must catch,
 /// so they are stated once here and once there, never derived.
 public enum GestureConstants {
@@ -217,7 +217,7 @@ Expected: PASS, 3 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ios/Sources/CompanionCore/RemoteGestures.swift ios/Tests/CompanionCoreTests/RemoteGestureMappingTests.swift
+git add mobile/ios/Sources/CompanionCore/RemoteGestures.swift mobile/ios/Tests/CompanionCoreTests/RemoteGestureMappingTests.swift
 git commit -m "feat(ios): gesture value types and viewport mapping"
 ```
 
@@ -226,8 +226,8 @@ git commit -m "feat(ios): gesture value types and viewport mapping"
 ### Task 2: Click sequencing in direct mode (iOS)
 
 **Files:**
-- Modify: `ios/Sources/CompanionCore/RemoteGestures.swift`
-- Test: `ios/Tests/CompanionCoreTests/RemoteGestureClickTests.swift`
+- Modify: `mobile/ios/Sources/CompanionCore/RemoteGestures.swift`
+- Test: `mobile/ios/Tests/CompanionCoreTests/RemoteGestureClickTests.swift`
 
 **Interfaces:**
 - Consumes: Task 1's types.
@@ -384,7 +384,7 @@ Expected: PASS, 5 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ios/Sources/CompanionCore/RemoteGestures.swift ios/Tests/CompanionCoreTests/RemoteGestureClickTests.swift
+git add mobile/ios/Sources/CompanionCore/RemoteGestures.swift mobile/ios/Tests/CompanionCoreTests/RemoteGestureClickTests.swift
 git commit -m "feat(ios): click sequencing for direct-mode taps"
 ```
 
@@ -393,8 +393,8 @@ git commit -m "feat(ios): click sequencing for direct-mode taps"
 ### Task 3: Long press, drag threshold and held-button drags (iOS)
 
 **Files:**
-- Modify: `ios/Sources/CompanionCore/RemoteGestures.swift`
-- Test: `ios/Tests/CompanionCoreTests/RemoteGestureLongPressTests.swift`
+- Modify: `mobile/ios/Sources/CompanionCore/RemoteGestures.swift`
+- Test: `mobile/ios/Tests/CompanionCoreTests/RemoteGestureLongPressTests.swift`
 
 **Interfaces:**
 - Consumes: Task 2's `GestureCore`.
@@ -558,7 +558,7 @@ Expected: PASS, 4 tests. Re-run `swift test --filter RemoteGesture` and confirm 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ios/Sources/CompanionCore/RemoteGestures.swift ios/Tests/CompanionCoreTests/RemoteGestureLongPressTests.swift
+git add mobile/ios/Sources/CompanionCore/RemoteGestures.swift mobile/ios/Tests/CompanionCoreTests/RemoteGestureLongPressTests.swift
 git commit -m "feat(ios): long press, drag threshold and held-button drags"
 ```
 
@@ -567,8 +567,8 @@ git commit -m "feat(ios): long press, drag threshold and held-button drags"
 ### Task 4: Trackpad mode — virtual cursor and acceleration (iOS)
 
 **Files:**
-- Modify: `ios/Sources/CompanionCore/RemoteGestures.swift`
-- Test: `ios/Tests/CompanionCoreTests/RemoteGestureTrackpadTests.swift`
+- Modify: `mobile/ios/Sources/CompanionCore/RemoteGestures.swift`
+- Test: `mobile/ios/Tests/CompanionCoreTests/RemoteGestureTrackpadTests.swift`
 
 **Interfaces:**
 - Consumes: Task 3's `GestureCore`.
@@ -724,7 +724,7 @@ Expected: PASS, 5 tests. Re-run `swift test --filter RemoteGesture` for no regre
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ios/Sources/CompanionCore/RemoteGestures.swift ios/Tests/CompanionCoreTests/RemoteGestureTrackpadTests.swift
+git add mobile/ios/Sources/CompanionCore/RemoteGestures.swift mobile/ios/Tests/CompanionCoreTests/RemoteGestureTrackpadTests.swift
 git commit -m "feat(ios): trackpad mode with a virtual cursor and acceleration"
 ```
 
@@ -733,8 +733,8 @@ git commit -m "feat(ios): trackpad mode with a virtual cursor and acceleration"
 ### Task 5: Scroll, momentum and zoom state (iOS)
 
 **Files:**
-- Modify: `ios/Sources/CompanionCore/RemoteGestures.swift`
-- Test: `ios/Tests/CompanionCoreTests/RemoteGestureScrollZoomTests.swift`
+- Modify: `mobile/ios/Sources/CompanionCore/RemoteGestures.swift`
+- Test: `mobile/ios/Tests/CompanionCoreTests/RemoteGestureScrollZoomTests.swift`
 
 **Interfaces:**
 - Consumes: Task 4's `GestureCore`.
@@ -917,7 +917,7 @@ Expected: PASS, 5 tests. Re-run `swift test --filter RemoteGesture`.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ios/Sources/CompanionCore/RemoteGestures.swift ios/Tests/CompanionCoreTests/RemoteGestureScrollZoomTests.swift
+git add mobile/ios/Sources/CompanionCore/RemoteGestures.swift mobile/ios/Tests/CompanionCoreTests/RemoteGestureScrollZoomTests.swift
 git commit -m "feat(ios): scroll, momentum and local zoom state"
 ```
 
@@ -926,8 +926,8 @@ git commit -m "feat(ios): scroll, momentum and local zoom state"
 ### Task 6: Driving gate and held-input flush (iOS)
 
 **Files:**
-- Modify: `ios/Sources/CompanionCore/RemoteGestures.swift`
-- Test: `ios/Tests/CompanionCoreTests/RemoteGestureFlushTests.swift`
+- Modify: `mobile/ios/Sources/CompanionCore/RemoteGestures.swift`
+- Test: `mobile/ios/Tests/CompanionCoreTests/RemoteGestureFlushTests.swift`
 
 **Interfaces:**
 - Consumes: Task 5's `GestureCore`.
@@ -1029,7 +1029,7 @@ Then fix the earlier suites, which now need `core.driving = true` in their helpe
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ios/Sources/CompanionCore/RemoteGestures.swift ios/Tests/CompanionCoreTests/
+git add mobile/ios/Sources/CompanionCore/RemoteGestures.swift mobile/ios/Tests/CompanionCoreTests/
 git commit -m "feat(ios): driving gate and held-input flush"
 ```
 
@@ -1038,8 +1038,8 @@ git commit -m "feat(ios): driving gate and held-input flush"
 ### Task 7: The shared parity fixture (iOS side)
 
 **Files:**
-- Create: `ios/Tests/CompanionCoreTests/Fixtures/gesture-parity.json`
-- Create: `ios/Tests/CompanionCoreTests/RemoteGestureParityTests.swift`
+- Create: `mobile/ios/Tests/CompanionCoreTests/Fixtures/gesture-parity.json`
+- Create: `mobile/ios/Tests/CompanionCoreTests/RemoteGestureParityTests.swift`
 
 **Learned during Task 5, binding on this task:** intents must be compared
 with a tolerance, never with `==`. Normalising a coordinate through a division
@@ -1188,7 +1188,7 @@ Expected: PASS, 4 fixture cases.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ios/Sources/CompanionCore/RemoteGestures.swift ios/Tests/CompanionCoreTests/Fixtures/gesture-parity.json ios/Tests/CompanionCoreTests/RemoteGestureParityTests.swift
+git add mobile/ios/Sources/CompanionCore/RemoteGestures.swift mobile/ios/Tests/CompanionCoreTests/Fixtures/gesture-parity.json mobile/ios/Tests/CompanionCoreTests/RemoteGestureParityTests.swift
 git commit -m "test(ios): shared gesture parity fixture and runner"
 ```
 
@@ -1197,8 +1197,8 @@ git commit -m "test(ios): shared gesture parity fixture and runner"
 ### Task 8: Kotlin value types and viewport mapping
 
 **Files:**
-- Create: `android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt`
-- Test: `android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureMappingTest.kt`
+- Create: `mobile/android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt`
+- Test: `mobile/android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureMappingTest.kt`
 
 **Interfaces:**
 - Consumes: nothing.
@@ -1263,7 +1263,7 @@ Expected: PASS, 3 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureMappingTest.kt
+git add mobile/android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt mobile/android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureMappingTest.kt
 git commit -m "feat(android): gesture value types and viewport mapping"
 ```
 
@@ -1272,8 +1272,8 @@ git commit -m "feat(android): gesture value types and viewport mapping"
 ### Task 9: Kotlin click sequencing, long press and drags
 
 **Files:**
-- Modify: `android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt`
-- Test: `android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureClickTest.kt`
+- Modify: `mobile/android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt`
+- Test: `mobile/android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureClickTest.kt`
 
 **Interfaces:**
 - Consumes: Task 8's types.
@@ -1302,7 +1302,7 @@ Expected: PASS, 9 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureClickTest.kt
+git add mobile/android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt mobile/android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureClickTest.kt
 git commit -m "feat(android): click sequencing, long press and held-button drags"
 ```
 
@@ -1311,8 +1311,8 @@ git commit -m "feat(android): click sequencing, long press and held-button drags
 ### Task 10: Kotlin trackpad mode
 
 **Files:**
-- Modify: `android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt`
-- Test: `android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureTrackpadTest.kt`
+- Modify: `mobile/android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt`
+- Test: `mobile/android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureTrackpadTest.kt`
 
 **Interfaces:**
 - Consumes: Task 9's `GestureCore`.
@@ -1339,7 +1339,7 @@ Expected: PASS, 5 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureTrackpadTest.kt
+git add mobile/android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt mobile/android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureTrackpadTest.kt
 git commit -m "feat(android): trackpad mode with a virtual cursor and acceleration"
 ```
 
@@ -1348,8 +1348,8 @@ git commit -m "feat(android): trackpad mode with a virtual cursor and accelerati
 ### Task 11: Kotlin scroll, momentum, zoom, driving gate and flush
 
 **Files:**
-- Modify: `android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt`
-- Test: `android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureScrollZoomTest.kt`
+- Modify: `mobile/android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt`
+- Test: `mobile/android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureScrollZoomTest.kt`
 
 **Interfaces:**
 - Consumes: Task 10's `GestureCore`.
@@ -1376,7 +1376,7 @@ Expected: PASS, whole `:core` suite including the pre-existing tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureScrollZoomTest.kt
+git add mobile/android/core/src/main/kotlin/com/hezuo/companion/core/RemoteGestures.kt mobile/android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureScrollZoomTest.kt
 git commit -m "feat(android): scroll, momentum, zoom, driving gate and flush"
 ```
 
@@ -1385,15 +1385,15 @@ git commit -m "feat(android): scroll, momentum, zoom, driving gate and flush"
 ### Task 12: Kotlin parity runner against the shared fixture
 
 **Files:**
-- Create: `android/core/src/test/resources/gesture-parity.json` (symlink or copy of the iOS fixture)
-- Create: `android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureParityTest.kt`
+- Create: `mobile/android/core/src/test/resources/gesture-parity.json` (symlink or copy of the iOS fixture)
+- Create: `mobile/android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureParityTest.kt`
 - Modify: `docs/superpowers/specs/2026-09-18-mobile-touch-control-design.md` — record where the fixture lives and that both suites must load it.
 
 **Interfaces:**
 - Consumes: the whole Kotlin `GestureCore`, and Task 7's fixture schema.
 - Produces: nothing further; this is the parity gate.
 
-The fixture must exist once, not twice. Copy it in a Gradle `processTestResources` step sourced from `ios/Tests/CompanionCoreTests/Fixtures/gesture-parity.json` so a case added on either platform is seen by both. A second checked-in copy would drift and defeat the purpose.
+The fixture must exist once, not twice. Copy it in a Gradle `processTestResources` step sourced from `mobile/ios/Tests/CompanionCoreTests/Fixtures/gesture-parity.json` so a case added on either platform is seen by both. A second checked-in copy would drift and defeat the purpose.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1441,7 +1441,7 @@ Expected: FAIL — the resource is not on the classpath.
 - [ ] **Step 3: Write minimal implementation**
 
 **No Gradle copy task is needed — this plan was wrong about that.**
-`android/core/build.gradle.kts` already points the test source set straight at
+`mobile/android/core/build.gradle.kts` already points the test source set straight at
 the iOS fixtures directory:
 
 ```kotlin
@@ -1452,7 +1452,7 @@ sourceSets.test {
 
 Sharing one fixture directory across both platforms is an existing convention
 in this repo, not something to invent. A file dropped in
-`ios/Tests/CompanionCoreTests/Fixtures/` is on the Kotlin test classpath with
+`mobile/ios/Tests/CompanionCoreTests/Fixtures/` is on the Kotlin test classpath with
 no build change at all.
 
 Add `@Serializable` data classes `ParitySuite`, `ParityCase`, `ParityStep` and
@@ -1481,7 +1481,7 @@ short.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add android/core/build.gradle.kts android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureParityTest.kt docs/superpowers/specs/2026-09-18-mobile-touch-control-design.md
+git add mobile/android/core/build.gradle.kts mobile/android/core/src/test/kotlin/com/hezuo/companion/core/RemoteGestureParityTest.kt docs/superpowers/specs/2026-09-18-mobile-touch-control-design.md
 git commit -m "test(android): run the shared gesture parity fixture"
 ```
 
@@ -1490,8 +1490,8 @@ git commit -m "test(android): run the shared gesture parity fixture"
 ## What this plan deliberately leaves to plan 2
 
 - `BrowserLiveSink` on both platforms — mapping intents to `input_mouse` / `input_keyboard` / `char` bodies and posting them.
-- The input queue port from `src/lib/browser-input-queue.ts`.
-- `browserControlAccess` on `DeviceRecord`, the `routes.ts` allowlist entry, and widening the owner-only gate at `server/index.ts:11570`.
+- The input queue port from `desktop/src/lib/browser-input-queue.ts`.
+- `browserControlAccess` on `DeviceRecord`, the `routes.ts` allowlist entry, and widening the owner-only gate at `desktop/server/index.ts:11570`.
 - Platform adapters (`UIGestureRecognizer`, `pointerInput`) and the UI: mode toggle, cursor rendering, keyboard accessory bar, take/release affordance.
 - Cellular frame-rate capping and the 429 contention message.
 

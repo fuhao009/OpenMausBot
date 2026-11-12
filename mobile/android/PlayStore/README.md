@@ -17,7 +17,7 @@ Confirm the intended version against existing Console uploads before building.
 With JDK 17 and the Android SDK configured, run from the repository root:
 
 ```sh
-cd android
+cd mobile/android
 ./gradlew :app:bundleRelease
 ```
 
@@ -72,8 +72,8 @@ The icon and feature graphic have editable sources in
 [app-icon-source.svg](assets/app-icon-source.svg). Review rendered outputs after
 changing sources. Check current Console asset requirements before submission.
 
-For new screenshots, follow the [verification guide](../../docs/verification/README.md)
-and [Android fixture instructions](../../docs/verification/android-threads.md).
+For new screenshots, follow the [verification guide](../../../docs/verification/README.md)
+and [Android fixture instructions](../../../docs/verification/android-threads.md).
 Use a disposable emulator and isolated fixture with synthetic content. The
 preview variant supports scanner/manual pairing and intentionally excludes
 system pairing links and share entrypoints; retain those boundaries. Record the

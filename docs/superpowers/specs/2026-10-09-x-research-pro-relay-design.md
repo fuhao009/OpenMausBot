@@ -30,7 +30,7 @@ Two repositories change:
 ### Relay
 
 - `POST /api/cloud/services/x/call/<endpoint>` on the Cloud origin, next to
-  Boat, voice and decider in `server/cloud-services.ts`. No session or CSRF;
+  Boat, voice and decider in `desktop/server/cloud-services.ts`. No session or CSRF;
   a relay token.
 - `<endpoint>` must be one of the app's eight X endpoints:
   `anyapi.x.search.posts`, `treg.x.search.posts`, `anyapi.x.user.posts`,
@@ -98,7 +98,7 @@ loading.
 
 ### Included credential
 
-- `server/included-services.ts`: `xCredential()` returns `{ token, api }`.
+- `desktop/server/included-services.ts`: `xCredential()` returns `{ token, api }`.
   - A Cloud home reads `OMB_CLOUD_X_URL` and `OMB_CLOUD_X_TOKEN` at boot, held
     in memory like the others (`CLOUD_HOME_SECRET_KEYS`,
     `cloud-home-start.ts` `SERVER_ENV_NAMES`, `WORKSPACE_CREDENTIAL_ENV`,
@@ -106,7 +106,7 @@ loading.
   - The desktop's main process sends
     `{ type: "hezuo:included-x", access: { url, token } | null }` on the
     server's parent port; `null` clears it. Never written to disk.
-- Desktop main (`electron/main.mjs`, `cloud-account.mjs`): when the Cloud
+- Desktop main (`desktop/electron/main.mjs`, `cloud-account.mjs`): when the Cloud
   account is connected with an active paid entitlement, it asks the Admin for
   the X token and sends it to the server. On sign-out, an inactive plan or
   re-sign-in required, it sends `null`. It sends again after the server
@@ -117,7 +117,7 @@ loading.
 
 ### Client and gate
 
-- `server/x-research.ts` calls `<url>/call/<endpoint>` with
+- `desktop/server/x-research.ts` calls `<url>/call/<endpoint>` with
   `Authorization: Bearer <token>`. Endpoints, fallback, row mapping, links and
   the result cap are unchanged.
 - New sentences:

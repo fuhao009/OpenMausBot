@@ -27,7 +27,7 @@ afterEach(() => {
 describe("gatewayPlist", () => {
   const spec = {
     node: "/Users/example/Library/ApplicationSupport/HezuoGateway/service/node",
-    script: "/Users/example/checkout/scripts/local-gateway.mjs",
+    script: "/Users/example/checkout/gateway/local/local-gateway.mjs",
     configPath: "/Users/example/Library/ApplicationSupport/HezuoGateway/gateway.json",
     home: "/Users/example",
     workingDirectory: "/Users/example/Library/ApplicationSupport/HezuoGateway",

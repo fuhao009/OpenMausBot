@@ -4,7 +4,7 @@
 
 **Goal:** Record a bot's host-computer tool calls per request, save them as a recipe when the request succeeds and every step is safely replayable, and answer the same words later by replaying the steps with no model call, handing over to the AI with a note when a step fails.
 
-**Architecture:** The host computer's gated MCP bridge (`server/mcp-bridge.ts`) posts each `tools/call` and its slimmed result to a new internal route before the engine sees the result; the server keeps that journal in memory per thread and counts the gate checks the bridge makes, so a lost entry is detectable. All logic lives in `server/saved-steps/`: a recipe builder (the saveability rules), a per-bot JSON store, a target resolver, a step runner and a dispatch wrapper modelled on `QuickModelFallback` that stands in for the engine for one turn. `server/index.ts` gains three lines; every other wiring edit changes an existing line.
+**Architecture:** The host computer's gated MCP bridge (`desktop/server/mcp-bridge.ts`) posts each `tools/call` and its slimmed result to a new internal route before the engine sees the result; the server keeps that journal in memory per thread and counts the gate checks the bridge makes, so a lost entry is detectable. All logic lives in `desktop/server/saved-steps/`: a recipe builder (the saveability rules), a per-bot JSON store, a target resolver, a step runner and a dispatch wrapper modelled on `QuickModelFallback` that stands in for the engine for one turn. `desktop/server/index.ts` gains three lines; every other wiring edit changes an existing line.
 
 **Tech Stack:** TypeScript on Node with `--experimental-strip-types`, vitest, zod, React + Tailwind renderer, cua-driver 0.28.2 over MCP stdio.
 
@@ -13,22 +13,22 @@
 ## Global Constraints
 
 - Work only in `/Users/omkar/Desktop/hezuo/OpenGrokBot-learn-watch-talk` on `feat/learned-replay`. Never push. Every commit message ends with a blank line and `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Comments follow `AGENTS.md`: only what code cannot say (vendor facts with version, wire doc comments in `shared/`, security invariants, known open risks). No narration.
+- Comments follow `AGENTS.md`: only what code cannot say (vendor facts with version, wire doc comments in `packages/shared/`, security invariants, known open risks). No narration.
 - The server runs on type stripping: type-only imports are `import type` (or inline `type`).
-- `server/index.ts` is at 16170 lines against a file-size ratchet of 16173 (`scripts/testing/file-size-ratchet.test.ts`). This plan adds exactly three lines there and removes one. `server/config.ts` (1365/1365), `src/components/ChatView.tsx` (1348/1348) and `src/state/store.tsx` (3456/3456) may not grow at all: their edits extend existing lines.
-- `server/index.ts` may not gain a `path === "/` comparison (`scripts/testing/index-route-ratchet.test.ts`, at 92/92). New routes live in `server/routes/` modules; the journal path is compared through the constant `COMPUTER_JOURNAL_PATH`.
-- Journalling runs only when `OMB_COMPUTER_JOURNAL=1`, which only `gatedLocalComputer` (`server/local-computer.ts:29-47`) sets. Local VM, VPS, Cloud Boat, team computers and the browser never journal or replay.
+- `desktop/server/index.ts` is at 16170 lines against a file-size ratchet of 16173 (`scripts/testing/file-size-ratchet.test.ts`). This plan adds exactly three lines there and removes one. `desktop/server/config.ts` (1365/1365), `desktop/src/components/ChatView.tsx` (1348/1348) and `desktop/src/state/store.tsx` (3456/3456) may not grow at all: their edits extend existing lines.
+- `desktop/server/index.ts` may not gain a `path === "/` comparison (`scripts/testing/index-route-ratchet.test.ts`, at 92/92). New routes live in `desktop/server/routes/` modules; the journal path is compared through the constant `COMPUTER_JOURNAL_PATH`.
+- Journalling runs only when `OMB_COMPUTER_JOURNAL=1`, which only `gatedLocalComputer` (`desktop/server/local-computer.ts:29-47`) sets. Local VM, VPS, Cloud Boat, team computers and the browser never journal or replay.
 - Journal POST: `POST /api/internal/computer/journal`, body `{tool, arguments, result}`, awaited before the response is forwarded, 1 000 ms timeout, then forward anyway.
 - cua-driver's MCP wire uses snake_case (`element_index`, `element_token`, `parent_index`, `window_id`, `window_title`, `app_name`, `bundle_id`); `node_modules/@trycua/cua-driver/dist/native/cua_driver_contract.d.ts` (`WindowElement` ~1379, `WindowStateOutput` ~1404, `AppInfo` ~90, `WindowInfo` ~935) gives the same fields in camelCase. The contract types no `launch_app` output: read its `pid`, `bundle_id`, `name` defensively.
 - Element values (`value`, `valueDescription`), frames, screenshots and all `content` never leave the bridge.
-- Recipe file: `DATA_DIR/bots/<botId>/saved-steps.json`, mode `0o600`, written with `writeFileAtomic` (`server/atomic.ts`); at most 200 recipes per bot; a recipe unused for 60 days is dropped.
+- Recipe file: `DATA_DIR/bots/<botId>/saved-steps.json`, mode `0o600`, written with `writeFileAtomic` (`desktop/server/atomic.ts`); at most 200 recipes per bot; a recipe unused for 60 days is dropped.
 - 1 to 40 action steps per recipe; a replayed step's call times out after 60 000 ms (past the control gate's 45 s hold).
 - Replay runs only when the turn's `approvalMode === "full"`, the setting is on, the turn is a direct text-only person turn and `integrations.localComputer.scope === "local-computer"`.
 - Approval per replayed action: `request.opened` with `tool: "mcp__computer__<name>"`, `approvalScope: "local-computer"`, `allowSession: false`.
 - Key normalising: NFKC, lowercase, punctuation and symbols to spaces, filler phrases dropped as whole words (`please`, `can you`, `could you`, `hey`, `just`, `now`, `quickly`), spaces collapsed. Moment words: `this`, `that`, `it`, `here`, `there`, `these`, `those`, `them`.
 - Never address a replayed step by `x`/`y`. A recipe never holds `element_token`, `element_index`, `pid`, `window_id` or `session`; targets are resolved fresh.
 - Wire field: `WireMessage.savedSteps?: { recipeId: string; learned?: true; replayed?: true }`. Setting: `config.json` `features.savedSteps`, on unless `false`.
-- Copy (English, `src/locales/en.json`): chips "Saved these steps · next time no AI" / "Repeated saved steps · no AI" with a "Forget" button; setting title "Repeat computer tasks without AI".
+- Copy (English, `desktop/src/locales/en.json`): chips "Saved these steps · next time no AI" / "Repeated saved steps · no AI" with a "Forget" button; setting title "Repeat computer tasks without AI".
 - Phones are untouched (no `mausbot-mobile` work); the forget route is not added to `CLIENT_ALLOW`.
 - Test commands: `pnpm exec vitest run <file>`; `pnpm typecheck`; `pnpm lint`; `pnpm i18n:check`.
 - Line numbers are those of commit `8a82b4a79`. A line an earlier task inserts shifts every later one, so find each edit by the code quoted beside it.
@@ -46,8 +46,8 @@
 ### Task 1: Request key and word rules
 
 **Files:**
-- Create: `server/saved-steps/key.ts`
-- Test: `server/saved-steps/key.test.ts`
+- Create: `desktop/server/saved-steps/key.ts`
+- Test: `desktop/server/saved-steps/key.test.ts`
 
 **Interfaces:**
 - Produces: `requestKey(text: string): string`, `hasMomentWords(text: string): boolean`, `inRequest(fragment: string, request: string): boolean`, `firstSentence(text: string): string | null`.
@@ -84,22 +84,22 @@ it("keeps the first sentence of a reply", () => {
 
 - [ ] **Step 2: Run it and see it fail**
 
-Run: `pnpm exec vitest run server/saved-steps/key.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/key.test.ts`
 Expected: FAIL, cannot find module `./key.ts`.
 
-- [ ] **Step 3: Implement the four functions in `server/saved-steps/key.ts`**
+- [ ] **Step 3: Implement the four functions in `desktop/server/saved-steps/key.ts`**
 
 `requestKey`: `normalize("NFKC")`, `toLowerCase()`, replace `/[\p{P}\p{S}]+/gu` with a space, collapse whitespace, remove the filler phrases (longest first) with `(?<![\p{L}\p{N}])phrase(?![\p{L}\p{N}])` (`u` flag), collapse and trim. `hasMomentWords`: any token of `requestKey(text).split(" ")` in the moment set. `inRequest`: trimmed fragment non-empty and found in `request` by the same Unicode word-boundary pattern with the fragment regex-escaped, flags `iu`. `firstSentence`: trimmed text up to and including the first `[.!?]` followed by whitespace or end; longer than 280 characters is cut at the last space before 280 and ends with `…`; `null` when it holds no letter or digit.
 
 - [ ] **Step 4: Run it and see it pass**
 
-Run: `pnpm exec vitest run server/saved-steps/key.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/key.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/saved-steps/key.ts server/saved-steps/key.test.ts
+git add desktop/server/saved-steps/key.ts desktop/server/saved-steps/key.test.ts
 git commit -m "feat(saved-steps): request key and word rules" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -108,9 +108,9 @@ git commit -m "feat(saved-steps): request key and word rules" -m "Co-Authored-By
 ### Task 2: The bridge journals host-computer calls
 
 **Files:**
-- Create: `server/saved-steps/driver-wire.ts`, `server/saved-steps/journal-tap.ts`
-- Modify: `server/mcp-bridge.ts:94-103` (`BridgeOptions`), `server/mcp-bridge.ts:198-290` (`runMcpBridge`), `server/local-computer-proxy.ts:6-37`, `server/local-computer.ts:29-47`
-- Test: `server/saved-steps/driver-wire.test.ts`, `server/saved-steps/journal-tap.test.ts`, `server/local-computer-proxy.test.ts`, `server/local-computer.test.ts:99`
+- Create: `desktop/server/saved-steps/driver-wire.ts`, `desktop/server/saved-steps/journal-tap.ts`
+- Modify: `desktop/server/mcp-bridge.ts:94-103` (`BridgeOptions`), `desktop/server/mcp-bridge.ts:198-290` (`runMcpBridge`), `desktop/server/local-computer-proxy.ts:6-37`, `desktop/server/local-computer.ts:29-47`
+- Test: `desktop/server/saved-steps/driver-wire.test.ts`, `desktop/server/saved-steps/journal-tap.test.ts`, `desktop/server/local-computer-proxy.test.ts`, `desktop/server/local-computer.test.ts:99`
 
 **Interfaces:**
 - Produces (driver-wire.ts):
@@ -191,7 +191,7 @@ it("journals each tools/call before the engine sees its reply, and forwards anyw
 
 - [ ] **Step 2: Run them and see them fail**
 
-Run: `pnpm exec vitest run server/saved-steps/driver-wire.test.ts server/saved-steps/journal-tap.test.ts server/local-computer-proxy.test.ts server/local-computer.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/driver-wire.test.ts desktop/server/saved-steps/journal-tap.test.ts desktop/server/local-computer-proxy.test.ts desktop/server/local-computer.test.ts`
 Expected: FAIL (missing modules; proxy case never sees a POST; env mismatch).
 
 - [ ] **Step 3: Implement**
@@ -206,13 +206,13 @@ Expected: FAIL (missing modules; proxy case never sees a POST; env mismatch).
 
 - [ ] **Step 4: Run them and see them pass**
 
-Run: `pnpm exec vitest run server/saved-steps/driver-wire.test.ts server/saved-steps/journal-tap.test.ts server/local-computer-proxy.test.ts server/local-computer.test.ts server/mcp-bridge.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/driver-wire.test.ts desktop/server/saved-steps/journal-tap.test.ts desktop/server/local-computer-proxy.test.ts desktop/server/local-computer.test.ts desktop/server/mcp-bridge.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/saved-steps/driver-wire.ts server/saved-steps/journal-tap.ts server/saved-steps/*.test.ts server/mcp-bridge.ts server/local-computer-proxy.ts server/local-computer.ts server/local-computer-proxy.test.ts server/local-computer.test.ts
+git add desktop/server/saved-steps/driver-wire.ts desktop/server/saved-steps/journal-tap.ts desktop/server/saved-steps/*.test.ts desktop/server/mcp-bridge.ts desktop/server/local-computer-proxy.ts desktop/server/local-computer.ts desktop/server/local-computer-proxy.test.ts desktop/server/local-computer.test.ts
 git commit -m "feat(saved-steps): the host computer bridge journals each call before the engine sees it" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -221,9 +221,9 @@ git commit -m "feat(saved-steps): the host computer bridge journals each call be
 ### Task 3: Server journal, internal route and gate count
 
 **Files:**
-- Create: `server/saved-steps/journal.ts`, `server/routes/computer-journal.ts`, `server/saved-steps/saved-steps.ts`
-- Modify: `server/index.ts:88` (import, same line), `server/index.ts:1539` (one new line before it), `server/index.ts:13382`, `server/index.ts:13563`, `server/index.ts:15051`
-- Test: `server/saved-steps/journal.test.ts`, `server/routes/computer-journal.test.ts`
+- Create: `desktop/server/saved-steps/journal.ts`, `desktop/server/routes/computer-journal.ts`, `desktop/server/saved-steps/saved-steps.ts`
+- Modify: `desktop/server/index.ts:88` (import, same line), `desktop/server/index.ts:1539` (one new line before it), `desktop/server/index.ts:13382`, `desktop/server/index.ts:13563`, `desktop/server/index.ts:15051`
+- Test: `desktop/server/saved-steps/journal.test.ts`, `desktop/server/routes/computer-journal.test.ts`
 
 **Interfaces:**
 - Consumes: `JournalEntry`, `COMPUTER_JOURNAL_PATH` (Task 2).
@@ -264,7 +264,7 @@ it("journals only this computer's turns", () => {
 it("rejects malformed entries", () => { /* tool "../x", arguments [], result {} -> null */ });
 ```
 
-`routes/computer-journal.test.ts` (same harness as `server/routes/reactions.test.ts`):
+`routes/computer-journal.test.ts` (same harness as `desktop/server/routes/reactions.test.ts`):
 ```ts
 it("records a host turn's entry", async () => { /* POST COMPUTER_JOURNAL_PATH -> 200 {ok:true}; record called with scope and entry */ });
 it("refuses a Local VM or cloud turn with 403", async () => {});
@@ -274,7 +274,7 @@ it("passes other paths and methods", async () => {});
 
 - [ ] **Step 2: Run them and see them fail**
 
-Run: `pnpm exec vitest run server/saved-steps/journal.test.ts server/routes/computer-journal.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/journal.test.ts desktop/server/routes/computer-journal.test.ts`
 Expected: FAIL, modules missing.
 
 - [ ] **Step 3: Implement**
@@ -285,7 +285,7 @@ The route reads the body only after `hostScope` passes. Put this comment on the 
 
 `saved-steps.ts`: `export function createSavedSteps(deps: SavedStepsDeps = {}): SavedSteps` with `interface SavedStepsDeps { now?: () => number }` for now.
 
-`server/index.ts`, each edit on an existing line unless stated:
+`desktop/server/index.ts`, each edit on an existing line unless stated:
 - line 88: append `import { COMPUTER_JOURNAL_PATH, createSavedSteps } from "./saved-steps/saved-steps.ts";`
 - new line before 1539: `const savedSteps = createSavedSteps({});`
 - line 13382: `: path === "/api/internal/computer-control" || path === "/api/internal/computer/mcp" || path === COMPUTER_JOURNAL_PATH`
@@ -294,13 +294,13 @@ The route reads the body only after `hostScope` passes. Put this comment on the 
 
 - [ ] **Step 4: Run them and see them pass**
 
-Run: `pnpm exec vitest run server/saved-steps/journal.test.ts server/routes/computer-journal.test.ts scripts/testing/index-route-ratchet.test.ts scripts/testing/file-size-ratchet.test.ts && pnpm typecheck`
-Expected: PASS; `server/index.ts` at 16171 lines.
+Run: `pnpm exec vitest run desktop/server/saved-steps/journal.test.ts desktop/server/routes/computer-journal.test.ts scripts/testing/index-route-ratchet.test.ts scripts/testing/file-size-ratchet.test.ts && pnpm typecheck`
+Expected: PASS; `desktop/server/index.ts` at 16171 lines.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/saved-steps/journal.ts server/saved-steps/journal.test.ts server/saved-steps/saved-steps.ts server/routes/computer-journal.ts server/routes/computer-journal.test.ts server/index.ts
+git add desktop/server/saved-steps/journal.ts desktop/server/saved-steps/journal.test.ts desktop/server/saved-steps/saved-steps.ts desktop/server/routes/computer-journal.ts desktop/server/routes/computer-journal.test.ts desktop/server/index.ts
 git commit -m "feat(saved-steps): keep the host computer's journal per request and count its gated calls" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -309,11 +309,11 @@ git commit -m "feat(saved-steps): keep the host computer's journal per request a
 ### Task 4: Saveability rules and the recipe builder
 
 **Files:**
-- Create: `server/saved-steps/rules.ts`, `server/testing/saved-steps-fixtures.ts`
-- Test: `server/saved-steps/rules.test.ts`
+- Create: `desktop/server/saved-steps/rules.ts`, `desktop/server/testing/saved-steps-fixtures.ts`
+- Test: `desktop/server/saved-steps/rules.test.ts`
 
 **Interfaces:**
-- Consumes: Task 1 functions; `WireElement`, `elementPath`, `SlimStructured` (Task 2); `RequestJournal`, `RecordedCall` (Task 3); `Message` from `server/store.ts`.
+- Consumes: Task 1 functions; `WireElement`, `elementPath`, `SlimStructured` (Task 2); `RequestJournal`, `RecordedCall` (Task 3); `Message` from `desktop/server/store.ts`.
 - Produces:
   - `type ActionTool = "click" | "double_click" | "right_click" | "type_text" | "set_value" | "press_key" | "scroll" | "launch_app" | "bring_to_front" | "hotkey"`
   - `const OBSERVATION_TOOLS: ReadonlySet<string>` = `get_window_state, list_apps, list_windows, get_accessibility_tree, get_desktop_state, get_screen_size, get_cursor_position, get_agent_cursor_state, get_session_state, check_permissions, screenshot`
@@ -384,7 +384,7 @@ it.each([
 
 - [ ] **Step 2: Run it and see it fail**
 
-Run: `pnpm exec vitest run server/saved-steps/rules.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/rules.test.ts`
 Expected: FAIL, module missing.
 
 - [ ] **Step 3: Implement `rules.ts`**
@@ -409,13 +409,13 @@ Expected: FAIL, module missing.
 
 - [ ] **Step 4: Run it and see it pass**
 
-Run: `pnpm exec vitest run server/saved-steps/rules.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/rules.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/saved-steps/rules.ts server/saved-steps/rules.test.ts server/testing/saved-steps-fixtures.ts
+git add desktop/server/saved-steps/rules.ts desktop/server/saved-steps/rules.test.ts desktop/server/testing/saved-steps-fixtures.ts
 git commit -m "feat(saved-steps): saveability rules turn a request's journal into a recipe" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -424,11 +424,11 @@ git commit -m "feat(saved-steps): saveability rules turn a request's journal int
 ### Task 5: Recipe store
 
 **Files:**
-- Create: `server/saved-steps/store.ts`
-- Test: `server/saved-steps/store.test.ts`
+- Create: `desktop/server/saved-steps/store.ts`
+- Test: `desktop/server/saved-steps/store.test.ts`
 
 **Interfaces:**
-- Consumes: `Recipe` (Task 4); `writeFileAtomic` (`server/atomic.ts:57`).
+- Consumes: `Recipe` (Task 4); `writeFileAtomic` (`desktop/server/atomic.ts:57`).
 - Produces: `const MAX_RECIPES = 200`, `const UNUSED_MS = 60 * 24 * 60 * 60 * 1000`, `class RecipeStore { constructor(options: { folder: (botId: string) => string; now?: () => number }); find(botId: string, key: string): Recipe | undefined; save(botId: string, recipe: Recipe): void; touch(botId: string, recipeId: string): void; forget(botId: string, recipeId: string): boolean }`. The file is `<folder>/saved-steps.json` holding `{ "version": 1, "recipes": Recipe[] }`.
 
 - [ ] **Step 1: Write the failing test** (each case in a fresh `mkdtempSync` folder)
@@ -454,7 +454,7 @@ it("drops malformed recipes and keeps the rest", () => { /* one with steps: "x",
 
 - [ ] **Step 2: Run it and see it fail**
 
-Run: `pnpm exec vitest run server/saved-steps/store.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/store.test.ts`
 Expected: FAIL, module missing.
 
 - [ ] **Step 3: Implement `store.ts`**
@@ -463,13 +463,13 @@ Read the file on each call (no cache); validate with a zod schema of `Recipe` (e
 
 - [ ] **Step 4: Run it and see it pass**
 
-Run: `pnpm exec vitest run server/saved-steps/store.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/store.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/saved-steps/store.ts server/saved-steps/store.test.ts
+git add desktop/server/saved-steps/store.ts desktop/server/saved-steps/store.test.ts
 git commit -m "feat(saved-steps): per-bot recipe store with caps and expiry" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -478,8 +478,8 @@ git commit -m "feat(saved-steps): per-bot recipe store with caps and expiry" -m 
 ### Task 6: Target resolver
 
 **Files:**
-- Create: `server/saved-steps/resolve.ts`
-- Test: `server/saved-steps/resolve.test.ts`
+- Create: `desktop/server/saved-steps/resolve.ts`
+- Test: `desktop/server/saved-steps/resolve.test.ts`
 
 **Interfaces:**
 - Consumes: `RecipeStep`, `AppIdentity`, `ElementIdentity`, `stepLabel` (Task 4); `WireElement`, `elementPath` (Task 2); fixtures (Task 4).
@@ -514,7 +514,7 @@ it("needs no lookups for launch_app", async () => { /* calls stays empty; args e
 
 - [ ] **Step 2: Run it and see it fail**
 
-Run: `pnpm exec vitest run server/saved-steps/resolve.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/resolve.test.ts`
 Expected: FAIL, module missing.
 
 - [ ] **Step 3: Implement `resolve.ts`**
@@ -525,13 +525,13 @@ Expected: FAIL, module missing.
 
 - [ ] **Step 4: Run it and see it pass**
 
-Run: `pnpm exec vitest run server/saved-steps/resolve.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/resolve.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/saved-steps/resolve.ts server/saved-steps/resolve.test.ts
+git add desktop/server/saved-steps/resolve.ts desktop/server/saved-steps/resolve.test.ts
 git commit -m "feat(saved-steps): resolve a saved step's target on the live screen" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -540,12 +540,12 @@ git commit -m "feat(saved-steps): resolve a saved step's target on the live scre
 ### Task 7: Computer caller and step runner
 
 **Files:**
-- Create: `server/saved-steps/computer-client.ts`, `server/saved-steps/replay.ts`
-- Modify: `server/drivers/chat-mcp-tools.ts:70` (`class ChatMcpClient` → `export class ChatMcpClient`)
-- Test: `server/saved-steps/computer-client.test.ts`, `server/saved-steps/replay.test.ts`
+- Create: `desktop/server/saved-steps/computer-client.ts`, `desktop/server/saved-steps/replay.ts`
+- Modify: `desktop/server/drivers/chat-mcp-tools.ts:70` (`class ChatMcpClient` → `export class ChatMcpClient`)
+- Test: `desktop/server/saved-steps/computer-client.test.ts`, `desktop/server/saved-steps/replay.test.ts`
 
 **Interfaces:**
-- Consumes: `ComputerCaller`, `CallOutcome`, `resolveStep` (Task 6); `Recipe`, `stepLabel` (Task 4); `ChatMcpClient` (`call(method, params, signal, timeout)`, `tools(signal)`, `close()`); `RuntimeEvent`, `newId` (`server/contracts.ts`).
+- Consumes: `ComputerCaller`, `CallOutcome`, `resolveStep` (Task 6); `Recipe`, `stepLabel` (Task 4); `ChatMcpClient` (`call(method, params, signal, timeout)`, `tools(signal)`, `close()`); `RuntimeEvent`, `newId` (`desktop/server/contracts.ts`).
 - Produces (computer-client.ts):
   - `const STEP_TIMEOUT_MS = 60_000`
   - `type LocalComputerSpec = { command: string; args: string[]; env: Record<string, string> }`
@@ -564,7 +564,7 @@ git commit -m "feat(saved-steps): resolve a saved step's target on the live scre
 `computer-client.test.ts`:
 ```ts
 it("calls a tool through MCP after the handshake", async () => {
-  // server/testing/fake-mcp-server.ts with FAKE_MCP_CALL_FILE in its env
+  // desktop/server/testing/fake-mcp-server.ts with FAKE_MCP_CALL_FILE in its env
   const caller = await openComputerCaller({ command: process.execPath, args: ["--experimental-strip-types", FAKE], env: { FAKE_MCP_CALL_FILE: file } }, signal);
   expect(await caller.call("click", { element_token: "s2-e2" }, signal)).toEqual({ ok: true, structured: {} });
   expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ name: "click", arguments: { element_token: "s2-e2" } });
@@ -605,7 +605,7 @@ it("says what was declined", () => expect(declinedReply({ kind: "declined", tool
 
 - [ ] **Step 2: Run them and see them fail**
 
-Run: `pnpm exec vitest run server/saved-steps/computer-client.test.ts server/saved-steps/replay.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/computer-client.test.ts desktop/server/saved-steps/replay.test.ts`
 Expected: FAIL, modules missing.
 
 - [ ] **Step 3: Implement**
@@ -616,13 +616,13 @@ Expected: FAIL, modules missing.
 
 - [ ] **Step 4: Run them and see them pass**
 
-Run: `pnpm exec vitest run server/saved-steps/computer-client.test.ts server/saved-steps/replay.test.ts server/drivers/chat-mcp-tools.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/computer-client.test.ts desktop/server/saved-steps/replay.test.ts desktop/server/drivers/chat-mcp-tools.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/saved-steps/computer-client.ts server/saved-steps/replay.ts server/saved-steps/computer-client.test.ts server/saved-steps/replay.test.ts server/drivers/chat-mcp-tools.ts
+git add desktop/server/saved-steps/computer-client.ts desktop/server/saved-steps/replay.ts desktop/server/saved-steps/computer-client.test.ts desktop/server/saved-steps/replay.test.ts desktop/server/drivers/chat-mcp-tools.ts
 git commit -m "feat(saved-steps): run saved steps through the gated computer with an approval per action" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -631,18 +631,18 @@ git commit -m "feat(saved-steps): run saved steps through the gated computer wit
 ### Task 8: Dispatch wrapper, setting flag and engine wiring
 
 **Files:**
-- Create: `server/saved-steps/dispatch.ts`
-- Modify: `server/saved-steps/saved-steps.ts`; `server/config.ts:262` and `server/config.ts:519` (same lines); `server/index.ts:88`, `1539` (the line Task 3 added), `1539-1540` (now 1540-1541), `6699-6701`, `8654`, `8679-8680`, `12204`
-- Test: `server/saved-steps/dispatch.test.ts`, `server/index.test.ts:9377,9387,9395`
+- Create: `desktop/server/saved-steps/dispatch.ts`
+- Modify: `desktop/server/saved-steps/saved-steps.ts`; `desktop/server/config.ts:262` and `desktop/server/config.ts:519` (same lines); `desktop/server/index.ts:88`, `1539` (the line Task 3 added), `1539-1540` (now 1540-1541), `6699-6701`, `8654`, `8679-8680`, `12204`
+- Test: `desktop/server/saved-steps/dispatch.test.ts`, `desktop/server/index.test.ts:9377,9387,9395`
 
 **Interfaces:**
-- Consumes: Tasks 1, 4, 5, 6, 7; `createChatToolApproval` (`server/drivers/chat-tool-approval.ts:25`); `ProviderInstance`, `ProviderAdapter`, `SendTurnInput`, `TurnStartResult`, `RuntimeEvent`, `newId` (`server/contracts.ts`).
+- Consumes: Tasks 1, 4, 5, 6, 7; `createChatToolApproval` (`desktop/server/drivers/chat-tool-approval.ts:25`); `ProviderInstance`, `ProviderAdapter`, `SendTurnInput`, `TurnStartResult`, `RuntimeEvent`, `newId` (`desktop/server/contracts.ts`).
 - Produces (dispatch.ts):
   - `interface EngineSlots { get(threadId: string): ProviderInstance | undefined; set(threadId: string, engine: ProviderInstance): void }`
   - `interface ReplayRequest { botId: string; message: Message }`
   - `interface DispatchDeps { recipes: Pick<RecipeStore, "find" | "forget">; enabled(): boolean; publish(event: RuntimeEvent): void; engines: EngineSlots; stopped(threadId: string): boolean; openCaller(computer: LocalComputerSpec, signal: AbortSignal): Promise<ComputerCaller & { close(): Promise<void> }> }`
   - `class SavedStepsDispatch { constructor(deps: DispatchDeps); sendTurn(engine: ProviderInstance, request: ReplayRequest | null, input: SendTurnInput, start: (input: SendTurnInput) => Promise<TurnStartResult>): Promise<TurnStartResult>; take(event: RuntimeEvent): boolean; replayed(threadId: string, turnId: string): string | undefined }`
-- Produces (saved-steps.ts): `savedStepsEnabled(cfg: Pick<AppConfig, "features">): boolean` (`features?.savedSteps !== false`); `SavedSteps.dispatch: SavedStepsDispatch`; `SavedSteps.recipes: RecipeStore`; `SavedStepsDeps` gains `enabled(): boolean; publish(event: RuntimeEvent): void; engines: EngineSlots; stopped(threadId: string): boolean; folder?: (botId: string) => string` (default `botFolder` from `server/bot-folder.ts`); the facade builds one `RecipeStore` and passes `openComputerCaller`.
+- Produces (saved-steps.ts): `savedStepsEnabled(cfg: Pick<AppConfig, "features">): boolean` (`features?.savedSteps !== false`); `SavedSteps.dispatch: SavedStepsDispatch`; `SavedSteps.recipes: RecipeStore`; `SavedStepsDeps` gains `enabled(): boolean; publish(event: RuntimeEvent): void; engines: EngineSlots; stopped(threadId: string): boolean; folder?: (botId: string) => string` (default `botFolder` from `desktop/server/bot-folder.ts`); the facade builds one `RecipeStore` and passes `openComputerCaller`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -689,11 +689,11 @@ it("Stop during a replay ends the turn interrupted", async () => {
 it("leaves other threads' and turns' events alone", () => expect(dispatch.take(ev("item.completed", "x", "t2"))).toBe(false));
 ```
 
-In `server/index.test.ts` add `savedSteps: true` to the three `features` objects at lines 9377, 9387 and 9395.
+In `desktop/server/index.test.ts` add `savedSteps: true` to the three `features` objects at lines 9377, 9387 and 9395.
 
 - [ ] **Step 2: Run it and see it fail**
 
-Run: `pnpm exec vitest run server/saved-steps/dispatch.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/dispatch.test.ts`
 Expected: FAIL, module missing.
 
 - [ ] **Step 3: Implement `SavedStepsDispatch`**
@@ -710,7 +710,7 @@ The run publishes `turn.started`, opens the caller with `deps.openCaller(input.i
 
 `config.ts`: line 262 becomes `}).extend({ agentsToolBridge: z.boolean().optional(), savedSteps: z.boolean().optional() }); // agentsToolBridge: the find_tool / use_tool bridge, off unless true; savedSteps: repeat a computer task from its saved steps, on unless false`; line 519 gains `; savedSteps?: boolean` inside `features`.
 
-`server/index.ts`, all on existing lines:
+`desktop/server/index.ts`, all on existing lines:
 - line 88: add `savedStepsEnabled` to the Task 3 import.
 - the `createSavedSteps({})` line: `createSavedSteps({ enabled: () => savedStepsEnabled(cfg), publish: (event) => bus.publish(event), engines: { get: (threadId) => runningTurnEngines.get(threadId), set: (threadId, engine) => { runningTurnEngines.set(threadId, engine); } }, stopped: (threadId) => directRequestOwners.get(threadId)?.stopped === true })` (closures only: `bus`, `runningTurnEngines` and `directRequestOwners` are declared later).
 - `QuickModelFallback` line: `publish: (event) => { if (!savedSteps.dispatch.take(event)) bus.publish(event); }`.
@@ -723,13 +723,13 @@ The run publishes `turn.started`, opens the caller with `deps.openCaller(input.i
 
 - [ ] **Step 4: Run them and see them pass**
 
-Run: `pnpm exec vitest run server/saved-steps/dispatch.test.ts server/quick-model-fallback.test.ts scripts/testing/file-size-ratchet.test.ts scripts/testing/index-route-ratchet.test.ts && pnpm exec vitest run server/index.test.ts -t "keeps skill authoring on by default" && pnpm exec vitest run server/full-access-workflows.e2e.test.ts server/full-access-default.e2e.test.ts server/host-lazy-claim.e2e.test.ts && pnpm typecheck`
-Expected: PASS; `server/index.ts` at 16170 lines, `server/config.ts` at 1365.
+Run: `pnpm exec vitest run desktop/server/saved-steps/dispatch.test.ts desktop/server/quick-model-fallback.test.ts scripts/testing/file-size-ratchet.test.ts scripts/testing/index-route-ratchet.test.ts && pnpm exec vitest run desktop/server/index.test.ts -t "keeps skill authoring on by default" && pnpm exec vitest run desktop/server/full-access-workflows.e2e.test.ts desktop/server/full-access-default.e2e.test.ts desktop/server/host-lazy-claim.e2e.test.ts && pnpm typecheck`
+Expected: PASS; `desktop/server/index.ts` at 16170 lines, `desktop/server/config.ts` at 1365.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/saved-steps/dispatch.ts server/saved-steps/dispatch.test.ts server/saved-steps/saved-steps.ts server/config.ts server/index.ts server/index.test.ts
+git add desktop/server/saved-steps/dispatch.ts desktop/server/saved-steps/dispatch.test.ts desktop/server/saved-steps/saved-steps.ts desktop/server/config.ts desktop/server/index.ts desktop/server/index.test.ts
 git commit -m "feat(saved-steps): replay a saved request in place of the engine, falling back with a note" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -738,8 +738,8 @@ git commit -m "feat(saved-steps): replay a saved request in place of the engine,
 ### Task 9: Save on success and mark the reply
 
 **Files:**
-- Modify: `server/saved-steps/saved-steps.ts`, `shared/wire.ts:551` (after `turnCompletedAt`), `server/index.ts:4765` (same line), `server/index.ts` (one new line after `bus.attach(registry.instances());`)
-- Test: `server/saved-steps/saved-steps.test.ts`
+- Modify: `desktop/server/saved-steps/saved-steps.ts`, `packages/shared/wire.ts:551` (after `turnCompletedAt`), `desktop/server/index.ts:4765` (same line), `desktop/server/index.ts` (one new line after `bus.attach(registry.instances());`)
+- Test: `desktop/server/saved-steps/saved-steps.test.ts`
 
 **Interfaces:**
 - Consumes: Tasks 3, 4, 5, 8.
@@ -778,27 +778,27 @@ it("frees the journal even when it saves nothing", () => { /* enabled false, set
 
 - [ ] **Step 2: Run it and see it fail**
 
-Run: `pnpm exec vitest run server/saved-steps/saved-steps.test.ts`
+Run: `pnpm exec vitest run desktop/server/saved-steps/saved-steps.test.ts`
 Expected: FAIL, `requestSettled` missing.
 
 - [ ] **Step 3: Implement**
 
 `requestSettled`: take the journal for `generations` first (always). A replayed reply (`dispatch.replayed(threadId, reply.turnId)`) → `recipes.touch`, clear `quickModel` on the request when set, patch the reply `{ savedSteps: { recipeId, replayed: true } }`, stop. Otherwise stop unless `enabled()`, `!automated`, the journal has calls, `personTextRequest(request)` and no `after` line has `role === "user"`; then `buildRecipe({ request: request.text, reply: reply.text ?? "", journal, id: randomUUID(), now })`, save, patch `{ savedSteps: { recipeId, learned: true } }`. Refusals are silent.
 
-`server/index.ts`:
+`desktop/server/index.ts`:
 - line 4765: append ` savedSteps.requestSettled({ botId: bot.id, threadId, request: source, reply: terminal, after: messages, generations: owner.generations, automated: owner.automation !== undefined });`
 - the `createSavedSteps` line gains `patchMessage: (threadId, messageId, patch) => { store.patchMessage(threadId, messageId, patch); }, generation: (threadId) => directTurnGenerationByThread.get(threadId)`.
 - new line after `bus.attach(registry.instances());`: `bus.subscribe((event) => savedSteps.observe(event));`
 
 - [ ] **Step 4: Run it and see it pass**
 
-Run: `pnpm exec vitest run server/saved-steps/saved-steps.test.ts scripts/testing/file-size-ratchet.test.ts && pnpm typecheck`
-Expected: PASS; `server/index.ts` at 16171 lines.
+Run: `pnpm exec vitest run desktop/server/saved-steps/saved-steps.test.ts scripts/testing/file-size-ratchet.test.ts && pnpm typecheck`
+Expected: PASS; `desktop/server/index.ts` at 16171 lines.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/saved-steps/saved-steps.ts server/saved-steps/saved-steps.test.ts shared/wire.ts server/index.ts
+git add desktop/server/saved-steps/saved-steps.ts desktop/server/saved-steps/saved-steps.test.ts packages/shared/wire.ts desktop/server/index.ts
 git commit -m "feat(saved-steps): save a request's steps when it settles and mark the reply" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -807,15 +807,15 @@ git commit -m "feat(saved-steps): save a request's steps when it settles and mar
 ### Task 10: Forget route
 
 **Files:**
-- Create: `server/routes/saved-steps.ts`
-- Modify: `server/saved-steps/saved-steps.ts`, `server/index.ts` (one new line after the `createSavedSteps` line)
-- Test: `server/routes/saved-steps.test.ts`
+- Create: `desktop/server/routes/saved-steps.ts`
+- Modify: `desktop/server/saved-steps/saved-steps.ts`, `desktop/server/index.ts` (one new line after the `createSavedSteps` line)
+- Test: `desktop/server/routes/saved-steps.test.ts`
 
 **Interfaces:**
 - Consumes: `RecipeStore.forget` (Task 5).
 - Produces: `createSavedStepsRoutes(deps: { bot(id: string): unknown; forget(botId: string, recipeId: string): boolean }): RouteHandler` for `DELETE /api/bots/:botId/saved-steps/:recipeId`; `SavedSteps.routes: RouteHandler`; `SavedStepsDeps` gains `bot(id: string): unknown`.
 
-- [ ] **Step 1: Write the failing test** (harness as in `server/routes/reactions.test.ts`)
+- [ ] **Step 1: Write the failing test** (harness as in `desktop/server/routes/reactions.test.ts`)
 
 ```ts
 it("forgets a saved recipe", async () => expect(await del("/api/bots/b1/saved-steps/r1")).toEqual([200, { forgotten: true }]));
@@ -827,22 +827,22 @@ it("passes other methods and paths", async () => { /* GET same path -> "no route
 
 - [ ] **Step 2: Run it and see it fail**
 
-Run: `pnpm exec vitest run server/routes/saved-steps.test.ts`
+Run: `pnpm exec vitest run desktop/server/routes/saved-steps.test.ts`
 Expected: FAIL, module missing.
 
 - [ ] **Step 3: Implement**
 
-Match `^/api/bots/([\w-]+)/saved-steps/([^/]+)$` on `DELETE`; recipe id must match `^[\w-]{1,64}$`. The facade exposes `routes = createSavedStepsRoutes({ bot: deps.bot, forget: (botId, id) => recipes.forget(botId, id) })`. In `server/index.ts` the `createSavedSteps` line gains `bot: (id) => store.bot(id)`, and the new line after it is `ROUTES.push(savedSteps.routes);`. The path stays out of `CLIENT_ALLOW` (`server/request-auth.ts:277`): only the owner and admins forget.
+Match `^/api/bots/([\w-]+)/saved-steps/([^/]+)$` on `DELETE`; recipe id must match `^[\w-]{1,64}$`. The facade exposes `routes = createSavedStepsRoutes({ bot: deps.bot, forget: (botId, id) => recipes.forget(botId, id) })`. In `desktop/server/index.ts` the `createSavedSteps` line gains `bot: (id) => store.bot(id)`, and the new line after it is `ROUTES.push(savedSteps.routes);`. The path stays out of `CLIENT_ALLOW` (`desktop/server/request-auth.ts:277`): only the owner and admins forget.
 
 - [ ] **Step 4: Run it and see it pass**
 
-Run: `pnpm exec vitest run server/routes/saved-steps.test.ts scripts/testing/file-size-ratchet.test.ts scripts/testing/index-route-ratchet.test.ts && pnpm typecheck`
-Expected: PASS; `server/index.ts` at 16172 lines.
+Run: `pnpm exec vitest run desktop/server/routes/saved-steps.test.ts scripts/testing/file-size-ratchet.test.ts scripts/testing/index-route-ratchet.test.ts && pnpm typecheck`
+Expected: PASS; `desktop/server/index.ts` at 16172 lines.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/routes/saved-steps.ts server/routes/saved-steps.test.ts server/saved-steps/saved-steps.ts server/index.ts
+git add desktop/server/routes/saved-steps.ts desktop/server/routes/saved-steps.test.ts desktop/server/saved-steps/saved-steps.ts desktop/server/index.ts
 git commit -m "feat(saved-steps): forget a bot's saved steps over HTTP" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -851,16 +851,16 @@ git commit -m "feat(saved-steps): forget a bot's saved steps over HTTP" -m "Co-A
 ### Task 11: Chips under replies and the Settings switch
 
 **Files:**
-- Create: `src/components/SavedStepsChip.tsx`, `src/components/SavedStepsRow.tsx`
-- Modify: `src/components/ChatView.tsx:75` and `:871` (same lines), `src/components/SettingsModal.tsx` (import, and `<SavedStepsRow />` after `<NewBotEffortRow />` at line 680), `src/state/store.tsx:136` (add `"savedSteps"` to the `Pick`), `src/state/config-status.ts:111` and `src/lib/feature-flags.ts:4` (`savedSteps?: boolean` inside `features`, same lines), `src/lib/feature-flags.ts` (new function), `src/locales/en.json` (after `chat.setupOffer.button`, and beside `settings.analytics.*`)
-- Test: `src/components/SavedStepsChip.test.ts`, `src/components/SavedStepsRow.test.ts`, `src/lib/feature-flags.test.ts`
+- Create: `desktop/src/components/SavedStepsChip.tsx`, `desktop/src/components/SavedStepsRow.tsx`
+- Modify: `desktop/src/components/ChatView.tsx:75` and `:871` (same lines), `desktop/src/components/SettingsModal.tsx` (import, and `<SavedStepsRow />` after `<NewBotEffortRow />` at line 680), `desktop/src/state/store.tsx:136` (add `"savedSteps"` to the `Pick`), `desktop/src/state/config-status.ts:111` and `desktop/src/lib/feature-flags.ts:4` (`savedSteps?: boolean` inside `features`, same lines), `desktop/src/lib/feature-flags.ts` (new function), `desktop/src/locales/en.json` (after `chat.setupOffer.button`, and beside `settings.analytics.*`)
+- Test: `desktop/src/components/SavedStepsChip.test.ts`, `desktop/src/components/SavedStepsRow.test.ts`, `desktop/src/lib/feature-flags.test.ts`
 
 **Interfaces:**
 - Consumes: `WireMessage.savedSteps` (Task 9); `DELETE /api/bots/:botId/saved-steps/:recipeId` (Task 10); `PATCH /api/config { features: { savedSteps } }` (Task 8).
 - Produces: `SavedStepsChip({ botId, message }: { botId: string; message: Message })`, `SavedStepsRow()`, `savedStepsEnabled(config: FeatureFlagConfig | null | undefined): boolean` (`features?.savedSteps !== false`).
 - Copy (`en.json`): `chat.savedSteps.learned` "Saved these steps · next time no AI"; `chat.savedSteps.replayed` "Repeated saved steps · no AI"; `chat.savedSteps.forget` "Forget"; `chat.savedSteps.forgotten` "Forgotten"; `chat.savedSteps.forgetFailed` "Could not forget these steps"; `settings.savedSteps.title` "Repeat computer tasks without AI"; `settings.savedSteps.subtitle` "When you ask a bot for a computer task it has done before, it repeats the saved steps instead of asking the AI. Off stops saving and repeating."; `settings.savedSteps.aria` "Repeat computer tasks without AI"; `settings.savedSteps.error` "Could not change this setting".
 
-- [ ] **Step 1: Write the failing tests** (mocking pattern of `src/components/SetupOffer.test.ts`)
+- [ ] **Step 1: Write the failing tests** (mocking pattern of `desktop/src/components/SetupOffer.test.ts`)
 
 ```ts
 it("says the steps were saved", () => expect(render({ ...REPLY, savedSteps: { recipeId: "r1", learned: true } }).html).toContain("Saved these steps · next time no AI"));
@@ -882,24 +882,24 @@ it("the switch saves the opposite value", async () => {
 
 - [ ] **Step 2: Run them and see them fail**
 
-Run: `pnpm exec vitest run src/components/SavedStepsChip.test.ts src/components/SavedStepsRow.test.ts src/lib/feature-flags.test.ts`
+Run: `pnpm exec vitest run desktop/src/components/SavedStepsChip.test.ts desktop/src/components/SavedStepsRow.test.ts desktop/src/lib/feature-flags.test.ts`
 Expected: FAIL, modules and function missing.
 
 - [ ] **Step 3: Implement**
 
-`SavedStepsChip`: a `ui-chip` row like `DigestChip` (`src/components/DigestChip.tsx:24-36`) with the label and a `Forget` text button (`data-saved-steps-forget`); a double click is ignored while the request is in flight (a `useRef` guard, as in `SetupOffer`); success shows `Forgotten` in place of the button. `SavedStepsRow`: `SettingRow` + `Switch` (`src/components/SettingsPrimitives.tsx`) bound to `savedStepsEnabled(state.config)`, saving like `MemorySection.toggleRooms` (`src/components/bot-settings/MemorySection.tsx:255-269`), error under the row.
+`SavedStepsChip`: a `ui-chip` row like `DigestChip` (`desktop/src/components/DigestChip.tsx:24-36`) with the label and a `Forget` text button (`data-saved-steps-forget`); a double click is ignored while the request is in flight (a `useRef` guard, as in `SetupOffer`); success shows `Forgotten` in place of the button. `SavedStepsRow`: `SettingRow` + `Switch` (`desktop/src/components/SettingsPrimitives.tsx`) bound to `savedStepsEnabled(state.config)`, saving like `MemorySection.toggleRooms` (`desktop/src/components/bot-settings/MemorySection.tsx:255-269`), error under the row.
 
 `ChatView.tsx` must not grow: line 75 gains ` import { SavedStepsChip } from "./SavedStepsChip";` after the `SetupOffer` import, and line 871 gains `{m.savedSteps && <SavedStepsChip botId={botId} message={m} />}` after the `SetupOffer` element.
 
 - [ ] **Step 4: Run them and see them pass**
 
-Run: `pnpm exec vitest run src/components/SavedStepsChip.test.ts src/components/SavedStepsRow.test.ts src/lib/feature-flags.test.ts src/locales src/components/SettingsModal.simple.test.ts src/components/ChatView.rows.test.ts scripts/testing/file-size-ratchet.test.ts && pnpm i18n:check && pnpm typecheck && pnpm lint`
+Run: `pnpm exec vitest run desktop/src/components/SavedStepsChip.test.ts desktop/src/components/SavedStepsRow.test.ts desktop/src/lib/feature-flags.test.ts desktop/src/locales desktop/src/components/SettingsModal.simple.test.ts desktop/src/components/ChatView.rows.test.ts scripts/testing/file-size-ratchet.test.ts && pnpm i18n:check && pnpm typecheck && pnpm lint`
 Expected: PASS; `ChatView.tsx` at 1348 and `store.tsx` at 3456 lines.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/components/SavedStepsChip.tsx src/components/SavedStepsRow.tsx src/components/SavedStepsChip.test.ts src/components/SavedStepsRow.test.ts src/components/ChatView.tsx src/components/SettingsModal.tsx src/state/store.tsx src/state/config-status.ts src/lib/feature-flags.ts src/lib/feature-flags.test.ts src/locales/en.json
+git add desktop/src/components/SavedStepsChip.tsx desktop/src/components/SavedStepsRow.tsx desktop/src/components/SavedStepsChip.test.ts desktop/src/components/SavedStepsRow.test.ts desktop/src/components/ChatView.tsx desktop/src/components/SettingsModal.tsx desktop/src/state/store.tsx desktop/src/state/config-status.ts desktop/src/lib/feature-flags.ts desktop/src/lib/feature-flags.test.ts desktop/src/locales/en.json
 git commit -m "feat(saved-steps): reply chips with Forget, and the Settings switch" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -908,9 +908,9 @@ git commit -m "feat(saved-steps): reply chips with Forget, and the Settings swit
 ### Task 12: Fake driver, docs and the verification run
 
 **Files:**
-- Create: `server/testing/fake-cua-driver.ts` (executable, `#!/usr/bin/env node`, imports only `node:` modules), `docs/verification/saved-steps.md`
+- Create: `desktop/server/testing/fake-cua-driver.ts` (executable, `#!/usr/bin/env node`, imports only `node:` modules), `docs/verification/saved-steps.md`
 - Modify: `docs/verification/README.md` (Drive list, after "Taking control of a bot's computer"), `docs/computer-use-integration.md:139-142` and `:179`
-- Test: `server/testing/fake-cua-driver.test.ts`
+- Test: `desktop/server/testing/fake-cua-driver.test.ts`
 
 **Interfaces:**
 - Produces: a stdio MCP fake that answers `initialize`, `tools/list` (`list_apps`, `list_windows`, `get_window_state`, `click`, `type_text`) and `tools/call` with the fixture TextEdit shapes of Task 4. Env: `FAKE_CUA_STATE` (JSON file holding the snapshot counter, so separate processes agree), `FAKE_CUA_LOG` (one `{name, arguments}` JSON line per `tools/call`), `FAKE_CUA_FAIL` (while this path exists, `type_text` answers `isError` "Fixture failure."). Each `get_window_state` raises the counter; `click`/`type_text` with a token from an older snapshot answer `isError` "stale element token".
@@ -931,17 +931,17 @@ it("fails type_text while the fail file exists", async () => {});
 
 - [ ] **Step 2: Run it and see it fail**
 
-Run: `pnpm exec vitest run server/testing/fake-cua-driver.test.ts`
+Run: `pnpm exec vitest run desktop/server/testing/fake-cua-driver.test.ts`
 Expected: FAIL, file missing.
 
 - [ ] **Step 3: Write the fake, then the docs**
 
-`chmod +x server/testing/fake-cua-driver.ts` before adding it. Then run `pnpm exec vitest run server/testing/fake-cua-driver.test.ts server/testing/fakes-self-contained.test.ts` → PASS.
+`chmod +x desktop/server/testing/fake-cua-driver.ts` before adding it. Then run `pnpm exec vitest run desktop/server/testing/fake-cua-driver.test.ts desktop/server/testing/fakes-self-contained.test.ts` → PASS.
 
 `docs/computer-use-integration.md`: line 179 becomes `5. Later: extension bridge, playwright-mcp tier. (Macro record/replay shipped as [saved steps](superpowers/specs/2026-10-27-saved-steps-design.md).)`; after the policy paragraph (line 142) add one sentence: saved steps replays the driver's own recorded tool calls through the same gated bridge, so it adds no input route, binary or permission identity beside cua-driver.
 
 `docs/verification/saved-steps.md`, with sections "What it proves", "Run", "Evidence" and "Limits":
-- Unit and route checks: `pnpm exec vitest run server/saved-steps server/routes/saved-steps.test.ts server/routes/computer-journal.test.ts server/local-computer-proxy.test.ts src/components/SavedStepsChip.test.ts src/components/SavedStepsRow.test.ts`.
+- Unit and route checks: `pnpm exec vitest run desktop/server/saved-steps desktop/server/routes/saved-steps.test.ts desktop/server/routes/computer-journal.test.ts desktop/server/local-computer-proxy.test.ts desktop/src/components/SavedStepsChip.test.ts desktop/src/components/SavedStepsRow.test.ts`.
 - Fixture (macOS or Windows; on Linux the server never mounts this computer on its own):
   ```sh
   SCRATCH=$(mktemp -d)
@@ -977,11 +977,11 @@ Expected: each round shows exactly the counts and fields the recipe states. Fix 
 
 - [ ] **Step 5: Full checks and commit**
 
-Run: `pnpm typecheck && pnpm lint && pnpm i18n:check && pnpm exec vitest run server/saved-steps server/routes scripts/testing src/components/SavedStepsChip.test.ts src/components/SavedStepsRow.test.ts`
+Run: `pnpm typecheck && pnpm lint && pnpm i18n:check && pnpm exec vitest run desktop/server/saved-steps desktop/server/routes scripts/testing desktop/src/components/SavedStepsChip.test.ts desktop/src/components/SavedStepsRow.test.ts`
 Expected: PASS.
 
 ```bash
-git add server/testing/fake-cua-driver.ts server/testing/fake-cua-driver.test.ts docs/verification/saved-steps.md docs/verification/README.md docs/computer-use-integration.md
+git add desktop/server/testing/fake-cua-driver.ts desktop/server/testing/fake-cua-driver.test.ts docs/verification/saved-steps.md docs/verification/README.md docs/computer-use-integration.md
 git commit -m "test(saved-steps): fake driver fixture and verification recipe" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -990,5 +990,5 @@ git commit -m "test(saved-steps): fake driver fixture and verification recipe" -
 ## Self-review
 
 - Spec coverage: recording §1 → Tasks 2-3; saving rules, identity targets, store, key, reply patch §2 → Tasks 1, 4, 5, 9; replay preconditions, resolution, approvals, stand-in engine, Stop, fallback note and turn-id remap §3 → Tasks 6-8; chips, Forget, setting §4 → Tasks 10-11 (server flag in Task 8); policy doc §5 → Task 12; spec tests → each task's tests plus the Task 12 fixture.
-- Where the plan departs from the spec, deliberately: the journal also keeps `list_apps` `apps[]` and `list_windows` `windows[]` (the only sources of `bundle_id` and window titles by id); a gate-check count makes a lost entry visible; typed text is re-checked against the new words before a replay; the Full-access answer is routed to the running engine (`server/index.ts:6699-6701` sent it to the registry's instance, which would never reach the stand-in); a step 1 failure gets its own note wording; a fallback whose failed step was a tool error does not re-save (the error stays in that request's journal), and the next AI run of those words saves.
+- Where the plan departs from the spec, deliberately: the journal also keeps `list_apps` `apps[]` and `list_windows` `windows[]` (the only sources of `bundle_id` and window titles by id); a gate-check count makes a lost entry visible; typed text is re-checked against the new words before a replay; the Full-access answer is routed to the running engine (`desktop/server/index.ts:6699-6701` sent it to the registry's instance, which would never reach the stand-in); a step 1 failure gets its own note wording; a fallback whose failed step was a tool error does not re-save (the error stays in that request's journal), and the next AI run of those words saves.
 - Types: `JournalEntry`, `RequestJournal`, `Recipe`, `RecipeStep`, `ComputerCaller`, `CallOutcome`, `ReplayOutcome`, `ReplayRequest` and `SavedStepsDeps` are each defined once and used by the names above.

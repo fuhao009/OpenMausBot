@@ -15,7 +15,7 @@ Both are deliberately view-only; the iOS file says so in its own header:
 was the whole feature. The goal now is the other half: real work from the
 phone, including typing, shortcuts, selection and precise clicking.
 
-The browser surface needs no new protocol. `server/browser-live.ts` already
+The browser surface needs no new protocol. `desktop/server/browser-live.ts` already
 accepts `input_mouse`, `input_keyboard` and `char` over plain HTTP POST, and
 streams frames over SSE. What is missing is a client that can turn fingers
 into those events well.
@@ -46,7 +46,7 @@ TouchSample(id, phase, x, y, t)  ->  [ GestureCore ]  ->  Intent
 ```
 
 `GestureCore` lives in the shared modules — `CompanionCore/RemoteGestures.swift`
-and `android/core/.../RemoteGestures.kt`. It is pure: no networking, no
+and `mobile/android/core/.../RemoteGestures.kt`. It is pure: no networking, no
 platform types, no clock of its own (time arrives on each sample).
 
 Coordinates crossing the core boundary are always normalised 0..1 against the
@@ -153,7 +153,7 @@ events by summing deltas, so a flick collapses to a few sends, not sixty.
 
 This is where sustained use is won or lost, and it is much cheaper than
 expected because the server already does the hard part.
-`server/browser-live.ts` accepts `eventType: "char"` with plain text and turns
+`desktop/server/browser-live.ts` accepts `eventType: "char"` with plain text and turns
 it into `insertText`; it resolves named keys (`Backspace`, `Enter`, `Tab`,
 `Escape`, arrows, `Home`, `End`, `PageUp`, `PageDown`) itself; and it converts
 a modifier bitmask into a chord such as `Control+c`. **A mobile client never
@@ -175,17 +175,17 @@ between fields, and therefore no real work.
 ### Permission
 
 Add `browserControlAccess: boolean` to `DeviceRecord` in
-`companion/src/devices.ts`, defaulting off for every new and migrated device,
+`desktop/companion/src/devices.ts`, defaulting off for every new and migrated device,
 mirroring the existing `cloudDesktopAccess` flag exactly: toggled only from the
 loopback-only control page, with revocation tearing down live sessions through
 `disconnectDevice`.
 
 Then allowlist `/api/bots/:id/browser/live` and `/api/bots/:id/browser/action`
-in `companion/src/routes.ts` behind that flag.
+in `desktop/companion/src/routes.ts` behind that flag.
 
-**No change is needed at `server/index.ts:11570`, contrary to this document's
+**No change is needed at `desktop/server/index.ts:11570`, contrary to this document's
 first draft.** The harness imports the sidecar's own `denyReason`
-(`server/request-auth.ts:16`) and re-runs it on every companion request, so
+(`desktop/server/request-auth.ts:16`) and re-runs it on every companion request, so
 adding the two routes to `ALLOWED` opens both sides at once — defence in depth
 that already exists. A sidecar-forwarded request then resolves to
 `kind: "loopback"`, which the browser route already treats as `local-owner`.
@@ -205,11 +205,11 @@ surface is `driving`, so a stray touch while watching can never reach the
 remote. Held inputs must flush on three events — explicit release, app
 backgrounding, and connection loss — releasing in reverse order and never
 replaying typed text or a click. `createBrowserPressedInputs.release()` in
-`src/components/BrowserViewport.tsx` is the reference behaviour.
+`desktop/src/components/BrowserViewport.tsx` is the reference behaviour.
 
 ### Input queue
 
-Port `src/lib/browser-input-queue.ts` to both shared cores: one request in
+Port `desktop/src/lib/browser-input-queue.ts` to both shared cores: one request in
 flight, movement coalesced behind it, keyboard and button order preserved, a
 hard ceiling so a slow link cannot bank minutes of input, and no replay on
 reconnect. This is not polish. Without it a single flick is sixty round trips
@@ -261,7 +261,7 @@ Platform adapters get thin tests only: that a recognizer produces the expected
 
 Vendor noVNC into the app server and serve one page we control, pointed at the
 backend's existing websockify socket, reached through the relay that
-`companion/src/viewer-relay.ts` already provides. The native layer drives it
+`desktop/companion/src/viewer-relay.ts` already provides. The native layer drives it
 through a bridge we own — `WKWebView` on iOS, `WebView` on Android — so the
 same `GestureCore` emits into `VncSink` instead of `BrowserLiveSink`.
 

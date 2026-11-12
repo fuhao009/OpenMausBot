@@ -5,7 +5,7 @@ Date: 2026-09-25 · Status: implemented on the desktop, iPhone and Android
 ## Intent
 
 During a Live call (OpenAI GPT-Live as the voice, the bot as the brain — see
-`server/live-call.ts`), the chat stays visible. The person sees what the bot is
+`desktop/server/live-call.ts`), the chat stays visible. The person sees what the bot is
 doing — a lookup, a tool step, its answer — while they talk. The call controls
 shrink to a compact **call bar** instead of covering the chat. This works the
 same on the desktop app, the iPhone companion and the Android companion.
@@ -64,27 +64,27 @@ Success looks like:
   built-in `WebSocket` send the header). It receives transcripts and delegation
   events and sends `session.{thinking,commentary,instructions}.append`.
 
-### Harness: `LiveCallController` (new, `server/live-call-controller.ts`)
+### Harness: `LiveCallController` (new, `desktop/server/live-call-controller.ts`)
 
 One active call per harness. Responsibilities, moved from today's renderer
 `LiveCall.tsx` plus new ones:
 
 1. **Delegation → bot turn.** On `session.delegation.created` (target `client`),
    wait ~700 ms for trailing transcript, take the words since the previous
-   request (`LiveTranscript.takeRequest`, moved to `shared/`), and start an
+   request (`LiveTranscript.takeRequest`, moved to `packages/shared/`), and start an
    ordinary turn on the call's thread through the same internal path as
    `POST /api/bots/:id/messages`, marking the message `via: "call"`. Empty
    request → `instructions.append` "ask the user to repeat".
 2. **Bot → voice.** Follow the thread's messages: activity chips with
    `tool.spoken` → quiet `thinking.append` (≤ 1 per 4 s); the turn's final text
-   answer → speakable text (`toUtterances`, `server/tts/speech-text.ts`) →
+   answer → speakable text (`toUtterances`, `desktop/server/tts/speech-text.ts`) →
    `commentaryChunks` (≤ 1,400 chars × 3, "The full answer is in the chat.") →
    `commentary.append` with the delegation id. A turn that ends without text →
    commentary "the result, or what went wrong, is in the chat".
 3. **Approvals and questions.** A pending approval card → `instructions.append`
    with the existing spoken prompt; the next complete utterance (via delegation
    or a 1.2 s quiet window on the input transcript) is judged by
-   `spokenConsent(…, "live")` (moved to `shared/`), strict yes/no only, then
+   `spokenConsent(…, "live")` (moved to `packages/shared/`), strict yes/no only, then
    decided through the same function as `POST /api/bots/:id/respond`. A Live
    call keeps the microphone open while the voice speaks, so there "ok",
    "okay", "sure" and "fine" are hedges, never the answer ("okay, yes" still
@@ -156,7 +156,7 @@ One active call per harness. Responsibilities, moved from today's renderer
 | `POST /api/live/call/end` | `{ callId }` | `200 { call }` after `session.closed` or 5 s |
 | `GET /api/live/call` | — | `200 { call: LiveCallState \| null }` |
 | `PATCH /api/live/settings` | `{ voice?, readTypedReplies?, idleMinutes? }` | `200 { live: LiveSettings }` — non-secret settings only; the key is never writable from a phone |
-| `POST /api/live/device-revoked` | — (headers `x-hezuo-companion: 1` and `x-hezuo-companion-device`; under the desktop app also the companion's private relay token) | `200 { call: LiveCallState \| null }` (the call it ended) · `403` without the companion marker · `400` without a well-formed device id. The companion's own notice that it unpaired a phone: not on the phone allowlist (`companion/src/routes.ts` `COMPANION_NOTICES`); the harness accepts it only with the relay token, or from loopback for a standalone harness |
+| `POST /api/live/device-revoked` | — (headers `x-hezuo-companion: 1` and `x-hezuo-companion-device`; under the desktop app also the companion's private relay token) | `200 { call: LiveCallState \| null }` (the call it ended) · `403` without the companion marker · `400` without a well-formed device id. The companion's own notice that it unpaired a phone: not on the phone allowlist (`desktop/companion/src/routes.ts` `COMPANION_NOTICES`); the harness accepts it only with the relay token, or from loopback for a standalone harness |
 
 `LiveCallState = { callId, botId, threadId, client, voice, startedAt, status: "connecting" | "live" | "ending" | "ended", endReason?, error? }`,
 with `endReason` one of the codes under **End reasons**. A phone's
@@ -177,7 +177,7 @@ optional, see below), `voice`, `readTypedReplies` (boolean, default true),
 Live calls are for everyone: no plan is asked for, from any client. A call
 uses the person's own OpenAI key: the separate Live key (`config.live.key`)
 when one is saved, else the OpenAI API key from Settings → API keys
-(`config.openai.key`); `liveCallKey` in `server/live-settings.ts`.
+(`config.openai.key`); `liveCallKey` in `desktop/server/live-settings.ts`.
 `LiveSettings.keySource` says which (`live` or `openai`); `configured` is true
 when either exists. Without a key, `POST /api/live/session` answers
 `409 { "error": "Live calls use your own OpenAI key. Add it in Settings → API keys.", "needsKey": true }`.
@@ -259,7 +259,7 @@ Added 2026-10-06 (the harness half of SupaMaus/mausbot-mobile
   opens a menu with **Take turns** / **Live**. A Live call without a key →
   "Live calls use your own OpenAI key. Add it in Settings → API keys." with
   **Open API keys**, in a popover under the call button.
-- **Media lives app-wide** (`src/lib/live-call-media.ts`, mounted once at the
+- **Media lives app-wide** (`desktop/src/lib/live-call-media.ts`, mounted once at the
   app root), so switching chats does not end the call.
 - **Call bar** (in the call's chat, above the composer): bot, "Live with Ada ·
   m:ss", one caption line (the voice's words; the user's own words in grey
@@ -430,7 +430,7 @@ hold and the line they show:
 ## End reasons
 
 `LiveCallState.endReason` codes, the words every client shows for them
-(English; the desktop's `src/locales/en.json` is the source) and whether the
+(English; the desktop's `desktop/src/locales/en.json` is the source) and whether the
 call counts as dropped, which is what offers **Try again**:
 
 | Reason code | Words | Dropped |
@@ -524,7 +524,7 @@ spoken line is answered aloud). The docs page says so.
 
 ## Testing
 
-- **Fake GPT-Live** (`server/testing/fake-openai-live.ts`): HTTP
+- **Fake GPT-Live** (`desktop/server/testing/fake-openai-live.ts`): HTTP
   `POST /v1/live/sessions` + WebSocket `/v1/live/sessions/:id/attach` that plays
   scripted events and records commands; the harness reads its base URL from
   `OMB_OPENAI_LIVE_URL` (tests and fixtures only).

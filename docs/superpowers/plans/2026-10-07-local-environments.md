@@ -4,16 +4,16 @@
 
 **Goal:** Desktop users can create, switch, and forget named local environments (separate data directories = separate bots/providers/settings), one active at a time, switching via a ~15s in-app server restart.
 
-**Architecture:** Environments are directories; isolation already exists end-to-end via `OMB_DATA_DIR` (`server/config.ts:963`). All work is Electron-side: extend the pure registry module `electron/environments.cjs` with versioned local entries, add an injectable-deps switch orchestrator `electron/environment-switch.mjs`, wire it in `electron/main.mjs` (per-environment data-dir lease handoff + child re-fork), and expose it through the existing `ogb.environments` bridge to the existing switcher/settings screens. The server binary is NOT modified.
+**Architecture:** Environments are directories; isolation already exists end-to-end via `OMB_DATA_DIR` (`desktop/server/config.ts:963`). All work is Electron-side: extend the pure registry module `desktop/electron/environments.cjs` with versioned local entries, add an injectable-deps switch orchestrator `desktop/electron/environment-switch.mjs`, wire it in `desktop/electron/main.mjs` (per-environment data-dir lease handoff + child re-fork), and expose it through the existing `ogb.environments` bridge to the existing switcher/settings screens. The server binary is NOT modified.
 
-**Tech Stack:** Electron (CJS + .mjs, `node:test` via `node --test "electron/*.node-test.mjs"`), React 19 + vitest, flat dotted `en.json` copy.
+**Tech Stack:** Electron (CJS + .mjs, `node:test` via `node --test "desktop/electron/*.node-test.mjs"`), React 19 + vitest, flat dotted `en.json` copy.
 
 **Spec:** `docs/superpowers/specs/2026-10-07-local-environments-design.md`
 
 ## Global Constraints
 
-- User-facing copy never says "workspace"/"Organisation" (`src/locales/words.test.ts`); the feature word is "environment(s)"; one running app is an "installation"; a bot's dir is a "folder".
-- No changes under `server/`, `src/locales/zh.json`, or any lockfile. New copy is hardcoded English inside the settings component ONLY if that file already hardcodes English (it does — keep its style); no new `en.json` keys required.
+- User-facing copy never says "workspace"/"Organisation" (`desktop/src/locales/words.test.ts`); the feature word is "environment(s)"; one running app is an "installation"; a bot's dir is a "folder".
+- No changes under `desktop/server/`, `desktop/src/locales/zh.json`, or any lockfile. New copy is hardcoded English inside the settings component ONLY if that file already hardcodes English (it does — keep its style); no new `en.json` keys required.
 - Local-environment switching is packaged-only (`app.isPackaged`); in dev mode create/switch IPC returns `{ ok: false, error: "dev" }`.
 - `activeId` for a local environment persists only after the health probe returns `"ready"`.
 - Default data dir `~/.hezuo` stays "This computer": never listable as an entry, never forgettable, boot fallback target.
@@ -29,11 +29,11 @@
 
 ---
 
-### Task 1: Versioned environment registry (`electron/environments.cjs`)
+### Task 1: Versioned environment registry (`desktop/electron/environments.cjs`)
 
 **Files:**
-- Modify: `electron/environments.cjs` (210 lines, pure)
-- Test: `electron/environments.node-test.mjs`
+- Modify: `desktop/electron/environments.cjs` (210 lines, pure)
+- Test: `desktop/electron/environments.node-test.mjs`
 
 **Interfaces:**
 - Consumes: existing `parseEnvironments(raw)`, `serializeEnvironments(state)`, `withActive(state,id)`, `withoutEnvironment(state,id)`, `workspaceMenuTemplate(state,{onSwitch,onConnect,onForget})`, `LOCAL_ID`, `MAX_NAME` (60).
@@ -46,17 +46,17 @@
   - `workspaceSummary(state)` returns `{ local:true, name:"This computer" }` or `{ local:false, name, origin, localPath?: string, missing?: boolean }` — for a local active entry `local:false` is wrong; instead extend the local branch: `{ local: true, name: entry.name, localPath, missing }`.
   - `workspaceMenuTemplate` — one radio row per local entry (same `onSwitch(id)` callback), "This computer" row always first.
 
-- [ ] **Step 1: Write failing tests** in `electron/environments.node-test.mjs` (follow existing `const env = require("./environments.cjs")` style): `parseEnvironments` on a v1 JSON string stamps `kind:"remote"` and preserves `activeId`; `serializeEnvironments` output has `version: 2`; `withLocalEnvironment` happy path adds `{ id: <makeId()>, kind:"local", ... }`; rejects non-absolute `dataDir`, `dataDir === defaultDir`, nesting (`~/.hezuo/x` under default `~/.hezuo`), duplicate path, name length > 60; `activeLocalDataDir` returns the entry's dir when active-local, `null` for `LOCAL_ID`/remote; `workspaceMenuTemplate` renders a row per local entry calling `onSwitch` with the entry id.
+- [ ] **Step 1: Write failing tests** in `desktop/electron/environments.node-test.mjs` (follow existing `const env = require("./environments.cjs")` style): `parseEnvironments` on a v1 JSON string stamps `kind:"remote"` and preserves `activeId`; `serializeEnvironments` output has `version: 2`; `withLocalEnvironment` happy path adds `{ id: <makeId()>, kind:"local", ... }`; rejects non-absolute `dataDir`, `dataDir === defaultDir`, nesting (`~/.hezuo/x` under default `~/.hezuo`), duplicate path, name length > 60; `activeLocalDataDir` returns the entry's dir when active-local, `null` for `LOCAL_ID`/remote; `workspaceMenuTemplate` renders a row per local entry calling `onSwitch` with the entry id.
 - [ ] **Step 2: Run to verify failure** — `pnpm test:electron` → new cases fail (Review Focus 5 first case here).
 - [ ] **Step 3: Implement** in `environments.cjs` (signatures above; keep the file dependency-free).
 - [ ] **Step 4: Run to verify pass** — `pnpm test:electron` fully green.
-- [ ] **Step 5: Commit** — `git add electron/environments.cjs electron/environments.node-test.mjs && git commit -m "feat(electron): versioned local entries in the environments registry"`
+- [ ] **Step 5: Commit** — `git add desktop/electron/environments.cjs desktop/electron/environments.node-test.mjs && git commit -m "feat(electron): versioned local entries in the environments registry"`
 
-### Task 2: Switch orchestrator (`electron/environment-switch.mjs`)
+### Task 2: Switch orchestrator (`desktop/electron/environment-switch.mjs`)
 
 **Files:**
-- Create: `electron/environment-switch.mjs`
-- Create: `electron/environment-switch.node-test.mjs`
+- Create: `desktop/electron/environment-switch.mjs`
+- Create: `desktop/electron/environment-switch.node-test.mjs`
 
 **Interfaces:**
 - Consumes: `DataDirLeaseError` from `./data-dir-lease.mjs`.
@@ -74,9 +74,9 @@
 ### Task 3: main.mjs wiring — boot, supervisor pause, IPC
 
 **Files:**
-- Modify: `electron/main.mjs` (`desktopDataDir` :370, `startServerOn` :1305, lease block :3368–3384, `switchEnvironment` :1918, IPC :3197–3210, `readEnvironments` :1847)
-- Modify: `electron/server-supervisor.mjs` (add `pause()`/`resume()` gating `schedule()`)
-- Test: extend `electron/server-supervisor.node-test.mjs` (extend if present, else create following sibling `*.node-test.mjs` style)
+- Modify: `desktop/electron/main.mjs` (`desktopDataDir` :370, `startServerOn` :1305, lease block :3368–3384, `switchEnvironment` :1918, IPC :3197–3210, `readEnvironments` :1847)
+- Modify: `desktop/electron/server-supervisor.mjs` (add `pause()`/`resume()` gating `schedule()`)
+- Test: extend `desktop/electron/server-supervisor.node-test.mjs` (extend if present, else create following sibling `*.node-test.mjs` style)
 
 **Interfaces:**
 - Consumes: Task 1 `activeLocalDataDir`, `parseEnvironments`; Task 2 `switchLocalEnvironment`, `validateTargetDir`; existing `acquireDataDirLease(dataDir, opts)`, `stopUtilityServer(proc)` (:378), `pollServerIdentity({port,pid})`, `persistEnvironments`, `startServerPackaged` port list `[8799,18799,28799]`.
@@ -93,17 +93,17 @@
 ### Task 4: Bridge + settings UI
 
 **Files:**
-- Modify: `electron/preload.cjs` (bridge :305–317), `src/types/ogb.d.ts` (:145–157), `src/components/ConnectedWorkspacesSettings.tsx`, `src/components/ConnectedWorkspacesSettings.test.ts`
+- Modify: `desktop/electron/preload.cjs` (bridge :305–317), `desktop/src/types/ogb.d.ts` (:145–157), `desktop/src/components/ConnectedWorkspacesSettings.tsx`, `desktop/src/components/ConnectedWorkspacesSettings.test.ts`
 
 **Interfaces:**
 - Consumes: Task 3 IPC shapes exactly.
 - Produces: bridge methods `create(name, dataDir?)`, `pickDir()`; `switch(id)` result now checked by callers; new section title "Environments on this computer" above the existing "Your servers" list; "New environment" form (name field, path field + "Choose…" + Create) shown only when `state.packaged`; local rows show `name` + `dataDir` (+ "missing" tag) and a Forget button.
 
 - [ ] **Step 1: Write failing renderer tests** — stub `window.ogb.environments` (state with one local entry, `packaged:true`); assert the local row renders its `dataDir`, a missing entry shows "missing", Create calls `create(name, dir)`, Forget shows the keep-files choice and only passes `purge:true` when checked, and switching a local row calls `switch(id)` after confirm.
-- [ ] **Step 2: Run to verify failure** — `pnpm vitest run src/components/ConnectedWorkspacesSettings.test.ts`.
+- [ ] **Step 2: Run to verify failure** — `pnpm vitest run desktop/src/components/ConnectedWorkspacesSettings.test.ts`.
 - [ ] **Step 3: Implement** preload channel additions + `ogb.d.ts` types (keep `REMOTE_SAFE` exposure unchanged: `environments` stays local-only).
 - [ ] **Step 4: Implement UI** in `ConnectedWorkspacesSettings.tsx` following its existing `perform()` pattern.
-- [ ] **Step 5: Run to verify pass** — `pnpm vitest run src/components/ConnectedWorkspacesSettings.test.ts`.
+- [ ] **Step 5: Run to verify pass** — `pnpm vitest run desktop/src/components/ConnectedWorkspacesSettings.test.ts`.
 - [ ] **Step 6: Commit** — `feat(ui): manage local environments from settings`
 
 ### Task 5: Docs trio + full local gate
@@ -119,4 +119,4 @@
 
 ## Self-review notes
 
-Spec coverage: isolation/switch/fallback (T2–T3), registry+migration (T1), create/forget UX (T3–T4), docs (T5); copy-from-current is a non-goal (spec) — no task. Type consistency checked across Interfaces blocks. No `en.json` delta → `words.test.ts` unaffected. One deliberate spec deviation: the spec's `launchVerificationServer` two-dir boot test is dropped — this plan changes zero server files, so the server already carries that coverage and adding `server/` test files would violate the no-server-changes constraint; if maintainers want it, it is a pure addition they can pin in review.
+Spec coverage: isolation/switch/fallback (T2–T3), registry+migration (T1), create/forget UX (T3–T4), docs (T5); copy-from-current is a non-goal (spec) — no task. Type consistency checked across Interfaces blocks. No `en.json` delta → `words.test.ts` unaffected. One deliberate spec deviation: the spec's `launchVerificationServer` two-dir boot test is dropped — this plan changes zero server files, so the server already carries that coverage and adding `desktop/server/` test files would violate the no-server-changes constraint; if maintainers want it, it is a pure addition they can pin in review.

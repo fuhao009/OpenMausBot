@@ -22,12 +22,12 @@ either thing up front.
   General → Parallel threads, 1–10), each with its own model, approval
   preference, unread state, working directory and Stop. Extra messages queue
   above the composer until a slot frees. `docs/plans/2026-09-09-independent-threads.md`.
-- **Only a person can open one.** `POST /api/bots/:id/tasks` (server/index.ts
+- **Only a person can open one.** `POST /api/bots/:id/tasks` (desktop/server/index.ts
   ~12309) takes a title and an optional folder, always activates the new
   thread for the caller, and is behind the owner session. There is no
   internal endpoint and no MCP tool for it.
 - **Every peer message lands in the target's active thread.** `runDelegatedTurn`
-  reads `store.bot(toBotId)?.threadId` (server/index.ts ~3816) and `ask_bot`
+  reads `store.bot(toBotId)?.threadId` (desktop/server/index.ts ~3816) and `ask_bot`
   dispatches to the same. Ten delegations to one bot are ten turns queued
   behind each other in whichever thread the person happens to be looking at,
   interleaved with their own conversation. The three-slot concurrency that

@@ -11,7 +11,7 @@ Adding Higgsfield (`https://mcp.higgsfield.ai/mcp`) failed two ways:
    and Hezuo's URL servers only support static headers.
 2. **Through `npx mcp-remote`** the Test button reported "The server did not
    answer in time." mcp-remote had opened a browser sign-in; the probe kills
-   every server after 8 s (`server/mcp-probe.ts`, `DEFAULT_TIMEOUT_MS`), long
+   every server after 8 s (`desktop/server/mcp-probe.ts`, `DEFAULT_TIMEOUT_MS`), long
    before a person finishes signing in. Once signed in from a terminal, the same
    command lists 108 tools in 3.3 s.
 
@@ -42,7 +42,7 @@ people who don't use Composio have no one-click way to connect them.
 
 ### Detection
 
-`RemoteMcpClient` (`server/mcp-http.ts`) surfaces a `401` as an auth-required
+`RemoteMcpClient` (`desktop/server/mcp-http.ts`) surfaces a `401` as an auth-required
 failure carrying the `WWW-Authenticate` header. A new module resolves the
 authorization server the MCP way:
 
@@ -57,7 +57,7 @@ A server that answers 401 and yields this metadata is **Needs sign-in**. The
 probe returns `{ ok: false, auth: "required" }` instead of the misleading
 "check the address and headers", and does not wait out the timeout.
 
-### Sign-in flow (new `server/mcp-oauth.ts`)
+### Sign-in flow (new `desktop/server/mcp-oauth.ts`)
 
 - **Client identity:** Dynamic Client Registration (RFC 7591) when
   `registration_endpoint` exists, as a public client
@@ -101,7 +101,7 @@ Changing a server's URL, removing it, or **Sign out** deletes its tokens
 
 ### Handing tokens to engines
 
-`engineMcpServers(bot)` (`server/index.ts`) is the single point where a turn
+`engineMcpServers(bot)` (`desktop/server/index.ts`) is the single point where a turn
 gets its servers. It adds `Authorization: Bearer <access token>` to signed-in
 servers (a user-set `Authorization` header is replaced for OAuth servers), and
 **leaves out** servers that need sign-in, so a turn never mounts a server that
@@ -129,7 +129,7 @@ Composio key.
 
 ### Featured list
 
-`shared/plugin-catalog.json`, shipped with the app, validated by a zod schema
+`packages/shared/plugin-catalog.json`, shipped with the app, validated by a zod schema
 and a test. Entry: `id, name, description, icon, url, transport, auth
 ("oauth" | "api-key" | "none"), clientId?, apiKeyHeader?, docsUrl`.
 Seed candidates (each verified to sign in end to end before inclusion):

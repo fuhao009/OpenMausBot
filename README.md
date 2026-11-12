@@ -12,6 +12,8 @@ Every bot in the sidebar is a real agent — Claude or Codex running locally und
 personality, its own model, its own cloud computer, and its own connected apps.
 Talk to them like contacts. Watch them work. Approve what matters.
 
+Architecture and configuration: [desktop, mobile, and gateway guide](docs/architecture.md).
+
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![Electron](https://img.shields.io/badge/Electron-macOS%20%C2%B7%20Windows%20%C2%B7%20Ubuntu-2B2E3A?logo=electron&logoColor=9FEAF9)

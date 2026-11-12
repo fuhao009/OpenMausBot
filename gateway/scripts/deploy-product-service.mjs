@@ -460,7 +460,7 @@ function withoutTrailingCommas(text) {
 
 function wranglerBinary() {
   const name = process.platform === "win32" ? "wrangler.cmd" : "wrangler";
-  // The Worker pins its own Wrangler (`cloudflare/control-plane` devDependency);
+  // The Worker pins its own Wrangler (`gateway/control-plane` devDependency);
   // the root workspace may resolve an older copy. Prefer the pinned one.
   const pinned = path.join(WORKER_DIR, "node_modules", ".bin", name);
   return existsSync(pinned) ? pinned : path.join(root, "node_modules", ".bin", name);

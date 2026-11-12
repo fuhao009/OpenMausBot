@@ -1,4 +1,4 @@
-// The macOS login service for `scripts/local-gateway.mjs`: one LaunchAgent per
+// The macOS login service for `gateway/local/local-gateway.mjs`: one LaunchAgent per
 // data directory, running the same gateway this checkout exposes on the
 // command line. Everything a service needs is durable and private:
 //

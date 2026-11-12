@@ -60,7 +60,7 @@ export default defineConfig({
     environment: "node",
     include,
     // OMB_VITEST_E2E=host (CI's Windows and macOS shards) leaves the e2e files that run on Linux only.
-    exclude: [...configDefaults.exclude, ...(hostE2eOnly() ? portableE2eFiles(root, include) : [])],
+    exclude: [...configDefaults.exclude, "gateway/local/local-gateway/companion-relay.test.mjs", ...(hostE2eOnly() ? portableE2eFiles(root, include) : [])],
     setupFiles: ["desktop/server/testing/setup.ts", "desktop/src/testing/all-locales.ts"],
     // the suite spawns fake provider CLIs and a real harness server;
     // parallel files introduce load-sensitive flakes for no win

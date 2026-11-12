@@ -12,7 +12,7 @@ product_contract_source: ce-plan-bootstrap
 
 ## Goal Capsule
 
-Make PR #230's four new permission-broker collision tests pass on Windows by eliminating the named-pipe name collision between them: all four tests use thread ids that truncate to the same 8-char tag, producing the same Windows pipe name, and a lingering pipe from a prior test makes the next test's broker `listen()` fail with `EADDRINUSE`. The fix gives each test a unique thread id that yields a unique tag, plus a deterministic tag-uniqueness assertion so a re-collision fails on every platform, not just on a timing-dependent Windows run. The production collision guard in `server/drivers/claude.ts` is verified sound and stays untouched. Stop condition: `pnpm exec vitest run server/drivers/claude.test.ts` passes on macOS and Ubuntu, and the Windows `typecheck + test (windows-latest)` job is green on two consecutive runs.
+Make PR #230's four new permission-broker collision tests pass on Windows by eliminating the named-pipe name collision between them: all four tests use thread ids that truncate to the same 8-char tag, producing the same Windows pipe name, and a lingering pipe from a prior test makes the next test's broker `listen()` fail with `EADDRINUSE`. The fix gives each test a unique thread id that yields a unique tag, plus a deterministic tag-uniqueness assertion so a re-collision fails on every platform, not just on a timing-dependent Windows run. The production collision guard in `desktop/server/drivers/claude.ts` is verified sound and stays untouched. Stop condition: `pnpm exec vitest run desktop/server/drivers/claude.test.ts` passes on macOS and Ubuntu, and the Windows `typecheck + test (windows-latest)` job is green on two consecutive runs.
 
 ## Product Contract
 
@@ -22,9 +22,9 @@ The Windows CI job fails on PR #230 at exactly one test in the vitest run: `deni
 
 ### Problem Frame
 
-`permissionSocketPath(threadId)` truncates the thread id to an 8-char tag (`server/drivers/claude.ts:192-195`). The four collision tests use thread ids `t-perm-dup-1`, `t-perm-dup-2`, `t-perm-dup-3`, `t-perm-dup-4`, which all truncate to `t-perm-d`. On Windows, `brokerSocketPath` builds `\\.\pipe\hezuo-perm-<pid>-t-perm-d` (`server/procs.ts:114-119`).
+`permissionSocketPath(threadId)` truncates the thread id to an 8-char tag (`desktop/server/drivers/claude.ts:192-195`). The four collision tests use thread ids `t-perm-dup-1`, `t-perm-dup-2`, `t-perm-dup-3`, `t-perm-dup-4`, which all truncate to `t-perm-d`. On Windows, `brokerSocketPath` builds `\\.\pipe\hezuo-perm-<pid>-t-perm-d` (`desktop/server/procs.ts:114-119`).
 
-On POSIX, `createPermissionBroker` calls `unlinkSync(opts.socketPath)` before `listen()` (`server/drivers/claude.ts:208-210`), which removes the previous test's socket file, so re-listening the same name succeeds. On Windows, `unlinkSync` on a `\\.\pipe\...` path is a no-op — a named pipe is not a filesystem entry. The OS holds the pipe name briefly after the prior broker's `server.close()`, so the next test's `listen()` fails with `EADDRINUSE` and the broker never starts. The test's `connectSocket` then fails with `ENOENT` because no pipe is listening. The observed run failed only 1 of the 4 same-name tests, confirming the release window is short and the failure is timing-dependent.
+On POSIX, `createPermissionBroker` calls `unlinkSync(opts.socketPath)` before `listen()` (`desktop/server/drivers/claude.ts:208-210`), which removes the previous test's socket file, so re-listening the same name succeeds. On Windows, `unlinkSync` on a `\\.\pipe\...` path is a no-op — a named pipe is not a filesystem entry. The OS holds the pipe name briefly after the prior broker's `server.close()`, so the next test's `listen()` fails with `EADDRINUSE` and the broker never starts. The test's `connectSocket` then fails with `ENOENT` because no pipe is listening. The observed run failed only 1 of the 4 same-name tests, confirming the release window is short and the failure is timing-dependent.
 
 The pre-existing broker tests never hit this because they use distinct thread ids (`t-perm-abc`, `t-perm-stop`) with distinct tags. The production code is unlikely to hit this in normal operation because real thread ids are UUIDs, though the 8-char truncation remains a latent collision risk there — out of scope for this plan.
 
@@ -44,11 +44,11 @@ The pre-existing broker tests never hit this because they use distinct thread id
 
 **Scope boundary**
 
-- R4. No production file changes: `server/drivers/claude.ts` and `server/permission-proxy.ts` are unchanged by this plan. The 8-char tag truncation in `permissionSocketPath` is not modified.
+- R4. No production file changes: `desktop/server/drivers/claude.ts` and `desktop/server/permission-proxy.ts` are unchanged by this plan. The 8-char tag truncation in `permissionSocketPath` is not modified.
 
 **Verification**
 
-- R5. `pnpm exec vitest run server/drivers/claude.test.ts` passes on macOS and Ubuntu (33 tests declared; 32 pass and 1 is skipped — the Windows-only pipe-naming test). The Windows `typecheck + test (windows-latest)` CI job is green on two consecutive runs.
+- R5. `pnpm exec vitest run desktop/server/drivers/claude.test.ts` passes on macOS and Ubuntu (33 tests declared; 32 pass and 1 is skipped — the Windows-only pipe-naming test). The Windows `typecheck + test (windows-latest)` CI job is green on two consecutive runs.
 
 ## Planning Contract
 
@@ -62,10 +62,10 @@ The pre-existing broker tests never hit this because they use distinct thread id
 ### Sources
 
 - Windows job log (admin-gated, obtained via authenticated `gh`): `permission broker unavailable on \\.\pipe\hezuo-perm-1892-t-perm-d: listen EADDRINUSE: address already in use` followed by `Error: connect ENOENT \\.\pipe\hezuo-perm-1892-t-perm-d` on the `denies a colliding ask id from a second connection on the same broker` test.
-- `server/drivers/claude.ts:192-195` — `permissionSocketPath` 8-char tag truncation.
-- `server/procs.ts:114-119` — Windows named-pipe name construction with `process.pid`.
-- `server/drivers/claude.ts:208-210` — `unlinkSync` before `listen()` (POSIX-only effective).
-- `server/drivers/claude.test.ts:438-561` — the four collision tests with thread ids `t-perm-dup-1..4`.
+- `desktop/server/drivers/claude.ts:192-195` — `permissionSocketPath` 8-char tag truncation.
+- `desktop/server/procs.ts:114-119` — Windows named-pipe name construction with `process.pid`.
+- `desktop/server/drivers/claude.ts:208-210` — `unlinkSync` before `listen()` (POSIX-only effective).
+- `desktop/server/drivers/claude.test.ts:438-561` — the four collision tests with thread ids `t-perm-dup-1..4`.
 
 ## Implementation Units
 
@@ -77,7 +77,7 @@ The pre-existing broker tests never hit this because they use distinct thread id
 
 **Dependencies:** None.
 
-**Files:** `server/drivers/claude.test.ts` (thread ids in the four tests at lines 438-561; a new assertion block in the same file).
+**Files:** `desktop/server/drivers/claude.test.ts` (thread ids in the four tests at lines 438-561; a new assertion block in the same file).
 
 **Approach:**
 1. Change the thread id in each of the four collision tests so its 8-char tag is unique: `t-perm-dup-1` → `t-dup-1`, `t-perm-dup-2` → `t-dup-2`, `t-perm-dup-3` → `t-dup-3`, `t-perm-dup-4` → `t-dup-4`.
@@ -90,11 +90,11 @@ The pre-existing broker tests never hit this because they use distinct thread id
 - The new tag-uniqueness assertion passes on POSIX and Windows (R2): `permissionSocketPath("t-dup-1")` → tag `t-dup-1`, etc., all distinct.
 - Reasoning check: `t-dup-1..4` collide with no other thread id in the file (the other broker tests use `t-perm-abc`, `t-perm-stop`, `t-perm-2`; all tags distinct).
 
-**Verification:** `pnpm exec vitest run server/drivers/claude.test.ts` passes on macOS/Ubuntu; Windows CI job is green on two consecutive runs.
+**Verification:** `pnpm exec vitest run desktop/server/drivers/claude.test.ts` passes on macOS/Ubuntu; Windows CI job is green on two consecutive runs.
 
 ## Verification Contract
 
-- `pnpm exec vitest run server/drivers/claude.test.ts` — 33 tests declared; on Windows, 33 pass; on macOS and Ubuntu, 32 pass and 1 is skipped (the Windows-only pipe-naming test at line 66).
+- `pnpm exec vitest run desktop/server/drivers/claude.test.ts` — 33 tests declared; on Windows, 33 pass; on macOS and Ubuntu, 32 pass and 1 is skipped (the Windows-only pipe-naming test at line 66).
 - `pnpm typecheck` — clean.
 - Full `pnpm test` on macOS (vitest + broker:test + updater + packaged-server).
 - The Windows `typecheck + test (windows-latest)` job is green on two consecutive runs. If it is not, obtain the job log (authenticated `gh api repos/milind-soni/OpenMausBot/actions/jobs/<id>/logs`) and name the failing test before any further change; do not guess a second fix.
@@ -104,7 +104,7 @@ The pre-existing broker tests never hit this because they use distinct thread id
 - [ ] U1 landed: the four collision tests use unique thread ids/tags; no two share a pipe name.
 - [ ] The tag-uniqueness assertion (R2) is present and passes on all platforms.
 - [ ] All four collision tests retain their exact assertions and pass.
-- [ ] No production files changed (`server/drivers/claude.ts`, `server/permission-proxy.ts` clean in the diff).
+- [ ] No production files changed (`desktop/server/drivers/claude.ts`, `desktop/server/permission-proxy.ts` clean in the diff).
 - [ ] macOS and Ubuntu: claude test file and full `pnpm test` pass; typecheck clean.
 - [ ] Windows CI job is green on two consecutive runs.
 

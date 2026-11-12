@@ -109,13 +109,13 @@ tools with the same availability as `create_trigger`. One sentence in the
 system prompt's trigger paragraph tells bots to use `wait_until` instead of
 staying busy or making a short-interval routine.
 
-## Firing (`server/waits.ts`)
+## Firing (`desktop/server/waits.ts`)
 
 `WaitManager` on the `CalendarCallManager` pattern: `DATA_DIR/waits.json`, mode
 0600, zod schema, atomic writes with rollback, a 5 s tick, per-kind intervals,
 paused with the other automations during workspace maintenance, removed with
 its bot through `bot-automations.ts`. Probes are pure functions in
-`server/wait-probes.ts`.
+`desktop/server/wait-probes.ts`.
 
 When a wait fires:
 

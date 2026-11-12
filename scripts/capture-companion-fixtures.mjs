@@ -2,8 +2,8 @@
 // Capture the companion apps' test fixtures through a real harness and sidecar,
 // against a temporary HOME and the fake engine:
 //
-//   node scripts/capture-companion-fixtures.mjs
-//   node scripts/capture-companion-fixtures.mjs --overview-only
+//   node scripts/capture-companion-fixtures.mjs --out mobile/ios/Tests/CompanionCoreTests/Fixtures
+//   node scripts/capture-companion-fixtures.mjs --out mobile/ios/Tests/CompanionCoreTests/Fixtures --overview-only
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";

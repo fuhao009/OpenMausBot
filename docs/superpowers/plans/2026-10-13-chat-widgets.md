@@ -4,7 +4,7 @@
 
 **Goal:** A bot can show a ChatKit-style widget in chat with `show_widget`, it renders on desktop, iOS and Android from one payload, and a press reaches the bot as the person's next message.
 
-**Architecture:** One canonical JSON tree, normalised once on the server by `shared/widget.ts`, stored on a new `widget` message kind with a text fallback. One recursive renderer per platform. A press is posted on the existing send-message route as `widgetAction`, becomes an ordinary user message that replies to the widget, and settles the widget with a `message.patch`.
+**Architecture:** One canonical JSON tree, normalised once on the server by `packages/shared/widget.ts`, stored on a new `widget` message kind with a text fallback. One recursive renderer per platform. A press is posted on the existing send-message route as `widgetAction`, becomes an ordinary user message that replies to the widget, and settles the widget with a `message.patch`.
 
 **Tech Stack:** TypeScript (Node type-stripping server, React 19 + Tailwind v4 renderer, vitest); Swift 5.9 / SwiftUI / Swift Charts (iOS 16); Kotlin 2.2 / Jetpack Compose / kotlinx.serialization.
 
@@ -13,14 +13,14 @@
 ## Global Constraints
 
 - Two repos, two branches named `feat/chat-widgets`: server, shared and desktop in `OpenGrokBot-widgets` (milind-soni/OpenMausBot); iOS and Android in `mausbot-mobile-widgets` (SupaMaus/mausbot-mobile). Never put phone code in the first or desktop code in the second. No push, no PR.
-- Ratchets (`scripts/testing/file-size-ratchet.test.ts`, `index-route-ratchet.test.ts`): `server/index.ts`, `src/state/store.tsx`, `server/store.ts`, `server/config.ts`, `ChatView.tsx`, `GroupView.tsx`, `scripts/mcp-server.ts`, `server/drivers/agents-call.ts` may not gain a line; `server/index.ts` may not gain a path guard; no new file over 1,000 lines. Move code out to make room and lower the pinned number.
+- Ratchets (`scripts/testing/file-size-ratchet.test.ts`, `index-route-ratchet.test.ts`): `desktop/server/index.ts`, `desktop/src/state/store.tsx`, `desktop/server/store.ts`, `desktop/server/config.ts`, `ChatView.tsx`, `GroupView.tsx`, `scripts/mcp-server.ts`, `desktop/server/drivers/agents-call.ts` may not gain a line; `desktop/server/index.ts` may not gain a path guard; no new file over 1,000 lines. Move code out to make room and lower the pinned number.
 - Server code runs on type stripping: type-only imports must be `import type`, no enums, no parameter properties.
 - Tests are colocated `*.test.ts` (never `.tsx`); React tests start with `// @vitest-environment happy-dom` and use `createElement`.
-- Every desktop UI string goes through `t()` with a key in `src/locales/en.json`. iOS strings need `pt-BR`, `zh-Hans`, `zh-Hant` entries in `ios/App/Localizable.xcstrings`; Android strings need `values/`, `values-b+zh+Hans/`, `values-b+zh+Hant/`.
+- Every desktop UI string goes through `t()` with a key in `desktop/src/locales/en.json`. iOS strings need `pt-BR`, `zh-Hans`, `zh-Hant` entries in `mobile/ios/App/Localizable.xcstrings`; Android strings need `values/`, `values-b+zh+Hans/`, `values-b+zh+Hant/`.
 - Colours come from tokens only: no hex literals in widget renderers on any platform.
 - On phones the type prefix is `ChatWidget`; `Widget` there means the home-screen extension.
 - Renderers read canonical trees only and must never crash on one: an unknown node type draws its children or nothing.
-- Checks before a task is done. Desktop: `pnpm typecheck`, `pnpm lint`, `pnpm exec vitest run <files>`, `pnpm i18n:check`, plus the two ratchet tests. iOS: `swift test --package-path ios`, `bash scripts/check-ios-view-shims.sh`, `node --test scripts/ios-strings.test.mjs`. Android: `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew :core:test :app:testDebugUnitTest` from `android/`.
+- Checks before a task is done. Desktop: `pnpm typecheck`, `pnpm lint`, `pnpm exec vitest run <files>`, `pnpm i18n:check`, plus the two ratchet tests. iOS: `swift test --package-path ios`, `bash scripts/check-ios-view-shims.sh`, `node --test scripts/ios-strings.test.mjs`. Android: `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew :core:test :app:testDebugUnitTest` from `mobile/android/`.
 
 ## Review Focus
 
@@ -35,8 +35,8 @@
 ### Task 1: Shared schema and wire kind
 
 **Files:**
-- Create: `shared/widget.ts`, `shared/widget-samples.ts`, `shared/widget.test.ts`
-- Modify: `shared/wire.ts` (kind union, `widget?: WidgetPayload`), `src/lib/taskTimeline.ts` (kind union)
+- Create: `packages/shared/widget.ts`, `packages/shared/widget-samples.ts`, `packages/shared/widget.test.ts`
+- Modify: `packages/shared/wire.ts` (kind union, `widget?: WidgetPayload`), `desktop/src/lib/taskTimeline.ts` (kind union)
 
 **Interfaces (produces):**
 ```ts
@@ -60,31 +60,31 @@ export function resolveWidgetAction(payload: WidgetPayload, ref: string, values:
 ```
 `WIDGET_SAMPLES` (in `widget-samples.ts`) is a record of named model-shaped inputs covering every node type; tests, fixtures and the verification recipe all use it.
 
-- [ ] Write `shared/widget.test.ts` first: one case per node type normalising, each limit refusing with its path, password refusal, non-root wrapping, JSON-string input, spacing-unit conversion, duplicate action labels made unique by their row title, `widgetToText` snapshots for the list, form, table and chart samples, and `resolveWidgetAction` for scope, required, option, date, settled (409), unknown ref (404) and `cancel` skipping validation.
-- [ ] Run `pnpm exec vitest run shared/widget.test.ts`; it fails on the missing module.
-- [ ] Implement `shared/widget.ts` and `shared/widget-samples.ts`; add the kind and field to `shared/wire.ts` and the kind to `src/lib/taskTimeline.ts`.
+- [ ] Write `packages/shared/widget.test.ts` first: one case per node type normalising, each limit refusing with its path, password refusal, non-root wrapping, JSON-string input, spacing-unit conversion, duplicate action labels made unique by their row title, `widgetToText` snapshots for the list, form, table and chart samples, and `resolveWidgetAction` for scope, required, option, date, settled (409), unknown ref (404) and `cancel` skipping validation.
+- [ ] Run `pnpm exec vitest run packages/shared/widget.test.ts`; it fails on the missing module.
+- [ ] Implement `packages/shared/widget.ts` and `packages/shared/widget-samples.ts`; add the kind and field to `packages/shared/wire.ts` and the kind to `desktop/src/lib/taskTimeline.ts`.
 - [ ] Run the test, `pnpm typecheck`, `pnpm lint`. Commit.
 
 ### Task 2: Server
 
 **Files:**
-- Create: `server/chat-widgets.ts`, `server/chat-widgets.test.ts`, `server/drivers/agents-widget-tools.ts`, `server/drivers/agents-call-cards.ts`
-- Modify: `server/index.ts` (swap `createOptionsCard` for `createAgentCard`, same line count), `server/drivers/agents-catalog.ts` (spread the two definitions; read-only annotation list untouched), `server/drivers/agents-call.ts` (the `create_options_card` branch moves into `agents-call-cards.ts`, which also handles the two widget tools; lower its ratchet number), `server/routes/bot-messages.ts` (`widgetAction`), `server/replies.ts` (widget branch), `server/delta-context.ts` (`isContextMessage`), `server/routes/threads.ts` (markdown export line), `server/team-backup.ts` (`messageText`), `scripts/mcp-server.ts` (projection keeps `widget`, in place), `server/drivers/agents-catalog-wire.test.ts` goldens and budget baselines, `scripts/testing/file-size-ratchet.test.ts`
+- Create: `desktop/server/chat-widgets.ts`, `desktop/server/chat-widgets.test.ts`, `desktop/server/drivers/agents-widget-tools.ts`, `desktop/server/drivers/agents-call-cards.ts`
+- Modify: `desktop/server/index.ts` (swap `createOptionsCard` for `createAgentCard`, same line count), `desktop/server/drivers/agents-catalog.ts` (spread the two definitions; read-only annotation list untouched), `desktop/server/drivers/agents-call.ts` (the `create_options_card` branch moves into `agents-call-cards.ts`, which also handles the two widget tools; lower its ratchet number), `desktop/server/routes/bot-messages.ts` (`widgetAction`), `desktop/server/replies.ts` (widget branch), `desktop/server/delta-context.ts` (`isContextMessage`), `desktop/server/routes/threads.ts` (markdown export line), `desktop/server/team-backup.ts` (`messageText`), `scripts/mcp-server.ts` (projection keeps `widget`, in place), `desktop/server/drivers/agents-catalog-wire.test.ts` goldens and budget baselines, `scripts/testing/file-size-ratchet.test.ts`
 
 **Interfaces:**
 - Consumes: everything Task 1 produces.
 - Produces: `createAgentCard({store, bot, threadId, input}): {ok: true; messageId: string} | {ok: false; status: 400|403|404|409; error: string}`; the internal body shape `{tool: "show_widget", widget, fallback_text?}` and `{tool: "update_widget", widget_id, widget}`; the public body field `widgetAction: {messageId: string, ref: string, values?: Record<string, string|boolean>}` on `POST /api/bots/:id/messages` with `text` omitted.
 
-- [ ] Tests first (`server/chat-widgets.test.ts`, additions to `server/replies.test.ts` or a new one, and a bot-messages route test following the existing route tests): create posts `kind: "widget"` with fallback text and no `from`; a room thread is 409; strings are redacted; `update_widget` replaces a live tree and refuses a settled one, another bot's message and another thread's; a press sends one user message replying to the widget with the label text; `confirm` settles, a plain button does not; the same `sendId` twice sends once and patches once; a settled widget is 409; `promptWithReply` names the action and payload; `isContextMessage` admits a widget row.
+- [ ] Tests first (`desktop/server/chat-widgets.test.ts`, additions to `desktop/server/replies.test.ts` or a new one, and a bot-messages route test following the existing route tests): create posts `kind: "widget"` with fallback text and no `from`; a room thread is 409; strings are redacted; `update_widget` replaces a live tree and refuses a settled one, another bot's message and another thread's; a press sends one user message replying to the widget with the label text; `confirm` settles, a plain button does not; the same `sendId` twice sends once and patches once; a settled widget is 409; `promptWithReply` names the action and payload; `isContextMessage` admits a widget row.
 - [ ] Implement. `createAgentCard` delegates a body without `tool` to `createOptionsCard` unchanged.
-- [ ] Regenerate goldens with `UPDATE_AGENTS_CATALOG_GOLDENS=1 pnpm exec vitest run server/drivers/agents-catalog-wire.test.ts`, then edit `BUDGET_BASELINE` by hand to the printed sizes.
+- [ ] Regenerate goldens with `UPDATE_AGENTS_CATALOG_GOLDENS=1 pnpm exec vitest run desktop/server/drivers/agents-catalog-wire.test.ts`, then edit `BUDGET_BASELINE` by hand to the printed sizes.
 - [ ] Run the touched tests, both ratchet tests, `pnpm typecheck`, `pnpm lint`. Commit.
 
 ### Task 3: Desktop renderer
 
 **Files:**
-- Create: `src/components/widget/WidgetMessage.tsx`, `WidgetNodes.tsx`, `WidgetControls.tsx`, `WidgetChart.tsx`, `widget-icons.ts`, `widget-send.ts`, tests beside them (`*.test.ts`), `src/components/OptionsCardRow.tsx`
-- Modify: `src/components/ChatView.tsx` (the `options` case moves into `OptionsCardRow`; add `case "widget"`; lower its ratchet number), `src/state/store.tsx` (`Message` gains `kind` and `widget` from `WireMessage`, in place), `src/lib/export-transcript.ts`, `src/locales/en.json`
+- Create: `desktop/src/components/widget/WidgetMessage.tsx`, `WidgetNodes.tsx`, `WidgetControls.tsx`, `WidgetChart.tsx`, `widget-icons.ts`, `widget-send.ts`, tests beside them (`*.test.ts`), `desktop/src/components/OptionsCardRow.tsx`
+- Modify: `desktop/src/components/ChatView.tsx` (the `options` case moves into `OptionsCardRow`; add `case "widget"`; lower its ratchet number), `desktop/src/state/store.tsx` (`Message` gains `kind` and `widget` from `WireMessage`, in place), `desktop/src/lib/export-transcript.ts`, `desktop/src/locales/en.json`
 
 **Interfaces:**
 - Consumes: Task 1 types and helpers; the `widgetAction` body from Task 2.
@@ -97,9 +97,9 @@ export function resolveWidgetAction(payload: WidgetPayload, ref: string, values:
 ### Task 4: iOS
 
 **Files (in `mausbot-mobile-widgets`):**
-- Create: `ios/Sources/CompanionCore/ChatWidget.swift` (forgiving `JSONValue`, `ChatWidgetPayload`, `ChatWidgetNode` accessors, field and action helpers mirroring Task 1's scope rules), `ios/Tests/CompanionCoreTests/ChatWidgetTests.swift`, `ios/App/Cards/ChatWidgetView.swift`, `ChatWidgetNodes.swift`, `ChatWidgetControls.swift`, `ChatWidgetChart.swift`, `ChatWidgetIcons.swift`
+- Create: `mobile/ios/Sources/CompanionCore/ChatWidget.swift` (forgiving `JSONValue`, `ChatWidgetPayload`, `ChatWidgetNode` accessors, field and action helpers mirroring Task 1's scope rules), `mobile/ios/Tests/CompanionCoreTests/ChatWidgetTests.swift`, `mobile/ios/App/Cards/ChatWidgetView.swift`, `ChatWidgetNodes.swift`, `ChatWidgetControls.swift`, `ChatWidgetChart.swift`, `ChatWidgetIcons.swift`
 - Modify: `Models.swift` (`Kind.widget`, `widget` payload), `StateSnapshot.swift` and its guard tests, `ChatPreferences.swift` and `Walkie.swift` kind switches, `Client.swift` (`sendWidgetAction`), `Session.swift`, `TranscriptRows.swift` (`TranscriptActions.sendWidgetAction`), `ChatView.swift` (dispatch), `Localizable.xcstrings`
-- Fixture: `ios/Tests/CompanionCoreTests/Fixtures/widget-messages.json` (written by Task 1's samples; do not hand-edit)
+- Fixture: `mobile/ios/Tests/CompanionCoreTests/Fixtures/widget-messages.json` (written by Task 1's samples; do not hand-edit)
 
 - [ ] Core tests first: the fixture decodes every message with `kind == .widget`; a malformed tree decodes to a message that falls back to text and never throws; field collection and required checks match the fixture's expectations; the snapshot round-trips the payload.
 - [ ] Implement core, then views. Offline uses the existing reconnect notice. Remote images use `AsyncImage` over https only.
@@ -108,7 +108,7 @@ export function resolveWidgetAction(payload: WidgetPayload, ref: string, values:
 ### Task 5: Android
 
 **Files (in `mausbot-mobile-widgets`):**
-- Create: `android/core/.../core/ChatWidget.kt`, `android/core/src/test/.../ChatWidgetTest.kt`, `android/app/.../ui/ChatWidgetView.kt`, `ChatWidgetNodes.kt`, `ChatWidgetControls.kt`, `ChatWidgetChart.kt`, `ChatWidgetIcons.kt`, app tests beside the existing ones
+- Create: `mobile/android/core/.../core/ChatWidget.kt`, `mobile/android/core/src/test/.../ChatWidgetTest.kt`, `mobile/android/app/.../ui/ChatWidgetView.kt`, `ChatWidgetNodes.kt`, `ChatWidgetControls.kt`, `ChatWidgetChart.kt`, `ChatWidgetIcons.kt`, app tests beside the existing ones
 - Modify: `Models.kt` (`Kind.WIDGET`, serializer, `widget` field last), `StateSnapshot.kt` and its test, `ChatPreferences.kt`, `ChatPolicy.kt` kind switches, `Client.kt`, `Session.kt` (`sendWidgetAction`), `MessageRow.kt` (dispatch), the three `strings.xml`
 
 - [ ] Core tests first, mirroring Task 4 on the shared fixture.

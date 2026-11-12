@@ -26,7 +26,7 @@ capability flag, per the existing rule in `contracts.ts` that a bot is never tol
 capability its driver cannot mount). Engine-specific channels (Claude hooks) are accelerators; the
 baseline of every item is the canonical `RuntimeEvent` stream every driver already emits. §"Every
 engine, every item" collects the matrix, and the test plan runs each item against every fake
-engine in `server/testing/` (`fake-claude-cli`, `fake-codex-app-server`, `fake-acp-cli`,
+engine in `desktop/server/testing/` (`fake-claude-cli`, `fake-codex-app-server`, `fake-acp-cli`,
 `fake-agy-cli`, `fake-pi-cli`, `fake-driver`).
 
 ## Why
@@ -63,7 +63,7 @@ Six facts about main today, each with the file that proves it:
    per settled turn (`index.ts` fold at `case "turn.completed"`; `usage-ledger.ts`), but nothing
    computes tokens-per-task, cache-hit share per bot, or which prompt section costs what on a live
    turn (`previewSystemPrompt` at `index.ts:1553` reports bytes for the *preview*, not for turns).
-6. **Every new feature lands in `server/index.ts`** (16,247 lines, ~40 module-level maps, the
+6. **Every new feature lands in `desktop/server/index.ts`** (16,247 lines, ~40 module-level maps, the
    five-call drain incantation repeated at six exits). Both existing plans defer decomposition.
    Phase 0 does not decompose it either; it stops the growth by giving new mutations one shape.
 
@@ -109,7 +109,7 @@ HTTP engines, and 0.6 makes the cost of every section visible per turn, per engi
 
 ## Design
 
-### 0.1 The work digest (`server/digest.ts`, new `Message.kind = "digest"`)
+### 0.1 The work digest (`desktop/server/digest.ts`, new `Message.kind = "digest"`)
 
 At `turn.completed` the fold computes one durable, redacted record of what the turn *did*:
 
@@ -160,10 +160,10 @@ event tap). *Degraded by nature:* HTTP family — no tools, so a digest is reply
 rows; still written, because rebuilds for these engines happen every turn and the digest is the
 only work record they have.
 
-### 0.2 Claude Code hooks through the existing `--settings` file (`server/hooks/`, `drivers/claude.ts`)
+### 0.2 Claude Code hooks through the existing `--settings` file (`desktop/server/hooks/`, `drivers/claude.ts`)
 
 `authSettingsPath` becomes `settingsPath` and is always written (not only when auth settings
-exist). Its content gains a `hooks` block pointing at one local helper, `server/hooks/omb-hook.ts`
+exist). Its content gains a `hooks` block pointing at one local helper, `desktop/server/hooks/omb-hook.ts`
 (run with the same `process.execPath --experimental-strip-types` as `PERM_PROXY_PATH`), which
 POSTs the event to `http://127.0.0.1:PORT/api/internal/hook` with the turn's capability token in
 `env` (the same `mintInternalCapability` door every proxy uses, so a hook can only report into its
@@ -174,7 +174,7 @@ Events and what the harness does with each:
 | Hook | Matcher | Harness action |
 | --- | --- | --- |
 | `PostToolUse` | `*` | Ingest `{tool_name, tool_input, tool_response, tool_use_id}`; store the redacted result (`tool-summary.ts:toolDetailPreview`, 6 KB cap; spill the full text to `DATA_DIR/tool-results/<thread>/<tool_use_id>.txt` at 0600) on the matching activity row (`toolMessageByItem`); feed 0.1. Dedupe on `tool_use_id` (a retried hook never double-counts). |
-| `PreToolUse` | `Bash` | Return `updatedInput` rewriting known noisy commands (`pnpm test`, `pytest`, `npm test`, `git log` without `-n`, package installs) to a filtered form (`… 2>&1 \| tail -n 200`, `--quiet`), from a small allowlist table in `server/hooks/filters.ts`. Never blocks; never rewrites commands it does not recognise. Off by default per bot until measured (see 0.6). |
+| `PreToolUse` | `Bash` | Return `updatedInput` rewriting known noisy commands (`pnpm test`, `pytest`, `npm test`, `git log` without `-n`, package installs) to a filtered form (`… 2>&1 \| tail -n 200`, `--quiet`), from a small allowlist table in `desktop/server/hooks/filters.ts`. Never blocks; never rewrites commands it does not recognise. Off by default per bot until measured (see 0.6). |
 | `PreCompact` | `*` | Return `additionalContext` = compaction guidance: "preserve decisions, unresolved errors, file paths, verification commands, the current PROGRESS goal; drop tool output". Log a `compaction.pending` event on the bus. (The OpenClaw-style *silent flush turn* is Phase 1; here we only steer the CLI's own summary.) |
 | `SessionStart` | `source: compact` | Return `additionalContext` = the last digest(s) of this thread (≤ 1,500 bytes) so post-compaction context carries the work record. Log `compaction.completed`. |
 | `Stop` | `*` | Bus event `turn.stop-hook` with the CLI's `stop_hook_active`; used only for a digest-vs-fold consistency counter in 0.6. No behaviour. |
@@ -241,7 +241,7 @@ for endpoints that advertise it (probe once per instance; fall back silently) �
 required for correctness. No driver may report `structured` from anything other than validated
 JSON.
 
-### 0.4 Global launch budget (`server/launch-budget.ts`)
+### 0.4 Global launch budget (`desktop/server/launch-budget.ts`)
 
 One fuse for every process the harness starts: `spawnCli` takes a `LaunchTicket` from
 `launchBudget.acquire({ kind: "turn"|"helper"|"routine"|"wake"|"bench", botId })` and releases it
@@ -259,7 +259,7 @@ one-shot helper, and the box agent's local control process) because the fuse sit
 chat-completions call, since there is no process; the same pause-on-quota rule applies from the
 retry classifier these drivers already share (`drivers/retry.ts`).
 
-### 0.5 The command + receipt rule for new mutations (`server/commands.ts`)
+### 0.5 The command + receipt rule for new mutations (`desktop/server/commands.ts`)
 
 Not a rewrite. A ~150-line seam that every *new* mutation in this and later phases goes through:
 
@@ -275,7 +275,7 @@ Phase 0 uses it for exactly three commands — `digest.append`, `hook.ingest`, `
 and the plan-of-record rule from here on is: new state changes are commands with receipts, new
 side effects are bus subscribers. Existing paths are left alone until a later phase touches them.
 
-### 0.6 Measurement: tokens per task, cache-hit share, prompt sections per turn (`server/metrics.ts`)
+### 0.6 Measurement: tokens per task, cache-hit share, prompt sections per turn (`desktop/server/metrics.ts`)
 
 - **Per-turn prompt section bytes.** `buildSystemPrompt` already returns `bytes` per section; the
   dispatch path records `{threadId, turnId, sections: {id, bytes}[], stableBytes, volatileBytes,

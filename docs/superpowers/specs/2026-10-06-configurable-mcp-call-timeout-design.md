@@ -3,7 +3,7 @@
 ## Summary
 
 Every bot MCP tool call on the chat-MCP transport is cut at a fixed 10-minute
-ceiling (`CALL_MS` in `server/drivers/chat-mcp-tools.ts`). Long-running tool
+ceiling (`CALL_MS` in `desktop/server/drivers/chat-mcp-tools.ts`). Long-running tool
 calls — a full `xcodebuild test` or gradle run through a host-shell MCP tool —
 routinely trip that ceiling: "MCP request timed out; execution outcome may be
 uncertain". The ceiling is not configurable and no environment override exists.
@@ -64,7 +64,7 @@ config status through the existing config event.
 
 ## Server Behavior
 
-The value is read once per turn dispatch in `server/index.ts`
+The value is read once per turn dispatch in `desktop/server/index.ts`
 (`mcpCallTimeoutMinutes(cfg) * 60_000`) and carried on `SendTurnInput` as
 `mcpCallTimeoutMs` — the same per-turn channel `mcpFromUserConfig` uses. The
 openai-compat chat runtime passes it into `mountChatTools(...)`, which
@@ -105,17 +105,17 @@ server value unless the user is actively editing it.
    default of 10.
 2. The General settings card renders it; blur/Enter issues
    `PUT /api/config` with `{ "mcp": { "callTimeoutMinutes": N } }`.
-3. `server/index.ts` re-reads `cfg`, broadcasts the new config status, and
+3. `desktop/server/index.ts` re-reads `cfg`, broadcasts the new config status, and
    the next turn dispatch carries `mcpCallTimeoutMs` on `SendTurnInput`.
 4. `mountChatTools` uses that value for every `tools/call` on the turn.
 
 ## Tests
 
-- `server/config.test.ts`: accepted persisted value; invalid values rejected
+- `desktop/server/config.test.ts`: accepted persisted value; invalid values rejected
   (0, fractional, >60, non-numeric, null); unknown `mcp` keys rejected.
-- `src/lib/mcp-call-timeout.test.ts`: parser bounds and formatting.
-- `server/drivers/chat-mcp-tools.test.ts`: a short configured timeout trips
+- `desktop/src/lib/mcp-call-timeout.test.ts`: parser bounds and formatting.
+- `desktop/server/drivers/chat-mcp-tools.test.ts`: a short configured timeout trips
   the timeout on a slow server; a generous one lets the same call complete.
-- `src/state/store.test.ts` / `SettingsModal.connections.test.ts`:
+- `desktop/src/state/store.test.ts` / `SettingsModal.connections.test.ts`:
   `mcp` is part of the config status frame.
 - `scripts/generate-locale.mjs --check`: locale catalogs stay valid.

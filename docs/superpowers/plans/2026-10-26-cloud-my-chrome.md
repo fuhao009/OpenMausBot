@@ -12,15 +12,15 @@
 
 ## Global Constraints
 
-- `server/index.ts` is pinned at **16238** lines by `scripts/testing/file-size-ratchet.test.ts` and may only shrink. Do every bit of wiring there on existing lines: lengthen a line, never add one.
+- `desktop/server/index.ts` is pinned at **16238** lines by `scripts/testing/file-size-ratchet.test.ts` and may only shrink. Do every bit of wiring there on existing lines: lengthen a line, never add one.
 - Personal Cloud home only: the server uses a lent Chrome only when `CLOUD_PERSONAL`, and advertises `myChromeLink` only when `cloudTeam !== true`.
 - Chrome is never lent by default. `defaultGrant` keeps `chrome` only when the previous grant had `chrome === true`.
 - The Cloud never names a host or port for a Chrome stream. The lent computer connects only to `127.0.0.1:<port from its own DevToolsActivePort>`.
 - No fallback: a My Chrome session on My Cloud never silently uses the built-in browser.
-- New UI copy goes in `src/locales/en.json` only (other locales fall back to English).
+- New UI copy goes in `desktop/src/locales/en.json` only (other locales fall back to English).
 - Match the surrounding code: short comments that say why, no new abstractions beyond the ones named here.
 - Commit after each task. Every message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Never push and never open a PR.
-- Known local failures on this Mac (Node 22, sandboxed network), not caused by this work: in `server/device-links.test.ts`, "opens only for the session and secret that registered the computer…" times out. In `electron/device-link.node-test.mjs`, subtests 7–11 are cancelled. Don't chase them; CI on Node 24 is the reference.
+- Known local failures on this Mac (Node 22, sandboxed network), not caused by this work: in `desktop/server/device-links.test.ts`, "opens only for the session and secret that registered the computer…" times out. In `desktop/electron/device-link.node-test.mjs`, subtests 7–11 are cancelled. Don't chase them; CI on Node 24 is the reference.
 
 ## Review Focus
 
@@ -35,32 +35,32 @@
 ### Task 1: The link carries a Chrome stream, and the computer checks its own grant
 
 **Files:**
-- Modify: `electron/device-link-protocol.mjs` (header comment; `open`; `onControl` case `"open"`), `electron/device-link-protocol.d.mts`
-- Modify: `electron/device-link.mjs` (`runDeviceLink` options and `accept`), `electron/device-link.d.mts`
-- Test: `electron/device-link.node-test.mjs`
+- Modify: `desktop/electron/device-link-protocol.mjs` (header comment; `open`; `onControl` case `"open"`), `desktop/electron/device-link-protocol.d.mts`
+- Modify: `desktop/electron/device-link.mjs` (`runDeviceLink` options and `accept`), `desktop/electron/device-link.d.mts`
+- Test: `desktop/electron/device-link.node-test.mjs`
 
 **Interfaces:**
 - Produces: `mux.open(target: { host: string; port: number } | { chrome: true }): Promise<LinkOpened>`. The control frame is `{ t: "open", id, chrome: true }` for Chrome, unchanged otherwise. `accept(target)` receives exactly `{ chrome: true }` when `message.chrome === true`, else `{ host: message.host, port: message.port }`.
 - Produces: `runDeviceLink({ …, lends = () => ({ internet: true, chrome: false }), chrome = {} })`. `chrome` is passed to `createChromeDoor` from Task 2 (tests inject `dirs`, `readFile`, `connect`). `accept` answers `{ refused: "not-lent" }` for a Chrome stream when `!lends().chrome`, and for a host/port stream when `!lends().internet`. Otherwise it answers `chromeDoor.open()` or `deviceEgress.open(target)`. `onStream(target, result)` is called for both.
 - Note: Task 2 creates `createChromeDoor`. Do Task 2 first if you prefer; this task's tests inject a fake door through `chrome.open` (see Step 1), so the order doesn't matter.
 
-- [ ] **Step 1: Write the failing tests** in `electron/device-link.node-test.mjs`:
+- [ ] **Step 1: Write the failing tests** in `desktop/electron/device-link.node-test.mjs`:
   - `"a Chrome stream reaches the computer as { chrome: true } and never carries a host or port"`: two muxes wired back to back, the computer side's `accept` records its target. Cloud side `open({ chrome: true })`. Assert the recorded target `deepEqual({ chrome: true })`. Assert the first control frame sent is `{ t: "open", id: 1, chrome: true }`.
   - `"the computer opens a Chrome stream only while it lends Chrome, and a web stream only while it lends its internet connection"`: `runDeviceLink` against a local `WebSocketServer` playing My Cloud, with `lends: () => ({ internet: false, chrome: false })`. Assert `{ t: "refused", reason: "not-lent" }` for both `{ chrome: true }` and `{ host: "example.com", port: 443 }`. Then with `lends` returning `chrome: true`, and `chrome: { open: async () => ({ socket }) }` where `socket` is one end of a `net` socket pair to a local echo server, assert `{ t: "opened" }` and bytes echo back.
 
-- [ ] **Step 2: Run them, expect FAIL**: `node --test --test-name-pattern="Chrome stream|lends Chrome" electron/device-link.node-test.mjs`
+- [ ] **Step 2: Run them, expect FAIL**: `node --test --test-name-pattern="Chrome stream|lends Chrome" desktop/electron/device-link.node-test.mjs`
 
 - [ ] **Step 3: Implement** the protocol change and the `runDeviceLink` `lends` / `chrome` options. When `chrome.open` is given, use it as the door (the test seam); otherwise `createChromeDoor(chrome)`. Update both `.d.mts` files and the protocol header comment (one line: `open {id, host, port} or {id, chrome: true}`).
 
-- [ ] **Step 4: Run** `node --test electron/device-link.node-test.mjs`. Expect the new tests to PASS and subtests 1–6 to still PASS (7–11 are the known local cancellations).
+- [ ] **Step 4: Run** `node --test desktop/electron/device-link.node-test.mjs`. Expect the new tests to PASS and subtests 1–6 to still PASS (7–11 are the known local cancellations).
 
 - [ ] **Step 5: Commit** `feat(lending): the device link carries a Chrome stream, and the computer checks its own grant`
 
 ### Task 2: The lent computer's Chrome door
 
 **Files:**
-- Create: `electron/device-chrome.mjs`, `electron/device-chrome.d.mts`
-- Test: `electron/device-chrome.node-test.mjs`
+- Create: `desktop/electron/device-chrome.mjs`, `desktop/electron/device-chrome.d.mts`
+- Test: `desktop/electron/device-chrome.node-test.mjs`
 
 **Interfaces:**
 - Produces:
@@ -78,7 +78,7 @@
     - On connect it answers `{ socket: guard }`. `guard` is a `Duplex`: bytes written to it are buffered until `\r\n\r\n`. If they pass `rewriteHandshake`, the rewritten head plus the bytes after it go to Chrome, and every later byte passes through both ways. If they don't, the guard pushes `HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`, ends, and destroys the Chrome socket. A head over `MAX_HEAD` without `\r\n\r\n` destroys both. `pause`/`resume`, `end` and `destroy` map onto the Chrome socket.
     - Default `dirs` come from `chromeDataDirs({ platform: process.platform, home: os.homedir(), localAppData: process.env.LOCALAPPDATA })`.
 
-- [ ] **Step 1: Write the failing tests** in `electron/device-chrome.node-test.mjs`. "Fake Chrome" means an `http` server plus a `WebSocketServer({ noServer: true })` that upgrades only `/devtools/browser/REAL-ID` and records each upgrade request's `url`, `host` and `origin`.
+- [ ] **Step 1: Write the failing tests** in `desktop/electron/device-chrome.node-test.mjs`. "Fake Chrome" means an `http` server plus a `WebSocketServer({ noServer: true })` that upgrades only `/devtools/browser/REAL-ID` and records each upgrade request's `url`, `host` and `origin`.
   - `"reads DevToolsActivePort: a port and Chrome's browser path, nothing else"`: `parseDevtoolsActivePort("9222\n/devtools/browser/abc-1\n")` deepEquals `{ port: 9222, path: "/devtools/browser/abc-1" }`. Each of `""`, `"0\n/devtools/browser/x"`, `"70000\n/devtools/browser/x"`, `"9222\n/json/new"` and `"9222\n/devtools/browser/../x"` gives `null`.
   - `"looks only in Chrome's own folders, in agent-browser's order"`: `chromeDataDirs({ platform: "darwin", home: "/U" })` deepEquals the three darwin paths. win32 and linux likewise.
   - `"rewrites only a WebSocket upgrade to Chrome's browser or a page, with Chrome's own host and no Origin"`: a head with `GET /devtools/browser/TOKEN HTTP/1.1`, `Host: 127.0.0.1:5555`, `Origin: https://evil.test`, `Upgrade: websocket` and `Connection: Upgrade` becomes a head with `GET /devtools/browser/REAL-ID HTTP/1.1`, `Host: 127.0.0.1:9222` and no `Origin`. `/devtools/page/AB12` is kept. `GET /json/new?https://x HTTP/1.1` (with upgrade), `POST /devtools/browser/x HTTP/1.1`, and a `GET /devtools/browser/x` without `Upgrade` each give `null`.
@@ -87,20 +87,20 @@
   - `"an oversized head is dropped"`: write `MAX_HEAD + 1` bytes with no blank line. The guard is destroyed and the fake saw no request.
   - `"no DevToolsActivePort, or a stale one whose port refuses, is no-chrome"`: an empty dir → `{ failed: "no-chrome" }`. A file pointing at a closed port → `{ failed: "no-chrome" }`.
 
-- [ ] **Step 2: Run, expect FAIL**: `node --test electron/device-chrome.node-test.mjs` (module not found)
+- [ ] **Step 2: Run, expect FAIL**: `node --test desktop/electron/device-chrome.node-test.mjs` (module not found)
 
-- [ ] **Step 3: Implement** `electron/device-chrome.mjs` and its `.d.mts`. The header comment names what the door is: the lent computer's own way to its Chrome. It finds the port itself and lets through only the upgrade.
+- [ ] **Step 3: Implement** `desktop/electron/device-chrome.mjs` and its `.d.mts`. The header comment names what the door is: the lent computer's own way to its Chrome. It finds the port itself and lets through only the upgrade.
 
-- [ ] **Step 4: Run** `node --test electron/device-chrome.node-test.mjs electron/device-link.node-test.mjs` and expect PASS (except the known cancellations).
+- [ ] **Step 4: Run** `node --test desktop/electron/device-chrome.node-test.mjs desktop/electron/device-link.node-test.mjs` and expect PASS (except the known cancellations).
 
 - [ ] **Step 5: Commit** `feat(lending): the lent computer's door to its own Chrome`
 
 ### Task 3: The desktop lends Chrome when the person turns it on
 
 **Files:**
-- Modify: `electron/computer-sharing.mjs` (`describe`/`cloudIdentity`, `saveCloud`, the connect body, the `keepLink` condition and its `runDeviceLink` call, `browsed`, `cloudState`), `electron/computer-sharing.d.mts`
-- Modify: `electron/cloud-lending-ipc.mjs` (`pageLending`, `defaultGrant`, `choice` and the three `save(env(), await choice({...}))` sites), `electron/cloud-lending-ipc.d.mts`
-- Test: `electron/cloud-lending.node-test.mjs`, `electron/cloud-lending-ipc.node-test.mjs`
+- Modify: `desktop/electron/computer-sharing.mjs` (`describe`/`cloudIdentity`, `saveCloud`, the connect body, the `keepLink` condition and its `runDeviceLink` call, `browsed`, `cloudState`), `desktop/electron/computer-sharing.d.mts`
+- Modify: `desktop/electron/cloud-lending-ipc.mjs` (`pageLending`, `defaultGrant`, `choice` and the three `save(env(), await choice({...}))` sites), `desktop/electron/cloud-lending-ipc.d.mts`
+- Test: `desktop/electron/cloud-lending.node-test.mjs`, `desktop/electron/cloud-lending-ipc.node-test.mjs`
 
 **Interfaces:**
 - Consumes: Task 1's `runDeviceLink({ lends, chrome })`.
@@ -121,7 +121,7 @@
   - `cloud-lending.node-test.mjs` → `"a Chrome-only grant keeps the device link open, and the link refuses web streams"`: with grant `{ chrome: true, internet: false }`, the fake Cloud's link receives `{ t: "refused", reason: "not-lent" }` for an `{ host, port }` open.
   - `cloud-lending-ipc.node-test.mjs` → `"the default grant never lends Chrome unless it was lent before"`: `defaultGrant({ kept: null, … }).chrome === false`, and `defaultGrant({ kept: { chrome: true, folders: [] }, … }).chrome === true`. Also `pageLending({ state: { enabled: true, chrome: true } }).chrome === true`.
 
-- [ ] **Step 2: Run, expect FAIL**: `node --test electron/cloud-lending.node-test.mjs electron/cloud-lending-ipc.node-test.mjs`
+- [ ] **Step 2: Run, expect FAIL**: `node --test desktop/electron/cloud-lending.node-test.mjs desktop/electron/cloud-lending-ipc.node-test.mjs`
 
 - [ ] **Step 3: Implement** the interfaces above, keeping each change next to its `internet` twin.
 
@@ -132,11 +132,11 @@
 ### Task 4: My Cloud knows which computer lends Chrome
 
 **Files:**
-- Modify: `server/environment.ts` (`myChromeLink` capability, `cloudTeam` input), and `server/index.ts` lines 13060 and 13130 (pass `cloudTeam: CLOUD_TEAM !== null` on the same lines)
-- Modify: `server/lent-computers.ts` (record and `connected` input `chrome?: boolean`)
-- Modify: `server/shared-computers.ts` (registration `chrome`, `remember`, scopes in `KnownLentComputer`/`SharedComputerStatus`, `linkable`, new `chromeLender`)
-- Modify: `server/device-links.ts` (`LinkedComputer.chrome`, new `chromeRoute`)
-- Test: `server/environment.test.ts`, `server/lent-computers.test.ts`, `server/shared-computers.test.ts`, `server/device-links.test.ts`
+- Modify: `desktop/server/environment.ts` (`myChromeLink` capability, `cloudTeam` input), and `desktop/server/index.ts` lines 13060 and 13130 (pass `cloudTeam: CLOUD_TEAM !== null` on the same lines)
+- Modify: `desktop/server/lent-computers.ts` (record and `connected` input `chrome?: boolean`)
+- Modify: `desktop/server/shared-computers.ts` (registration `chrome`, `remember`, scopes in `KnownLentComputer`/`SharedComputerStatus`, `linkable`, new `chromeLender`)
+- Modify: `desktop/server/device-links.ts` (`LinkedComputer.chrome`, new `chromeRoute`)
+- Test: `desktop/server/environment.test.ts`, `desktop/server/lent-computers.test.ts`, `desktop/server/shared-computers.test.ts`, `desktop/server/device-links.test.ts`
 
 **Interfaces:**
 - Consumes: Task 1's `mux.open({ chrome: true })`.
@@ -155,9 +155,9 @@
   - `shared-computers.test.ts` → `"chromeLender names the newest computer that lends Chrome, and whether it is online"`. Register A (`chrome: true`) and then B (`chrome: false`). Assert `chromeLender(p)` deepEquals `{ name: "A", device: "Mac", online: true }`. After A's session dies, `online` is `false`. After A's lending stops, the result is `null`.
   - `device-links.test.ts` → `"a Chrome stream goes only to a computer that lends Chrome, through its own door"`. Use the existing in-process harness. Run the computer's `runDeviceLink` with `lends: () => ({ internet: false, chrome: true })` and `chrome: { open: async () => ({ socket }) }`, where `socket` goes to a local echo server. `chromeRoute(PERSON)` is non-null, and `open()` gives `{ join }` with bytes echoed. Also: a computer registered without `chrome` gives `chromeRoute(PERSON) === null`, while `route(PERSON)` still works when it lends its internet connection.
 
-- [ ] **Step 2: Run, expect FAIL**: `npx vitest run server/environment.test.ts server/lent-computers.test.ts server/shared-computers.test.ts server/device-links.test.ts`
+- [ ] **Step 2: Run, expect FAIL**: `npx vitest run desktop/server/environment.test.ts desktop/server/lent-computers.test.ts desktop/server/shared-computers.test.ts desktop/server/device-links.test.ts`
 
-- [ ] **Step 3: Implement** the interfaces. In `index.ts`, change only lines 13060 and 13130. Confirm with `wc -l server/index.ts` that it is still 16238.
+- [ ] **Step 3: Implement** the interfaces. In `index.ts`, change only lines 13060 and 13130. Confirm with `wc -l desktop/server/index.ts` that it is still 16238.
 
 - [ ] **Step 4: Run** the same command plus `npx vitest run scripts/testing/file-size-ratchet.test.ts`, and expect PASS (except the known device-links timeout).
 
@@ -166,11 +166,11 @@
 ### Task 5: My Cloud's door for a session's Chrome
 
 **Files:**
-- Create: `server/browser/lent-chrome.ts`
-- Test: `server/browser/lent-chrome.test.ts`
+- Create: `desktop/server/browser/lent-chrome.ts`
+- Test: `desktop/server/browser/lent-chrome.test.ts`
 
 **Interfaces:**
-- Consumes: Task 4's `ChromeRoute`, and `LinkOpened` from `electron/device-link-protocol.mjs`.
+- Consumes: Task 4's `ChromeRoute`, and `LinkOpened` from `desktop/electron/device-link-protocol.mjs`.
 - Produces:
 
 ```ts
@@ -217,7 +217,7 @@ export function lentChromeGuidance(problem: LentChromeProblem, lender: ChromeLen
   - `unreachable`: `Chrome on ${name} did not accept the connection; it may be waiting for the person to click Allow. Tell them in one sentence to check Chrome on that ${device}.`
   - `not-allowed`: `Someone else wrote in this conversation, so it can't use your Chrome. Start a new conversation to use it.`
 
-- [ ] **Step 1: Write the failing tests** in `server/browser/lent-chrome.test.ts`. The fake route's `open()` returns a scripted `LinkOpened`. `join(socket, early)` pipes to a local echo server after writing `early`. The client is a raw `net` socket that writes a WebSocket upgrade head.
+- [ ] **Step 1: Write the failing tests** in `desktop/server/browser/lent-chrome.test.ts`. The fake route's `open()` returns a scripted `LinkOpened`. `join(socket, early)` pipes to a local echo server after writing `early`. The client is a raw `net` socket that writes a WebSocket upgrade head.
   - `"hands out one tokenized loopback address per session"`: two `door("s1")` calls give the same URL, matching `^ws://127\.0\.0\.1:\d+/devtools/browser/[a-f0-9]{64}$`. `door("s2")` gives a different port and token. `owns("s1")` is true and `owns("x")` is false.
   - `"a connection without the token gets 404, opens no stream and records nothing"`: wrong token → `HTTP/1.1 404`. The route's `open` is never called, and `problem("s1") === null`.
   - `"joins the session's connection through the route, head included"`: the echo receives the exact head bytes, and later bytes round-trip.
@@ -227,22 +227,22 @@ export function lentChromeGuidance(problem: LentChromeProblem, lender: ChromeLen
   - `"a connection unused for the idle time is closed"`: with `idleMs: () => 50` and `sweepMs: 10`, the client sees close within 1 s.
   - `"guidance names the computer and what to do"`: `lentChromeGuidance("offline", { name: "Omkar's MacBook", device: "Mac", online: false })` contains `Omkar's MacBook` and `open Hezuo on that Mac`. `lentChromeGuidance("no-chrome", null)` contains `chrome://inspect/#remote-debugging`.
 
-- [ ] **Step 2: Run, expect FAIL**: `npx vitest run server/browser/lent-chrome.test.ts`
+- [ ] **Step 2: Run, expect FAIL**: `npx vitest run desktop/server/browser/lent-chrome.test.ts`
 
-- [ ] **Step 3: Implement** `server/browser/lent-chrome.ts` (`node:net` server per session on `127.0.0.1:0`, `randomBytes(32)` token).
+- [ ] **Step 3: Implement** `desktop/server/browser/lent-chrome.ts` (`node:net` server per session on `127.0.0.1:0`, `randomBytes(32)` token).
 
-- [ ] **Step 4: Run** `npx vitest run server/browser/lent-chrome.test.ts` and expect PASS.
+- [ ] **Step 4: Run** `npx vitest run desktop/server/browser/lent-chrome.test.ts` and expect PASS.
 
 - [ ] **Step 5: Commit** `feat(cloud): a per-session door from the bots' browser to the person's lent Chrome`
 
 ### Task 6: The browser host uses the lent Chrome for My Chrome profiles
 
 **Files:**
-- Modify: `server/turn-resources.ts` (`onClaim`)
-- Modify: `server/browser/engines.ts` (`RuntimeRouterOptions.refusal` gains `session`, new `afterCall`)
-- Modify: `server/host/browser.ts` (deps, `myChromeAvailable`, `browserSessionSpec` `cdpUrl` argument, `browserIntegration`/`currentBrowserSpec`, refusal/afterCall wiring, claim hook, `lentChromeSummary`, `closeAll`)
-- Modify: `server/index.ts`, existing lines only: the `createBrowserHost({...})` call at 2529, the destructuring list at 2527, and `progress` in `browserEngineSummary` at 2568
-- Test: `server/turn-resources.test.ts`, `server/browser/engines.test.ts`, `server/host/browser.test.ts`
+- Modify: `desktop/server/turn-resources.ts` (`onClaim`)
+- Modify: `desktop/server/browser/engines.ts` (`RuntimeRouterOptions.refusal` gains `session`, new `afterCall`)
+- Modify: `desktop/server/host/browser.ts` (deps, `myChromeAvailable`, `browserSessionSpec` `cdpUrl` argument, `browserIntegration`/`currentBrowserSpec`, refusal/afterCall wiring, claim hook, `lentChromeSummary`, `closeAll`)
+- Modify: `desktop/server/index.ts`, existing lines only: the `createBrowserHost({...})` call at 2529, the destructuring list at 2527, and `progress` in `browserEngineSummary` at 2568
+- Test: `desktop/server/turn-resources.test.ts`, `desktop/server/browser/engines.test.ts`, `desktop/server/host/browser.test.ts`
 
 **Interfaces:**
 - Consumes: Task 4's `chromeRoute` and `chromeLender`, and Task 5's `LentChromeDoors` and `lentChromeGuidance`.
@@ -274,22 +274,22 @@ export function lentChromeGuidance(problem: LentChromeProblem, lender: ChromeLen
     - `"an offline or missing lender is explained before the call reaches the browser"`: lender `online: false` → the refusal text contains `is lent but offline`. Lender `null` → the text contains `turn on Your Chrome`.
     - `"the summary says which computer lends Chrome, or that one can"`: `lentChromeSummary()` gives `{ myChromeOn: lender }` with a lender and `{ myChromeLendable: true }` without one. On the desktop host (no `lentChrome`) it gives `{}`.
 
-- [ ] **Step 2: Run, expect FAIL**: `npx vitest run server/turn-resources.test.ts server/browser/engines.test.ts server/host/browser.test.ts`
+- [ ] **Step 2: Run, expect FAIL**: `npx vitest run desktop/server/turn-resources.test.ts desktop/server/browser/engines.test.ts desktop/server/host/browser.test.ts`
 
-- [ ] **Step 3: Implement.** In `index.ts`, edit only lines 2527, 2529 and 2568. `wc -l server/index.ts` must still print 16238.
+- [ ] **Step 3: Implement.** In `index.ts`, edit only lines 2527, 2529 and 2568. `wc -l desktop/server/index.ts` must still print 16238.
 
-- [ ] **Step 4: Run** the Step 2 command plus `npx vitest run scripts/testing/file-size-ratchet.test.ts server/cloud-lending-browser.e2e.test.ts server/browser-engine.test.ts`, and expect PASS.
+- [ ] **Step 4: Run** the Step 2 command plus `npx vitest run scripts/testing/file-size-ratchet.test.ts desktop/server/cloud-lending-browser.e2e.test.ts desktop/server/browser-engine.test.ts`, and expect PASS.
 
 - [ ] **Step 5: Commit** `feat(cloud): My Chrome profiles on My Cloud use the person's lent Chrome`
 
 ### Task 7: Settings say where My Chrome is, and the desktop has the switch
 
 **Files:**
-- Modify: `src/state/config-status.ts` (`BrowserEngineSummary.myChromeOn?`, `myChromeLendable?`)
-- Modify: `src/components/BrowserProfilesManager.tsx` (the `chromeNote` lines and the unavailable paragraph)
-- Modify: `src/components/CloudLending.tsx` (`lentWhat`, `choiceOf`, `lend`, the Chrome checkbox after the internet one, the unsupported note), `src/components/LendingActivity.tsx` (`chrome: "lending.action.chrome"`)
-- Modify: `src/locales/en.json`
-- Test: `src/components/BrowserProfilesManager.test.ts`, `src/components/CloudLending.test.ts`
+- Modify: `desktop/src/state/config-status.ts` (`BrowserEngineSummary.myChromeOn?`, `myChromeLendable?`)
+- Modify: `desktop/src/components/BrowserProfilesManager.tsx` (the `chromeNote` lines and the unavailable paragraph)
+- Modify: `desktop/src/components/CloudLending.tsx` (`lentWhat`, `choiceOf`, `lend`, the Chrome checkbox after the internet one, the unsupported note), `desktop/src/components/LendingActivity.tsx` (`chrome: "lending.action.chrome"`)
+- Modify: `desktop/src/locales/en.json`
+- Test: `desktop/src/components/BrowserProfilesManager.test.ts`, `desktop/src/components/CloudLending.test.ts`
 
 **Interfaces:**
 - Consumes: Task 6's summary fields and Task 3's `CloudLendingState.chrome` and `chromeLink`.
@@ -311,18 +311,18 @@ export function lentChromeGuidance(problem: LentChromeProblem, lender: ChromeLen
   - `BrowserProfilesManager.test.ts` → `"on My Cloud with nothing lent, it says how to lend Chrome"`: `browserEngine: { myChrome: false, myChromeLendable: true }` → contains `turn on Your Chrome`, and does not contain `there is no Chrome of yours to use`.
   - `CloudLending.test.ts` → `"lentWhat lists your Chrome"`: `lentWhat([], false, true, false, true)` equals `the internet connection and your Chrome`. Use the `listOf` output the existing tests assert.
 
-- [ ] **Step 2: Run, expect FAIL**: `npx vitest run src/components/BrowserProfilesManager.test.ts src/components/CloudLending.test.ts`
+- [ ] **Step 2: Run, expect FAIL**: `npx vitest run desktop/src/components/BrowserProfilesManager.test.ts desktop/src/components/CloudLending.test.ts`
 
 - [ ] **Step 3: Implement.**
 
-- [ ] **Step 4: Run** the same command plus `npx vitest run src/locales` and `pnpm exec tsc -b --noEmit` (or the repo's `pnpm typecheck` if present), and expect PASS.
+- [ ] **Step 4: Run** the same command plus `npx vitest run desktop/src/locales` and `pnpm exec tsc -b --noEmit` (or the repo's `pnpm typecheck` if present), and expect PASS.
 
 - [ ] **Step 5: Commit** `feat(ui): My Chrome on My Cloud in browser profiles, and the Your Chrome switch`
 
 ### Task 8: End to end through a real Cloud home, plus the docs
 
 **Files:**
-- Create: `server/cloud-lending-chrome.e2e.test.ts` (modelled on `server/cloud-lending-browser.e2e.test.ts`: a real Cloud home server, the real `createComputerSharing` connector)
+- Create: `desktop/server/cloud-lending-chrome.e2e.test.ts` (modelled on `desktop/server/cloud-lending-browser.e2e.test.ts`: a real Cloud home server, the real `createComputerSharing` connector)
 - Modify: `docs/cloud-pro.md` (the lending scopes section, and the bullet that refuses DevTools on a lent screen, which should say Chrome is lent only by its own switch, over the device link, to the port the computer finds itself), `docs/plans/browser-engine.md` ("Where it applies"), `docs/browser-packaging.md` (the "on Cloud and servers profiles stay built-in" line)
 
 **Interfaces:**
@@ -333,10 +333,10 @@ export function lentChromeGuidance(problem: LentChromeProblem, lender: ChromeLen
   - `"a computer that stops lending Chrome takes the route with it"`: re-save the grant without `chrome`. The next connection through the door answers `HTTP/1.1 502`, and a tool-call refusal says `turn on Your Chrome`.
   - `"a conversation someone else wrote in cannot reach the person's Chrome"`: a thread with a line from another sender. Its turn's claim drops the open connection, and its tool call is refused with the someone-else sentence.
 
-- [ ] **Step 2: Run** `npx vitest run server/cloud-lending-chrome.e2e.test.ts` and expect PASS once the seams are added.
+- [ ] **Step 2: Run** `npx vitest run desktop/server/cloud-lending-chrome.e2e.test.ts` and expect PASS once the seams are added.
 
 - [ ] **Step 3: Update the three docs** in the same plain style as the surrounding text.
 
-- [ ] **Step 4: Full check**: `npx vitest run server/ src/components/BrowserProfilesManager.test.ts src/components/CloudLending.test.ts` and `pnpm test:electron`. Only the known local failures may remain.
+- [ ] **Step 4: Full check**: `npx vitest run desktop/server/ desktop/src/components/BrowserProfilesManager.test.ts desktop/src/components/CloudLending.test.ts` and `pnpm test:electron`. Only the known local failures may remain.
 
 - [ ] **Step 5: Commit** `test(cloud): My Chrome on My Cloud end to end; docs`

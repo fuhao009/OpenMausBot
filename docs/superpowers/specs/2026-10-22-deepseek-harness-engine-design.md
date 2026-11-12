@@ -75,7 +75,7 @@ with the normal approval cards, model picker and reasoning-effort control.
 
 ## Design
 
-### Driver: `server/drivers/acp/deepseek.ts`
+### Driver: `desktop/server/drivers/acp/deepseek.ts`
 
 `createAcpDriver(support)` with:
 
@@ -116,8 +116,8 @@ with the normal approval cards, model picker and reasoning-effort control.
 
 ### Registry and fleet
 
-- `server/drivers/builtIn.ts`: import and append `DeepSeekAgentDriver`.
-- `server/config.ts`: `deepseek: { driver: "deepseekAgent" }` in
+- `desktop/server/drivers/builtIn.ts`: import and append `DeepSeekAgentDriver`.
+- `desktop/server/config.ts`: `deepseek: { driver: "deepseekAgent" }` in
   `DEFAULT_FLEET` and `PRODUCT_FLEET_ADDITIONS`; `DEEPSEEK_API_KEY` in
   `PROVIDER_CREDENTIAL_ENV`; `injectedEnvironment` gives `DEEPSEEK_API_KEY`
   to `deepseekAgent` from `cfg.deepseek.key`.
@@ -147,14 +147,14 @@ with the normal approval cards, model picker and reasoning-effort control.
 
 ### Tests
 
-- `server/drivers/acp/deepseek.test.ts`: id ↔ wire mapping; catalog parsing
+- `desktop/server/drivers/acp/deepseek.test.ts`: id ↔ wire mapping; catalog parsing
   from a captured `configOptions` fixture; `isAuthenticated` for env, credentials
   file and `.env` under a temp DSH_HOME; `configureSession` issues the expected
   `set_config_option` calls, skips when already current, and throws on a
   sticky model; `spawnArgs`; effort `none` → `off`.
-- `server/config.test.ts`: `DEEPSEEK_API_KEY` reaches only `deepseekAgent`;
+- `desktop/server/config.test.ts`: `DEEPSEEK_API_KEY` reaches only `deepseekAgent`;
   `deepseek` is in the default fleet; stripping removes it from other children.
-- `server/index.test.ts`: config status reports `deepseek.configured`.
+- `desktop/server/index.test.ts`: config status reports `deepseek.configured`.
 - Existing ACP core suites stay green.
 
 ## Left to the builder

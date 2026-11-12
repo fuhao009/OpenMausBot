@@ -14,12 +14,12 @@ Two changes to bot-to-bot handoffs:
 
 ## Background — how it works on `main` today
 
-- `server/delegations.ts` keeps a durable, restart-safe queue (`delegations.json`), capped at `MAX_QUEUED_PER_THREAD = 4` per source thread.
+- `desktop/server/delegations.ts` keeps a durable, restart-safe queue (`delegations.json`), capped at `MAX_QUEUED_PER_THREAD = 4` per source thread.
 - `holdWhileTargetBusy()` decides whether a queued item waits. It has two branches:
   - **Classic handoff** (no `targetThreadId`): waits while `target.busy`. Each distinct busy period of the target counts one attempt (`attempts`, `waitingOnBusy`). At `MAX_BUSY_ATTEMPTS = 3` it records a `busy_gave_up` receipt and a "canceled — still busy" chip.
   - **Fresh-thread handoff** (`targetThreadId`, from #1021): waits for a free thread slot with **no bound**. It reuses `attempts` only as a "wait chip already shown" marker.
 - A `settled` outcome with a receipt calls `drainDelegations`' `onSettled` callback, which `index.ts` wires to `wakeUndispatchedDelegation` — so the delegating bot is woken with a failure prompt. `busy_gave_up` already goes through this path.
-- `BotRecord.activity` (`server/store.ts`) is one of `working | waiting-on-you | idle | no-signal | dead`. `busy` is derived from it via `ACTIVITY_BUSY = {working, waiting-on-you, no-signal}`.
+- `BotRecord.activity` (`desktop/server/store.ts`) is one of `working | waiting-on-you | idle | no-signal | dead`. `busy` is derived from it via `ACTIVITY_BUSY = {working, waiting-on-you, no-signal}`.
 - Peers only ever see `busy`:
   - roster line (`peer-roster.ts renderRoster`): `working right now` / `available`
   - `GET /api/internal/agents` (`list_bots`): `busy: boolean`
@@ -91,7 +91,7 @@ Two changes to bot-to-bot handoffs:
 
 ### Part 2 — truthful peer status
 
-**One mapping** — new export `peerStatus(activity)` in `server/peer-roster.ts`:
+**One mapping** — new export `peerStatus(activity)` in `desktop/server/peer-roster.ts`:
 
 | `activity` | `peerStatus` | Roster / `list_bots` wording |
 |---|---|---|
@@ -131,7 +131,7 @@ Two changes to bot-to-bot handoffs:
 
 Tests are written first, in Vitest. The fake clock uses `vi.useFakeTimers()` / `vi.setSystemTime()`.
 
-**`server/delegations.test.ts`**, "busy retries and receipts" → renamed "busy waits and expiry":
+**`desktop/server/delegations.test.ts`**, "busy retries and receipts" → renamed "busy waits and expiry":
 - *keeps a handoff queued while the target is busy and dispatches on the retry drain* — unchanged intent.
 - *gives up after the bounded retries* → replaced by:
   - **survives five busy periods** — still queued with no receipt, dispatched after the fifth settle.
@@ -140,11 +140,11 @@ Tests are written first, in Vitest. The fake clock uses `vi.useFakeTimers()` / `
 - **waiting chip names a target that is waiting on you.**
 - **fresh-thread handoff also expires after 24 hours.**
 
-**`server/delegations.test.ts`**, "delegations survive a restart":
+**`desktop/server/delegations.test.ts`**, "delegations survive a restart":
 - **an item saved without `queuedAt` loads with a fresh 24-hour window.**
 - **`expireStaleDelegations` expires due items across threads, skips a draining thread, and calls `onSettled` once per item.**
 
-**`server/peer-roster.test.ts`**
+**`desktop/server/peer-roster.test.ts`**
 - `peerStatus` covers all five activities plus absent.
 - The roster line for a `waiting-on-you` bot reads "waiting on the user".
 
@@ -161,10 +161,10 @@ Tests are written first, in Vitest. The fake clock uses `vi.useFakeTimers()` / `
 
 ## Files
 
-- `server/delegations.ts`, `server/delegations.test.ts`
-- `server/peer-roster.ts`, `server/peer-roster.test.ts`
-- `server/drivers/agents-proxy.ts` and its test
-- `server/index.ts`:
+- `desktop/server/delegations.ts`, `desktop/server/delegations.test.ts`
+- `desktop/server/peer-roster.ts`, `desktop/server/peer-roster.test.ts`
+- `desktop/server/drivers/agents-proxy.ts` and its test
+- `desktop/server/index.ts`:
   - `/api/internal/agents`
   - the `check_delegation` queued branch
   - boot sweep and hourly timer

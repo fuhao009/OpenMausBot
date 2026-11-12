@@ -90,11 +90,11 @@ memory information.
 
 ## Storage and endpoints
 
-- server/system-prompt.ts: pure ordered prompt assembly.
-- server/bot-folder.ts: mirror/hash/drift operations.
-- server/profile-requests.ts: staged cards and confirmation.
-- server/profile-versions.ts: redacted history.ndjson and instruction undo.
-- server/bot-overview.ts: shared sentences from collected facts.
+- desktop/server/system-prompt.ts: pure ordered prompt assembly.
+- desktop/server/bot-folder.ts: mirror/hash/drift operations.
+- desktop/server/profile-requests.ts: staged cards and confirmation.
+- desktop/server/profile-versions.ts: redacted history.ndjson and instruction undo.
+- desktop/server/bot-overview.ts: shared sentences from collected facts.
 - GET /api/bots/:id/overview: desktop and companion summary.
 - GET /api/bots/:id/system-prompt: settings preview.
 - GET /api/bots/:id/soul: canonical text, drift, and revision.

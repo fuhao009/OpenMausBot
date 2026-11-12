@@ -1,27 +1,4 @@
 #!/usr/bin/env node
-// A persistent local gateway: this repository's real account Worker, run by
-// the Miniflare its own Wrangler pins, over TLS on an explicit host/port, on a
-// persistent D1 database with Wrangler-compatible migration bookkeeping,
-// forwarding real inference to the operator's upstream and sending real
-// sign-in mail through the operator's own SMTP submission service.
-//
-// Nothing here is a fixture: the Worker's account, operator, token, billing
-// and usage paths are production code. Only the surrounding process (TLS
-// terminator, D1 host, SMTP adapter, upstream address, catalog prices)
-// belongs to this deployment.
-//
-//   node scripts/local-gateway.mjs init  --config gateway.json \
-//     --open-models ~/.omp/agent/models.yml --default-model gpt-6-astra --rate 1000000000
-//   node scripts/local-gateway.mjs start --config gateway.json
-//   node scripts/local-gateway.mjs status --config gateway.json
-//   node scripts/local-gateway.mjs stop  --config gateway.json
-//   node scripts/local-gateway.mjs migrate --config gateway.json
-//   node scripts/local-gateway.mjs whoami --config gateway.json --operator-email you@example.com
-//
-// Programmatic use (supervision, smoke tests):
-//   import { startLocalGateway, readGatewayConfig } from "../../scripts/scripts/local-gateway.mjs";
-//   const gateway = await startLocalGateway({ config });   // origin/port/close/db/status
-//
 // SECRETS. No secret is ever accepted on the command line or stored in the
 // config. The config holds 0600 file paths under <data-dir>/secrets/, and each
 // is opened O_NOFOLLOW with a private-mode and regular-file check. Sources are
@@ -60,7 +37,7 @@ const MIGRATIONS_TABLE = "d1_migrations";
 /** The D1 binding's stable name; persistence is scoped to <data-dir>/state. */
 const D1_NAME = GATEWAY_D1_IDENTITY;
 
-const USAGE = `usage: node scripts/local-gateway.mjs <command> [options]
+const USAGE = `usage: node gateway/local/local-gateway.mjs <command> [options]
 
 commands:
   init      write the 0600 config and copy any given secret into <data-dir>/secrets/
@@ -783,7 +760,7 @@ async function main() {
     if (service?.loaded && service.pid === runtime.pid) {
       throw new RefusalError(
         `this gateway is managed by launchd (${service.label}); nothing was changed.\n`
-        + `Remove the login service instead:  node scripts/local-gateway.mjs service uninstall --config ${configPath}`,
+        + `Remove the login service instead:  node gateway/local/local-gateway.mjs service uninstall --config ${configPath}`,
       );
     }
     process.kill(runtime.pid, "SIGTERM");
@@ -871,8 +848,8 @@ function runServiceCommand({ options, configPath, home }) {
     if (ownsRuntime(effective, running) && !(managed.loaded && managed.pid === running.pid)) {
       throw new RefusalError(
         `a gateway started by hand is already running for this config (pid ${running.pid}); nothing was changed.\n`
-        + `Stop it first:  node scripts/local-gateway.mjs stop --config ${configPath}\n`
-        + `Then install the login service:  node scripts/local-gateway.mjs service install --config ${configPath}`,
+        + `Stop it first:  node gateway/local/local-gateway.mjs stop --config ${configPath}\n`
+        + `Then install the login service:  node gateway/local/local-gateway.mjs service install --config ${configPath}`,
       );
     }
     // launchd opens the log itself, and it never creates the directory.

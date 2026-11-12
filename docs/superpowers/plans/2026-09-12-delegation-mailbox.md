@@ -6,12 +6,12 @@
 
 **Architecture:**
 - Everything is server-side.
-- `server/delegations.ts`:
+- `desktop/server/delegations.ts`:
   - A queued item carries `queuedAt` in place of the `attempts` counter.
   - `holdWhileTargetBusy()` waits without counting.
   - A 24-hour check in `processOne` expires stale items. The existing `onSettled → wakeUndispatchedDelegation` path then wakes the delegating bot.
-  - An exported sweep, run hourly from `server/index.ts`, catches items nothing drains.
-- `server/peer-roster.ts` gains one `peerStatus()` mapping from the harness's existing `BotActivity`. The roster, `list_bots`, handoff chips and `check_delegation` all read that one mapping.
+  - An exported sweep, run hourly from `desktop/server/index.ts`, catches items nothing drains.
+- `desktop/server/peer-roster.ts` gains one `peerStatus()` mapping from the harness's existing `BotActivity`. The roster, `list_bots`, handoff chips and `check_delegation` all read that one mapping.
 
 **Tech Stack:** TypeScript (strict), Node, Vitest, pnpm.
 
@@ -37,20 +37,20 @@ Each of these was found while reading the code for this plan:
 - Work only in the worktree `~/Desktop/hezuo/OpenGrokBot-mailbox`, on branch `feat/delegation-mailbox`. Never touch `~/Desktop/hezuo/OpenGrokBot`.
 - Commit locally after each task. **Never push. Never open a PR.** Omkar owns publishing.
 - End every commit message with: `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
-- Server-only change. No edits under `src/`, `ios/`, `android/`.
+- Server-only change. No edits under `desktop/src/`, `mobile/ios/`, `mobile/android/`.
 - No new persisted file. `delegations.json` gains one numeric field per item. Receipts stay bounded by `MAX_RECEIPTS` / `RECEIPT_MAX_AGE_MS`.
 - `DELEGATION_TTL_MS = 24 * 60 * 60 * 1000`.
 - `MAX_QUEUED_PER_THREAD = 4` and `MAX_COMMS_DEPTH = 1` are unchanged.
 - Run one test file with `pnpm vitest run <path>`. Typecheck: `pnpm typecheck`. Lint: `pnpm lint`.
-- Baseline before Task 1: `server/delegations.test.ts`, `server/peer-roster.test.ts`, `server/chief-of-staff.test.ts` and `server/drivers/agents-proxy.test.ts` together pass 143 tests.
+- Baseline before Task 1: `desktop/server/delegations.test.ts`, `desktop/server/peer-roster.test.ts`, `desktop/server/chief-of-staff.test.ts` and `desktop/server/drivers/agents-proxy.test.ts` together pass 143 tests.
 
 ---
 
 ### Task 1: `peerStatus` and truthful roster wording
 
 **Files:**
-- Modify: `server/peer-roster.ts` (top of file, `RosterMember`, `renderRoster`)
-- Test: `server/peer-roster.test.ts`
+- Modify: `desktop/server/peer-roster.ts` (top of file, `RosterMember`, `renderRoster`)
+- Test: `desktop/server/peer-roster.test.ts`
 
 **Interfaces:**
 - Produces:
@@ -61,7 +61,7 @@ Each of these was found while reading the code for this plan:
 
 - [ ] **Step 1: Write the failing tests**
 
-In `server/peer-roster.test.ts`, add `peerStatus,` to the import list from `./peer-roster.ts` (after `peerRosterSystemPrompt,`). Then append:
+In `desktop/server/peer-roster.test.ts`, add `peerStatus,` to the import list from `./peer-roster.ts` (after `peerRosterSystemPrompt,`). Then append:
 
 ```ts
 describe("peerStatus", () => {
@@ -99,12 +99,12 @@ describe("renderRoster status wording", () => {
 
 - [ ] **Step 2: Run them to verify they fail**
 
-Run: `pnpm vitest run server/peer-roster.test.ts`
+Run: `pnpm vitest run desktop/server/peer-roster.test.ts`
 Expected: FAIL — `peerStatus` is not exported. The roster test fails because Quill renders "(working right now)".
 
 - [ ] **Step 3: Implement**
 
-At the top of `server/peer-roster.ts`, after the header comment:
+At the top of `desktop/server/peer-roster.ts`, after the header comment:
 
 ```ts
 import type { BotActivity } from "./store.ts";
@@ -169,13 +169,13 @@ with:
 
 - [ ] **Step 4: Run the tests, including the Chief's roster**
 
-Run: `pnpm vitest run server/peer-roster.test.ts server/chief-of-staff.test.ts`
+Run: `pnpm vitest run desktop/server/peer-roster.test.ts desktop/server/chief-of-staff.test.ts`
 Expected: PASS. The Chief fixtures use `busy: true` without `activity` and still read "(working right now)".
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/peer-roster.ts server/peer-roster.test.ts
+git add desktop/server/peer-roster.ts desktop/server/peer-roster.test.ts
 git commit -m "feat(peers): roster says when a teammate is waiting on the user
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
@@ -186,9 +186,9 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ### Task 2: `list_bots` reports what each teammate is doing
 
 **Files:**
-- Modify: `server/index.ts:85` (peer-roster import) and the `GET /api/internal/agents` handler (search `path === "/api/internal/agents"`)
-- Modify: `server/drivers/agents-proxy.ts` — the `list_bots` tool description and the `list_bots` branch of `callTool`
-- Test: `server/drivers/agents-proxy.test.ts`
+- Modify: `desktop/server/index.ts:85` (peer-roster import) and the `GET /api/internal/agents` handler (search `path === "/api/internal/agents"`)
+- Modify: `desktop/server/drivers/agents-proxy.ts` — the `list_bots` tool description and the `list_bots` branch of `callTool`
+- Test: `desktop/server/drivers/agents-proxy.test.ts`
 
 **Interfaces:**
 - Consumes: `peerStatus`, `peerStatusWords` (Task 1).
@@ -196,7 +196,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Make the agents stub configurable, and write the failing test**
 
-In `server/drivers/agents-proxy.test.ts`, next to the other `let …Response` declarations (around line 23), add:
+In `desktop/server/drivers/agents-proxy.test.ts`, next to the other `let …Response` declarations (around line 23), add:
 
 ```ts
 const DEFAULT_AGENTS = { bots: [{ id: "bot-helper", name: "Helper", model: "fake-model", busy: false }] };
@@ -242,12 +242,12 @@ Add after the test `"list_bots renders the roster and authenticates with the sha
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `pnpm vitest run server/drivers/agents-proxy.test.ts -t "what each teammate is doing"`
+Run: `pnpm vitest run desktop/server/drivers/agents-proxy.test.ts -t "what each teammate is doing"`
 Expected: FAIL — Helper renders `, busy`, not `, waiting on the user`.
 
 - [ ] **Step 3: Implement the proxy side**
 
-In `server/drivers/agents-proxy.ts`, in the `list_bots` branch of `callTool`, replace:
+In `desktop/server/drivers/agents-proxy.ts`, in the `list_bots` branch of `callTool`, replace:
 
 ```ts
       return `- ${b.name}${role}${about} [id: ${b.id}, model: ${b.model}${b.busy ? ", busy" : ""}]`;
@@ -280,7 +280,7 @@ Leave the rest of that description string unchanged.
 
 - [ ] **Step 4: Implement the server side**
 
-In `server/index.ts` line 85, add `peerStatus, peerStatusWords,` to the import from `./peer-roster.ts`:
+In `desktop/server/index.ts` line 85, add `peerStatus, peerStatusWords,` to the import from `./peer-roster.ts`:
 
 ```ts
 import { peerAllowed, peerName, peerRosterSystemPrompt, peerStatus, peerStatusWords, reachablePeers, roomPeerRosterSystemPrompt, roomRosterLine } from "./peer-roster.ts";
@@ -306,13 +306,13 @@ In the `GET /api/internal/agents` handler, replace the `.map((b) => ({ … }))` 
 
 - [ ] **Step 5: Run the tests and check nothing pinned the old description**
 
-Run: `pnpm vitest run server/drivers/agents-proxy.test.ts && grep -rn "whether they're busy" server src`
+Run: `pnpm vitest run desktop/server/drivers/agents-proxy.test.ts && grep -rn "whether they're busy" server src`
 Expected: tests PASS; grep prints nothing.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add server/index.ts server/drivers/agents-proxy.ts server/drivers/agents-proxy.test.ts
+git add desktop/server/index.ts desktop/server/drivers/agents-proxy.ts desktop/server/drivers/agents-proxy.test.ts
 git commit -m "feat(peers): list_bots reports what each teammate is doing
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
@@ -323,7 +323,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ### Task 3: Handoffs wait for a busy target without counting
 
 **Files:**
-- Modify: `server/delegations.ts`
+- Modify: `desktop/server/delegations.ts`
   - `PendingDelegationItem`
   - `DelegationOutcome`
   - `MAX_BUSY_ATTEMPTS`
@@ -332,7 +332,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
   - `queueDelegation`
   - the `drainDelegations` redrain comment
   - `holdWhileTargetBusy`
-- Test: `server/delegations.test.ts`
+- Test: `desktop/server/delegations.test.ts`
 
 **Interfaces:**
 - Produces:
@@ -344,7 +344,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Update the existing tests to the new behaviour**
 
-In `server/delegations.test.ts`:
+In `desktop/server/delegations.test.ts`:
 
 1. Top import from `./delegations.ts`: delete the line `MAX_BUSY_ATTEMPTS,`.
 2. In `"keeps the handoff queued with a 'waiting' chip when the target is currently busy"`, replace the expectation:
@@ -437,12 +437,12 @@ In `server/delegations.test.ts`:
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `pnpm vitest run server/delegations.test.ts`
+Run: `pnpm vitest run desktop/server/delegations.test.ts`
 Expected: FAIL. The chip text still has `(retry 1/3 …)`, `waiting` / `queuedAt` are undefined, and the waiting-on-you chip is missing.
 
 - [ ] **Step 3: Implement the data changes**
 
-In `server/delegations.ts`, in `interface PendingDelegationItem`, replace the `attempts` field and its doc comment with:
+In `desktop/server/delegations.ts`, in `interface PendingDelegationItem`, replace the `attempts` field and its doc comment with:
 
 ```ts
   /** When this handoff was queued (epoch ms). It waits for a busy target
@@ -582,16 +582,16 @@ function waitingChipText(store: Store, target: BotRecord, item: PendingDelegatio
 
 - [ ] **Step 5: Run the tests**
 
-Run: `pnpm vitest run server/delegations.test.ts server/routines-startup.test.ts`
+Run: `pnpm vitest run desktop/server/delegations.test.ts desktop/server/routines-startup.test.ts`
 Expected: PASS. `routines-startup` writes legacy `attempts: 0` items, and the loader now ignores that field.
 
-Run: `grep -n "MAX_BUSY_ATTEMPTS\|attempts" server/delegations.ts server/delegations.test.ts`
+Run: `grep -n "MAX_BUSY_ATTEMPTS\|attempts" desktop/server/delegations.ts desktop/server/delegations.test.ts`
 Expected: no output.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add server/delegations.ts server/delegations.test.ts
+git add desktop/server/delegations.ts desktop/server/delegations.test.ts
 git commit -m "feat(delegations): wait for a busy target instead of giving up after 3 busy periods
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
@@ -602,11 +602,11 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ### Task 4: 24-hour expiry and the sweep
 
 **Files:**
-- Modify: `server/delegations.ts`
+- Modify: `desktop/server/delegations.ts`
   - new constants and helpers near `recordDelegationReceipt`
   - `processOne`, right after its first (source-ownership) check
   - new export `expireStaleDelegations`
-- Test: `server/delegations.test.ts`
+- Test: `desktop/server/delegations.test.ts`
 
 **Interfaces:**
 - Consumes: `PendingDelegationItem.queuedAt`, `"expired"` (Task 3).
@@ -616,7 +616,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing tests**
 
-In `server/delegations.test.ts`, add `DELEGATION_TTL_MS,` and `expireStaleDelegations,` to the top import list from `./delegations.ts`.
+In `desktop/server/delegations.test.ts`, add `DELEGATION_TTL_MS,` and `expireStaleDelegations,` to the top import list from `./delegations.ts`.
 
 In `describe("busy waits and expiry")`, add:
 
@@ -728,12 +728,12 @@ In `describe("delegations survive a restart")`, add:
 
 - [ ] **Step 2: Run them to verify they fail**
 
-Run: `pnpm vitest run server/delegations.test.ts -t "expire"`
+Run: `pnpm vitest run desktop/server/delegations.test.ts -t "expire"`
 Expected: FAIL — `DELEGATION_TTL_MS` and `expireStaleDelegations` are not exported, and the busy handoff never expires.
 
 - [ ] **Step 3: Implement the expiry helpers**
 
-In `server/delegations.ts`, after `const RESULT_MAX_CHARS = 4_000;`, add:
+In `desktop/server/delegations.ts`, after `const RESULT_MAX_CHARS = 4_000;`, add:
 
 ```ts
 /** How long a queued handoff may wait for its target before it expires.
@@ -823,13 +823,13 @@ In `processOne`, directly after the first `if (!sourceThreadBelongsToBot(bus.sto
 
 - [ ] **Step 5: Run the tests**
 
-Run: `pnpm vitest run server/delegations.test.ts`
+Run: `pnpm vitest run desktop/server/delegations.test.ts`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add server/delegations.ts server/delegations.test.ts
+git add desktop/server/delegations.ts desktop/server/delegations.test.ts
 git commit -m "feat(delegations): expire a queued handoff after 24 hours
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
@@ -840,14 +840,14 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ### Task 5: Wire expiry and queued status into the server and proxy
 
 **Files:**
-- Modify: `server/index.ts`
+- Modify: `desktop/server/index.ts`
   - the delegations import (line ~180)
   - after `function drainThreadDelegations`
   - the `server.listen` callback, after the leftover-drain loop
   - the `check_delegation` queued branch (search `status: "queued",`)
   - the `ask_bot` fallback comment (search `bounded busy`)
-- Modify: `server/drivers/agents-proxy.ts` — the `r.status === "queued"` branch in the `check_delegation`/`wait_delegation` handler
-- Test: `server/drivers/agents-proxy.test.ts`
+- Modify: `desktop/server/drivers/agents-proxy.ts` — the `r.status === "queued"` branch in the `check_delegation`/`wait_delegation` handler
+- Test: `desktop/server/drivers/agents-proxy.test.ts`
 
 **Interfaces:**
 - Consumes:
@@ -858,7 +858,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing proxy test**
 
-In `server/drivers/agents-proxy.test.ts`, add after the test containing `"still queued"`:
+In `desktop/server/drivers/agents-proxy.test.ts`, add after the test containing `"still queued"`:
 
 ```ts
   it("check_delegation explains a queued handoff: who it is waiting on, and when it expires", async () => {
@@ -881,12 +881,12 @@ In `server/drivers/agents-proxy.test.ts`, add after the test containing `"still 
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `pnpm vitest run server/drivers/agents-proxy.test.ts -t "explains a queued handoff"`
+Run: `pnpm vitest run desktop/server/drivers/agents-proxy.test.ts -t "explains a queued handoff"`
 Expected: FAIL — the text has neither the waiting-on line nor the expiry line.
 
 - [ ] **Step 3: Implement the proxy rendering**
 
-In `server/drivers/agents-proxy.ts`, replace:
+In `desktop/server/drivers/agents-proxy.ts`, replace:
 
 ```ts
     if (r.status === "queued") {
@@ -909,12 +909,12 @@ with:
 
 - [ ] **Step 4: Run the proxy tests**
 
-Run: `pnpm vitest run server/drivers/agents-proxy.test.ts`
+Run: `pnpm vitest run desktop/server/drivers/agents-proxy.test.ts`
 Expected: PASS. The older queued test still sees "still queued" and "after 45s".
 
 - [ ] **Step 5: Implement the server side**
 
-In `server/index.ts`, add `DELEGATION_TTL_MS, expireStaleDelegations,` to the `./delegations.ts` import (line ~180). Keep the list alphabetical: `DELEGATION_TTL_MS` goes right after `buildDelegationRevivalPrompt,`, and `expireStaleDelegations` right after `discardDelegations, drainDelegations,`.
+In `desktop/server/index.ts`, add `DELEGATION_TTL_MS, expireStaleDelegations,` to the `./delegations.ts` import (line ~180). Keep the list alphabetical: `DELEGATION_TTL_MS` goes right after `buildDelegationRevivalPrompt,`, and `expireStaleDelegations` right after `discardDelegations, drainDelegations,`.
 
 Directly after `function drainThreadDelegations(threadId: string): void { … }`, add:
 
@@ -986,7 +986,7 @@ Expected: both exit 0. If `tsc` flags another reader of `pendingDelegationInfo(.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add server/index.ts server/drivers/agents-proxy.ts server/drivers/agents-proxy.test.ts
+git add desktop/server/index.ts desktop/server/drivers/agents-proxy.ts desktop/server/drivers/agents-proxy.test.ts
 git commit -m "feat(delegations): hourly expiry sweep; check_delegation says who a handoff waits on
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
@@ -1003,9 +1003,9 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 Run:
 
 ```bash
-pnpm vitest run server/delegations.test.ts server/peer-roster.test.ts server/chief-of-staff.test.ts \
-  server/drivers/agents-proxy.test.ts server/routines-startup.test.ts server/comms.test.ts \
-  server/thread-aware-bots.e2e.test.ts server/peer-allowlist.e2e.test.ts
+pnpm vitest run desktop/server/delegations.test.ts desktop/server/peer-roster.test.ts desktop/server/chief-of-staff.test.ts \
+  desktop/server/drivers/agents-proxy.test.ts desktop/server/routines-startup.test.ts desktop/server/comms.test.ts \
+  desktop/server/thread-aware-bots.e2e.test.ts desktop/server/peer-allowlist.e2e.test.ts
 ```
 
 Expected: all PASS. `thread-aware-bots.e2e` still sees `Thread #QA: PR #3 on @Quinn waiting for a free slot`.
@@ -1019,10 +1019,10 @@ Expected: PASS, and the total test count is higher than on `origin/main`.
 
 Run: `git log --oneline origin/main..HEAD && git diff --stat origin/main..HEAD`
 Expected: spec + plan + 5 feature commits. Only these files changed:
-- `server/delegations*.ts`
-- `server/peer-roster*.ts`
-- `server/drivers/agents-proxy*.ts`
-- `server/index.ts`
+- `desktop/server/delegations*.ts`
+- `desktop/server/peer-roster*.ts`
+- `desktop/server/drivers/agents-proxy*.ts`
+- `desktop/server/index.ts`
 - `docs/superpowers/*`
 
 - [ ] **Step 4: Stop for Omkar's manual check**

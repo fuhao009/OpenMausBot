@@ -37,13 +37,13 @@ Design reference (approved 2026-10-13): https://claude.ai/artifact/3jp8ZJ62qQCx8
 ## Wire
 
 ```ts
-// shared/wire.ts
+// packages/shared/wire.ts
 kind: ... | "widget";
 /** widget rows (kind "widget"): a bot-authored UI tree. `text` is always the
  * readable fallback for clients that do not know the kind. */
 widget?: WidgetPayload;
 
-// shared/widget.ts
+// packages/shared/widget.ts
 interface WidgetPayload { v: 1; root: WidgetRoot; rev?: number; settled?: WidgetSettled }
 interface WidgetSettled { ref: string; label: string; tone: "confirm" | "cancel" | "submit"; at: number; sendId?: string; values?: WidgetValues }
 ```
@@ -168,7 +168,7 @@ carries `allowOther: true` on such a field (the bot opts out with
 A press answered that way sends the field's value as `""` and the words apart,
 in `other`: `{ "values": { "dish": "" }, "other": { "dish": "Leftover dal" } }`.
 
-`text` is omitted; the server writes it. The route (`server/routes/bot-messages.ts`):
+`text` is omitted; the server writes it. The route (`desktop/server/routes/bot-messages.ts`):
 
 1. loads the widget message and calls `resolveWidgetAction(payload, ref, values, other)`, which checks the ref exists, the widget is not settled, every value names a field in scope, select and radio values are offered options, dates are inside `min`/`max`, and required fields are filled. Words in `other` are taken only for a field that offers Other, never beside a picked option, at most 2,000 characters on one line; they fill a required choice and are sent as that field's `Field: words` line. Failures are 400, 404 or 409 with a sentence the card shows in place.
 2. sends an ordinary user message whose text is the label, followed by one `Field: value` line per filled field with the value whole (a `Textarea` keeps its line breaks), **as a reply to the widget message** (`replyTo`). The reply target handed to the turn is a copy of the widget row carrying `widgetPress: {label, action}`, so the model is told about a press only when one was validated here.
@@ -182,7 +182,7 @@ Three races are closed on the server:
 
 Because it is a reply, the model reads the press on every path that already
 carries replies (start, steer, and the queue, which stores the composed prompt).
-`promptWithReply` (`server/replies.ts`) has two widget forms. A press:
+`promptWithReply` (`desktop/server/replies.ts`) has two widget forms. A press:
 
 ```
 The current message is the person's answer to a widget you showed with show_widget.
@@ -210,15 +210,15 @@ text stays in replayed context.
 
 ## Tools
 
-Two tools join the agents catalog (`server/drivers/agents-widget-tools.ts`, spread into `TOOL_DEFINITIONS`):
+Two tools join the agents catalog (`desktop/server/drivers/agents-widget-tools.ts`, spread into `TOOL_DEFINITIONS`):
 
 - `show_widget({ widget, fallback_text? })` returns `Shown as widget <messageId>...`. When the widget parses but cannot do what it looks like it is for (a list with a confirm button and no row that can be chosen or pressed), the result also says so and names the fix, so the bot can correct it with `update_widget` in the same turn.
 - `update_widget({ widget_id, widget })` replaces a live widget's tree in place (a progress bar, a status). A settled widget, another bot's widget or another thread's widget is refused.
 
 Both go through the existing internal route `POST /api/internal/options-card`,
-whose handler now calls `createAgentCard` (`server/chat-widgets.ts`). A body with
+whose handler now calls `createAgentCard` (`desktop/server/chat-widgets.ts`). A body with
 `tool: "show_widget" | "update_widget"` is a widget call; a body without `tool`
-is the legacy options card, unchanged. This keeps `server/index.ts` at its
+is the legacy options card, unchanged. This keeps `desktop/server/index.ts` at its
 ratcheted size and path-guard counts.
 
 `createAgentCard` refuses a room thread, normalises the input, redacts secrets
@@ -253,8 +253,8 @@ One design language on all three platforms (the approved canvas):
 - An unknown node type on an older client draws its children, or nothing.
 
 Platform notes: desktop draws charts with the app's Vega-Lite pipeline (the spec
-comes from `shared/widget-chart.ts`, drawn with the one config in
-`shared/vega-config.ts` the Data panel uses, so a server can render the same
+comes from `packages/shared/widget-chart.ts`, drawn with the one config in
+`packages/shared/vega-config.ts` the Data panel uses, so a server can render the same
 spec headless) and maps icons to lucide; iOS uses Swift Charts and SF Symbols;
 Android draws charts on a Canvas and maps icons onto `material-icons-core` plus
 existing drawables.
@@ -276,8 +276,8 @@ URL cannot make a device call out on its own. On phones the type is named
 
 ## Testing
 
-- `shared/widget.test.ts`: normalisation of every node type, each limit, the password refusal, fallback text, action resolution (scope, required, options, dates, settled, unknown ref).
-- `server/chat-widgets.test.ts`, `server/replies.test.ts`, `server/routes/bot-messages` tests: create, update, room refusal, redaction, press delivery, settle, idempotent retry.
+- `packages/shared/widget.test.ts`: normalisation of every node type, each limit, the password refusal, fallback text, action resolution (scope, required, options, dates, settled, unknown ref).
+- `desktop/server/chat-widgets.test.ts`, `desktop/server/replies.test.ts`, `desktop/server/routes/bot-messages` tests: create, update, room refusal, redaction, press delivery, settle, idempotent retry.
 - Catalog goldens regenerated; ratchet numbers lowered where code moved out.
 - Desktop component tests (happy-dom) for the renderer, form state and the settled line.
 - Shared fixtures `widget-messages.json` feed the iOS and Android decoding tests.

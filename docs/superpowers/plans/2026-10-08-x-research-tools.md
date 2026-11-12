@@ -4,7 +4,7 @@
 
 **Goal:** Bots the user switches on can search, read and monitor X through four read-only `x_*` tools, paid from the user's own treg token.
 
-**Architecture:** A small client (`server/x-research.ts`) calls X scrapers through treg (treg.to): the cheapest scraper per job first, treg's routed endpoint as a fallback. It maps their varied rows to compact posts and its failures to plain-language errors. Internal routes (`server/routes/x-research.ts`) re-check the token and the bot's switch on every call. The four tools live in the existing `agents` tool server, so every engine gets them. The token is stored like the xAI key. The per-bot switch is a `xResearch` boolean edited in Bot settings → Access.
+**Architecture:** A small client (`desktop/server/x-research.ts`) calls X scrapers through treg (treg.to): the cheapest scraper per job first, treg's routed endpoint as a fallback. It maps their varied rows to compact posts and its failures to plain-language errors. Internal routes (`desktop/server/routes/x-research.ts`) re-check the token and the bot's switch on every call. The four tools live in the existing `agents` tool server, so every engine gets them. The token is stored like the xAI key. The per-bot switch is a `xResearch` boolean edited in Bot settings → Access.
 
 **Tech Stack:** TypeScript on Node (type stripping, so type-only imports must be `import type`), zod 4, vitest 4, React.
 
@@ -24,8 +24,8 @@
 - `limit` is 1–50 and defaults to 20. Post `text` is cut at 1,500 code points and `quoted.text` at 300, each with `…`.
 - `sinceId` must match `^\d{1,25}$`.
 - Route statuses: `bad_input` 400, `not_found` 404, other scraper failures 502, a missing key or a switched-off bot 403. Never 401.
-- Error sentences come only from `X_MESSAGES` in `server/x-research.ts` (see Task 1).
-- No new `path ===` guard in `server/index.ts`: `scripts/testing/index-route-ratchet.test.ts` pins the count.
+- Error sentences come only from `X_MESSAGES` in `desktop/server/x-research.ts` (see Task 1).
+- No new `path ===` guard in `desktop/server/index.ts`: `scripts/testing/index-route-ratchet.test.ts` pins the count.
 - Phones change nothing. Phone tokens already cannot patch `xResearch` (`CLIENT_BOT_PATCH_FIELDS`).
 
 ## Review Focus
@@ -41,8 +41,8 @@
 ### Task 1: The treg X client
 
 **Files:**
-- Create: `server/x-research.ts`
-- Test: `server/x-research.test.ts`
+- Create: `desktop/server/x-research.ts`
+- Test: `desktop/server/x-research.test.ts`
 
 **Interfaces:**
 - Consumes: nothing.
@@ -57,7 +57,7 @@
 
 - [ ] **Step 1: Write the failing test**
 
-Create `server/x-research.test.ts`:
+Create `desktop/server/x-research.test.ts`:
 
 ```ts
 import { describe, expect, it, vi } from "vitest";
@@ -449,12 +449,12 @@ describe("errors", () => {
 
 - [ ] **Step 2: Run the test and confirm it fails**
 
-Run: `pnpm vitest run server/x-research.test.ts`
+Run: `pnpm vitest run desktop/server/x-research.test.ts`
 Expected: FAIL, because `./x-research.ts` cannot be found.
 
 - [ ] **Step 3: Write the implementation**
 
-Create `server/x-research.ts`:
+Create `desktop/server/x-research.ts`:
 
 ```ts
 // X research: the x_* agents tools' only way out. A thin client over treg
@@ -917,14 +917,14 @@ export function createTregXClient(options: { token: string; fetcher?: typeof fet
 
 - [ ] **Step 4: Run the test and confirm it passes**
 
-Run: `pnpm vitest run server/x-research.test.ts`
+Run: `pnpm vitest run desktop/server/x-research.test.ts`
 Expected: PASS (all tests).
 
 - [ ] **Step 5: Typecheck and commit**
 
 ```bash
-pnpm exec tsc -p tsconfig.server.json --noEmit
-git add server/x-research.ts server/x-research.test.ts
+pnpm exec tsc -p desktop/tsconfig.server.json --noEmit
+git add desktop/server/x-research.ts desktop/server/x-research.test.ts
 git commit -m "feat(x-research): treg X client with compact posts, scraper fallback and plain errors
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -935,17 +935,17 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 2: Store the treg token like the xAI key
 
 **Files:**
-- Modify: `server/config.ts`:
+- Modify: `desktop/server/config.ts`:
   - schema, near `:430` (`cerebras: z.object(...)`)
   - `AppConfig`, near `:621`
   - env override, near `:1046-1049`
   - `syncCredentialEnv`, near `:1131`
   - `WORKSPACE_CREDENTIAL_ENV`, after `"OMB_OPENAI_LIVE_KEY"` near `:1193`
   - `saveConfig` section list, `:1366`
-- Modify: `electron/workspace-credentials.mjs:10-20`, `electron/diagnostics.mjs:14-36`
-- Modify: `server/index.ts` `configStatus()` near `:15433`
-- Modify: `src/state/store.tsx`: the `ConfigStatus` interface near `:632`, the `ConfigStatusFrame` pick list near `:761`, and `configStatusFromFrame` near `:768`
-- Test: `server/config.test.ts`, `electron/diagnostics.test.mjs`, `electron/workspace-credentials.test.mjs`. The existing parity tests cover the lists; one new config test is added.
+- Modify: `desktop/electron/workspace-credentials.mjs:10-20`, `desktop/electron/diagnostics.mjs:14-36`
+- Modify: `desktop/server/index.ts` `configStatus()` near `:15433`
+- Modify: `desktop/src/state/store.tsx`: the `ConfigStatus` interface near `:632`, the `ConfigStatusFrame` pick list near `:761`, and `configStatusFromFrame` near `:768`
+- Test: `desktop/server/config.test.ts`, `desktop/electron/diagnostics.test.mjs`, `desktop/electron/workspace-credentials.test.mjs`. The existing parity tests cover the lists; one new config test is added.
 
 **Interfaces:**
 - Consumes: nothing.
@@ -953,7 +953,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `server/config.test.ts`, in its top-level `describe` or a new one. Add `WORKSPACE_CREDENTIAL_ENV` and `syncCredentialEnv` to the file's existing import from `./config.ts` if they are not imported already:
+Append to `desktop/server/config.test.ts`, in its top-level `describe` or a new one. Add `WORKSPACE_CREDENTIAL_ENV` and `syncCredentialEnv` to the file's existing import from `./config.ts` if they are not imported already:
 
 ```ts
 describe("treg token", () => {
@@ -978,12 +978,12 @@ describe("treg token", () => {
 
 - [ ] **Step 2: Run the test and confirm it fails**
 
-Run: `pnpm vitest run server/config.test.ts -t "treg token"`
+Run: `pnpm vitest run desktop/server/config.test.ts -t "treg token"`
 Expected: FAIL. tsc-level: `treg` is not in the patch type. Vitest: `WORKSPACE_CREDENTIAL_ENV` does not contain the name.
 
 - [ ] **Step 3: Implement the plumbing**
 
-In `server/config.ts`:
+In `desktop/server/config.ts`:
 
 ```ts
 // schema, next to `cerebras: z.object({ key: optionalText }).optional(),`
@@ -1014,22 +1014,22 @@ In `server/config.ts`:
 
 In the `saveConfig` section list at `:1366`, add `"treg"` right after `"cerebras"`.
 
-In `electron/diagnostics.mjs` `CREDENTIAL_ENV_NAMES`, add `"OMB_TREG_TOKEN",` directly after `"OMB_OPENAI_LIVE_KEY",`. It must be the same position as in `WORKSPACE_CREDENTIAL_ENV`, because the parity test compares order.
+In `desktop/electron/diagnostics.mjs` `CREDENTIAL_ENV_NAMES`, add `"OMB_TREG_TOKEN",` directly after `"OMB_OPENAI_LIVE_KEY",`. It must be the same position as in `WORKSPACE_CREDENTIAL_ENV`, because the parity test compares order.
 
-In `electron/workspace-credentials.mjs`, add a row after the `live` row:
+In `desktop/electron/workspace-credentials.mjs`, add a row after the `live` row:
 
 ```js
   { section: "treg", field: "token", name: "tregToken", env: "OMB_TREG_TOKEN" },
 ```
 
-In `server/index.ts` `configStatus()`, after the `cerebras` line:
+In `desktop/server/index.ts` `configStatus()`, after the `cerebras` line:
 
 ```ts
     // configured flag only: the key itself never leaves the server
     treg: { configured: Boolean(cfg.treg?.token) },
 ```
 
-In `src/state/store.tsx`:
+In `desktop/src/state/store.tsx`:
 
 ```ts
 // ConfigStatus, after cerebras
@@ -1041,14 +1041,14 @@ Then add `| "treg"` after `"cerebras"` in the `ConfigStatusFrame` pick list, and
 
 - [ ] **Step 4: Run the tests and confirm they pass**
 
-Run: `pnpm vitest run server/config.test.ts && pnpm exec vitest run electron/diagnostics.test.mjs electron/workspace-credentials.test.mjs`
+Run: `pnpm vitest run desktop/server/config.test.ts && pnpm exec vitest run desktop/electron/diagnostics.test.mjs desktop/electron/workspace-credentials.test.mjs`
 Expected: PASS. Check how `pnpm test:electron` runs the `.test.mjs` files in `package.json` and use that exact command if it differs.
 
 - [ ] **Step 5: Typecheck and commit**
 
 ```bash
 pnpm typecheck
-git add server/config.ts server/config.test.ts electron/workspace-credentials.mjs electron/diagnostics.mjs server/index.ts src/state/store.tsx
+git add desktop/server/config.ts desktop/server/config.test.ts desktop/electron/workspace-credentials.mjs desktop/electron/diagnostics.mjs desktop/server/index.ts desktop/src/state/store.tsx
 git commit -m "feat(x-research): store the treg token as an encrypted workspace credential
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -1059,11 +1059,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 3: The per-bot `xResearch` switch (data and API)
 
 **Files:**
-- Modify: `shared/wire.ts:303-307` (Bot type, after `voiceNotes`)
-- Modify: `src/state/store.tsx:456-459` (client Bot type, after `voiceNotes`)
-- Modify: `src/state/bot-patch-queue.ts:27` (allowed patch keys)
-- Modify: `server/index.ts`, the `PATCH /api/bots/:id` handler, after the `voiceNotes` block near `:21515`
-- Test: `server/request-auth.test.ts` near `:130`
+- Modify: `packages/shared/wire.ts:303-307` (Bot type, after `voiceNotes`)
+- Modify: `desktop/src/state/store.tsx:456-459` (client Bot type, after `voiceNotes`)
+- Modify: `desktop/src/state/bot-patch-queue.ts:27` (allowed patch keys)
+- Modify: `desktop/server/index.ts`, the `PATCH /api/bots/:id` handler, after the `voiceNotes` block near `:21515`
+- Test: `desktop/server/request-auth.test.ts` near `:130`
 
 **Interfaces:**
 - Consumes: nothing.
@@ -1071,7 +1071,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing test**
 
-In `server/request-auth.test.ts`, in the test that holds `expect(clientBotPatchViolation({ cwd: "/" })).toBe("cwd");`, add:
+In `desktop/server/request-auth.test.ts`, in the test that holds `expect(clientBotPatchViolation({ cwd: "/" })).toBe("cwd");`, add:
 
 ```ts
     // X research spends the workspace's treg balance: a paired
@@ -1081,12 +1081,12 @@ In `server/request-auth.test.ts`, in the test that holds `expect(clientBotPatchV
 
 - [ ] **Step 2: Run the test**
 
-Run: `pnpm vitest run server/request-auth.test.ts`
+Run: `pnpm vitest run desktop/server/request-auth.test.ts`
 Expected: PASS already, because `xResearch` is not in `CLIENT_BOT_PATCH_FIELDS`. This test pins that it stays out. Do not add `xResearch` to that set.
 
 - [ ] **Step 3: Add the field and the PATCH validation**
 
-`shared/wire.ts`, after `voiceNotes?: boolean;`:
+`packages/shared/wire.ts`, after `voiceNotes?: boolean;`:
 
 ```ts
   /** Whether this bot may use the X research tools (x_search, x_user_posts,
@@ -1095,16 +1095,16 @@ Expected: PASS already, because `xResearch` is not in `CLIENT_BOT_PATCH_FIELDS`.
   xResearch?: boolean;
 ```
 
-`src/state/store.tsx` Bot, after `voiceNotes?: boolean;`:
+`desktop/src/state/store.tsx` Bot, after `voiceNotes?: boolean;`:
 
 ```ts
   /** whether this bot may search and read X (off unless switched on) */
   xResearch?: boolean;
 ```
 
-`src/state/bot-patch-queue.ts`: add `| "xResearch"` after `| "voiceNotes"`.
+`desktop/src/state/bot-patch-queue.ts`: add `| "xResearch"` after `| "voiceNotes"`.
 
-`server/index.ts`, after the `voiceNotes` block in the bot PATCH handler:
+`desktop/server/index.ts`, after the `voiceNotes` block in the bot PATCH handler:
 
 ```ts
       // per-bot gate on the X research tools: they spend the workspace's
@@ -1118,13 +1118,13 @@ Expected: PASS already, because `xResearch` is not in `CLIENT_BOT_PATCH_FIELDS`.
 
 - [ ] **Step 4: Typecheck and run the tests**
 
-Run: `pnpm typecheck && pnpm vitest run server/request-auth.test.ts`
+Run: `pnpm typecheck && pnpm vitest run desktop/server/request-auth.test.ts`
 Expected: PASS. If `patch` is typed by a narrower server type than `Bot`, add `xResearch` there the same way `voiceNotes` is declared.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add shared/wire.ts src/state/store.tsx src/state/bot-patch-queue.ts server/index.ts server/request-auth.test.ts
+git add packages/shared/wire.ts desktop/src/state/store.tsx desktop/src/state/bot-patch-queue.ts desktop/server/index.ts desktop/server/request-auth.test.ts
 git commit -m "feat(x-research): per-bot xResearch switch, desktop-only
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -1135,9 +1135,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 4: Internal routes and the key Test route
 
 **Files:**
-- Create: `server/routes/x-research.ts`
-- Test: `server/routes/x-research.test.ts`
-- Modify: `server/index.ts`:
+- Create: `desktop/server/routes/x-research.ts`
+- Test: `desktop/server/routes/x-research.test.ts`
+- Modify: `desktop/server/index.ts`:
   - one import next to the other `./routes/` imports, `:630-641`
   - `ROUTES.push(...)` next to the other pushes, `:15908-15965`
   - one call inside the `/api/internal/` block, right after `requireActiveInternalCapability` is defined, `:16632`
@@ -1153,7 +1153,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `server/routes/x-research.test.ts`:
+Create `desktop/server/routes/x-research.test.ts`:
 
 ```ts
 import { describe, expect, it, vi } from "vitest";
@@ -1296,12 +1296,12 @@ describe("X research token test route", () => {
 
 - [ ] **Step 2: Run the test and confirm it fails**
 
-Run: `pnpm vitest run server/routes/x-research.test.ts`
-Expected: FAIL, because `./x-research.ts` cannot be found in `server/routes/`.
+Run: `pnpm vitest run desktop/server/routes/x-research.test.ts`
+Expected: FAIL, because `./x-research.ts` cannot be found in `desktop/server/routes/`.
 
 - [ ] **Step 3: Write the route module**
 
-Create `server/routes/x-research.ts`:
+Create `desktop/server/routes/x-research.ts`:
 
 ```ts
 // X research routes: the four internal calls behind the agents server's x_*
@@ -1441,12 +1441,12 @@ export function createXResearchKeyTestRoute(deps: Pick<XResearchDeps, "token" | 
 
 - [ ] **Step 4: Run the test and confirm it passes**
 
-Run: `pnpm vitest run server/routes/x-research.test.ts`
+Run: `pnpm vitest run desktop/server/routes/x-research.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Wire it into the server**
 
-In `server/index.ts`:
+In `desktop/server/index.ts`:
 
 1. Next to the other route imports (`:630-641`), add:
 
@@ -1459,7 +1459,7 @@ Change the existing `import { ROUTES, dispatchRoutes } from "./routes/table.ts";
 2. After the last `ROUTES.push(...)` in the route-modules block (after `ROUTES.push(desktopViewer.route);`), add:
 
 ```ts
-// X research (server/routes/x-research.ts): Settings' key Test runs from the
+// X research (desktop/server/routes/x-research.ts): Settings' key Test runs from the
 // table; the four tool routes run inside the /api/internal/ block below,
 // after the capability bearer is checked. `cfg` is reassigned on reload, so
 // both read it per request.
@@ -1478,13 +1478,13 @@ const xResearchRoutes = createXResearchInternalRoutes({
 
 - [ ] **Step 6: Run the route ratchet, the request-auth tests and typecheck**
 
-Run: `pnpm vitest run scripts/testing/index-route-ratchet.test.ts server/request-auth.test.ts server/routes && pnpm typecheck`
+Run: `pnpm vitest run scripts/testing/index-route-ratchet.test.ts desktop/server/request-auth.test.ts desktop/server/routes && pnpm typecheck`
 Expected: PASS. The ratchet count is unchanged, because no `path === "/` literal was added to `index.ts`.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add server/routes/x-research.ts server/routes/x-research.test.ts server/index.ts
+git add desktop/server/routes/x-research.ts desktop/server/routes/x-research.test.ts desktop/server/index.ts
 git commit -m "feat(x-research): internal tool routes that re-check token and bot switch, plus token Test
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -1495,18 +1495,18 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 5: The four tools in the agents catalog, gated per bot
 
 **Files:**
-- Modify: `server/drivers/agents-catalog.ts`:
+- Modify: `desktop/server/drivers/agents-catalog.ts`:
   - `CatalogProfile`, `:20-43`
   - `catalogProfileFromEnv`, `:47-59`
   - tool definitions, after `send_voice_note` near `:588`
   - gating, `:925` and `:971-975`
-- Modify: `server/index.ts` `agentsIntegration()` env, `:2496-2502`
-- Modify: `server/drivers/agents-catalog-wire.test.ts`:
+- Modify: `desktop/server/index.ts` `agentsIntegration()` env, `:2496-2502`
+- Modify: `desktop/server/drivers/agents-catalog-wire.test.ts`:
   - `profiles()`, `:82-101`
   - `FULL`, `:113`
   - `BUDGET_BASELINE`, `:118-172`
   - add a new test
-- Regenerate: `server/drivers/agents-catalog-goldens/*.json`
+- Regenerate: `desktop/server/drivers/agents-catalog-goldens/*.json`
 
 **Interfaces:**
 - Consumes: env `OMB_X_RESEARCH`, set from `cfg.treg?.token` (Task 2) and `bot.xResearch` (Task 3).
@@ -1514,7 +1514,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing test**
 
-In `server/drivers/agents-catalog-wire.test.ts`:
+In `desktop/server/drivers/agents-catalog-wire.test.ts`:
 
 (a) In `profiles()`, directly after the `+cloud-home` loop, add:
 
@@ -1555,12 +1555,12 @@ const FULL = { direct: "direct+skills+shared+voice+x", room: "room+own-thread+sk
 
 - [ ] **Step 2: Run the test and confirm it fails**
 
-Run: `pnpm vitest run server/drivers/agents-catalog-wire.test.ts`
+Run: `pnpm vitest run desktop/server/drivers/agents-catalog-wire.test.ts`
 Expected: FAIL. The new test finds no `x_search` in the `+x` profiles, and the `+x` profiles have no `BUDGET_BASELINE` entry.
 
 - [ ] **Step 3: Add the tools and the gate**
 
-In `server/drivers/agents-catalog.ts`:
+In `desktop/server/drivers/agents-catalog.ts`:
 
 `CatalogProfile`, after `voiceNotes: boolean;`:
 
@@ -1668,19 +1668,19 @@ with:
     : X_READY_TOOLS.filter((tool) => !CHIEF_ONLY_TOOL_NAMES.has(tool.name)).map((tool) => {
 ```
 
-In `server/index.ts` `agentsIntegration()`, after the `OMB_VOICE_NOTES` entry:
+In `desktop/server/index.ts` `agentsIntegration()`, after the `OMB_VOICE_NOTES` entry:
 
 ```ts
       // X research spends the person's own treg balance, so the tools
       // are shown only to a bot they switched on, and only with a key saved;
-      // the routes (server/routes/x-research.ts) re-check both on every call.
+      // the routes (desktop/server/routes/x-research.ts) re-check both on every call.
       OMB_X_RESEARCH: cfg.treg?.token && store.bot(botId)?.xResearch === true ? "1" : "0",
 ```
 
 - [ ] **Step 4: Regenerate the goldens, then set the two new budgets by hand**
 
-Run: `UPDATE_AGENTS_CATALOG_GOLDENS=1 pnpm vitest run server/drivers/agents-catalog-wire.test.ts`
-Then run it again without the variable: `pnpm vitest run server/drivers/agents-catalog-wire.test.ts`.
+Run: `UPDATE_AGENTS_CATALOG_GOLDENS=1 pnpm vitest run desktop/server/drivers/agents-catalog-wire.test.ts`
+Then run it again without the variable: `pnpm vitest run desktop/server/drivers/agents-catalog-wire.test.ts`.
 Expected: everything passes except the budget test, which reports the measured byte counts for `direct+skills+shared+voice+x` and `room+own-thread+skills+shared+voice+x`. Add those two numbers to `BUDGET_BASELINE`, right after their non-`x` entries:
 
 ```ts
@@ -1690,17 +1690,17 @@ Expected: everything passes except the budget test, which reports the measured b
 
 Run the test again. Expected: PASS.
 
-Check the golden diff with `git diff --stat server/drivers/agents-catalog-goldens`. `direct-full` and `room-full` gain exactly the four `x_*` tools, and `profiles.json` gains two entries. No other profile's sha256 may change. If one does, the gate is wrong; fix the code, not the golden.
+Check the golden diff with `git diff --stat desktop/server/drivers/agents-catalog-goldens`. `direct-full` and `room-full` gain exactly the four `x_*` tools, and `profiles.json` gains two entries. No other profile's sha256 may change. If one does, the gate is wrong; fix the code, not the golden.
 
 - [ ] **Step 5: Run the catalog's other tests and typecheck**
 
-Run: `pnpm vitest run server/drivers && pnpm typecheck`
+Run: `pnpm vitest run desktop/server/drivers && pnpm typecheck`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add server/drivers/agents-catalog.ts server/drivers/agents-catalog-wire.test.ts server/drivers/agents-catalog-goldens server/index.ts
+git add desktop/server/drivers/agents-catalog.ts desktop/server/drivers/agents-catalog-wire.test.ts desktop/server/drivers/agents-catalog-goldens desktop/server/index.ts
 git commit -m "feat(x-research): x_search, x_user_posts, x_post, x_profile in the agents catalog, per-bot gated
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -1711,9 +1711,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 6: Tool handlers and the Activity label
 
 **Files:**
-- Modify: `server/drivers/agents-call.ts`. Add one branch in `callTool`, after the `send_voice_note` branch near `:912`.
-- Modify: `server/activity.ts` `describeTool`, `:76-96`.
-- Test: `server/drivers/agents-call.test.ts`, `server/activity.test.ts`.
+- Modify: `desktop/server/drivers/agents-call.ts`. Add one branch in `callTool`, after the `send_voice_note` branch near `:912`.
+- Modify: `desktop/server/activity.ts` `describeTool`, `:76-96`.
+- Test: `desktop/server/drivers/agents-call.test.ts`, `desktop/server/activity.test.ts`.
 
 **Interfaces:**
 - Consumes: Task 4's routes `POST /api/internal/x/{search,user-posts,post,profile}`, and Task 5's tool names and argument names.
@@ -1721,7 +1721,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `server/drivers/agents-call.test.ts`. It already has the `context(overrides)` helper at the top:
+Append to `desktop/server/drivers/agents-call.test.ts`. It already has the `context(overrides)` helper at the top:
 
 ```ts
 describe("X research tools", () => {
@@ -1757,7 +1757,7 @@ describe("X research tools", () => {
 });
 ```
 
-Append to `server/activity.test.ts`, inside `describe("describeTool", …)`:
+Append to `desktop/server/activity.test.ts`, inside `describe("describeTool", …)`:
 
 ```ts
   it("files the X research tools under X, not Team", () => {
@@ -1771,15 +1771,15 @@ Append to `server/activity.test.ts`, inside `describe("describeTool", …)`:
 
 - [ ] **Step 2: Run the tests and confirm they fail**
 
-Run: `pnpm vitest run server/drivers/agents-call.test.ts server/activity.test.ts -t "X research|files the X"`
+Run: `pnpm vitest run desktop/server/drivers/agents-call.test.ts desktop/server/activity.test.ts -t "X research|files the X"`
 Expected: FAIL. `callTool` does not know `x_search` (it returns an unknown-tool result), and `describeTool` returns app "Team".
 
 - [ ] **Step 3: Implement**
 
-In `server/drivers/agents-call.ts`, add `X_TOOL_ROUTES` at module scope near the other constants:
+In `desktop/server/drivers/agents-call.ts`, add `X_TOOL_ROUTES` at module scope near the other constants:
 
 ```ts
-/** The x_* tools and their internal routes (server/routes/x-research.ts),
+/** The x_* tools and their internal routes (desktop/server/routes/x-research.ts),
  * which validate the arguments, re-check the key and the bot's switch, and
  * answer in compact JSON the bot reads as is. */
 const X_TOOL_ROUTES: Record<string, string> = {
@@ -1801,7 +1801,7 @@ In `callTool`, after the `send_voice_note` branch, add:
   }
 ```
 
-In `server/activity.ts`, above `describeTool`:
+In `desktop/server/activity.ts`, above `describeTool`:
 
 ```ts
 /** The agents server's X research tools read as their own app. */
@@ -1824,13 +1824,13 @@ and change the `agents` line inside `describeTool` to:
 
 - [ ] **Step 4: Run the tests and confirm they pass**
 
-Run: `pnpm vitest run server/drivers/agents-call.test.ts server/activity.test.ts`
+Run: `pnpm vitest run desktop/server/drivers/agents-call.test.ts desktop/server/activity.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/drivers/agents-call.ts server/drivers/agents-call.test.ts server/activity.ts server/activity.test.ts
+git add desktop/server/drivers/agents-call.ts desktop/server/drivers/agents-call.test.ts desktop/server/activity.ts desktop/server/activity.test.ts
 git commit -m "feat(x-research): tool handlers and X in the activity log
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -1841,18 +1841,18 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 7: Settings row, Access switch, docs
 
 **Files:**
-- Modify: `src/components/ApiKeys.tsx`:
+- Modify: `desktop/src/components/ApiKeys.tsx`:
   - `ConfigSection` and `TestableProvider` unions, `:12-14`
   - `SECTIONS`, `:16-50`
   - `CREDENTIALS`, `:151-160`
   - `test()`, `:274-294`
-- Modify: `src/components/SettingsModal.tsx`:
+- Modify: `desktop/src/components/SettingsModal.tsx`:
   - keywords, `:87`
   - Integrations rows, after `<ApiKeyRow section="box" />` at `:995`
-- Modify: `src/components/bot-settings/AccessSection.tsx`. Add a new `XResearchCard` component and render it after the Browser card, `:666-697`.
-- Modify: `src/locales/en.json`. Add keys next to `keys.xai.*` at `:1786`.
+- Modify: `desktop/src/components/bot-settings/AccessSection.tsx`. Add a new `XResearchCard` component and render it after the Browser card, `:666-697`.
+- Modify: `desktop/src/locales/en.json`. Add keys next to `keys.xai.*` at `:1786`.
 - Modify: `apps/docs/content/docs/connected-apps/index.mdx`, in "Connect X (Twitter)".
-- Test: `src/components/ApiKeys.test.ts`, `src/components/bot-settings/AccessSection.test.ts`.
+- Test: `desktop/src/components/ApiKeys.test.ts`, `desktop/src/components/bot-settings/AccessSection.test.ts`.
 
 **Interfaces:**
 - Consumes: `ConfigStatus.treg` (Task 2), `Bot.xResearch` and the PATCH (Task 3), and `POST /api/x-research/test` (Task 4).
@@ -1860,7 +1860,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `src/components/ApiKeys.test.ts`:
+Append to `desktop/src/components/ApiKeys.test.ts`:
 
 ```ts
 describe("X research key row", () => {
@@ -1881,7 +1881,7 @@ describe("X research key row", () => {
 });
 ```
 
-Append to `src/components/bot-settings/AccessSection.test.ts`. It already has `render(bot, derived = makeDerived())` at `:77`, and the `fixture.config` stub its cloud-home test uses at `:200`:
+Append to `desktop/src/components/bot-settings/AccessSection.test.ts`. It already has `render(bot, derived = makeDerived())` at `:77`, and the `fixture.config` stub its cloud-home test uses at `:200`:
 
 ```ts
 describe("X research card", () => {
@@ -1904,12 +1904,12 @@ describe("X research card", () => {
 
 - [ ] **Step 2: Run the tests and confirm they fail**
 
-Run: `pnpm vitest run src/components/ApiKeys.test.ts src/components/bot-settings/AccessSection.test.ts`
+Run: `pnpm vitest run desktop/src/components/ApiKeys.test.ts desktop/src/components/bot-settings/AccessSection.test.ts`
 Expected: FAIL. `"treg"` is not a `ConfigSection`, and there is no X research card.
 
 - [ ] **Step 3: Implement the API keys row**
 
-`src/components/ApiKeys.tsx`:
+`desktop/src/components/ApiKeys.tsx`:
 
 ```ts
 export type ConfigSection = "composio" | "box" | "opencodeGo" | "anthropic" | "openai" | "openrouter" | "openaiCompat" | "xai" | "mistral" | "cerebras" | "treg";
@@ -1963,7 +1963,7 @@ In `test()`, replace the `const result = await api("/api/keys/test", …)` line 
 
 The surrounding `try / catch / finally` stays as it is, and the early `return` still reaches the `finally`.
 
-`src/locales/en.json`, after `"keys.xai.link"`:
+`desktop/src/locales/en.json`, after `"keys.xai.link"`:
 
 ```json
   "keys.treg.label": "treg token (X research)",
@@ -1972,7 +1972,7 @@ The surrounding `try / catch / finally` stays as it is, and the early `return` s
   "keys.treg.testOk": "Works. ${dollars} left on treg.",
 ```
 
-`src/components/SettingsModal.tsx`: add `"x", "twitter", "treg", "scraper"` to the `connections` keywords array. Add the row directly after `<ApiKeyRow section="box" />`:
+`desktop/src/components/SettingsModal.tsx`: add `"x", "twitter", "treg", "scraper"` to the `connections` keywords array. Add the row directly after `<ApiKeyRow section="box" />`:
 
 ```tsx
               <ApiKeyRow section="treg" testProvider="treg" />
@@ -1980,7 +1980,7 @@ The surrounding `try / catch / finally` stays as it is, and the early `return` s
 
 - [ ] **Step 4: Implement the Access card**
 
-In `src/components/bot-settings/AccessSection.tsx`, add above `export function AccessSection`:
+In `desktop/src/components/bot-settings/AccessSection.tsx`, add above `export function AccessSection`:
 
 ```tsx
 /** X research: four read-only X tools paid from the workspace's own
@@ -2046,13 +2046,13 @@ The steps below are only needed to **post** to X through Composio.
 
 - [ ] **Step 6: Run the tests and confirm they pass**
 
-Run: `pnpm vitest run src/components/ApiKeys.test.ts src/components/bot-settings/AccessSection.test.ts src/components/SettingsModal.connections.test.ts src/locales src/lib/i18n.test.ts`
+Run: `pnpm vitest run desktop/src/components/ApiKeys.test.ts desktop/src/components/bot-settings/AccessSection.test.ts desktop/src/components/SettingsModal.connections.test.ts desktop/src/locales desktop/src/lib/i18n.test.ts`
 Expected: PASS. If a vocabulary or locale test flags a new string, fix the wording, not the test.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/components/ApiKeys.tsx src/components/ApiKeys.test.ts src/components/SettingsModal.tsx src/components/bot-settings/AccessSection.tsx src/components/bot-settings/AccessSection.test.ts src/locales/en.json apps/docs/content/docs/connected-apps/index.mdx
+git add desktop/src/components/ApiKeys.tsx desktop/src/components/ApiKeys.test.ts desktop/src/components/SettingsModal.tsx desktop/src/components/bot-settings/AccessSection.tsx desktop/src/components/bot-settings/AccessSection.test.ts desktop/src/locales/en.json apps/docs/content/docs/connected-apps/index.mdx
 git commit -m "feat(x-research): API keys row with balance Test, per-bot Access switch, docs
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"

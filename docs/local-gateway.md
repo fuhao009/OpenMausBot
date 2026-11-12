@@ -185,7 +185,7 @@ What the installed job uses:
 | LaunchAgent | `~/Library/LaunchAgents/com.openmausbot.gateway.plist` (0600) |
 | Node it runs | `<data-dir>/service/node` — an APFS clone (`cp -c`), not `/tmp` |
 | Log | `<data-dir>/logs/gateway.log` (0600, bounded — see below) |
-| Service command | the same `node <checkout>/scripts/local-gateway.mjs start --config …` |
+| Service command | the same `node <checkout>/gateway/local/local-gateway.mjs start --config …` |
 
 The plist carries **paths only**: no key, token, password, or SMTP
 credential. Secrets keep living in `<data-dir>/secrets/` (0600) and are read by
@@ -304,7 +304,7 @@ node gateway/local/local-gateway.mjs stop --config /tmp/gw/gateway.json
 Programmatic supervision uses the same code:
 
 ```js
-import { startLocalGateway, readGatewayConfig, trustGatewayCertificate } from "./scripts/local-gateway.mjs";
+import { startLocalGateway, readGatewayConfig, trustGatewayCertificate } from "./gateway/local/local-gateway.mjs";
 const { config } = readGatewayConfig("/tmp/gw/gateway.json");
 const gateway = await startLocalGateway({ config, configPath: "/tmp/gw/gateway.json" });
 trustGatewayCertificate(gateway.certificate);

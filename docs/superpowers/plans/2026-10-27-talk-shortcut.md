@@ -6,7 +6,7 @@
 
 **Architecture:** `globalShortcut` sees the press; the existing speech helper sees the release (`--finish-on-release`, polling `CGEventSource.flagsState`). Small injected-dependency modules in Electron main do the rest: `talk-keys` (presets), `talk-shortcut` (registration and call presence), `talk-server` (find Hezuo, keep the Quick asks chat, send, follow `/api/events`), `talk-panel` (the non-activating box), `talk-session` (the ask state machine). `speech.mjs` gains sinks so main can own a speech session without a window.
 
-**Tech Stack:** Electron ^43.5.0 main (ESM `.mjs`, preload `.cjs`), Swift helper (`swiftc`), Node `node:test` for `electron/*.node-test.mjs`, vitest (+ happy-dom) for `electron/*.test.mjs`, `server/`, `src/`; React settings row.
+**Tech Stack:** Electron ^43.5.0 main (ESM `.mjs`, preload `.cjs`), Swift helper (`swiftc`), Node `node:test` for `desktop/electron/*.node-test.mjs`, vitest (+ happy-dom) for `desktop/electron/*.test.mjs`, `desktop/server/`, `desktop/src/`; React settings row.
 
 **Spec:** `docs/superpowers/specs/2026-10-27-talk-shortcut-design.md`
 
@@ -18,7 +18,7 @@
 - Asks always go to this computer's own server, never the Cloud or team page the window shows. The chat is titled exactly `Quick asks`, created on first use with `select: false`, reused, recreated when gone.
 - The box never takes focus and never raises the Hezuo window: `type:"panel"`, `focusable:false`, `showInactive()`, never `show()`/`focus()`.
 - Timings: reply box hides 12 s after it settles unless the pointer is over it; no answer in 120 s → "Still working · Open chat"; reply text is plain, at most 400 characters.
-- Copy fixed by the spec: `Talk to Hezuo from any app`, `Hold {key}, speak, let go`, `{key} is used by another app`, `Voice is in use in Hezuo`, `Open Hezuo to talk`, `Still working · Open chat`. Settings strings go in `src/locales/en.json` only (other languages fall back; `pnpm i18n:check` must pass). The box's own copy is English in v1: main has no locale catalogs.
+- Copy fixed by the spec: `Talk to Hezuo from any app`, `Hold {key}, speak, let go`, `{key} is used by another app`, `Voice is in use in Hezuo`, `Open Hezuo to talk`, `Still working · Open chat`. Settings strings go in `desktop/src/locales/en.json` only (other languages fall back; `pnpm i18n:check` must pass). The box's own copy is English in v1: main has no locale catalogs.
 - New bridge keys (`talkShortcut`, `callActive`) stay out of `REMOTE_SAFE`; their IPC is `localOnly` (`call:active`: `localOrHome`, see Task 8).
 - No new dependencies. Modules under `node --test` never import `electron`: inject it.
 - AGENTS.md: comments only for what code cannot say (OS/Electron facts, public contracts, security invariants). No narration.
@@ -38,34 +38,34 @@
 
 | File | Responsibility |
 | --- | --- |
-| `server/routes/tasks.ts` (modify) | `POST /api/bots/:id/tasks` accepts `select: false` |
-| `electron/resources/speech-helper.swift` (modify) | `--finish-on-release <mods>`, `--release-check <mods> <flags>` |
-| `electron/speech.mjs` (modify) | sinks, owner-scoped stop/finish, `speechBusy()`, `finishOnRelease` option |
-| `electron/talk-keys.mjs` (new) | the three presets |
-| `electron/desktop-prefs.mjs`, `.d.mts` (modify) | talk prefs, Quick asks chat per server, injectable store |
-| `electron/talk-shortcut.mjs`, `.d.mts` (new) | register/unregister with prefs; call presence |
-| `electron/talk-server.mjs`, `.d.mts` (new) | find Hezuo, Quick asks chat, SSE reading, reply tracking, ask |
-| `electron/talk-panel.mjs`, `electron/talk-panel-preload.cjs` (new) | the box window, its `data:` page, `isTalkPanel` |
-| `electron/talk-session.mjs` (new) | the ask state machine |
-| `electron/main.mjs`, `electron/preload.cjs`, `src/types/ogb.d.ts` (modify) | wiring, `appWindows()`, IPC, bridge |
-| `src/lib/call-presence.ts`, `src/components/LiveCallHost.tsx` | tell main when a call runs |
-| `src/components/TalkShortcutRow.tsx`, `SettingsModal.tsx`, `src/locales/en.json` | Settings → General row |
+| `desktop/server/routes/tasks.ts` (modify) | `POST /api/bots/:id/tasks` accepts `select: false` |
+| `desktop/electron/resources/speech-helper.swift` (modify) | `--finish-on-release <mods>`, `--release-check <mods> <flags>` |
+| `desktop/electron/speech.mjs` (modify) | sinks, owner-scoped stop/finish, `speechBusy()`, `finishOnRelease` option |
+| `desktop/electron/talk-keys.mjs` (new) | the three presets |
+| `desktop/electron/desktop-prefs.mjs`, `.d.mts` (modify) | talk prefs, Quick asks chat per server, injectable store |
+| `desktop/electron/talk-shortcut.mjs`, `.d.mts` (new) | register/unregister with prefs; call presence |
+| `desktop/electron/talk-server.mjs`, `.d.mts` (new) | find Hezuo, Quick asks chat, SSE reading, reply tracking, ask |
+| `desktop/electron/talk-panel.mjs`, `desktop/electron/talk-panel-preload.cjs` (new) | the box window, its `data:` page, `isTalkPanel` |
+| `desktop/electron/talk-session.mjs` (new) | the ask state machine |
+| `desktop/electron/main.mjs`, `desktop/electron/preload.cjs`, `desktop/src/types/ogb.d.ts` (modify) | wiring, `appWindows()`, IPC, bridge |
+| `desktop/src/lib/call-presence.ts`, `desktop/src/components/LiveCallHost.tsx` | tell main when a call runs |
+| `desktop/src/components/TalkShortcutRow.tsx`, `SettingsModal.tsx`, `desktop/src/locales/en.json` | Settings → General row |
 | `docs/verification/talk-shortcut.md`, `docs/verification/README.md` | verification recipe |
 
 ---
 
 ### Task 1: Create a chat without selecting it
 
-`POST /api/bots/:id/tasks` always passes `activate = true` (`server/routes/tasks.ts:194` → `server/store.ts:2205`), so creating Quick asks would switch the chat the Hezuo window shows.
+`POST /api/bots/:id/tasks` always passes `activate = true` (`desktop/server/routes/tasks.ts:194` → `desktop/server/store.ts:2205`), so creating Quick asks would switch the chat the Hezuo window shows.
 
 **Files:**
-- Modify: `server/routes/tasks.ts:162-198`
-- Test: `server/task-select.test.ts` (new)
+- Modify: `desktop/server/routes/tasks.ts:162-198`
+- Test: `desktop/server/task-select.test.ts` (new)
 
 **Interfaces:**
 - Produces: `POST /api/bots/:id/tasks` body `{ title?: string, select?: boolean, … }`; `select: false` creates without selecting; non-boolean `select` → 400 `{ error: "select must be a boolean" }`. Response unchanged: 201 `{ bot, task }`.
 
-- [ ] **Step 1: Write the failing test** (`launchVerificationServer` from `scripts/control-omb.ts`, same `api()` helper as `server/bot-projects-api.test.ts:12-21`, `beforeAll` 90 s timeout)
+- [ ] **Step 1: Write the failing test** (`launchVerificationServer` from `scripts/control-omb.ts`, same `api()` helper as `desktop/server/bot-projects-api.test.ts:12-21`, `beforeAll` 90 s timeout)
 
 ```ts
 it("creates a chat without switching the bot's open chat when select is false", async () => {
@@ -90,20 +90,20 @@ it("refuses a select that is not a boolean", async () => {
 
 - [ ] **Step 2: Run it to see it fail**
 
-Run: `pnpm exec vitest run server/task-select.test.ts`
+Run: `pnpm exec vitest run desktop/server/task-select.test.ts`
 Expected: FAIL on the first test (`after.threadId` equals the new chat) and the third (201 instead of 400).
 
 - [ ] **Step 3: Implement** — validate `body.select` right after the body-object check; pass `body.select !== false` as `createTask`'s third argument at line 194.
 
 - [ ] **Step 4: Run it to see it pass**
 
-Run: `pnpm exec vitest run server/task-select.test.ts`
+Run: `pnpm exec vitest run desktop/server/task-select.test.ts`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/routes/tasks.ts server/task-select.test.ts
+git add desktop/server/routes/tasks.ts desktop/server/task-select.test.ts
 git commit -m "feat(server): create a chat without selecting it"
 ```
 
@@ -112,8 +112,8 @@ git commit -m "feat(server): create a chat without selecting it"
 ### Task 2: The speech helper finishes when the keys are let go
 
 **Files:**
-- Modify: `electron/resources/speech-helper.swift` (header comment 1-13, imports 14-16, after `finishFile` 48-52, finish timer 72-82)
-- Test: `electron/speech-helper-release.node-test.mjs` (new)
+- Modify: `desktop/electron/resources/speech-helper.swift` (header comment 1-13, imports 14-16, after `finishFile` 48-52, finish timer 72-82)
+- Test: `desktop/electron/speech-helper-release.node-test.mjs` (new)
 
 **Interfaces:**
 - Produces (CLI): `--finish-on-release <mods>` where `<mods>` is a comma list of `control`, `option`, `shift`, `command`; an invalid list fails at start with `{"error":"bad-modifiers"}`. `--release-check <mods> <rawFlags>` prints `{"released":true|false}` and exits 0 before anything touches Speech or the microphone; bad mods → `{"error":"bad-modifiers"}`, exit 1.
@@ -139,7 +139,7 @@ test("the helper finishes when any of the chosen modifiers is let go", { skip: !
 
 - [ ] **Step 2: Run it to see it fail**
 
-Run: `node --test electron/speech-helper-release.node-test.mjs`
+Run: `node --test desktop/electron/speech-helper-release.node-test.mjs`
 Expected: FAIL (`--release-check` unknown: the helper goes on to ask for speech authorization and is killed or times out after 10 s).
 
 - [ ] **Step 3: Implement in `speech-helper.swift`**
@@ -153,13 +153,13 @@ Expected: FAIL (`--release-check` unknown: the helper goes on to ask for speech 
 
 - [ ] **Step 4: Run it to see it pass**
 
-Run: `node --test electron/speech-helper-release.node-test.mjs && node electron/build-speech-helper.mjs`
+Run: `node --test desktop/electron/speech-helper-release.node-test.mjs && node desktop/electron/build-speech-helper.mjs`
 Expected: PASS, and the universal build still links.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add electron/resources/speech-helper.swift electron/speech-helper-release.node-test.mjs
+git add desktop/electron/resources/speech-helper.swift desktop/electron/speech-helper-release.node-test.mjs
 git commit -m "feat(speech): finish recognition when the talk keys are let go"
 ```
 
@@ -167,11 +167,11 @@ git commit -m "feat(speech): finish recognition when the talk keys are let go"
 
 ### Task 3: Speech sessions main can own
 
-`speech.mjs` imports `app` from `electron` (line 15), so its tests live in the existing vitest file `electron/speech.test.mjs` (which mocks `electron` and `node:child_process`), not a node-test.
+`speech.mjs` imports `app` from `electron` (line 15), so its tests live in the existing vitest file `desktop/electron/speech.test.mjs` (which mocks `electron` and `node:child_process`), not a node-test.
 
 **Files:**
-- Modify: `electron/speech.mjs` (whole file: `child`, `sendEnd`, `startSpeech` 49-169, `stopSpeech` 171-178, `finishSpeech` 180-185)
-- Test: `electron/speech.test.mjs` (fixture records `args`; new tests in the darwin-only `describe`)
+- Modify: `desktop/electron/speech.mjs` (whole file: `child`, `sendEnd`, `startSpeech` 49-169, `stopSpeech` 171-178, `finishSpeech` 180-185)
+- Test: `desktop/electron/speech.test.mjs` (fixture records `args`; new tests in the darwin-only `describe`)
 
 **Interfaces:**
 - Produces:
@@ -232,20 +232,20 @@ it("passes only known release modifiers", () => {
 
 - [ ] **Step 2: Run to see them fail**
 
-Run: `pnpm exec vitest run electron/speech.test.mjs`
+Run: `pnpm exec vitest run desktop/electron/speech.test.mjs`
 Expected: the four new tests FAIL (`speechBusy` is not exported); the four existing ones PASS.
 
 - [ ] **Step 3: Implement** — normalise the target once into `{ owner, transcript, end, replaced }` (a window's `transcript`/`end` send `speech:transcript`/`speech:end` when not destroyed; `replaced` is a no-op); keep it on the session record; every existing `child === speechSession` guard stays. In `startSpeech`, capture the running session before `stopSpeech()` and call its `replaced()` after.
 
 - [ ] **Step 4: Run to see them pass**
 
-Run: `pnpm exec vitest run electron/speech.test.mjs`
+Run: `pnpm exec vitest run desktop/electron/speech.test.mjs`
 Expected: PASS (8 tests on macOS; skipped elsewhere, as today).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add electron/speech.mjs electron/speech.test.mjs
+git add desktop/electron/speech.mjs desktop/electron/speech.test.mjs
 git commit -m "feat(speech): sessions owned by a sink, scoped stop and speechBusy"
 ```
 
@@ -254,9 +254,9 @@ git commit -m "feat(speech): sessions owned by a sink, scoped stop and speechBus
 ### Task 4: The setting, its keys, and registration
 
 **Files:**
-- Create: `electron/talk-keys.mjs`, `electron/talk-shortcut.mjs`, `electron/talk-shortcut.d.mts`
-- Modify: `electron/desktop-prefs.mjs` (`parse` 37-49, `createDesktopPrefs` 52-102, `registerDesktopPrefs` 113-116), `electron/desktop-prefs.d.mts` (`DesktopPrefs`, `registerDesktopPrefs` options)
-- Test: `electron/desktop-prefs.node-test.mjs` (add), `electron/talk-shortcut.node-test.mjs` (new)
+- Create: `desktop/electron/talk-keys.mjs`, `desktop/electron/talk-shortcut.mjs`, `desktop/electron/talk-shortcut.d.mts`
+- Modify: `desktop/electron/desktop-prefs.mjs` (`parse` 37-49, `createDesktopPrefs` 52-102, `registerDesktopPrefs` 113-116), `desktop/electron/desktop-prefs.d.mts` (`DesktopPrefs`, `registerDesktopPrefs` options)
+- Test: `desktop/electron/desktop-prefs.node-test.mjs` (add), `desktop/electron/talk-shortcut.node-test.mjs` (new)
 
 **Interfaces:**
 - Produces (`talk-keys.mjs`): `TALK_KEYS` (frozen `{ [id]: { accelerator, release, label } }`, values in Global Constraints, in that order), `DEFAULT_TALK_KEY = "ctrl-opt-space"`, `isTalkKey(id: unknown): boolean` (own keys only), `talkKey(id): { accelerator, release, label }` (default for anything else).
@@ -350,20 +350,20 @@ test("a reported call blocks until it ends, its page navigates, or its renderer 
 
 - [ ] **Step 3: Run to see them fail**
 
-Run: `node --test electron/desktop-prefs.node-test.mjs electron/talk-shortcut.node-test.mjs`
+Run: `node --test desktop/electron/desktop-prefs.node-test.mjs desktop/electron/talk-shortcut.node-test.mjs`
 Expected: FAIL (`prefs.talkShortcut is not a function`; `talk-shortcut.mjs` missing).
 
 - [ ] **Step 4: Implement** the three modules and the `.d.mts` changes. `set()` saves to prefs first, then unregisters the registered accelerator (if any) and registers the current one when enabled and available; `taken` is recomputed on each registration. `talk-shortcut.d.mts` comments: `available` (false hides the setting), `taken` (on, but another app holds the key).
 
 - [ ] **Step 5: Run to see them pass**
 
-Run: `node --test electron/desktop-prefs.node-test.mjs electron/talk-shortcut.node-test.mjs`
+Run: `node --test desktop/electron/desktop-prefs.node-test.mjs desktop/electron/talk-shortcut.node-test.mjs`
 Expected: PASS (existing prefs tests unchanged; the file written by `setAnalytics(false)` is still exactly `{ seen: [], shown: {}, analytics: false }`).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add electron/talk-keys.mjs electron/talk-shortcut.mjs electron/talk-shortcut.d.mts electron/talk-shortcut.node-test.mjs electron/desktop-prefs.mjs electron/desktop-prefs.d.mts electron/desktop-prefs.node-test.mjs
+git add desktop/electron/talk-keys.mjs desktop/electron/talk-shortcut.mjs desktop/electron/talk-shortcut.d.mts desktop/electron/talk-shortcut.node-test.mjs desktop/electron/desktop-prefs.mjs desktop/electron/desktop-prefs.d.mts desktop/electron/desktop-prefs.node-test.mjs
 git commit -m "feat(talk): the talk shortcut setting, its keys and registration"
 ```
 
@@ -372,8 +372,8 @@ git commit -m "feat(talk): the talk shortcut setting, its keys and registration"
 ### Task 5: Talk to this computer's server
 
 **Files:**
-- Create: `electron/talk-server.mjs`, `electron/talk-server.d.mts`
-- Test: `electron/talk-server.node-test.mjs` (new, fake `request`), `server/talk-server.e2e.test.ts` (new, real fixture as the packaged desktop calls it)
+- Create: `desktop/electron/talk-server.mjs`, `desktop/electron/talk-server.d.mts`
+- Test: `desktop/electron/talk-server.node-test.mjs` (new, fake `request`), `desktop/server/talk-server.e2e.test.ts` (new, real fixture as the packaged desktop calls it)
 
 **Interfaces:**
 - Consumes: `select: false` (Task 1); prefs `quickAsksChat`/`setQuickAsksChat` (Task 4).
@@ -448,7 +448,7 @@ test("readFrames joins frames split across chunks and skips heartbeats and junk"
 });
 ```
 
-- [ ] **Step 2: Write the failing fixture test** (`server/talk-server.e2e.test.ts`; launch with `OMB_TEST_DESKTOP_OWNER_TOKEN: owner` and send `x-hezuo-desktop-owner` on every request, as `server/chat-pages.e2e.test.ts:54-56` does, so it runs the packaged desktop's path)
+- [ ] **Step 2: Write the failing fixture test** (`desktop/server/talk-server.e2e.test.ts`; launch with `OMB_TEST_DESKTOP_OWNER_TOKEN: owner` and send `x-hezuo-desktop-owner` on every request, as `desktop/server/chat-pages.e2e.test.ts:54-56` does, so it runs the packaged desktop's path)
 
 ```ts
 it("asks Hezuo in its own Quick asks chat, as the desktop app does, and follows the reply to the end", async () => {
@@ -470,20 +470,20 @@ it("asks Hezuo in its own Quick asks chat, as the desktop app does, and follows 
 
 - [ ] **Step 3: Run to see them fail**
 
-Run: `node --test electron/talk-server.node-test.mjs && pnpm exec vitest run server/talk-server.e2e.test.ts`
+Run: `node --test desktop/electron/talk-server.node-test.mjs && pnpm exec vitest run desktop/server/talk-server.e2e.test.ts`
 Expected: FAIL (`talk-server.mjs` missing).
 
 - [ ] **Step 4: Implement** `talk-server.mjs` and its `.d.mts`.
 
 - [ ] **Step 5: Run to see them pass**
 
-Run: `node --test electron/talk-server.node-test.mjs && pnpm exec vitest run server/talk-server.e2e.test.ts && pnpm typecheck`
+Run: `node --test desktop/electron/talk-server.node-test.mjs && pnpm exec vitest run desktop/server/talk-server.e2e.test.ts && pnpm typecheck`
 Expected: PASS. If the fixture shows a wire shape the unit fakes assumed wrongly (the hello frame, `sendId` on the echoed user message, delta `itemId`), fix the fakes and the module, not the fixture test.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add electron/talk-server.mjs electron/talk-server.d.mts electron/talk-server.node-test.mjs server/talk-server.e2e.test.ts
+git add desktop/electron/talk-server.mjs desktop/electron/talk-server.d.mts desktop/electron/talk-server.node-test.mjs desktop/server/talk-server.e2e.test.ts
 git commit -m "feat(talk): find Hezuo, keep the Quick asks chat and follow the reply"
 ```
 
@@ -492,8 +492,8 @@ git commit -m "feat(talk): find Hezuo, keep the Quick asks chat and follow the r
 ### Task 6: The box
 
 **Files:**
-- Create: `electron/talk-panel.mjs`, `electron/talk-panel-preload.cjs`
-- Test: `electron/talk-panel.node-test.mjs` (new; `harness({ cursor, workArea })` builds a fake `BrowserWindow` class (each instance in `made`) recording `options`, `url`, `bounds` and `calls` (`setAlwaysOnTop`, `setVisibleOnAllWorkspaces`, `show`, `focus`, `showInactive`), whose `webContents` is an `EventEmitter` with `scripts`, `executeJavaScript` resolving `96`, and `setWindowOpenHandler`; a fake `screen` answering `cursor` and `workArea`; `opened`/`dismissed` arrays from `onOpen`/`onDismiss`. `pick(object, keys)` copies the named keys; `flush = () => new Promise(r => setImmediate(r))`)
+- Create: `desktop/electron/talk-panel.mjs`, `desktop/electron/talk-panel-preload.cjs`
+- Test: `desktop/electron/talk-panel.node-test.mjs` (new; `harness({ cursor, workArea })` builds a fake `BrowserWindow` class (each instance in `made`) recording `options`, `url`, `bounds` and `calls` (`setAlwaysOnTop`, `setVisibleOnAllWorkspaces`, `show`, `focus`, `showInactive`), whose `webContents` is an `EventEmitter` with `scripts`, `executeJavaScript` resolving `96`, and `setWindowOpenHandler`; a fake `screen` answering `cursor` and `workArea`; `opened`/`dismissed` arrays from `onOpen`/`onDismiss`. `pick(object, keys)` copies the named keys; `flush = () => new Promise(r => setImmediate(r))`)
 
 **Interfaces:**
 - Produces:
@@ -510,7 +510,7 @@ Window (first `render` after creation or after `close`): `new BrowserWindow({ ty
 
 Rendering: `render(view)` keeps the latest view; once the page has loaded, run `render(<JSON of { state, text: replyPreview(view.text) }>)` in the page; its return value is the card's height in px; `setBounds(talkPanelBounds(workArea, height))`; the first sized render calls `showInactive()`. `close()` runs `fadeOut()` in a loaded page and destroys the window `fadeMs` later (at once if not loaded); the next `render` makes a new window. `hovered()`: `screen.getCursorScreenPoint()` inside the window's bounds; false with no window. `ipc-message` on this window's `webContents`: `talk-panel:open` → `onOpen()`, `talk-panel:dismiss` → `onDismiss()`, anything else ignored.
 
-Page: CSP `default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'`; dark card from the default skin's tokens (`--color-panel #111111` at 96%, border `#ffffff16`, radius 16 px, ink `#fcfcfc`, secondary `#fcfcfcbf`, accent `#1084fe` pulse ring on the mascot while listening, warning `#ff9800` for needs-you, danger `#ff5667` for error), `-apple-system` 13 px, the app icon (`electron/resources/app-icon.png`, as the splash inlines it) at 28 px, label from `TALK_LABELS`, text in a `role="status"` line written with `textContent` only, "Let go to send" while listening with no words yet, a × button (`stopPropagation` → `talk.dismiss()`), the card's click → `talk.open()`, a 160 ms opacity fade, `prefers-reduced-motion` respected. Preload: `contextBridge.exposeInMainWorld("talk", { open, dismiss })` over `ipcRenderer.send("talk-panel:open" | "talk-panel:dismiss")`, nothing else.
+Page: CSP `default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'`; dark card from the default skin's tokens (`--color-panel #111111` at 96%, border `#ffffff16`, radius 16 px, ink `#fcfcfc`, secondary `#fcfcfcbf`, accent `#1084fe` pulse ring on the mascot while listening, warning `#ff9800` for needs-you, danger `#ff5667` for error), `-apple-system` 13 px, the app icon (`desktop/electron/resources/app-icon.png`, as the splash inlines it) at 28 px, label from `TALK_LABELS`, text in a `role="status"` line written with `textContent` only, "Let go to send" while listening with no words yet, a × button (`stopPropagation` → `talk.dismiss()`), the card's click → `talk.open()`, a 160 ms opacity fade, `prefers-reduced-motion` respected. Preload: `contextBridge.exposeInMainWorld("talk", { open, dismiss })` over `ipcRenderer.send("talk-panel:open" | "talk-panel:dismiss")`, nothing else.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -561,20 +561,20 @@ test("isTalkPanel tells the box from app windows");      // isTalkPanel(made[0])
 
 - [ ] **Step 2: Run to see them fail**
 
-Run: `node --test electron/talk-panel.node-test.mjs`
+Run: `node --test desktop/electron/talk-panel.node-test.mjs`
 Expected: FAIL (`talk-panel.mjs` missing).
 
 - [ ] **Step 3: Implement** `talk-panel.mjs` and `talk-panel-preload.cjs`.
 
 - [ ] **Step 4: Run to see them pass**
 
-Run: `node --test electron/talk-panel.node-test.mjs`
+Run: `node --test desktop/electron/talk-panel.node-test.mjs`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add electron/talk-panel.mjs electron/talk-panel-preload.cjs electron/talk-panel.node-test.mjs
+git add desktop/electron/talk-panel.mjs desktop/electron/talk-panel-preload.cjs desktop/electron/talk-panel.node-test.mjs
 git commit -m "feat(talk): the floating box that never takes focus"
 ```
 
@@ -583,8 +583,8 @@ git commit -m "feat(talk): the floating box that never takes focus"
 ### Task 7: One ask, from press to reply
 
 **Files:**
-- Create: `electron/talk-session.mjs`
-- Test: `electron/talk-session.node-test.mjs` (new; `mock.timers.enable({ apis: ["setTimeout"] })` per test and `mock.timers.reset()` after, `flush = () => new Promise(r => setImmediate(r))`, `pick(object, keys)` copies the named keys)
+- Create: `desktop/electron/talk-session.mjs`
+- Test: `desktop/electron/talk-session.node-test.mjs` (new; `mock.timers.enable({ apis: ["setTimeout"] })` per test and `mock.timers.reset()` after, `flush = () => new Promise(r => setImmediate(r))`, `pick(object, keys)` copies the named keys)
 
 **Interfaces:**
 - Consumes: `speech` `{ start(sink, { finishOnRelease }), stop(sink) }` (Task 3 via main); `server` `{ prepare, ask }` and `TalkServerError` codes (Task 5); `panel` `{ render(view), close(), hovered() }` and `TalkView` (Task 6).
@@ -675,20 +675,20 @@ test("dismissing while listening cancels capture");                           //
 
 - [ ] **Step 2: Run to see them fail**
 
-Run: `node --test electron/talk-session.node-test.mjs`
+Run: `node --test desktop/electron/talk-session.node-test.mjs`
 Expected: FAIL (`talk-session.mjs` missing).
 
 - [ ] **Step 3: Implement** `createTalkSession` to the table above.
 
 - [ ] **Step 4: Run to see them pass**
 
-Run: `node --test electron/talk-session.node-test.mjs`
+Run: `node --test desktop/electron/talk-session.node-test.mjs`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add electron/talk-session.mjs electron/talk-session.node-test.mjs
+git add desktop/electron/talk-session.mjs desktop/electron/talk-session.node-test.mjs
 git commit -m "feat(talk): one ask from press to reply"
 ```
 
@@ -697,8 +697,8 @@ git commit -m "feat(talk): one ask from press to reply"
 ### Task 8: Wire it into the desktop app
 
 **Files:**
-- Modify: `electron/main.mjs` (electron import line 1, speech import line 11, the 12 `BrowserWindow.getAllWindows()` sites at 139, 269, 359, 945, 952, 1544, 1550, 1826, 2905, 3068, 3198, 3204; speech IPC 2477-2491; prefs at 3066; `before-quit` 3222), `electron/preload.cjs` (`HOME_PAGE` line 43, speech block 162-174), `src/types/ogb.d.ts` (after `speechFinish`, ~261)
-- Test: `electron/talk-main.node-test.mjs` (new, reads `main.mjs` and `preload.cjs` source like `electron/local-only-hoist.node-test.mjs`), `electron/preload.node-test.mjs` (add)
+- Modify: `desktop/electron/main.mjs` (electron import line 1, speech import line 11, the 12 `BrowserWindow.getAllWindows()` sites at 139, 269, 359, 945, 952, 1544, 1550, 1826, 2905, 3068, 3198, 3204; speech IPC 2477-2491; prefs at 3066; `before-quit` 3222), `desktop/electron/preload.cjs` (`HOME_PAGE` line 43, speech block 162-174), `desktop/src/types/ogb.d.ts` (after `speechFinish`, ~261)
+- Test: `desktop/electron/talk-main.node-test.mjs` (new, reads `main.mjs` and `preload.cjs` source like `desktop/electron/local-only-hoist.node-test.mjs`), `desktop/electron/preload.node-test.mjs` (add)
 
 **Interfaces:**
 - Consumes: everything from Tasks 3-7.
@@ -745,20 +745,20 @@ test("the talk bridge asks main over its own channels with only what it understa
 
 - [ ] **Step 2: Run to see them fail**
 
-Run: `node --test electron/talk-main.node-test.mjs electron/preload.node-test.mjs`
+Run: `node --test desktop/electron/talk-main.node-test.mjs desktop/electron/preload.node-test.mjs`
 Expected: FAIL (12 `getAllWindows` sites; no talk channels; no `talkShortcut` in the bridge).
 
 - [ ] **Step 3: Implement** the wiring above, the preload keys (`talkShortcut: { state, set }`, `callActive`; `"callActive"` added to `HOME_PAGE`), and `ogb.d.ts`: `talkShortcut?: import("../../electron/talk-shortcut.mjs").TalkShortcutBridge;` with a doc comment "This computer's page only: Settings → General's talk shortcut." and `callActive?(active: boolean): Promise<void>;` with "A call holds the microphone, so the talk shortcut waits."
 
 - [ ] **Step 4: Run the checks**
 
-Run: `node --test electron/talk-main.node-test.mjs electron/preload.node-test.mjs electron/local-only-hoist.node-test.mjs && pnpm typecheck && pnpm lint`
+Run: `node --test desktop/electron/talk-main.node-test.mjs desktop/electron/preload.node-test.mjs desktop/electron/local-only-hoist.node-test.mjs && pnpm typecheck && pnpm lint`
 Expected: PASS, no type or lint errors.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add electron/main.mjs electron/preload.cjs src/types/ogb.d.ts electron/talk-main.node-test.mjs electron/preload.node-test.mjs
+git add desktop/electron/main.mjs desktop/electron/preload.cjs desktop/src/types/ogb.d.ts desktop/electron/talk-main.node-test.mjs desktop/electron/preload.node-test.mjs
 git commit -m "feat(talk): wire the talk shortcut into the desktop app"
 ```
 
@@ -767,12 +767,12 @@ git commit -m "feat(talk): wire the talk shortcut into the desktop app"
 ### Task 9: Settings row and call presence
 
 **Files:**
-- Create: `src/lib/call-presence.ts`, `src/components/TalkShortcutRow.tsx`
-- Modify: `src/components/LiveCallHost.tsx` (call the hook), `src/components/SettingsModal.tsx` (General keywords line 85; render `<TalkShortcutRow />` right after `<DefaultBotSidebarRow />` at ~671), `src/locales/en.json` (beside `settings.analytics.*`, ~1228)
-- Test: `src/lib/call-presence.test.ts`, `src/components/TalkShortcutRow.test.ts` (happy-dom, `createRoot` + `act`, with `settle`/`show`/`click` helpers as `src/components/UpdatesConsent.test.ts:14-27`; `toggle()` is `button[aria-label="Talk to Hezuo from any app"]`; `bridge = { state: vi.fn(async () => current), set: vi.fn(async change => (current = { ...current, ...change })) }` on `window.ogb.talkShortcut`)
+- Create: `desktop/src/lib/call-presence.ts`, `desktop/src/components/TalkShortcutRow.tsx`
+- Modify: `desktop/src/components/LiveCallHost.tsx` (call the hook), `desktop/src/components/SettingsModal.tsx` (General keywords line 85; render `<TalkShortcutRow />` right after `<DefaultBotSidebarRow />` at ~671), `desktop/src/locales/en.json` (beside `settings.analytics.*`, ~1228)
+- Test: `desktop/src/lib/call-presence.test.ts`, `desktop/src/components/TalkShortcutRow.test.ts` (happy-dom, `createRoot` + `act`, with `settle`/`show`/`click` helpers as `desktop/src/components/UpdatesConsent.test.ts:14-27`; `toggle()` is `button[aria-label="Talk to Hezuo from any app"]`; `bridge = { state: vi.fn(async () => current), set: vi.fn(async change => (current = { ...current, ...change })) }` on `window.ogb.talkShortcut`)
 
 **Interfaces:**
-- Consumes: `window.ogb.talkShortcut`, `window.ogb.callActive` (Task 8); `useOnCall`, `startCall`, `endCall` (`src/lib/call.ts`); `useLiveMedia`, `isLiveCallRunning`, `LiveMediaPhase` (`src/lib/live-call-media.ts`).
+- Consumes: `window.ogb.talkShortcut`, `window.ogb.callActive` (Task 8); `useOnCall`, `startCall`, `endCall` (`desktop/src/lib/call.ts`); `useLiveMedia`, `isLiveCallRunning`, `LiveMediaPhase` (`desktop/src/lib/live-call-media.ts`).
 - Produces: `callInProgress(onCall: string | null, phase: LiveMediaPhase): boolean`; `useReportCallPresence(): void` (reports on mount and on every change, so a reloaded page clears a stale `true`); `TalkShortcutRow()`.
 - Strings: `settings.talk.title` "Talk to Hezuo from any app", `settings.talk.subtitle` "Hold {key}, speak, let go. Hezuo answers in a small box at the bottom of the screen; click it to open the chat.", `settings.talk.aria` "Talk to Hezuo from any app", `settings.talk.keyAria` "Talk shortcut", `settings.talk.taken` "{key} is used by another app. Pick another shortcut.". Keywords: `"talk"`, `"voice"`, `"shortcut"`, `"hotkey"`, `"hold to talk"`, `"push to talk"`, `"quick asks"`.
 - Row: hidden without the bridge or when `!state.available`; `SettingRow` with the `Switch`; when on, a `Select size="sm"` of `state.keys` (labels) in the row's `message`, and under it `role="alert"` `settings.talk.taken` when `state.taken`; each change shows the state `set()` returns.
@@ -812,20 +812,20 @@ it("says when another app holds the key");                                    //
 
 - [ ] **Step 2: Run to see them fail**
 
-Run: `pnpm exec vitest run src/lib/call-presence.test.ts src/components/TalkShortcutRow.test.ts`
+Run: `pnpm exec vitest run desktop/src/lib/call-presence.test.ts desktop/src/components/TalkShortcutRow.test.ts`
 Expected: FAIL (modules missing).
 
 - [ ] **Step 3: Implement** the hook (call it in `LiveCallHost`), the row, its placement and keywords, and the strings.
 
 - [ ] **Step 4: Run to see them pass**
 
-Run: `pnpm exec vitest run src/lib/call-presence.test.ts src/components/TalkShortcutRow.test.ts src/locales && pnpm i18n:check && pnpm typecheck && pnpm lint`
+Run: `pnpm exec vitest run desktop/src/lib/call-presence.test.ts desktop/src/components/TalkShortcutRow.test.ts desktop/src/locales && pnpm i18n:check && pnpm typecheck && pnpm lint`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/call-presence.ts src/lib/call-presence.test.ts src/components/TalkShortcutRow.tsx src/components/TalkShortcutRow.test.ts src/components/LiveCallHost.tsx src/components/SettingsModal.tsx src/locales/en.json
+git add desktop/src/lib/call-presence.ts desktop/src/lib/call-presence.test.ts desktop/src/components/TalkShortcutRow.tsx desktop/src/components/TalkShortcutRow.test.ts desktop/src/components/LiveCallHost.tsx desktop/src/components/SettingsModal.tsx desktop/src/locales/en.json
 git commit -m "feat(talk): Settings row, and calls tell main they hold the microphone"
 ```
 
@@ -841,7 +841,7 @@ git commit -m "feat(talk): Settings row, and calls tell main they hold the micro
 - Consumes: everything above.
 
 `talk-shortcut.md` sections (in this repo's recipe style, see `docs/verification/local-environments.md`):
-1. **Floor: automated checks** — `node --test electron/talk-*.node-test.mjs electron/desktop-prefs.node-test.mjs electron/preload.node-test.mjs electron/speech-helper-release.node-test.mjs`; `pnpm exec vitest run electron/speech.test.mjs server/task-select.test.ts server/talk-server.e2e.test.ts src/lib/call-presence.test.ts src/components/TalkShortcutRow.test.ts --maxWorkers=1`; `pnpm typecheck && pnpm lint && pnpm i18n:check`. What they prove and what they do not (the real hotkey, the microphone, focus, Spaces).
+1. **Floor: automated checks** — `node --test desktop/electron/talk-*.node-test.mjs desktop/electron/desktop-prefs.node-test.mjs desktop/electron/preload.node-test.mjs desktop/electron/speech-helper-release.node-test.mjs`; `pnpm exec vitest run desktop/electron/speech.test.mjs desktop/server/task-select.test.ts desktop/server/talk-server.e2e.test.ts desktop/src/lib/call-presence.test.ts desktop/src/components/TalkShortcutRow.test.ts --maxWorkers=1`; `pnpm typecheck && pnpm lint && pnpm i18n:check`. What they prove and what they do not (the real hotkey, the microphone, focus, Spaces).
 2. **Setup** — a packaged build of the branch installed beside, never over, the installed Hezuo (maintainers: the OMB2 side-by-side build), launched with `OMB_DATA_DIR=$HOME/.hezuo-test` unless the check needs real bots; only one running app may hold the key. Composer dictation used once first so Microphone and Speech Recognition are granted.
 3. **By hand**, each with its expected result:
    - Settings → General shows the row, on, "Hold ⌃⌥Space, speak, let go".
@@ -861,7 +861,7 @@ git commit -m "feat(talk): Settings row, and calls tell main they hold the micro
 
 - [ ] **Step 2: Run the whole check**
 
-Run: `pnpm typecheck && pnpm lint && pnpm i18n:check && pnpm test:electron && pnpm exec vitest run electron/speech.test.mjs server/task-select.test.ts server/talk-server.e2e.test.ts src/lib/call-presence.test.ts src/components/TalkShortcutRow.test.ts src/components/UpdatesConsent.test.ts src/components/AppNotices.test.ts --maxWorkers=1`
+Run: `pnpm typecheck && pnpm lint && pnpm i18n:check && pnpm test:electron && pnpm exec vitest run desktop/electron/speech.test.mjs desktop/server/task-select.test.ts desktop/server/talk-server.e2e.test.ts desktop/src/lib/call-presence.test.ts desktop/src/components/TalkShortcutRow.test.ts desktop/src/components/UpdatesConsent.test.ts desktop/src/components/AppNotices.test.ts --maxWorkers=1`
 Expected: all PASS.
 
 - [ ] **Step 3: Commit**
@@ -876,6 +876,6 @@ git commit -m "docs(verification): talk shortcut recipe"
 ## Self-review
 
 - **Spec coverage.** Key via `globalShortcut` + helper release (Tasks 2, 4); repeat presses ignored, press during a reply starts anew (7); registration failure shown in Settings (4, 9); speech sinks, `speechBusy`, `replaced()` (3); `call:active` and refusal during calls or dictation (4, 7, 8, 9); the box, its window flags, `data:` page with strict CSP, `open()`/`dismiss()` only, states, 12 s hide unless hovered, click opens the chat, panel skipped by every window list (6, 7, 8); local server, Hezuo lookup, owner header, send with `sendId`, SSE follow, needs-you, 120 s, empty transcript, server down (5, 7, 8); prefs, Settings row, hidden without Apple speech, not in `REMOTE_SAFE` (4, 8, 9); Quick asks chat created, reused, recreated, per server (1, 4, 5); testing section (all tasks, 10). Dev reaching the dev server (8, 10).
-- **Deviations from the spec, on purpose.** The ask posts `threadId` (the spec's `{text, sendId}` would land in Hezuo's selected chat, `server/routes/bot-messages.ts:202`, against the Quick asks decision). Speech sink tests live in vitest `electron/speech.test.mjs`, not a node-test, because `speech.mjs` imports Electron's `app`. `call:active` is `localOrHome`, not `localOnly`, so a Live call on My Cloud's page also blocks the shortcut. The box's copy is English in v1.
+- **Deviations from the spec, on purpose.** The ask posts `threadId` (the spec's `{text, sendId}` would land in Hezuo's selected chat, `desktop/server/routes/bot-messages.ts:202`, against the Quick asks decision). Speech sink tests live in vitest `desktop/electron/speech.test.mjs`, not a node-test, because `speech.mjs` imports Electron's `app`. `call:active` is `localOrHome`, not `localOnly`, so a Live call on My Cloud's page also blocks the shortcut. The box's copy is English in v1.
 - **Types.** `TalkView`, `TalkChat`, `TalkUpdate`, `TalkShortcutState`, `TalkKeyId` and every factory name are spelled the same in each task's Interfaces and tests.
 - **Left open to the implementer.** Exact page markup and CSS within the tokens given; the Swift parsing style.

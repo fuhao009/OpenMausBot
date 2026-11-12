@@ -22,7 +22,7 @@
 
 See [the roadmap](2026-08-31-00-control-plane-roadmap.md#global-constraints). Load-bearing:
 
-- **Imports land disabled.** `server/store.ts:340` already encodes the important half of this: an imported team member starts `composio: false` so a shared persona cannot reach the user's Gmail on turn one. Scopes must not weaken it — an imported bot starts with **no grants**, not with read.
+- **Imports land disabled.** `desktop/server/store.ts:340` already encodes the important half of this: an imported team member starts `composio: false` so a shared persona cannot reach the user's Gmail on turn one. Scopes must not weaken it — an imported bot starts with **no grants**, not with read.
 - **Audit what you authorize.** Every refusal writes a `decision-log` row.
 
 **Depends on:** [P3](2026-08-31-03-mcp-registry.md), specifically Task 3's `CallVerdict` gate signature.
@@ -31,31 +31,31 @@ See [the roadmap](2026-08-31-00-control-plane-roadmap.md#global-constraints). Lo
 
 ## Background
 
-`BotRecord.composio` (`server/store.ts:345`) is a single boolean: unset or true means
+`BotRecord.composio` (`desktop/server/store.ts:345`) is a single boolean: unset or true means
 this bot may use every connected app with every tool; false means none. Meanwhile
 `ConnectorStatus.accounts[]` already exists in the UI type
-(`src/components/PluginsPanel.tsx:26`) and `normalizeAccountAlias`
-(`server/composio.ts:257`) and `removeAccount` (`:656`) already manage multiple accounts
+(`desktop/src/components/PluginsPanel.tsx:26`) and `normalizeAccountAlias`
+(`desktop/server/composio.ts:257`) and `removeAccount` (`:656`) already manage multiple accounts
 per service. The data model supports multi-account; nothing assigns them.
 
 ---
 
 ## File map
 
-- Create `server/connector-scopes.ts`: the pure tool-name to verb-class classifier and grant evaluation.
-- Create `server/connector-scopes.test.ts`.
-- Modify `server/store.ts`: `BotRecord.connectorGrants`, keep `composio` as a derived legacy read.
-- Modify `server/composio.ts:348` (`mcpIntegration`): carry the account and scope policy into the bridge env.
-- Modify `server/index.ts`: grant endpoints; wire the gate.
-- Modify `server/profile-document.ts`: surface grants in the profile (P2).
-- Modify `src/components/ConnectorCard.tsx`, `src/components/PluginsPanel.tsx`: the grant editor.
+- Create `desktop/server/connector-scopes.ts`: the pure tool-name to verb-class classifier and grant evaluation.
+- Create `desktop/server/connector-scopes.test.ts`.
+- Modify `desktop/server/store.ts`: `BotRecord.connectorGrants`, keep `composio` as a derived legacy read.
+- Modify `desktop/server/composio.ts:348` (`mcpIntegration`): carry the account and scope policy into the bridge env.
+- Modify `desktop/server/index.ts`: grant endpoints; wire the gate.
+- Modify `desktop/server/profile-document.ts`: surface grants in the profile (P2).
+- Modify `desktop/src/components/ConnectorCard.tsx`, `desktop/src/components/PluginsPanel.tsx`: the grant editor.
 
 ---
 
 ### Task 1: The verb classifier
 
 **Files:**
-- Create: `server/connector-scopes.ts`, `server/connector-scopes.test.ts`
+- Create: `desktop/server/connector-scopes.ts`, `desktop/server/connector-scopes.test.ts`
 
 **Interfaces:**
 - Produces:
@@ -68,7 +68,7 @@ per service. The data model supports multi-account; nothing assigns them.
 - [ ] Write failing tests pinning the classification of real Composio tool names: `GMAIL_FETCH_EMAILS` → `read`; `GMAIL_LIST_THREADS` → `read`; `GMAIL_CREATE_EMAIL_DRAFT` → `draft`; `GMAIL_SEND_EMAIL` → `send`; `SLACK_SENDS_A_MESSAGE_TO_A_SLACK_CHANNEL` → `send`; `GITHUB_UPDATE_A_REPOSITORY` → `modify`; `GITHUB_DELETE_A_REPOSITORY` → `delete`; `NOTION_ADD_PAGE_CONTENT` → `modify`.
 - [ ] Write the test that matters most: **an unrecognized tool name classifies as `delete`**, the most restrictive class. A classifier that defaults to `read` turns every tool it has not seen into an ungated read. Assert `classifyTool("ACME_FROBNICATE_WIDGET") === "delete"`.
 - [ ] Write a failing test that classification is case-insensitive and tolerates the `_A_`/`_THE_` filler Composio's generated names contain.
-- [ ] Run `pnpm vitest run server/connector-scopes.test.ts`; expect FAIL.
+- [ ] Run `pnpm vitest run desktop/server/connector-scopes.test.ts`; expect FAIL.
 - [ ] Implement as an ordered list of matchers checked most-destructive-first (`DELETE|REMOVE|DESTROY|ARCHIVE|TRASH` → delete, then `SEND|POST|PUBLISH|REPLY` → send, then `DRAFT` → draft, then `UPDATE|CREATE|ADD|MOVE|SET|PATCH` → modify, then `GET|LIST|FETCH|SEARCH|READ|FIND` → read, else delete). Order matters: `GMAIL_CREATE_EMAIL_DRAFT` must reach the draft matcher before the modify matcher, so draft precedes modify and both follow send.
 - [ ] Run; expect PASS.
 - [ ] Commit `feat(connectors): classify connector tools by verb class`.
@@ -78,9 +78,9 @@ per service. The data model supports multi-account; nothing assigns them.
 ### Task 2: Grants on the bot
 
 **Files:**
-- Modify: `server/store.ts:340-345`
-- Modify: `server/connector-scopes.ts`, `server/connector-scopes.test.ts`
-- Test: `server/store.test.ts`
+- Modify: `desktop/server/store.ts:340-345`
+- Modify: `desktop/server/connector-scopes.ts`, `desktop/server/connector-scopes.test.ts`
+- Test: `desktop/server/store.test.ts`
 
 **Interfaces:**
 - Produces:
@@ -93,7 +93,7 @@ per service. The data model supports multi-account; nothing assigns them.
     toolName: string,
   ): CallVerdict;
   ```
-  `CallVerdict` is P3 Task 3's type, imported from `server/mcp-bridge.ts`.
+  `CallVerdict` is P3 Task 3's type, imported from `desktop/server/mcp-bridge.ts`.
 
 - [ ] Write failing tests: a bot granted `{ gmail: { scopes: ["read"] } }` may call `GMAIL_FETCH_EMAILS` and is refused `GMAIL_SEND_EMAIL` with a message naming the tool and the missing class; a bot with no grants is refused everything; a bot granted a service is still refused a **different** service's tools.
 - [ ] Write a failing test for the migration: a `BotRecord` with legacy `composio: true` and no `connectorGrants` reads as **full grants on every connected service**, so an existing workspace does not silently lose its connectors on upgrade; a legacy `composio: false` reads as no grants.
@@ -108,16 +108,16 @@ per service. The data model supports multi-account; nothing assigns them.
 ### Task 3: Enforce on the bridge
 
 **Files:**
-- Modify: `server/composio.ts:348` (`mcpIntegration`)
-- Modify: `server/index.ts` (turn assembly)
-- Test: `server/composio.test.ts`, `server/index.test.ts`
+- Modify: `desktop/server/composio.ts:348` (`mcpIntegration`)
+- Modify: `desktop/server/index.ts` (turn assembly)
+- Test: `desktop/server/composio.test.ts`, `desktop/server/index.test.ts`
 
 - [ ] Write a failing test that `mcpIntegration` carries the bot's grants and selected account ids into the bridge process **via env**, never argv, and that the resulting env contains no Composio API key beyond the one already required.
 - [ ] Write a failing test at the API level: a bot granted only `read` on gmail has its `GMAIL_SEND_EMAIL` call refused by the bridge, and a `decision-log` row is appended with `kind: "user-denied"` and a new `DecisionSource` of `"connector-scope"`.
 - [ ] Write a failing test that a bot with two Gmail accounts connected and `accountId` set to the work account cannot reach the personal one — assert on the account id the bridge forwards, not on the tool name.
 - [ ] Run; expect FAIL.
-- [ ] Wire `evaluateConnectorCall` into the Composio bridge through P3 Task 3's `verdict` hook. Add `"connector-scope"` to `DecisionSource` in `server/decision-log.ts`.
-- [ ] Run `pnpm vitest run server/`; expect PASS.
+- [ ] Wire `evaluateConnectorCall` into the Composio bridge through P3 Task 3's `verdict` hook. Add `"connector-scope"` to `DecisionSource` in `desktop/server/decision-log.ts`.
+- [ ] Run `pnpm vitest run desktop/server/`; expect PASS.
 - [ ] Commit `feat(connectors): enforce scopes and account selection on the bridge`.
 
 ---
@@ -125,8 +125,8 @@ per service. The data model supports multi-account; nothing assigns them.
 ### Task 4: The grant editor
 
 **Files:**
-- Modify: `src/components/ConnectorCard.tsx`, `src/components/PluginsPanel.tsx`
-- Test: `src/components/ConnectorCard.test.ts`
+- Modify: `desktop/src/components/ConnectorCard.tsx`, `desktop/src/components/PluginsPanel.tsx`
+- Test: `desktop/src/components/ConnectorCard.test.ts`
 
 - [ ] Write a failing test for the pure summariser: `summariseGrant({ scopes: ["read","draft"] })` → `"Read and draft"`; all five scopes → `"Full access"`; empty → `"No access"`. This string is what a person scans down a list of bots, so it must never be a raw array.
 - [ ] Run; expect FAIL.

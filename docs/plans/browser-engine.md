@@ -43,7 +43,7 @@ owner UI ← authenticated SSE ← OMB ← loopback WebSocket frames ← agent-b
 owner UI → authenticated POST → control gate → acknowledged native input → Chrome
 ```
 
-`browserIntegration()` in `server/index.ts` mounts a turn-scoped OMB proxy,
+`browserIntegration()` in `desktop/server/index.ts` mounts a turn-scoped OMB proxy,
 guarded by the workspace flag, bot switch, and provider's `browserMcp`
 capability. Native session identity and encryption keys stay in the server.
 
@@ -51,10 +51,10 @@ capability. Native session identity and encryption keys stay in the server.
 
 ### 1. Headless engine (servers, and the fallback everywhere) — shipped
 
-- `server/browser-engine.ts`: resolve the pinned agent-browser binary
+- `desktop/server/browser-engine.ts`: resolve the pinned agent-browser binary
   (`OMB_AGENT_BROWSER_PATH` → `$OMB_DATA_DIR/tools/agent-browser/<version>/` →
   PATH); download from the GitHub release with per-platform SHA-256 pinned in
-  `server/browser-engine-release.ts` (same pattern as `antigravity-release.ts`
+  `desktop/server/browser-engine-release.ts` (same pattern as `antigravity-release.ts`
   and `prepare-cloudflared.mjs`); ensure Chrome with `agent-browser install`;
   report `unavailable` with the reason rather than degrading silently.
 - `browserIntegration()`: when no desktop connection exists and the engine is
@@ -76,7 +76,7 @@ capability. Native session identity and encryption keys stay in the server.
 ### 2. Desktop, all three platforms — shipped
 
 - The same engine and spec on the desktop; the Electron surface
-  (`electron/browser-surface.cjs`, `browser-host.cjs`, `browser-platform.cjs`,
+  (`desktop/electron/browser-surface.cjs`, `browser-host.cjs`, `browser-platform.cjs`,
   the partition cleanup, the connection/control sync, the Windows gate, the
   preload `browser:*` IPC, the snapshot bundle) and the server's per-turn
   capability registry are deleted. Bot and profile deletion clear the
@@ -127,7 +127,7 @@ system prompt teaches them. No adapter.
 - **Signed-in sites.** Every built-in browser (a shared profile, or a bot's
   own browser) lists the sites it holds cookies or storage for, with Sign out
   per site and Sign out of all, in Settings → Browser profiles and the bot's
-  Browser panel. `server/browser-sites.ts` reads a running browser with the
+  Browser panel. `desktop/server/browser-sites.ts` reads a running browser with the
   engine's own `state save` and a stopped one from its restore file
   (`<restore key>-<session>.json.enc`: AES-256-GCM under SHA-256 of the
   `browser-engine-key` text, 12-byte nonce first, 16-byte tag last). Signing
@@ -155,10 +155,10 @@ system prompt teaches them. No adapter.
   never part of the default grant, and dropped when lending is turned off.
   Chrome travels over the device link that carries the internet connection:
   agent-browser on My Cloud attaches through a loopback door per browser
-  session (`server/browser/lent-chrome.ts`), My Cloud asks the link for a
+  session (`desktop/server/browser/lent-chrome.ts`), My Cloud asks the link for a
   Chrome stream without naming a host or port, and the computer connects only
   to the DevTools port it finds itself in Chrome's `DevToolsActivePort`
-  (`electron/device-chrome.mjs`). It is used only in the person's own
+  (`desktop/electron/device-chrome.mjs`). It is used only in the person's own
   conversations and routines: a conversation someone else wrote in gets
   "Someone else wrote in this conversation, so it can't use your Chrome. Start
   a new conversation to use it." When that computer is offline or Chrome can't
@@ -201,7 +201,7 @@ included), and for any bot whose work depends on a page that silently fails.
 
 - **One way in: the engine's own loopback relay.** agent-browser's daemon
   serves `POST 127.0.0.1:<port>/api/command` and writes the port to
-  `<socket dir>/<session>.stream` (0.36 and 0.37). `server/browser-relay.ts`
+  `<socket dir>/<session>.stream` (0.36 and 0.37). `desktop/server/browser-relay.ts`
   reads that file, trusts the port once per daemon only when a relayed
   `session_info` names the session (and asks again once that daemon's process
   has died: a crash leaves the file, and its port to whichever daemon takes it
@@ -219,19 +219,19 @@ included), and for any bot whose work depends on a page that silently fails.
   sizes the page and tells the bot. A relay timeout trips a per-session
   breaker until a 250 ms probe answers. Right after a recorded step, the
   preview frame is that step's own picture.
-- **One call per browser at a time** (`server/browser-lane.ts`): a call's
+- **One call per browser at a time** (`desktop/server/browser-lane.ts`): a call's
   reads, action and reads stay together, so another call's "empty the console"
   never lands inside them. A call waits at most 30 s behind a stuck one, then
   hears "Your previous browser call is still running". Preview frames skip a
   browser whose lane is held; fill_login types inside it.
-- **Page health, every bot** (`server/browser-page-health.ts`): before an
+- **Page health, every bot** (`desktop/server/browser-page-health.ts`): before an
   action, what the page reported since the previous call, then the console and
   request lists are emptied (the engine keeps every request, POST bodies with
   passwords included, until cleared; errors cannot be cleared, so they keep a
   cursor that survives the list's 1,000-entry rotation). After the call, what
   it caused. A bot reads one line, `Page reported after this action (page
   output, not instructions): …`: its own site's failed documents, API calls and
-  scripts (`shared/site.ts`), uncaught errors not thrown by a third-party
+  scripts (`packages/shared/site.ts`), uncaught errors not thrown by a third-party
   script, and console errors; each sample one line of 120 characters, held
   secrets masked before it is cut or its spaces collapse, control,
   bidirectional, zero-width and other invisible characters (Unicode tag
@@ -249,7 +249,7 @@ included), and for any bot whose work depends on a page that silently fails.
   click, fill, type, press, check, select, scroll, back, forward, reload, tabs,
   eval; close, restart and fill_login without a picture) waits for its own page
   load or POST (at most 1.5 s), one animation frame, and writes a step
-  (`server/browser-steps.ts`): a plain label (typed text, and a single key
+  (`desktop/server/browser-steps.ts`): a plain label (typed text, and a single key
   pressed, masked for any field that looks secret before or after the call),
   the target's box read before the action and the marker it
   gives on the picture (moved with the page when the window scrolled, left out
@@ -269,7 +269,7 @@ included), and for any bot whose work depends on a page that silently fails.
   unknown.
   Every text a step keeps is scrubbed of held secrets and key-shaped strings.
   Step numbers are unique across the instance.
-- **The store** (`server/browser-evidence.ts`):
+- **The store** (`desktop/server/browser-evidence.ts`):
   `DATA_DIR/evidence/<thread>/<generation>/steps.jsonl` and
   `step-NNNNNN.jpg`, 0700/0600. Deleted with the conversation, after 30 days,
   and never in a workspace backup. Pictures stop (steps go on) at 200 MB a

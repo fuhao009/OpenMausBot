@@ -28,12 +28,12 @@
 ## Admin tasks (openmaus-cloud)
 
 ### Task C1: Tier allowance `xCallsPerMonth`
-- Files: `server/cloud-plans.ts`, `tests/cloud-plans.test.ts` (or the existing tier tests).
+- Files: `desktop/server/cloud-plans.ts`, `tests/cloud-plans.test.ts` (or the existing tier tests).
 - Add `xCallsPerMonth: count(10_000_000)` to the tier numbers, the override shape, and the defaults (1,500 / 5,000 / 15,000). Pro takes 5,000 directly.
 - Tests: the defaults per tier; an `OMB_CLOUD_TIERS` override of one tier's `xCallsPerMonth`; an out-of-range value refused with a sentence naming the variable.
 
 ### Task C2: X relay, allowance and tokens
-- Files: `server/cloud-services.ts`, `tests/cloud-services.test.ts`, new `tests/treg-fake.ts`.
+- Files: `desktop/server/cloud-services.ts`, `tests/cloud-services.test.ts`, new `tests/treg-fake.ts`.
 - `CloudServicesConfig.x?: { key: string; monthlyCalls: number }`; `CloudServiceName` gains `"x"`; `CloudIncluded.x?: { calls, max }`; `CloudAllowances.xCalls`.
 - Migration `2026-10-09-cloud-x-relay`: `portal_cloud_relay_token`, `portal_cloud_desktop_service_token`, `portal_cloud_x_usage`, and the view `portal_cloud_service_tokens` (UNION ALL of the old table and the relay table).
 - Token reads (`tokens`, `authenticate`, `staleSql`) go through the view; `mint` writes `x` to the relay table.
@@ -47,7 +47,7 @@
 - Tests: allow-list 404; bad token 401; machine and desktop access paths; 402 for an inactive account; quota at the edge (two parallel calls on the last one); the give-back rules (never sent, 4xx, 429, 5xx, timeout); our key refused gives 503 and the alert state; headers sent to treg and that nothing else is forwarded; 413 for a large body; home token mint, env, plan and stale SQL with the view; a desktop token replaced, revoked and expired.
 
 ### Task C3: Desktop route and wiring
-- Files: `server/cloud-desktop.ts`, `server/portal.ts`, `server/cloud-machines.ts`, `server/main.ts`, `tests/cloud-desktop.test.ts` (or the existing desktop tests), `deploy/admin.env.example`, `deploy/coolify/admin.env.example`, `docs/consumer-cloud.md`.
+- Files: `desktop/server/cloud-desktop.ts`, `desktop/server/portal.ts`, `desktop/server/cloud-machines.ts`, `desktop/server/main.ts`, `tests/cloud-desktop.test.ts` (or the existing desktop tests), `deploy/admin.env.example`, `deploy/coolify/admin.env.example`, `docs/consumer-cloud.md`.
 - `createCloudDesktop` option `services?: { x(device: { id: string; userId: string }): { url: string; token: string } | null; revoke(deviceId: string): void }`.
 - `POST /api/cloud/desktop/services/x`: authenticate `omc_`; a paid, active entitlement or 402; X not configured gives 404; otherwise `{ url, token }`, no-store.
 - Session DELETE (sign-out) revokes. Portal: the `devicePath`, `nativeDevicePath` and licence-expired regexes take `services/x`.
@@ -58,41 +58,41 @@
 
 ### Task A1: Remove the person's treg token
 - Files:
-  - config: `server/config.ts`, `electron/workspace-credentials.mjs`, `electron/diagnostics.mjs`, `electron/main.mjs` (`CREDENTIAL_PATCH`), `src/types/ogb.d.ts`
-  - API keys: `src/components/ApiKeys.tsx`, `src/components/SettingsModal.tsx`, `src/locales/en.json`
-  - server: `server/index.ts` (configStatus, the external tombstone, the Test route push), `server/routes/x-research.ts` (key Test route)
+  - config: `desktop/server/config.ts`, `desktop/electron/workspace-credentials.mjs`, `desktop/electron/diagnostics.mjs`, `desktop/electron/main.mjs` (`CREDENTIAL_PATCH`), `desktop/src/types/ogb.d.ts`
+  - API keys: `desktop/src/components/ApiKeys.tsx`, `desktop/src/components/SettingsModal.tsx`, `desktop/src/locales/en.json`
+  - server: `desktop/server/index.ts` (configStatus, the external tombstone, the Test route push), `desktop/server/routes/x-research.ts` (key Test route)
   - tests: config, diagnostics, workspace-credentials, workspace-credentials-save, ApiKeys, index tests
 - Old config with `treg` must still load: a test loads a config.json containing `{"treg":{"token":"x"}}`.
 
 ### Task A2: Included credential
 - Files:
-  - `server/included-services.ts`
-  - Cloud home env: `server/cloud-secrets.ts`, `server/cloud-home-start.ts`, `server/config.ts` (`WORKSPACE_CREDENTIAL_ENV`), `electron/diagnostics.mjs`
-  - `server/index.ts`: the parent-port dispatch
+  - `desktop/server/included-services.ts`
+  - Cloud home env: `desktop/server/cloud-secrets.ts`, `desktop/server/cloud-home-start.ts`, `desktop/server/config.ts` (`WORKSPACE_CREDENTIAL_ENV`), `desktop/electron/diagnostics.mjs`
+  - `desktop/server/index.ts`: the parent-port dispatch
   - `docs/cloud-pro.md`
 - `xCredential(): ServiceCredential | null` (home env held at boot, else the desktop's live credential); `applyIncludedXMessage(access)`.
 - Tests: home env; message set and clear; a malformed message ignored; the env names stripped from children.
 
 ### Task A3: Client, routes, gate, status
 - Files:
-  - `server/x-research.ts`: `createXRelayClient({ url, token })`, the error mapping
-  - `server/routes/x-research.ts`: deps `credential: () => ServiceCredential | null`
-  - `server/index.ts`: `OMB_X_RESEARCH`, configStatus `xResearch`
-  - `src/state/store.tsx`
+  - `desktop/server/x-research.ts`: `createXRelayClient({ url, token })`, the error mapping
+  - `desktop/server/routes/x-research.ts`: deps `credential: () => ServiceCredential | null`
+  - `desktop/server/index.ts`: `OMB_X_RESEARCH`, configStatus `xResearch`
+  - `desktop/src/state/store.tsx`
   - tests
 - Tests: the path and Bearer header; 402, 429 and 401 sentences; the gate refuses without a credential; configStatus `xResearch.included`.
 
 ### Task A4: Desktop token handoff
-- Files: `electron/cloud-account.mjs` (`serviceAccess(name)` POST `services/<name>`), `electron/main.mjs` (sync on state change and after server start), node tests.
+- Files: `desktop/electron/cloud-account.mjs` (`serviceAccess(name)` POST `services/<name>`), `desktop/electron/main.mjs` (sync on state change and after server start), node tests.
 - Tests: paid and active posts `{ url, token }` to the server; inactive, signed-out or reauth posts `null`; a 402 posts `null`; failures retry on the next refresh.
 
 ### Task A5: Access card
-- Files: `src/components/bot-settings/AccessSection.tsx`, `src/locales/en.json`, `AccessSection.test.ts`.
+- Files: `desktop/src/components/bot-settings/AccessSection.tsx`, `desktop/src/locales/en.json`, `AccessSection.test.ts`.
 - Tests: the included switch; locked for signed out (sign-in action) and for Free (Get Pro); a bot already on can be turned off.
 
 ### Task A6: e2e and docs
 - Files:
-  - `server/x-research.e2e.test.ts`: a loopback relay stub via `OMB_CLOUD_X_URL` and `OMB_CLOUD_X_TOKEN`
+  - `desktop/server/x-research.e2e.test.ts`: a loopback relay stub via `OMB_CLOUD_X_URL` and `OMB_CLOUD_X_TOKEN`
   - `scripts/control-omb.ts` (+ test): allows a loopback `OMB_CLOUD_X_URL` and its token; drops `OMB_TREG_URL`
   - `apps/docs/content/docs/connected-apps/index.mdx`
 - Tests: the e2e (tools shown, search answered through the stub with the Bearer token); the launcher crossing rules.

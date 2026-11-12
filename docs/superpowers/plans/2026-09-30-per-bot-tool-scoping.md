@@ -34,20 +34,20 @@
 
 ## File Structure and Interfaces
 
-- `shared/tool-scope.ts`: dependency-free parser, original identities, matcher and server eligibility.
-- `shared/wire.ts`, `server/contracts.ts`: optional `toolScope: ToolScope` on bots and turns.
-- `server/store.ts`, `server/index.ts`, defaults/backup modules: persistence, authenticated settings and dispatch.
-- `server/mcp-gate.ts`, `server/mcp-gate-config.ts`: scoped stdio discovery and execution.
-- `server/mcp-remote-proxy.ts`, `server/proxy-paths.ts`, `scripts/bundle-server.mjs`: existing HTTP/SSE client exposed through the scoped stdio boundary.
-- `server/drivers/chat-mcp-tools.ts`, `server/drivers/openai-chat.ts`: API definitions and execution.
-- `server/drivers/pi.ts`, `server/drivers/pi-mcp-extension.ts`: native/package filtering and custom MCP registration.
-- `server/drivers/acp/core.ts`, `server/drivers/acp/grok.ts`: scoped session inputs and verified Grok native controls.
+- `packages/shared/tool-scope.ts`: dependency-free parser, original identities, matcher and server eligibility.
+- `packages/shared/wire.ts`, `desktop/server/contracts.ts`: optional `toolScope: ToolScope` on bots and turns.
+- `desktop/server/store.ts`, `desktop/server/index.ts`, defaults/backup modules: persistence, authenticated settings and dispatch.
+- `desktop/server/mcp-gate.ts`, `desktop/server/mcp-gate-config.ts`: scoped stdio discovery and execution.
+- `desktop/server/mcp-remote-proxy.ts`, `desktop/server/proxy-paths.ts`, `scripts/bundle-server.mjs`: existing HTTP/SSE client exposed through the scoped stdio boundary.
+- `desktop/server/drivers/chat-mcp-tools.ts`, `desktop/server/drivers/openai-chat.ts`: API definitions and execution.
+- `desktop/server/drivers/pi.ts`, `desktop/server/drivers/pi-mcp-extension.ts`: native/package filtering and custom MCP registration.
+- `desktop/server/drivers/acp/core.ts`, `desktop/server/drivers/acp/grok.ts`: scoped session inputs and verified Grok native controls.
 - Other provider adapters: common MCP mounting plus provider-specific native enforcement or explicit unsupported restriction errors.
 - Existing bot Access settings and client state: owner-facing selection editor and persistence errors.
 
 ### Task 1: Pure selection semantics
 
-**Files:** Create `shared/tool-scope.ts`, `shared/tool-scope.test.ts`.
+**Files:** Create `packages/shared/tool-scope.ts`, `packages/shared/tool-scope.test.ts`.
 
 **Produces:**
 `ToolScope { allow?: string[]; deny?: string[] }`;
@@ -57,14 +57,14 @@
 `canUseMcpServer(scope: unknown, server: string, names?: readonly string[]): boolean`.
 
 - [x] Write literal tests for legacy unrestricted tools; allow-only native drafting; mail-server wildcard; deny precedence; explicit no-tools; original names/case/collisions; invalid object, selectors and limits; server eligibility after overlapping allow/deny.
-- [x] Run `corepack pnpm exec vitest run shared/tool-scope.test.ts`; expect missing implementation failure.
+- [x] Run `corepack pnpm exec vitest run packages/shared/tool-scope.test.ts`; expect missing implementation failure.
 - [x] Implement strict bounded parsing and exact matching. Limit each list to 256 selectors, each selector to 1024 characters; accept only complete native or final MCP wildcards.
 - [x] Re-run the focused tests; expect all pass.
 - [x] Commit the shared contract and tests.
 
 ### Task 2: MCP list and call boundary
 
-**Files:** Modify `server/mcp-gate.ts`, `server/mcp-gate.test.ts`, `server/mcp-gate-config.ts`; create `server/mcp-gate-config.test.ts`.
+**Files:** Modify `desktop/server/mcp-gate.ts`, `desktop/server/mcp-gate.test.ts`, `desktop/server/mcp-gate-config.ts`; create `desktop/server/mcp-gate-config.test.ts`.
 
 **Consumes:** Task 1 parser/matcher. **Produces:** `gateServer` accepts optional scope; private `OMB_GATE_TOOL_SCOPE` config enforces lists and calls even at budget zero.
 
@@ -76,7 +76,7 @@
 
 ### Task 3: Remote MCP transport
 
-**Files:** Create `server/mcp-remote-proxy.ts`, `server/mcp-remote-proxy.test.ts`; modify gate config, `server/proxy-paths.ts`, `scripts/bundle-server.mjs`.
+**Files:** Create `desktop/server/mcp-remote-proxy.ts`, `desktop/server/mcp-remote-proxy.test.ts`; modify gate config, `desktop/server/proxy-paths.ts`, `scripts/bundle-server.mjs`.
 
 **Consumes:** Existing `RemoteMcpClient` and scoped gate. **Produces:** URL-backed descriptors can be gated without credential-bearing argv.
 
@@ -88,7 +88,7 @@
 
 ### Task 4: Persist scope and dispatch it everywhere
 
-**Files:** Modify `shared/wire.ts`, `server/contracts.ts`, `server/store.ts`, `server/index.ts`, `shared/new-bot-defaults.ts`, `server/new-bot-defaults.ts`, `shared/team-backup.ts`, `server/team-backup.ts`; add `server/tool-scope.e2e.test.ts` and extend existing persistence/defaults tests.
+**Files:** Modify `packages/shared/wire.ts`, `desktop/server/contracts.ts`, `desktop/server/store.ts`, `desktop/server/index.ts`, `packages/shared/new-bot-defaults.ts`, `desktop/server/new-bot-defaults.ts`, `packages/shared/team-backup.ts`, `desktop/server/team-backup.ts`; add `desktop/server/tool-scope.e2e.test.ts` and extend existing persistence/defaults tests.
 
 **Consumes:** Task 1 `ToolScope` and parser. **Produces:** owner-only PATCH field and validated scope on direct/group/queued/resumed turns.
 
@@ -100,7 +100,7 @@
 
 ### Task 5: Shared API executor
 
-**Files:** Modify `server/drivers/chat-mcp-tools.ts`, `server/drivers/openai-chat.ts` and their tests; extend `server/openai-tools.e2e.test.ts`.
+**Files:** Modify `desktop/server/drivers/chat-mcp-tools.ts`, `desktop/server/drivers/openai-chat.ts` and their tests; extend `desktop/server/openai-tools.e2e.test.ts`.
 
 **Consumes:** Task 1 identities and scoped integrations. **Produces:** filtered provider definitions and call-time policy checks for all four shared API drivers.
 
@@ -112,7 +112,7 @@
 
 ### Task 6: Pi native and custom MCP tools
 
-**Files:** Modify `server/drivers/pi.ts`, `server/drivers/pi.test.ts`, `server/drivers/pi-mcp-extension.ts`, `server/drivers/pi-mcp-extension.test.ts`; add real-CLI verification under `scripts/`.
+**Files:** Modify `desktop/server/drivers/pi.ts`, `desktop/server/drivers/pi.test.ts`, `desktop/server/drivers/pi-mcp-extension.ts`, `desktop/server/drivers/pi-mcp-extension.test.ts`; add real-CLI verification under `scripts/`.
 
 **Consumes:** Scope and scoped stdio/remote descriptors. **Produces:** custom-MCP capability, selected registration, active native tools and repeated execution checks.
 
@@ -124,7 +124,7 @@
 
 ### Task 7: Grok and engine coverage
 
-**Files:** Modify `server/drivers/acp/core.ts`, `server/drivers/acp/grok.ts` and ACP tests; extend Claude/Codex/other adapter paths; add `scripts/verify-tool-scope.ts` and driver coverage tests.
+**Files:** Modify `desktop/server/drivers/acp/core.ts`, `desktop/server/drivers/acp/grok.ts` and ACP tests; extend Claude/Codex/other adapter paths; add `scripts/verify-tool-scope.ts` and driver coverage tests.
 
 **Consumes:** Scoped turn input, descriptor gate and native identity matcher. **Produces:** engine capability matrix and strict native control contracts.
 
@@ -137,7 +137,7 @@
 
 ### Task 8: Owner settings and screenshots
 
-**Files:** Modify `src/state/store.tsx`, `src/components/BotSettingsDialog.tsx`, `src/components/bot-settings/AccessSection.tsx`, `useBotSettingsDerived.ts`, client creation/default helpers as needed, locale catalogs and existing settings UI tests; add `docs/tool-selection.md`.
+**Files:** Modify `desktop/src/state/store.tsx`, `desktop/src/components/BotSettingsDialog.tsx`, `desktop/src/components/bot-settings/AccessSection.tsx`, `useBotSettingsDerived.ts`, client creation/default helpers as needed, locale catalogs and existing settings UI tests; add `docs/tool-selection.md`.
 
 **Consumes:** Wire scope and settings PATCH. **Produces:** All/custom selection, Allow/Exclude lists, explicit no-tools status and actionable errors.
 

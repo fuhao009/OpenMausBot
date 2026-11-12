@@ -20,7 +20,7 @@ import { patchAppImageUpdater } from "../../scripts/patch-appimage-updater.mjs";
 import { acquireDataDirLease } from "./data-dir-lease.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const bundle = readFileSync(join(root, "electron/vendor/electron-updater.cjs"), "utf8");
+const bundle = readFileSync(join(root, "desktop/electron/vendor/electron-updater.cjs"), "utf8");
 
 // Non-global on purpose: a shared /g regex carries lastIndex between .test()
 // calls and would report alternating results.
@@ -287,7 +287,7 @@ test("Electron relaunch waits for deferred cleanup and the replacement acquires 
         }, 250);
       });
       app.on("will-quit", () => lease.release());
-      const { AppImageUpdater, BaseUpdater } = require(${JSON.stringify(join(root, "electron/vendor/electron-updater.cjs"))});
+      const { AppImageUpdater, BaseUpdater } = require(${JSON.stringify(join(root, "desktop/electron/vendor/electron-updater.cjs"))});
       const updater = {
         installerPath: ${JSON.stringify(staged)}, downloadedUpdateHelper: { downloadedFileInfo: {} },
         _logger: { info() {}, warn() {}, error() {} }, emit() {},

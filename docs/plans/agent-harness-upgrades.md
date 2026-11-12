@@ -6,7 +6,7 @@
 
 ## Summary
 
-Seventeen changes to `server/` and `src/`, ordered into three rounds, plus a
+Seventeen changes to `desktop/server/` and `desktop/src/`, ordered into three rounds, plus a
 deferred list. No external agent harness is adopted as a dependency.
 
 This plan replaces an earlier draft that was built by reading other harnesses
@@ -19,7 +19,7 @@ and the verified facts are retained in [Upstream references](#upstream-reference
 **The reframe that reorders everything.** Hezuo is itself a harness. The
 agent CLIs' own session files are an *optimization* — a per-engine cache that
 happens to hold context for one engine on one machine. The canonical, durable,
-cross-engine record is `server/store.ts`. Every path where that record has to
+cross-engine record is `desktop/server/store.ts`. Every path where that record has to
 become model context is therefore load-bearing, and today every one of them is
 capped at 40 text messages or broken outright.
 
@@ -29,20 +29,20 @@ lacks. Round 3 is work unlocked by the first two.
 ## Verified findings
 
 Everything below was checked against the repository on 2026-08-17. Line numbers
-drift as `server/index.ts` grows; the symbol names are the stable reference.
+drift as `desktop/server/index.ts` grows; the symbol names are the stable reference.
 
 **Context reconstruction is capped or absent.**
 
-- `server/index.ts:806` builds the model-facing transcript as
+- `desktop/server/index.ts:806` builds the model-facing transcript as
   `activePath(threadId)` filtered to `kind === "text"`, then `.slice(-40)`.
-- Only `server/drivers/grok.ts` reads `SendTurnInput.transcript`. CLI and ACP
+- Only `desktop/server/drivers/grok.ts` reads `SendTurnInput.transcript`. CLI and ACP
   drivers resume through their own native sessions.
-- `server/index.ts:817` builds an inline replay for non-grok drivers **only**
+- `desktop/server/index.ts:817` builds an inline replay for non-grok drivers **only**
   when `rewound` is set.
-- `rewound: true` is set in exactly two places — `server/index.ts:2058` and
+- `rewound: true` is set in exactly two places — `desktop/server/index.ts:2058` and
   `:2075` — both branch/edit handlers.
-- `resumeCursors` is `Record<instanceId, cursor>` (`server/store.ts:117`), read
-  at `server/index.ts:979` as `rewound ? undefined : task.resumeCursors[instanceId]`.
+- `resumeCursors` is `Record<instanceId, cursor>` (`desktop/server/store.ts:117`), read
+  at `desktop/server/index.ts:979` as `rewound ? undefined : task.resumeCursors[instanceId]`.
 - **Consequence:** switching a bot's model mid-thread finds no cursor for the new
   instance, does not set `rewound`, and is not grok — so the new engine receives
   the latest message and nothing else. The advertised "switch a bot's model
@@ -55,42 +55,42 @@ drift as `server/index.ts` grows; the symbol names are the stable reference.
 
 - `SendTurnInput` carries `text: string` and no image or file field.
 - Message kinds are `"text" | "options" | "activity" | "screen"`
-  (`server/store.ts:53`); `screen` is the bot's own screenshot output.
+  (`desktop/server/store.ts:53`); `screen` is the bot's own screenshot output.
 - Bots can send the user images. The user cannot send one back.
 
 **The main conversation path has no retry.**
 
-- Zero occurrences of retry in `server/drivers/claude.ts`, `codex.ts`, `grok.ts`.
-- Retry exists in `server/boat.ts`, `server/computer-proxy.ts`,
-  `server/drivers/acp/core.ts`, `server/webhooks.ts`, `server/drivers/antigravity.ts`.
+- Zero occurrences of retry in `desktop/server/drivers/claude.ts`, `codex.ts`, `grok.ts`.
+- Retry exists in `desktop/server/boat.ts`, `desktop/server/computer-proxy.ts`,
+  `desktop/server/drivers/acp/core.ts`, `desktop/server/webhooks.ts`, `desktop/server/drivers/antigravity.ts`.
 - The peripheral systems are resilient; the conversation path is not.
 
 **No liveness, and one coarse state.**
 
-- `busy?: boolean` (`server/store.ts:175`) is the entire runtime state model.
-- `server/index.ts:1022` clears it at turn end; `server/index.ts:1296` clears it
+- `busy?: boolean` (`desktop/server/store.ts:175`) is the entire runtime state model.
+- `desktop/server/index.ts:1022` clears it at turn end; `desktop/server/index.ts:1296` clears it
   for every bot on startup — the workaround for a driver dying silently.
 - 221 references to `busy` across 36 files, 10 of them tests.
 
 **Two independent write paths.**
 
-- `writeFileAtomic(BOTS_FILE, ...)` at `server/store.ts:360` and
-  `EventBus.publish` at `server/harness/bus.ts:32`.
-- `server/index.ts` contains 139 `store.` calls and 39 `broadcast(` calls.
+- `writeFileAtomic(BOTS_FILE, ...)` at `desktop/server/store.ts:360` and
+  `EventBus.publish` at `desktop/server/harness/bus.ts:32`.
+- `desktop/server/index.ts` contains 139 `store.` calls and 39 `broadcast(` calls.
 
 **Automation is gated but not durable.**
 
-- `botState` returns `"ready" | "busy" | "missing"` (`server/index.ts:1036`,
+- `botState` returns `"ready" | "busy" | "missing"` (`desktop/server/index.ts:1036`,
   `:1065`); routines and webhooks share one queued executor
-  (`server/index.ts:1060`); peer `ask_bot` paths return `{ busy: true }`
-  (`server/index.ts:1432`, `:1475`). There is no missing gate.
-- `server/delegations.ts:31` states the delegation queue is *"Persisted nowhere —
+  (`desktop/server/index.ts:1060`); peer `ask_bot` paths return `{ busy: true }`
+  (`desktop/server/index.ts:1432`, `:1475`). There is no missing gate.
+- `desktop/server/delegations.ts:31` states the delegation queue is *"Persisted nowhere —
   a server restart drops delegations"*. Routines and webhooks have durable
   receipts; delegations do not.
 
 **Approvals answer in prose.**
 
-- The unanswered-request path (`server/drivers/claude.ts:122`) sends the model a
+- The unanswered-request path (`desktop/server/drivers/claude.ts:122`) sends the model a
   natural-language instruction to skip the action. It is fail-closed in intent
   but is not a typed outcome a caller can branch on.
 - `request.opened` carries `tool` and `summary` as its own copy of information
@@ -98,16 +98,16 @@ drift as `server/index.ts` grows; the symbol names are the stable reference.
 
 **Already present — do not rebuild.**
 
-- Message tree: `parentId` (`server/store.ts:69`), `activePath` (`:480`),
+- Message tree: `parentId` (`desktop/server/store.ts:69`), `activePath` (`:480`),
   `branchMessage` (`:519`), `activeLeafId`.
 - A working version switcher in the UI: `ChatView.tsx:388-403` renders `1/3`
   with previous/next arrows, backed by `switchBranch` and an `/active-branch`
   endpoint. Branches are discoverable and reachable.
-- Ports and adapters: `server/contracts.ts` is the port interface,
-  `server/drivers/` are the adapters, unknown drivers degrade to unavailable
+- Ports and adapters: `desktop/server/contracts.ts` is the port interface,
+  `desktop/server/drivers/` are the adapters, unknown drivers degrade to unavailable
   shadow snapshots.
 - `RuntimeEventBase.raw` carries the native protocol payload. Nothing surfaces it.
-- `ProviderInstance.generateText` (`server/contracts.ts:245`) — the summarization
+- `ProviderInstance.generateText` (`desktop/server/contracts.ts:245`) — the summarization
   seam already exists.
 - Cost is populated by all three main drivers and reaches the app on
   `turn.completed.cost` and `thread.token-usage.updated`. The UI discards it.
@@ -116,7 +116,7 @@ drift as `server/index.ts` grows; the symbol names are the stable reference.
 
 - Cross-thread search.
 - Per-call tool deadlines or repeat-call detection.
-- `contextWindow` on `ModelCatalog.options` (`server/contracts.ts:223`).
+- `contextWindow` on `ModelCatalog.options` (`desktop/server/contracts.ts:223`).
 
 ---
 
@@ -133,12 +133,12 @@ engine instead of starting it blank.
 task*, not by whether this instance holds a cursor — a cursor only proves a
 session covering some prefix of the thread, and every turn another engine took
 since is missing from it. Track `TaskRecord.lastInstanceId` at dispatch and
-replay (the same branch `rewound` already takes at `server/index.ts:817`) when
+replay (the same branch `rewound` already takes at `desktop/server/index.ts:817`) when
 it differs from the selected instance. Tasks from before the field existed fall
 back to the cursor map: a lone cursor that is ours keeps resuming, anything
 ambiguous replays. Ship this before item 7; a 40-message text replay is better
 than no context, and the rebuild path is where item 7 later plugs in.
-*(As built in #180: `engineIsFresh()` in `server/turn-context.ts`,
+*(As built in #180: `engineIsFresh()` in `desktop/server/turn-context.ts`,
 `store.markTaskDispatched()`; the naive missing-cursor rule was tried first and
 failed the A → B → A case in manual testing.)*
 
@@ -245,11 +245,11 @@ opening a provider dashboard.
 **What.** Poll live driver processes and derive a lost state.
 
 **Why.** A driver dying without a terminal event leaves the bot `busy` forever;
-clearing every bot on startup (`server/index.ts:1296`) is the current recovery.
+clearing every bot on startup (`desktop/server/index.ts:1296`) is the current recovery.
 
 **Design.**
 
-- A tick over `server/procs.ts` probing each process owning an in-flight turn.
+- A tick over `desktop/server/procs.ts` probing each process owning an in-flight turn.
 - Process-exit detection at minimum; a protocol-level ping where the transport
   supports one.
 - On loss: emit `runtime.error` with a setup-versus-crash distinction, settle the
@@ -270,7 +270,7 @@ engine, at any point in the tree.
 and delegation. All of them currently get 40 text messages or nothing.
 
 **The governing rule.** There are two transcripts and only one of them shrinks.
-The display path — `store.activePath()`, shipped whole at `server/index.ts:179` —
+The display path — `store.activePath()`, shipped whole at `desktop/server/index.ts:179` —
 is already correct, grows without bound, and is not touched. Nothing is ever
 deleted from the record. Only the model-facing rebuild is bounded.
 
@@ -325,7 +325,7 @@ scrolling up still reaches message one.
 
 **What.** Bot-to-bot handoffs survive a restart.
 
-**Why.** `server/delegations.ts:31` — persisted nowhere. The stated rationale
+**Why.** `desktop/server/delegations.ts:31` — persisted nowhere. The stated rationale
 holds for permissions, where nobody can answer for an unattended bot. Queued work
 is not a permission.
 
@@ -364,7 +364,7 @@ model on every subsequent turn — and after item 7, into every rebuild too. One
 accidental `.env` read becomes permanent.
 
 **Design.** A result-side hook running before the message is written. Reuse the
-patterns already in `server/auto-approve.ts` (`SENSITIVE` covers `.env`, ssh keys,
+patterns already in `desktop/server/auto-approve.ts` (`SENSITIVE` covers `.env`, ssh keys,
 AWS credentials, netrc, npmrc, keychain, service accounts). Replace matches with a
 marker that says something was redacted, so behaviour stays explainable. Redact
 the stored copy, not just the displayed one.
@@ -378,7 +378,7 @@ with the key removed, and a later turn cannot recover it from context.
 duplicate the tool call.
 
 **Why.** The unanswered path currently instructs the model in prose to skip
-(`server/drivers/claude.ts:122`). A caller cannot branch on prose.
+(`desktop/server/drivers/claude.ts:122`). A caller cannot branch on prose.
 
 **Design.**
 
@@ -404,7 +404,7 @@ stale events dropped.
 destructive, and nearly unbisectable.
 
 **Design.** Generation assigned in the registry at instance creation, carried on
-`RuntimeEventBase`, checked in `server/harness/bus.ts` before fan-out.
+`RuntimeEventBase`, checked in `desktop/server/harness/bus.ts` before fan-out.
 
 **Reconcile with `rewound` rather than stacking on it.** The repo already has one
 notion of a stale session; two overlapping notions is how you get a bug neither
@@ -480,7 +480,7 @@ itself during items 7, 11, and 16.
 everything after a short conversation and looks broken. After item 7 the driver
 is nearly free.
 
-**Design.** Start from `server/drivers/grok.ts`, already an OpenAI-shaped SSE
+**Design.** Start from `desktop/server/drivers/grok.ts`, already an OpenAI-shaped SSE
 client with transcript replay and `generateText`. Config `{ baseUrl, api }` with
 `supportsMultipleInstances: true`, so Ollama (`127.0.0.1:11434`), LM Studio
 (`127.0.0.1:1234`), and a custom vLLM endpoint are three instances of one driver.
@@ -488,7 +488,7 @@ client with transcript replay and `generateText`. Config `{ baseUrl, api }` with
 Detection maps onto the existing CLI vocabulary: `snapshot()` pings the server
 and reports unavailable with a reason when refused; `models` comes from
 `/v1/models` so only pulled models appear; `refreshModels()` re-fetches without a
-restart, falling back to a static list like `server/drivers/acp/opencode-go.ts`;
+restart, falling back to a static list like `desktop/server/drivers/acp/opencode-go.ts`;
 `EngineInstall.signInCommand` carries `ollama serve` for the installed-but-not-
 running case.
 
@@ -512,7 +512,7 @@ configured anywhere in the app, and stays coherent past the context window.
 a missing primitive, and it also improves routines and delegations, which
 currently only queue behind `busy`.
 
-**The risk, and why this is last.** `server/drivers/claude.ts:536-537` writes the
+**The risk, and why this is last.** `desktop/server/drivers/claude.ts:536-537` writes the
 prompt then immediately calls `stdin.end()`. With `--input-format stream-json`
 that close is very likely the CLI's turn-completion signal. Keeping stdin open
 may mean turns never end — no `turn.completed`, bot stuck indefinitely.
@@ -527,7 +527,7 @@ this before item 6 exists to catch a hung turn.
   and before the next model call; *follow-up* waits until the bot stops. Default
   `one-at-a-time` so a burst of typing does not arrive as one wall.
 - A `queue.updated` runtime event carrying both pending queues.
-- Replace the 409 at `server/index.ts:755` with a queue where the driver supports
+- Replace the 409 at `desktop/server/index.ts:755` with a queue where the driver supports
   it; stop locking the composer at `:840`; render queued messages as pending.
 - Drivers advertising `queueing: false` keep current behaviour, exactly as
   `computerMcp` already gates the computer panel.
@@ -578,7 +578,7 @@ open one bot; authentication on the main API and a configurable bind address.
 **These must land before the harness port is exposed beyond loopback, not
 after** — if Tailscale moves up, these move with it.
 
-**Decomposing `server/index.ts`.** At ~2,465 lines it mixes routing, dispatch,
+**Decomposing `desktop/server/index.ts`.** At ~2,465 lines it mixes routing, dispatch,
 store writes, and bus emits. Item 13 touches the worst of it. Not a blocker.
 
 ---
@@ -587,7 +587,7 @@ store writes, and bus emits. Item 13 touches the worst of it. Not a blocker.
 
 **`ProviderAdapter` growth versus the one-file promise.** Items 2, 11, and 17 all
 add to the adapter contract. The repo's stated invariant — adding a provider is
-one file in `server/drivers/` plus one registration — gets harder with each
+one file in `desktop/server/drivers/` plus one registration — gets harder with each
 required method, across eight existing drivers and 82 test files. Capability
 flags let drivers opt out of *behaviour*, not out of *implementing the surface*.
 Decide deliberately whether the promise survives, and record the answer.
@@ -595,7 +595,7 @@ Decide deliberately whether the promise survives, and record the answer.
 **On-disk forward compatibility.** `~/.hezuo` is shared across app versions.
 New message kinds (attachments, compaction), a new state field, and generation
 stamps all mean an older build may read a newer store. There is precedent —
-`server/store.ts:443` already migrates a pre-branching flat file — but a
+`desktop/server/store.ts:443` already migrates a pre-branching flat file — but a
 downgrade path needs to be explicit rather than discovered.
 
 **Test surface.** 82 test files. Contract changes in items 2, 11, 14, and 17

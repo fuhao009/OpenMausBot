@@ -82,7 +82,7 @@ off.
 
 ## The four tools
 
-All four live in `server/drivers/agents-catalog.ts`, gated like
+All four live in `desktop/server/drivers/agents-catalog.ts`, gated like
 `send_voice_note`. Descriptions tell the bot that each call spends a fraction
 of a cent of the user's treg balance, so it should prefer one well-filtered
 search over many broad ones.
@@ -148,12 +148,12 @@ Results are compact JSON text, never a scraper's raw JSON.
 ```
 bot ──tools/call──▶ agents-proxy (stdio)
                      └─ agents-call.ts handler ──POST /api/internal/x/*──▶ server
-                                                   server/routes/x-research.ts
+                                                   desktop/server/routes/x-research.ts
                                                      ├─ re-checks token + bot switch
-                                                     └─ server/x-research.ts ──HTTPS──▶ treg.to/call/<endpoint>
+                                                     └─ desktop/server/x-research.ts ──HTTPS──▶ treg.to/call/<endpoint>
 ```
 
-### `server/x-research.ts` (new): the provider client
+### `desktop/server/x-research.ts` (new): the provider client
 
 - `createTregXClient({ token, fetcher?, baseUrl?, timeoutMs? })` returns
   `{ search, userPosts, post, profile, accountInfo }`. Each method returns the
@@ -190,11 +190,11 @@ bot ──tools/call──▶ agents-proxy (stdio)
   tested on their own. Links may be typed without `https://`; X's own pages
   (`home`, `search`, `i/…`, `explore`…) are never read as handles.
 
-### `server/routes/x-research.ts` (new): internal routes
+### `desktop/server/routes/x-research.ts` (new): internal routes
 
-- `createXResearchInternalRoutes(deps)` per `server/routes/README.md`. It is
+- `createXResearchInternalRoutes(deps)` per `desktop/server/routes/README.md`. It is
   called from inside index.ts's `/api/internal/` block after the capability
-  bearer is checked. No new `path ===` guard in `server/index.ts` (the route
+  bearer is checked. No new `path ===` guard in `desktop/server/index.ts` (the route
   ratchet test stays at its current count).
 - `POST /api/internal/x/search`, `/user-posts`, `/post`, `/profile`. Bodies are
   validated with zod; bad input is a 400 with the reason.
@@ -208,7 +208,7 @@ bot ──tools/call──▶ agents-proxy (stdio)
   `POST /api/x-research/test` (admin-only, like every route not opened to
   clients). It answers `{ ok: true, dollars }` or `{ ok: false, reason, message }`.
 
-### `server/drivers/agents-call.ts`: handlers
+### `desktop/server/drivers/agents-call.ts`: handlers
 
 Four names, one branch: post the arguments to the route through
 `client.apiResponse(...)` and return the JSON text. A route refusal comes back
@@ -216,7 +216,7 @@ as the tool's error text unchanged.
 
 ### Gating in the catalog
 
-- `server/index.ts` `agentsIntegration()` sets
+- `desktop/server/index.ts` `agentsIntegration()` sets
   `OMB_X_RESEARCH: cfg.treg?.token && store.bot(botId)?.xResearch === true ? "1" : "0"`.
 - `catalogProfileFromEnv` reads it into `profile.xResearch`; `catalogTools()`
   hides `X_TOOL_NAMES` unless it is true, the same way `VOICE_TOOL_NAMES` works.
@@ -243,41 +243,41 @@ The token follows the xAI key everywhere it goes. Config section `treg`, field
 `token`, env `OMB_TREG_TOKEN` (the `OMB_` prefix every non-model key uses),
 Electron credential name `tregToken`.
 
-- `server/config.ts`: schema, `AppConfig`, env override, `syncCredentialEnv`,
+- `desktop/server/config.ts`: schema, `AppConfig`, env override, `syncCredentialEnv`,
   `WORKSPACE_CREDENTIAL_ENV` (strips it from engine children), `saveConfig`.
-- `electron/workspace-credentials.mjs` (boot migration into the encrypted
-  `credentials.bin`), `electron/diagnostics.mjs` (`CREDENTIAL_ENV_NAMES` plus
+- `desktop/electron/workspace-credentials.mjs` (boot migration into the encrypted
+  `credentials.bin`), `desktop/electron/diagnostics.mjs` (`CREDENTIAL_ENV_NAMES` plus
   its parity test).
-- `server/index.ts`: `configStatus()` reports `treg: { configured }`, never the
+- `desktop/server/index.ts`: `configStatus()` reports `treg: { configured }`, never the
   value.
-- `src/state/store.tsx` `ConfigStatus` and its live-frame pick list.
+- `desktop/src/state/store.tsx` `ConfigStatus` and its live-frame pick list.
 
 ## Settings UI
 
-- `src/components/ApiKeys.tsx`: a `treg` section with label, description and
+- `desktop/src/components/ApiKeys.tsx`: a `treg` section with label, description and
   link. In the desktop app it saves through `credential:set` (the encrypted
   store), like Box and OpenCode Go, so Clear also removes the stored copy; the
   external save leaves an empty tombstone in config.json. Browsers and dev
   builds save through `PUT /api/config`. Test calls
   `POST /api/x-research/test` and shows the balance in dollars.
-- `src/components/SettingsModal.tsx`: render the row under Integrations, after
+- `desktop/src/components/SettingsModal.tsx`: render the row under Integrations, after
   Box, and add search keywords ("x", "twitter", "treg", "scraper").
-- `src/components/bot-settings/AccessSection.tsx`: the X research card with a
+- `desktop/src/components/bot-settings/AccessSection.tsx`: the X research card with a
   `Switch` that patches `xResearch`.
-- Bot field `xResearch?: boolean` in `shared/wire.ts` and `src/state/store.tsx`;
+- Bot field `xResearch?: boolean` in `packages/shared/wire.ts` and `desktop/src/state/store.tsx`;
   `PATCH /api/bots/:id` accepts it as a boolean (next to `voiceNotes`); the
   card is hidden while a bot or the New bot defaults are being drafted;
-  `src/state/bot-patch-queue.ts` allows it. A paired phone cannot set it:
+  `desktop/src/state/bot-patch-queue.ts` allows it. A paired phone cannot set it:
   phone tokens may patch only the display fields in `CLIENT_BOT_PATCH_FIELDS`
-  (`server/request-auth.ts`), and a test pins that `xResearch` is refused.
+  (`desktop/server/request-auth.ts`), and a test pins that `xResearch` is refused.
   Team backups do not carry it (they do not carry `voiceNotes` either), so a
   restored bot starts with it off.
-- English strings in `src/locales/en.json`. Other locales fall back to English,
+- English strings in `desktop/src/locales/en.json`. Other locales fall back to English,
   as other new strings do.
 
 ## Activity log
 
-`server/activity.ts` `describeTool` maps `mcp__agents__x_search`,
+`desktop/server/activity.ts` `describeTool` maps `mcp__agents__x_search`,
 `x_user_posts`, `x_post`, and `x_profile` to app **X** with the four labels
 above, instead of the generic "Team". Bare names that Codex records keep
 today's behaviour.
@@ -291,7 +291,7 @@ the Composio connector is only needed for posting.
 
 ## Testing
 
-- `server/x-research.test.ts` with an injected fetcher, using row shapes copied
+- `desktop/server/x-research.test.ts` with an injected fetcher, using row shapes copied
   from treg's published examples (anyapi search, user posts, replies and single
   post) and X's own GraphQL shape (a fallback scraper):
   - field aliases, missing fields, and quoted posts;
@@ -303,16 +303,16 @@ the Composio connector is only needed for posting.
   - each error status, including `route_max_cost`;
   - the timeout and the body cap;
   - Test's two calls.
-- `server/routes/x-research.test.ts`: refused with no token or the bot switch
+- `desktop/server/routes/x-research.test.ts`: refused with no token or the bot switch
   off; the token read per call; bad input is a 400; success passes the compact
   result through; failures map to 404/502.
-- `server/drivers/agents-call.test.ts`: the four handlers call the right routes
+- `desktop/server/drivers/agents-call.test.ts`: the four handlers call the right routes
   and surface route errors.
-- `server/drivers/agents-catalog-wire.test.ts`: new `+x` profiles, goldens
+- `desktop/server/drivers/agents-catalog-wire.test.ts`: new `+x` profiles, goldens
   regenerated, `BUDGET_BASELINE` raised by hand for those profiles only; the
   existing profiles stay byte-identical.
-- `server/activity.test.ts`: the four labels.
-- `electron/diagnostics.test.mjs`: the mirror list includes `OMB_TREG_TOKEN`.
+- `desktop/server/activity.test.ts`: the four labels.
+- `desktop/electron/diagnostics.test.mjs`: the mirror list includes `OMB_TREG_TOKEN`.
 - Config tests: the token is stripped from engine environments and follows a
   save.
 - Request-auth test: a phone token's `PATCH /api/bots/:id` with `xResearch` is

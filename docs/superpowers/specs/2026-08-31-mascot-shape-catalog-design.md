@@ -1,7 +1,7 @@
 # Mascot shape catalog
 
 > **Naming note (2026-09-01):** the code vocabulary for this feature is `body`, not
-> `shape` — `mascotBody`, `MASCOT_BODIES`, `MascotBodyId`, `shared/mascot-bodies.ts`,
+> `shape` — `mascotBody`, `MASCOT_BODIES`, `MascotBodyId`, `packages/shared/mascot-bodies.ts`,
 > `scripts/mascot-bodies/`, `HezuoBodies.swift`. The repo enforces
 > `anti-slop/no-shape-in-symbol-names` as an error, and `body` is the word this document
 > already uses in prose. Identifiers written as `mascotShape` etc. below are the original
@@ -97,7 +97,7 @@ existing bot's face — so the generator fails if the shared scale would drop be
 `scripts/gen-mascot-shapes.mjs`. Plain Node, no new dependencies. Per shape:
 
 1. Build the outline from a shape builder ported from Blob Studio's
-   `src/shapes/builtin.ts`, emitting **absolute cubic** path data only.
+   `desktop/src/shapes/builtin.ts`, emitting **absolute cubic** path data only.
 2. Flatten the cubics to a polyline; measure real bounds; derive the `fit`
    transform mapping those bounds into the 228.541-unit face box.
 3. Scanline-fill the polyline into a 256x256 mask.
@@ -124,9 +124,9 @@ expressions.** That assertion, not visual review, is the correctness guarantee.
 
 Outputs, both checked in:
 
-- `shared/mascot-shapes.ts` — the TypeScript catalog, the id union, and the zod
+- `packages/shared/mascot-shapes.ts` — the TypeScript catalog, the id union, and the zod
   schema.
-- `ios/Sources/CompanionCore/HezuoBodies.swift` — the Swift catalog, keyed by the same ids.
+- `mobile/ios/Sources/CompanionCore/HezuoBodies.swift` — the Swift catalog, keyed by the same ids.
 
 Both carry a "generated, do not hand-edit" header, matching the existing
 convention in `HezuoFaceData.swift`.
@@ -172,14 +172,14 @@ would reintroduce that cost.
 
 The field follows `avatarCrop`'s existing path end to end:
 
-- `shared/mascot-shapes.ts` — zod enum plus a `botMascotShape()` safe-parse
-  helper defaulting to `cursor`, mirroring `shared/bot-avatar.ts`.
-- `server/store.ts` — `BotRecord.mascotShape?: MascotShapeId | null`.
-- `server/bot-profile.ts` — added to the patch allow-list, with a readable
+- `packages/shared/mascot-shapes.ts` — zod enum plus a `botMascotShape()` safe-parse
+  helper defaulting to `cursor`, mirroring `packages/shared/bot-avatar.ts`.
+- `desktop/server/store.ts` — `BotRecord.mascotShape?: MascotShapeId | null`.
+- `desktop/server/bot-profile.ts` — added to the patch allow-list, with a readable
   error message in the same style as the `avatarCrop` one.
-- `server/team-manifest.ts`, `server/bot-package.ts`, `server/package-export.ts`
+- `desktop/server/team-manifest.ts`, `desktop/server/bot-package.ts`, `desktop/server/package-export.ts`
   — carried inside `appearance`, beside `color` and `mascotExpression`.
-- `server/index.ts` — added to the profile broadcast key list (~line 4048).
+- `desktop/server/index.ts` — added to the profile broadcast key list (~line 4048).
 - iOS `Sources/CompanionCore/Models.swift` — `Bot.mascotShape: String?` and the
   corresponding `BotProfilePatch` field and coding key.
 
@@ -198,9 +198,9 @@ default body, and an older server drops it on write — neither is a corrupt sta
 - **Clamp test**: every shape's baked scale is identical, and equals `cursor`'s
   solved scale.
 - **Schema test**: an unknown shape id resolves to `cursor`, mirroring
-  `server/bot-avatar.test.ts`.
+  `desktop/server/bot-avatar.test.ts`.
 - **Patch test**: an invalid shape returns the readable error, mirroring
-  `server/bot-profile.test.ts`.
+  `desktop/server/bot-profile.test.ts`.
 - **iOS parse test**: every generated path parses to a closed, non-empty `Path`
   whose bounds fall inside the face box.
 - **Manual**: all ten shapes rendered on desktop and phone side by side, across a

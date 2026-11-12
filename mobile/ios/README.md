@@ -6,7 +6,7 @@ answer their approvals on, and send them the next thing.
 The laptop stays the only machine that persists agent processes, credentials,
 transcripts and computers. The phone owns no copy — it is a second client of
 the same harness the desktop app talks to, through the restricted sidecar
-described in [`docs/ios-companion.md`](../docs/ios-companion.md).
+described in [`docs/ios-companion.md`](../../docs/ios-companion.md).
 
 ## Status
 
@@ -67,7 +67,7 @@ switching in that chat. Updates also lists sibling conversations separately.
 Group conversations retain their existing shared, serial switching behavior.
 
 Folder creation, moving threads between folders and folder reordering remain
-desktop actions. See the [isolated thread checks](../docs/verification/ios-threads.md)
+desktop actions. See the [isolated thread checks](../../docs/verification/ios-threads.md)
 for simulator verification and its limits.
 
 ## Layout
@@ -119,7 +119,7 @@ mobile/ios/
 The core needs nothing but a Swift toolchain:
 
 ```sh
-cd ios
+cd mobile/ios
 swift test
 ```
 
@@ -127,7 +127,7 @@ The app needs Xcode. The `.xcodeproj` is generated rather than committed:
 
 ```sh
 brew install xcodegen
-cd ios && xcodegen generate && open OpenMausCompanion.xcodeproj
+cd mobile/ios && xcodegen generate && open OpenMausCompanion.xcodeproj
 ```
 
 **Re-run `xcodegen generate` after pulling any change that adds a file to

@@ -4,7 +4,7 @@
 
 **Goal:** Make what a bot believes visible, editable, and auditable — a memory browser with a real capacity gauge, and a journal that records every change an agent makes to its own memory so the user can read it back and revert it.
 
-**Architecture:** No new source of truth. `server/workspace.ts` already owns `MEMORY.md` and `memory/<topic>.md` as plain markdown under `~/.hezuo/workspaces/<botId>/`. This plan adds a read/write module over those files with hard path containment, a change journal kept **outside** the workspace (so a bot cannot edit its own audit trail with the file tools it already has), a diff taken at turn boundaries, and one bot-scoped UI panel.
+**Architecture:** No new source of truth. `desktop/server/workspace.ts` already owns `MEMORY.md` and `memory/<topic>.md` as plain markdown under `~/.hezuo/workspaces/<botId>/`. This plan adds a read/write module over those files with hard path containment, a change journal kept **outside** the workspace (so a bot cannot edit its own audit trail with the file tools it already has), a diff taken at turn boundaries, and one bot-scoped UI panel.
 
 **Tech Stack:** TypeScript strict, Node 24, Vitest, React 19, Tailwind, zod.
 
@@ -14,10 +14,10 @@
 
 See [the roadmap](2026-08-31-00-control-plane-roadmap.md#global-constraints). The ones that shape this plan directly:
 
-- **Persisted files are `0600`**, written through `writeFileAtomic` (`server/atomic.ts`), and anything agent-authored passes `redactSecrets` (`server/redact.ts`) before it reaches disk.
+- **Persisted files are `0600`**, written through `writeFileAtomic` (`desktop/server/atomic.ts`), and anything agent-authored passes `redactSecrets` (`desktop/server/redact.ts`) before it reaches disk.
 - **Audit what you authorize** — fire-and-forget. A journal write must never take down the turn it is journalling.
 - **The test floor.** `pnpm test` runs `scripts/test-floor.mjs` with `TEST_COUNT_FLOOR = 1070`. Adding tests never touches it.
-- **TypeScript strict**, Vitest, `fileParallelism: false`. Server tests are `server/**/*.test.ts`, colocated with their module.
+- **TypeScript strict**, Vitest, `fileParallelism: false`. Server tests are `desktop/server/**/*.test.ts`, colocated with their module.
 - The oxlint `anti-slop` plugin (`tools/oxlint/anti-slop/rules/`) bans `unknown` parameters and returns, runtime `typeof` narrowing, chained type assertions, and object parameters. Write concrete types.
 
 **Depends on:** nothing. This plan is independently executable today.
@@ -28,7 +28,7 @@ See [the roadmap](2026-08-31-00-control-plane-roadmap.md#global-constraints). Th
 
 ## Background: what exists and what does not
 
-`server/workspace.ts` is 172 lines and already owns the whole storage story:
+`desktop/server/workspace.ts` is 172 lines and already owns the whole storage story:
 
 | Thing | Where | Status |
 |---|---|---|
@@ -47,14 +47,14 @@ The consequence: `loadMemory()` silently truncates at 200 lines, and nothing tel
 
 ## File map
 
-- Create `server/memory-store.ts` — path containment, overview with capacity, read/write/delete of one memory document. No knowledge of turns or HTTP.
-- Create `server/memory-store.test.ts`.
-- Create `server/memory-journal.ts` — content hashes, change rows, NDJSON append outside the workspace, revert.
-- Create `server/memory-journal.test.ts`.
-- Modify `server/index.ts` — five routes under `/api/bots/:id/memory`, plus the turn-boundary diff in the `case "turn.completed"` fold (`server/index.ts:1034`).
-- Create `src/components/MemoryPanel.tsx` — the browser, editor, gauge, and journal list.
-- Create `src/lib/memory.ts` — the client-side types and `api()` calls, shared by the panel and its tests.
-- Modify `src/components/SettingsPanel.tsx` — mount the panel in the bot settings surface.
+- Create `desktop/server/memory-store.ts` — path containment, overview with capacity, read/write/delete of one memory document. No knowledge of turns or HTTP.
+- Create `desktop/server/memory-store.test.ts`.
+- Create `desktop/server/memory-journal.ts` — content hashes, change rows, NDJSON append outside the workspace, revert.
+- Create `desktop/server/memory-journal.test.ts`.
+- Modify `desktop/server/index.ts` — five routes under `/api/bots/:id/memory`, plus the turn-boundary diff in the `case "turn.completed"` fold (`desktop/server/index.ts:1034`).
+- Create `desktop/src/components/MemoryPanel.tsx` — the browser, editor, gauge, and journal list.
+- Create `desktop/src/lib/memory.ts` — the client-side types and `api()` calls, shared by the panel and its tests.
+- Modify `desktop/src/components/SettingsPanel.tsx` — mount the panel in the bot settings surface.
 - Create `docs/memory.md` — what memory is, where it lives, what the budget means.
 
 ---
@@ -64,10 +64,10 @@ The consequence: `loadMemory()` silently truncates at 200 lines, and nothing tel
 The security boundary of the whole feature. A memory `file` parameter arrives from HTTP; if it can escape the workspace, the endpoint is an arbitrary-file-read.
 
 **Files:**
-- Create: `server/memory-store.ts`, `server/memory-store.test.ts`
+- Create: `desktop/server/memory-store.ts`, `desktop/server/memory-store.test.ts`
 
 **Interfaces:**
-- Consumes: `workspaceDir`, `ensureWorkspace`, `MEMORY_MAX_LINES`, `MEMORY_MAX_BYTES` from `server/workspace.ts`; `writeFileAtomic` from `server/atomic.ts`; `redactSecrets` from `server/redact.ts`.
+- Consumes: `workspaceDir`, `ensureWorkspace`, `MEMORY_MAX_LINES`, `MEMORY_MAX_BYTES` from `desktop/server/workspace.ts`; `writeFileAtomic` from `desktop/server/atomic.ts`; `redactSecrets` from `desktop/server/redact.ts`.
 - Produces:
   ```ts
   export interface MemoryTopic { file: string; bytes: number; updatedAt: number }
@@ -88,7 +88,7 @@ The security boundary of the whole feature. A memory `file` parameter arrives fr
 - [ ] **Step 1: Write the failing containment test**
 
 ```ts
-// server/memory-store.test.ts
+// desktop/server/memory-store.test.ts
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -127,13 +127,13 @@ describe("resolveMemoryPath", () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm vitest run server/memory-store.test.ts`
+Run: `pnpm vitest run desktop/server/memory-store.test.ts`
 Expected: FAIL — `Cannot find module './memory-store.ts'`.
 
 - [ ] **Step 3: Implement containment**
 
 ```ts
-// server/memory-store.ts
+// desktop/server/memory-store.ts
 // The user-facing half of bot memory: browse it, edit it, delete it.
 //
 // workspace.ts owns the files; this module owns the RULES for reaching
@@ -165,7 +165,7 @@ export function resolveMemoryPath(botId: string, file: string): string {
 
 - [ ] **Step 4: Run the containment test — green**
 
-Run: `pnpm vitest run server/memory-store.test.ts`
+Run: `pnpm vitest run desktop/server/memory-store.test.ts`
 Expected: PASS (7 rejections, 2 acceptances).
 
 - [ ] **Step 5: Write the failing capacity test**
@@ -173,7 +173,7 @@ Expected: PASS (7 rejections, 2 acceptances).
 The gauge is the point of the feature: it has to report the truncation `loadMemory()` performs silently.
 
 ```ts
-// append to server/memory-store.test.ts
+// append to desktop/server/memory-store.test.ts
 describe("memoryOverview", () => {
   it("reports the load budget and what actually loads", () => {
     ensureWorkspace("bot2");
@@ -208,13 +208,13 @@ describe("memoryOverview", () => {
 
 - [ ] **Step 6: Run it — fails on the missing export**
 
-Run: `pnpm vitest run server/memory-store.test.ts -t memoryOverview`
+Run: `pnpm vitest run desktop/server/memory-store.test.ts -t memoryOverview`
 Expected: FAIL — `memoryOverview is not a function`.
 
 - [ ] **Step 7: Implement the overview**
 
 ```ts
-// append to server/memory-store.ts
+// append to desktop/server/memory-store.ts
 export interface MemoryTopic { file: string; bytes: number; updatedAt: number }
 
 export interface MemoryCapacity {
@@ -279,13 +279,13 @@ export function memoryOverview(botId: string): MemoryOverview {
 
 - [ ] **Step 8: Run — green**
 
-Run: `pnpm vitest run server/memory-store.test.ts`
+Run: `pnpm vitest run desktop/server/memory-store.test.ts`
 Expected: PASS.
 
 - [ ] **Step 9: Write the failing read/write/delete test**
 
 ```ts
-// append to server/memory-store.test.ts
+// append to desktop/server/memory-store.test.ts
 describe("memory documents", () => {
   it("round-trips a topic file and creates it on first write", () => {
     ensureWorkspace("bot5");
@@ -322,13 +322,13 @@ describe("memory documents", () => {
 
 - [ ] **Step 10: Run — fails**
 
-Run: `pnpm vitest run server/memory-store.test.ts -t "memory documents"`
+Run: `pnpm vitest run desktop/server/memory-store.test.ts -t "memory documents"`
 Expected: FAIL — `writeMemoryDoc is not a function`.
 
 - [ ] **Step 11: Implement read/write/delete**
 
 ```ts
-// append to server/memory-store.ts
+// append to desktop/server/memory-store.ts
 export function readMemoryDoc(botId: string, file: string): string {
   const path = resolveMemoryPath(botId, file);
   try {
@@ -365,14 +365,14 @@ export function deleteMemoryDoc(botId: string, file: string): MemoryOverview {
 
 - [ ] **Step 12: Run the full file — green**
 
-Run: `pnpm vitest run server/memory-store.test.ts`
+Run: `pnpm vitest run desktop/server/memory-store.test.ts`
 Expected: PASS, all describes.
 
 - [ ] **Step 13: Typecheck and commit**
 
 ```bash
 pnpm typecheck && pnpm lint
-git add server/memory-store.ts server/memory-store.test.ts
+git add desktop/server/memory-store.ts desktop/server/memory-store.test.ts
 git commit -m "feat(memory): contained read/write/delete over bot memory files with a capacity gauge"
 ```
 
@@ -381,7 +381,7 @@ git commit -m "feat(memory): contained read/write/delete over bot memory files w
 ### Task 2: The change journal
 
 **Files:**
-- Create: `server/memory-journal.ts`, `server/memory-journal.test.ts`
+- Create: `desktop/server/memory-journal.ts`, `desktop/server/memory-journal.test.ts`
 
 **Interfaces:**
 - Consumes: `memoryOverview`, `readMemoryDoc`, `writeMemoryDoc` from Task 1.
@@ -407,7 +407,7 @@ git commit -m "feat(memory): contained read/write/delete over bot memory files w
 - [ ] **Step 1: Write the failing snapshot/diff test**
 
 ```ts
-// server/memory-journal.test.ts
+// desktop/server/memory-journal.test.ts
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -480,13 +480,13 @@ describe("recordMemoryChanges", () => {
 
 - [ ] **Step 2: Run — fails on the missing module**
 
-Run: `pnpm vitest run server/memory-journal.test.ts`
+Run: `pnpm vitest run desktop/server/memory-journal.test.ts`
 Expected: FAIL — `Cannot find module './memory-journal.ts'`.
 
 - [ ] **Step 3: Implement the journal**
 
 ```ts
-// server/memory-journal.ts
+// desktop/server/memory-journal.ts
 // What the bot changed about what it believes.
 //
 // A bot edits MEMORY.md with the same file tools it uses for any other
@@ -623,14 +623,14 @@ export function revertMemoryChange(botId: string, at: string, file: string): boo
 
 - [ ] **Step 4: Run — green**
 
-Run: `pnpm vitest run server/memory-journal.test.ts`
+Run: `pnpm vitest run desktop/server/memory-journal.test.ts`
 Expected: PASS, 5 tests.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 pnpm typecheck && pnpm lint
-git add server/memory-journal.ts server/memory-journal.test.ts
+git add desktop/server/memory-journal.ts desktop/server/memory-journal.test.ts
 git commit -m "feat(memory): journal what a bot changes about what it believes"
 ```
 
@@ -639,8 +639,8 @@ git commit -m "feat(memory): journal what a bot changes about what it believes"
 ### Task 3: Routes and the turn-boundary diff
 
 **Files:**
-- Modify: `server/index.ts` — routes near the other bot-scoped `GET` handlers (around `server/index.ts:3234`), and the fold at `case "turn.completed"` (`server/index.ts:1034`).
-- Create: `server/memory-routes.test.ts`
+- Modify: `desktop/server/index.ts` — routes near the other bot-scoped `GET` handlers (around `desktop/server/index.ts:3234`), and the fold at `case "turn.completed"` (`desktop/server/index.ts:1034`).
+- Create: `desktop/server/memory-routes.test.ts`
 
 **Interfaces:**
 - Consumes: everything from Tasks 1 and 2.
@@ -654,10 +654,10 @@ git commit -m "feat(memory): journal what a bot changes about what it believes"
 
 - [ ] **Step 1: Write the failing route test**
 
-Follow the existing pattern in `server/index.test.ts` for booting the server under test; import the same helper it uses rather than inventing a second harness.
+Follow the existing pattern in `desktop/server/index.test.ts` for booting the server under test; import the same helper it uses rather than inventing a second harness.
 
 ```ts
-// server/memory-routes.test.ts
+// desktop/server/memory-routes.test.ts
 import { describe, expect, it } from "vitest";
 import { startTestServer } from "./testing/server.ts";   // the helper index.test.ts already uses
 
@@ -689,19 +689,19 @@ describe("memory routes", () => {
 });
 ```
 
-> If `server/testing/server.ts` does not export `startTestServer`, read `server/index.test.ts` first and reuse whatever it does — do not add a second boot path.
+> If `desktop/server/testing/server.ts` does not export `startTestServer`, read `desktop/server/index.test.ts` first and reuse whatever it does — do not add a second boot path.
 
 - [ ] **Step 2: Run — fails with 404**
 
-Run: `pnpm vitest run server/memory-routes.test.ts`
+Run: `pnpm vitest run desktop/server/memory-routes.test.ts`
 Expected: FAIL — the overview fetch returns 404.
 
 - [ ] **Step 3: Add the routes**
 
-Place these beside the other `/api/bots/:id/...` handlers in `server/index.ts`, matching the surrounding `if (method === … && path === …)` style exactly.
+Place these beside the other `/api/bots/:id/...` handlers in `desktop/server/index.ts`, matching the surrounding `if (method === … && path === …)` style exactly.
 
 ```ts
-// server/index.ts — near the other bot-scoped routes
+// desktop/server/index.ts — near the other bot-scoped routes
 const memoryMatch = /^\/api\/bots\/([^/]+)\/memory$/.exec(path);
 if (memoryMatch && method === "GET") {
   return json(res, 200, memoryOverview(memoryMatch[1]));
@@ -752,13 +752,13 @@ if (memoryRevertMatch && method === "POST") {
 
 - [ ] **Step 4: Run — green**
 
-Run: `pnpm vitest run server/memory-routes.test.ts`
+Run: `pnpm vitest run desktop/server/memory-routes.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Write the failing turn-diff test**
 
 ```ts
-// append to server/memory-routes.test.ts
+// append to desktop/server/memory-routes.test.ts
 it("journals what a turn changed in memory", async () => {
   const { url, botId, runTurnThatWrites, close } = await startTestServer();
   try {
@@ -776,7 +776,7 @@ it("journals what a turn changed in memory", async () => {
 
 - [ ] **Step 6: Run — fails, journal empty**
 
-Run: `pnpm vitest run server/memory-routes.test.ts -t "journals what a turn changed"`
+Run: `pnpm vitest run desktop/server/memory-routes.test.ts -t "journals what a turn changed"`
 Expected: FAIL — `changes[0]` is undefined.
 
 - [ ] **Step 7: Wire the snapshot into turn dispatch and the diff into the fold**
@@ -784,7 +784,7 @@ Expected: FAIL — `changes[0]` is undefined.
 At dispatch, immediately before `instance.adapter.sendTurn(...)`:
 
 ```ts
-// server/index.ts — at turn dispatch
+// desktop/server/index.ts — at turn dispatch
 const memoryBefore = snapshotMemory(bot.id);
 memorySnapshots.set(threadId, memoryBefore);
 ```
@@ -797,7 +797,7 @@ with the map declared beside the other per-thread maps at module scope:
 const memorySnapshots = new Map<string, MemorySnapshot>();
 ```
 
-and in `case "turn.completed":` (`server/index.ts:1034`), beside the existing usage tally:
+and in `case "turn.completed":` (`desktop/server/index.ts:1034`), beside the existing usage tally:
 
 ```ts
 const memoryBefore = memorySnapshots.get(event.threadId);
@@ -815,14 +815,14 @@ if (memoryBefore && botForThread) {
 
 - [ ] **Step 8: Run — green, then the whole server suite**
 
-Run: `pnpm vitest run server/memory-routes.test.ts && pnpm vitest run server/`
+Run: `pnpm vitest run desktop/server/memory-routes.test.ts && pnpm vitest run desktop/server/`
 Expected: PASS, no regressions.
 
 - [ ] **Step 9: Commit**
 
 ```bash
 pnpm typecheck && pnpm lint
-git add server/index.ts server/memory-routes.test.ts
+git add desktop/server/index.ts desktop/server/memory-routes.test.ts
 git commit -m "feat(memory): memory routes and a turn-boundary diff into the journal"
 ```
 
@@ -831,17 +831,17 @@ git commit -m "feat(memory): memory routes and a turn-boundary diff into the jou
 ### Task 4: The memory panel
 
 **Files:**
-- Create: `src/lib/memory.ts`, `src/components/MemoryPanel.tsx`
-- Modify: `src/components/SettingsPanel.tsx`
+- Create: `desktop/src/lib/memory.ts`, `desktop/src/components/MemoryPanel.tsx`
+- Modify: `desktop/src/components/SettingsPanel.tsx`
 
 **Interfaces:**
 - Consumes: the six routes from Task 3; `api` and `useStore` from `@/state/store`; `cn` from `@/lib/cn`.
-- Produces: `<MemoryPanel botId={string} />`, and in `src/lib/memory.ts` the mirrored types `MemoryOverview`, `MemoryTopic`, `MemoryCapacity`, `MemoryChange` plus `fetchMemory`, `fetchMemoryDoc`, `saveMemoryDoc`, `deleteMemoryDoc`, `fetchMemoryJournal`, `revertMemoryChange`.
+- Produces: `<MemoryPanel botId={string} />`, and in `desktop/src/lib/memory.ts` the mirrored types `MemoryOverview`, `MemoryTopic`, `MemoryCapacity`, `MemoryChange` plus `fetchMemory`, `fetchMemoryDoc`, `saveMemoryDoc`, `deleteMemoryDoc`, `fetchMemoryJournal`, `revertMemoryChange`.
 
 - [ ] **Step 1: Write the failing client test**
 
 ```tsx
-// src/components/MemoryPanel.test.tsx
+// desktop/src/components/MemoryPanel.test.tsx
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryPanel } from "./MemoryPanel";
@@ -863,7 +863,7 @@ describe("MemoryPanel", () => {
 
 - [ ] **Step 2: Run — fails**
 
-Run: `pnpm vitest run src/components/MemoryPanel.test.tsx`
+Run: `pnpm vitest run desktop/src/components/MemoryPanel.test.tsx`
 Expected: FAIL — `Cannot find module './MemoryPanel'`.
 
 - [ ] **Step 3: Build the panel**
@@ -876,12 +876,12 @@ Three regions, top to bottom. Match the visual language of `SettingsPanel.tsx` �
 
 - [ ] **Step 4: Run — green**
 
-Run: `pnpm vitest run src/components/MemoryPanel.test.tsx`
+Run: `pnpm vitest run desktop/src/components/MemoryPanel.test.tsx`
 Expected: PASS.
 
 - [ ] **Step 5: Mount it in bot settings**
 
-In `src/components/SettingsPanel.tsx`, add a "Memory" block below the existing per-bot sections, rendering `<MemoryPanel botId={bot.id} />`. Bot-scoped, not app-scoped: memory belongs to one bot, so it does not go in `SettingsModal`'s `SECTIONS`.
+In `desktop/src/components/SettingsPanel.tsx`, add a "Memory" block below the existing per-bot sections, rendering `<MemoryPanel botId={bot.id} />`. Bot-scoped, not app-scoped: memory belongs to one bot, so it does not go in `SettingsModal`'s `SECTIONS`.
 
 - [ ] **Step 6: Run the app and look at it**
 
@@ -892,7 +892,7 @@ Expected: the gauge moves; the journal grows; revert restores the prior text.
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm test
-git add src/lib/memory.ts src/components/MemoryPanel.tsx src/components/MemoryPanel.test.tsx src/components/SettingsPanel.tsx
+git add desktop/src/lib/memory.ts desktop/src/components/MemoryPanel.tsx desktop/src/components/MemoryPanel.test.tsx desktop/src/components/SettingsPanel.tsx
 git commit -m "feat(memory): a memory panel with a real capacity gauge and a revertable change log"
 ```
 
@@ -925,6 +925,6 @@ git commit -m "docs(memory): what memory is, where it lives, and what the budget
 
 **Spec coverage.** Every gap in the Background table has a task: visibility → Task 1 + 4, editing → Task 1 + 3 + 4, the record of what the bot wrote → Task 2 + 3, capacity → Task 1 (`MemoryCapacity`) surfaced in Task 4. Third-party providers are explicitly out of scope with a stated reason.
 
-**Placeholders.** None: every code step carries the code, every test step carries the test. Two steps say "read the neighbouring handler and match it" rather than inventing an HTTP helper the file may not have — that is a deliberate instruction to follow an existing pattern, not a deferred decision. Task 3 Step 1 and Step 5 name a test-harness helper that may not exist under that name and tell the engineer to reuse whatever `server/index.test.ts` already does.
+**Placeholders.** None: every code step carries the code, every test step carries the test. Two steps say "read the neighbouring handler and match it" rather than inventing an HTTP helper the file may not have — that is a deliberate instruction to follow an existing pattern, not a deferred decision. Task 3 Step 1 and Step 5 name a test-harness helper that may not exist under that name and tell the engineer to reuse whatever `desktop/server/index.test.ts` already does.
 
-**Type consistency.** `MemoryOverview`, `MemoryCapacity`, `MemoryTopic`, `MemoryChange`, `MemorySnapshot` are defined once in Tasks 1–2 and mirrored in `src/lib/memory.ts` in Task 4. `resolveMemoryPath` / `memoryOverview` / `readMemoryDoc` / `writeMemoryDoc` / `deleteMemoryDoc` / `snapshotMemory` / `recordMemoryChanges` / `readMemoryJournal` / `revertMemoryChange` keep the same names from definition through routes through client.
+**Type consistency.** `MemoryOverview`, `MemoryCapacity`, `MemoryTopic`, `MemoryChange`, `MemorySnapshot` are defined once in Tasks 1–2 and mirrored in `desktop/src/lib/memory.ts` in Task 4. `resolveMemoryPath` / `memoryOverview` / `readMemoryDoc` / `writeMemoryDoc` / `deleteMemoryDoc` / `snapshotMemory` / `recordMemoryChanges` / `readMemoryJournal` / `revertMemoryChange` keep the same names from definition through routes through client.

@@ -56,7 +56,7 @@ Primary references:
 
 ### Runtime: a small OpenCode ACP shim
 
-Add `server/drivers/acp/opencode-go.ts` as an `AcpSupport` definition over the
+Add `desktop/server/drivers/acp/opencode-go.ts` as an `AcpSupport` definition over the
 existing `createAcpDriver` core:
 
 - driver kind: `opencodeGoAgent`
@@ -173,19 +173,19 @@ permission behavior are covered by tests.
 
 ## Expected code areas
 
-- `server/drivers/acp/opencode-go.ts`: OpenCode-specific ACP support.
-- `server/drivers/acp/core.ts`: opt-in session config/model selection and any
+- `desktop/server/drivers/acp/opencode-go.ts`: OpenCode-specific ACP support.
+- `desktop/server/drivers/acp/core.ts`: opt-in session config/model selection and any
   OpenCode event-shape compatibility found by the protocol spike.
-- `server/drivers/builtIn.ts`: registration.
-- `server/contracts.ts` and `server/harness/registry.ts`: asynchronous catalog or
+- `desktop/server/drivers/builtIn.ts`: registration.
+- `desktop/server/contracts.ts` and `desktop/server/harness/registry.ts`: asynchronous catalog or
   setup metadata only if required by the spike.
-- `server/config.ts` and `server/index.ts`: write-only key persistence, environment
+- `desktop/server/config.ts` and `desktop/server/index.ts`: write-only key persistence, environment
   fallback, status reporting, and provider reload.
-- `src/components/ApiKeys.tsx`, settings components, and `src/state/store.tsx`:
+- `desktop/src/components/ApiKeys.tsx`, settings components, and `desktop/src/state/store.tsx`:
   credential UI and configured-only state.
-- `src/components/ProviderIcons.tsx`, onboarding, and the model picker: provider
+- `desktop/src/components/ProviderIcons.tsx`, onboarding, and the model picker: provider
   presentation and setup entry points.
-- `server/testing/fake-acp-cli.ts` plus ACP/config tests: deterministic protocol,
+- `desktop/server/testing/fake-acp-cli.ts` plus ACP/config tests: deterministic protocol,
   credential, catalog, and lifecycle coverage.
 
 Keep unrelated engine setup, styling, and provider refactors out of the
@@ -289,7 +289,7 @@ credentialed run.
 
 - A direct no-CLI OpenCode Go API driver. This requires a generic agent/tool loop,
   tool-call execution, approval brokering, and three upstream wire formats.
-- OpenCode's HTTP server/SDK integration. It adds port allocation, authentication,
+- OpenCode's HTTP desktop/server/SDK integration. It adds port allocation, authentication,
   readiness, and server lifecycle concerns without an initial advantage over ACP.
 - Automatic subscription purchase, billing management, or usage top-ups.
 - Persisting or modifying OpenCode's own auth/config files.

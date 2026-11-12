@@ -34,10 +34,10 @@ memories and checkpoints.
 
 | Piece | File |
 |---|---|
-| Registry: versioned entries, v1→v2 migration, name/path guard rules | `electron/environments.cjs` |
-| Switch choreography: stop child, hand the data-dir lease, probe, persist only on success | `electron/environment-switch.mjs` (pure, dependency-injected) |
-| Wiring: IPC surface, one-switch mutex, supervisor pause, rollback restart, boot fallback to This computer | `electron/main.mjs` |
-| "Environments on this computer" — create form, Switch, Forget with a keep-or-delete-files choice | `src/components/ConnectedWorkspacesSettings.tsx` (Settings → Servers) |
+| Registry: versioned entries, v1→v2 migration, name/path guard rules | `desktop/electron/environments.cjs` |
+| Switch choreography: stop child, hand the data-dir lease, probe, persist only on success | `desktop/electron/environment-switch.mjs` (pure, dependency-injected) |
+| Wiring: IPC surface, one-switch mutex, supervisor pause, rollback restart, boot fallback to This computer | `desktop/electron/main.mjs` |
+| "Environments on this computer" — create form, Switch, Forget with a keep-or-delete-files choice | `desktop/src/components/ConnectedWorkspacesSettings.tsx` (Settings → Servers) |
 
 Rules that hold the model together:
 

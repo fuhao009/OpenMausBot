@@ -4,7 +4,7 @@
 
 **Goal:** Add DeepSeek Harness (`dsh`) as a selectable Hezuo engine: an ACP driver, a default-fleet instance, a DeepSeek API-key row in Settings, an Engines-page card with mark and npm install.
 
-**Architecture:** One new ACP support file `server/drivers/acp/deepseek.ts` built on `createAcpDriver` from `server/drivers/acp/core.ts`, using the core's existing `selectModel` + `modelVariants` path (model and reasoning effort are ACP config options on dsh, exactly like OpenCode). Picker ids are `<provider>/<model>`; `resolveTurnModel` turns them into dsh's wire value `["<provider>","<model>"]`. The key follows the Groq pattern end to end (zod section, env override, sync, merge list, injected env, status flag, Settings row).
+**Architecture:** One new ACP support file `desktop/server/drivers/acp/deepseek.ts` built on `createAcpDriver` from `desktop/server/drivers/acp/core.ts`, using the core's existing `selectModel` + `modelVariants` path (model and reasoning effort are ACP config options on dsh, exactly like OpenCode). Picker ids are `<provider>/<model>`; `resolveTurnModel` turns them into dsh's wire value `["<provider>","<model>"]`. The key follows the Groq pattern end to end (zod section, env override, sync, merge list, injected env, status flag, Settings row).
 
 **Tech Stack:** TypeScript (Node 22, `--experimental-strip-types`), vitest, React + Tailwind renderer, zod config.
 
@@ -34,8 +34,8 @@
 ### Task 1: DeepSeek support: ids, auth, static catalog
 
 **Files:**
-- Create: `server/drivers/acp/deepseek.ts`
-- Test: `server/drivers/acp/deepseek.test.ts`
+- Create: `desktop/server/drivers/acp/deepseek.ts`
+- Test: `desktop/server/drivers/acp/deepseek.test.ts`
 
 **Interfaces:**
 - Consumes: `createAcpDriver`, `AcpSupport`, `AcpConfig` from `./core.ts`; `harnessHome` from `../../env-path.ts` (`harnessHome("dsh", env)` → `~/.dsh`); `ModelCatalog` from `../../contracts.ts`.
@@ -148,10 +148,10 @@ describe("DeepSeek ACP support", () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm vitest run server/drivers/acp/deepseek.test.ts`
+Run: `pnpm vitest run desktop/server/drivers/acp/deepseek.test.ts`
 Expected: FAIL, cannot find module `./deepseek.ts`.
 
-- [ ] **Step 3: Implement `server/drivers/acp/deepseek.ts`**
+- [ ] **Step 3: Implement `desktop/server/drivers/acp/deepseek.ts`**
 
 Header comment in the house style (what dsh is, what was verified on 0.2.1-rc.2: no authMethods, config options `model` as JSON pairs + `reasoning_effort` as `thought_level`, `session/resume`, warm boot 1.6 s / cold npx boot ~120 s). Then the exports from the Interfaces block. Support object values, beyond the constants above:
 
@@ -166,13 +166,13 @@ Header comment in the house style (what dsh is, what was verified on 0.2.1-rc.2:
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `pnpm vitest run server/drivers/acp/deepseek.test.ts`
+Run: `pnpm vitest run desktop/server/drivers/acp/deepseek.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/drivers/acp/deepseek.ts server/drivers/acp/deepseek.test.ts
+git add desktop/server/drivers/acp/deepseek.ts desktop/server/drivers/acp/deepseek.test.ts
 git commit -m "feat(engines): DeepSeek Harness ACP support (ids, key detection, static catalog)"
 ```
 
@@ -181,9 +181,9 @@ git commit -m "feat(engines): DeepSeek Harness ACP support (ids, key detection, 
 ### Task 2: Live catalog probe on Refresh
 
 **Files:**
-- Modify: `server/drivers/acp/deepseek.ts`
-- Test: `server/drivers/acp/deepseek.test.ts`
-- Fixture CLI: `server/testing/fake-dsh-cli.ts` (new, ~60 lines)
+- Modify: `desktop/server/drivers/acp/deepseek.ts`
+- Test: `desktop/server/drivers/acp/deepseek.test.ts`
+- Fixture CLI: `desktop/server/testing/fake-dsh-cli.ts` (new, ~60 lines)
 
 **Interfaces:**
 - Consumes: `resolveCli(cli, args, env)` from `../../procs.ts` (returns `{ command, args }`), `spawn` from `node:child_process`, the JSON-RPC pattern of `fetchHermesAcpModels` in `./hermes.ts`.
@@ -254,11 +254,11 @@ describe("fetchDeepSeekCatalog", () => {
 });
 ```
 
-The fake CLI (`server/testing/fake-dsh-cli.ts`, `#!/usr/bin/env node`, run through the same `resolveCli` the Hermes test relies on for `.ts` fixtures — check how `hermes.test.ts` / `opencode-go.test.ts` invoke `fake-acp-cli.ts` and copy that spawn convention): reads newline JSON-RPC from stdin; appends `{method, params}` to `FAKE_DSH_DUMP` when set; `initialize` → the real dsh initialize result captured in the spec; `session/new` → `JSON.parse(FAKE_DSH_SESSION)`; `session/close` → `{}`. `FAKE_DSH_MODE=hang` never answers; `FAKE_DSH_MODE=exit` exits 0 before answering `initialize`.
+The fake CLI (`desktop/server/testing/fake-dsh-cli.ts`, `#!/usr/bin/env node`, run through the same `resolveCli` the Hermes test relies on for `.ts` fixtures — check how `hermes.test.ts` / `opencode-go.test.ts` invoke `fake-acp-cli.ts` and copy that spawn convention): reads newline JSON-RPC from stdin; appends `{method, params}` to `FAKE_DSH_DUMP` when set; `initialize` → the real dsh initialize result captured in the spec; `session/new` → `JSON.parse(FAKE_DSH_SESSION)`; `session/close` → `{}`. `FAKE_DSH_MODE=hang` never answers; `FAKE_DSH_MODE=exit` exits 0 before answering `initialize`.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `pnpm vitest run server/drivers/acp/deepseek.test.ts`
+Run: `pnpm vitest run desktop/server/drivers/acp/deepseek.test.ts`
 Expected: FAIL on the new describe blocks (missing exports).
 
 - [ ] **Step 3: Implement `parseDeepSeekCatalog`, `fetchDeepSeekCatalog`, the fake CLI, and wire `resolveModels`**
@@ -267,13 +267,13 @@ Timeout error text must contain "timed out"; early-exit error text must contain 
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `pnpm vitest run server/drivers/acp/deepseek.test.ts`
+Run: `pnpm vitest run desktop/server/drivers/acp/deepseek.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/drivers/acp/deepseek.ts server/drivers/acp/deepseek.test.ts server/testing/fake-dsh-cli.ts
+git add desktop/server/drivers/acp/deepseek.ts desktop/server/drivers/acp/deepseek.test.ts desktop/server/testing/fake-dsh-cli.ts
 git commit -m "feat(engines): DeepSeek Harness live catalog on Refresh"
 ```
 
@@ -282,10 +282,10 @@ git commit -m "feat(engines): DeepSeek Harness live catalog on Refresh"
 ### Task 3: Registry, fleet and the DeepSeek key (server)
 
 **Files:**
-- Modify: `server/drivers/builtIn.ts` (import + append `DeepSeekAgentDriver` after `MuseCodeDriver`)
-- Modify: `server/config.ts` — zod section near line 339 (`deepseek: z.object({ key: optionalText }).optional()`), `AppConfig` near line 487 (`deepseek?: { key?: string }`), `loadConfig` env override near line 787 (`OMB_DEEPSEEK_API_KEY` → `cfg.deepseek.key`), `syncCredentialEnv` near line 857 (`[patch.deepseek?.key, "OMB_DEEPSEEK_API_KEY"]`), merge-section list near line 1050 (add `"deepseek"` after `"meta"`), `PROVIDER_CREDENTIAL_ENV` (add `"DEEPSEEK_API_KEY"` after `"META_API_KEY"`), `injectedEnvironment` (`if (driver === "deepseekAgent" && cfg.deepseek?.key) environment.set("DEEPSEEK_API_KEY", cfg.deepseek.key);`), `DEFAULT_FLEET` and `PRODUCT_FLEET_ADDITIONS` (`deepseek: { driver: "deepseekAgent" }` after `museCode`).
-- Modify: `server/index.ts` config status near line 12795 (`deepseek: { configured: Boolean(cfg.deepseek?.key) }`); the Electron external-secret tombstone block (search `persisted.xai?.key !== undefined`) gets `if (persisted.deepseek?.key !== undefined) persisted.deepseek.key = "";`.
-- Test: `server/config.test.ts` (in `describe("default fleet")`), `server/index.test.ts` (next to the Groq/Meta config-status PUT test if one exists; otherwise next to the `opencodeGo` PUT test near line 11921).
+- Modify: `desktop/server/drivers/builtIn.ts` (import + append `DeepSeekAgentDriver` after `MuseCodeDriver`)
+- Modify: `desktop/server/config.ts` — zod section near line 339 (`deepseek: z.object({ key: optionalText }).optional()`), `AppConfig` near line 487 (`deepseek?: { key?: string }`), `loadConfig` env override near line 787 (`OMB_DEEPSEEK_API_KEY` → `cfg.deepseek.key`), `syncCredentialEnv` near line 857 (`[patch.deepseek?.key, "OMB_DEEPSEEK_API_KEY"]`), merge-section list near line 1050 (add `"deepseek"` after `"meta"`), `PROVIDER_CREDENTIAL_ENV` (add `"DEEPSEEK_API_KEY"` after `"META_API_KEY"`), `injectedEnvironment` (`if (driver === "deepseekAgent" && cfg.deepseek?.key) environment.set("DEEPSEEK_API_KEY", cfg.deepseek.key);`), `DEFAULT_FLEET` and `PRODUCT_FLEET_ADDITIONS` (`deepseek: { driver: "deepseekAgent" }` after `museCode`).
+- Modify: `desktop/server/index.ts` config status near line 12795 (`deepseek: { configured: Boolean(cfg.deepseek?.key) }`); the Electron external-secret tombstone block (search `persisted.xai?.key !== undefined`) gets `if (persisted.deepseek?.key !== undefined) persisted.deepseek.key = "";`.
+- Test: `desktop/server/config.test.ts` (in `describe("default fleet")`), `desktop/server/index.test.ts` (next to the Groq/Meta config-status PUT test if one exists; otherwise next to the `opencodeGo` PUT test near line 11921).
 
 **Interfaces:**
 - Consumes: `DeepSeekAgentDriver` from Task 1.
@@ -294,7 +294,7 @@ git commit -m "feat(engines): DeepSeek Harness live catalog on Refresh"
 - [ ] **Step 1: Write the failing tests**
 
 ```ts
-// server/config.test.ts, inside describe("default fleet")
+// desktop/server/config.test.ts, inside describe("default fleet")
 it("adds DeepSeek Harness to product fleets and hands its key only to that engine", () => {
   const cfg: AppConfig = { deepseek: { key: "ds-workspace" }, instances: {
     codex: { driver: "codex" },
@@ -323,7 +323,7 @@ it("strips an ambient DEEPSEEK_API_KEY from every engine that did not declare it
 ```
 
 ```ts
-// server/index.test.ts, same shape as the opencodeGo PUT test near line 11921
+// desktop/server/index.test.ts, same shape as the opencodeGo PUT test near line 11921
 it("stores a DeepSeek key write-only and reports it configured", async () => {
   const put = await api("PUT", "/api/config", { deepseek: { key: "ds-secret" } });
   expect(put.body.deepseek).toEqual({ configured: true });
@@ -337,20 +337,20 @@ Check `syncCredentialEnv` is covered the way Groq's is (search `OMB_GROQ_API_KEY
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `pnpm vitest run server/config.test.ts -t DeepSeek` and `pnpm vitest run server/index.test.ts -t DeepSeek`
+Run: `pnpm vitest run desktop/server/config.test.ts -t DeepSeek` and `pnpm vitest run desktop/server/index.test.ts -t DeepSeek`
 Expected: FAIL (no `deepseek` instance; zod strips the unknown section).
 
 - [ ] **Step 3: Make the edits listed under Files**
 
 - [ ] **Step 4: Run the suites**
 
-Run: `pnpm vitest run server/config.test.ts server/index.test.ts server/drivers/builtIn.test.ts 2>/dev/null || pnpm vitest run server/config.test.ts server/index.test.ts`
+Run: `pnpm vitest run desktop/server/config.test.ts desktop/server/index.test.ts desktop/server/drivers/builtIn.test.ts 2>/dev/null || pnpm vitest run desktop/server/config.test.ts desktop/server/index.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/drivers/builtIn.ts server/config.ts server/config.test.ts server/index.ts server/index.test.ts
+git add desktop/server/drivers/builtIn.ts desktop/server/config.ts desktop/server/config.test.ts desktop/server/index.ts desktop/server/index.test.ts
 git commit -m "feat(engines): register DeepSeek Harness in the fleet with a workspace DeepSeek key"
 ```
 
@@ -359,37 +359,37 @@ git commit -m "feat(engines): register DeepSeek Harness in the fleet with a work
 ### Task 4: Renderer: mark, library label, Settings key row, locales, preview fixture
 
 **Files:**
-- Modify: `src/components/ProviderIcons.tsx` — lift the inline DeepSeek SVG in `PresetProviderMark` (`case "deepseek"`) into `export function DeepSeekMark({ size = 16, className }: IconProps)`; `PresetProviderMark` returns `<DeepSeekMark …/>`; `ProviderMark` gains `case "deepseekAgent": return <DeepSeekMark size={size} className={className} />;`.
-- Modify: `src/components/EngineLibrary.tsx` — `providers` map gains `deepseekAgent: "DeepSeek"`.
-- Modify: `src/components/ApiKeys.tsx` — `ConfigSection` union adds `"deepseek"`; `SECTIONS.deepseek = { body: (v) => ({ deepseek: { key: v } }), flag: (c) => c.deepseek?.configured ?? false }`; `CREDENTIALS.deepseek = { labelKey: "keys.deepseek.label", placeholder: "sk-…", descriptionKey: "keys.deepseek.desc", href: "https://platform.deepseek.com/api_keys", linkLabelKey: "keys.deepseek.link", optional: true }`.
-- Modify: `src/components/SettingsModal.tsx` — `<ApiKeyRow section="deepseek" />` directly after the `meta` row; add `"deepseek"` to the connections keywords list on line 88.
-- Modify: `src/state/store.tsx` — `ConfigStatus` gains `deepseek?: { configured: boolean }` next to `groq`; the frame key union (line 436) and the frame copy (line 444 area) gain `deepseek`.
-- Modify: `src/locales/en.json` after the `keys.meta.*` lines:
+- Modify: `desktop/src/components/ProviderIcons.tsx` — lift the inline DeepSeek SVG in `PresetProviderMark` (`case "deepseek"`) into `export function DeepSeekMark({ size = 16, className }: IconProps)`; `PresetProviderMark` returns `<DeepSeekMark …/>`; `ProviderMark` gains `case "deepseekAgent": return <DeepSeekMark size={size} className={className} />;`.
+- Modify: `desktop/src/components/EngineLibrary.tsx` — `providers` map gains `deepseekAgent: "DeepSeek"`.
+- Modify: `desktop/src/components/ApiKeys.tsx` — `ConfigSection` union adds `"deepseek"`; `SECTIONS.deepseek = { body: (v) => ({ deepseek: { key: v } }), flag: (c) => c.deepseek?.configured ?? false }`; `CREDENTIALS.deepseek = { labelKey: "keys.deepseek.label", placeholder: "sk-…", descriptionKey: "keys.deepseek.desc", href: "https://platform.deepseek.com/api_keys", linkLabelKey: "keys.deepseek.link", optional: true }`.
+- Modify: `desktop/src/components/SettingsModal.tsx` — `<ApiKeyRow section="deepseek" />` directly after the `meta` row; add `"deepseek"` to the connections keywords list on line 88.
+- Modify: `desktop/src/state/store.tsx` — `ConfigStatus` gains `deepseek?: { configured: boolean }` next to `groq`; the frame key union (line 436) and the frame copy (line 444 area) gain `deepseek`.
+- Modify: `desktop/src/locales/en.json` after the `keys.meta.*` lines:
   - `"keys.deepseek.label": "DeepSeek API key"`
   - `"keys.deepseek.desc": "For the DeepSeek Harness engine. Bots on DeepSeek Harness run on this key, billed to your DeepSeek account; a key saved inside dsh itself also works."`
   - `"keys.deepseek.link": "DeepSeek API keys"`
-- Modify: `src/locales/zh.json` after `keys.meta.desc`: `"keys.deepseek.label": "DeepSeek API 密钥"`, `"keys.deepseek.desc": "用于 DeepSeek Harness 引擎。使用 DeepSeek Harness 的机器人会用这个密钥运行，费用计入你的 DeepSeek 账户；在 dsh 内保存的密钥同样有效。"`, `"keys.deepseek.link": "DeepSeek API 密钥页面"`.
+- Modify: `desktop/src/locales/zh.json` after `keys.meta.desc`: `"keys.deepseek.label": "DeepSeek API 密钥"`, `"keys.deepseek.desc": "用于 DeepSeek Harness 引擎。使用 DeepSeek Harness 的机器人会用这个密钥运行，费用计入你的 DeepSeek 账户；在 dsh 内保存的密钥同样有效。"`, `"keys.deepseek.link": "DeepSeek API 密钥页面"`.
 - Modify: `scripts/verify-engines-ui.ts` — fixture row `["deepseek", "deepseekAgent", "DeepSeek Harness", false, ""]` after the `pi` row.
-- Test: `src/components/ProviderIcons.test.tsx` if it exists (search for an existing `ProviderMark` test and add `deepseekAgent`); otherwise `src/components/BotModelBadge.test.ts` style is the reference. Add to `src/components/EngineLibrary.test.ts` if present: `providerName({ driverKind: "deepseekAgent" } as InstanceInfo)` → `"DeepSeek"`.
+- Test: `desktop/src/components/ProviderIcons.test.tsx` if it exists (search for an existing `ProviderMark` test and add `deepseekAgent`); otherwise `desktop/src/components/BotModelBadge.test.ts` style is the reference. Add to `desktop/src/components/EngineLibrary.test.ts` if present: `providerName({ driverKind: "deepseekAgent" } as InstanceInfo)` → `"DeepSeek"`.
 
 - [ ] **Step 1: Write the failing test(s)** per the Test line (one assertion per surface: mark renders for `deepseekAgent`, provider name is `DeepSeek`).
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `pnpm vitest run src/components/EngineLibrary.test.ts src/components/ProviderIcons.test.tsx` (whichever exist)
+Run: `pnpm vitest run desktop/src/components/EngineLibrary.test.ts desktop/src/components/ProviderIcons.test.tsx` (whichever exist)
 Expected: FAIL.
 
 - [ ] **Step 3: Make the edits listed under Files**
 
 - [ ] **Step 4: Verify**
 
-Run: `pnpm vitest run src/components` then `pnpm tsc -p tsconfig.json --noEmit` (or the repo's `pnpm typecheck` script if present; check `package.json`).
-Expected: PASS, no type errors. Locale lint: if `src/locales` has a key-parity test (search for `locales.test`), run it.
+Run: `pnpm vitest run desktop/src/components` then `pnpm tsc -p desktop/tsconfig.json --noEmit` (or the repo's `pnpm typecheck` script if present; check `package.json`).
+Expected: PASS, no type errors. Locale lint: if `desktop/src/locales` has a key-parity test (search for `locales.test`), run it.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/components/ProviderIcons.tsx src/components/EngineLibrary.tsx src/components/ApiKeys.tsx src/components/SettingsModal.tsx src/state/store.tsx src/locales/en.json src/locales/zh.json scripts/verify-engines-ui.ts src/components/*.test.*
+git add desktop/src/components/ProviderIcons.tsx desktop/src/components/EngineLibrary.tsx desktop/src/components/ApiKeys.tsx desktop/src/components/SettingsModal.tsx desktop/src/state/store.tsx desktop/src/locales/en.json desktop/src/locales/zh.json scripts/verify-engines-ui.ts desktop/src/components/*.test.*
 git commit -m "feat(engines): DeepSeek Harness card, mark and API-key row"
 ```
 
@@ -401,7 +401,7 @@ git commit -m "feat(engines): DeepSeek Harness card, mark and API-key row"
 
 - [ ] **Step 1: Server-side typecheck and the ACP core suite**
 
-Run: `pnpm vitest run server/drivers/acp server/config.test.ts` and the server typecheck (`node --experimental-strip-types` build script or `pnpm tsc -p tsconfig.server.json --noEmit`; check `package.json` scripts).
+Run: `pnpm vitest run desktop/server/drivers/acp desktop/server/config.test.ts` and the server typecheck (`node --experimental-strip-types` build script or `pnpm tsc -p desktop/tsconfig.server.json --noEmit`; check `package.json` scripts).
 Expected: PASS.
 
 - [ ] **Step 2: Isolated instance with a throwaway home**

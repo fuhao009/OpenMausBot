@@ -40,7 +40,7 @@ part people feel.
 
 ## Design
 
-### 1. Recording (`server/mcp-bridge.ts`)
+### 1. Recording (`desktop/server/mcp-bridge.ts`)
 
 The bridge already sees every `tools/call` and its response. It also runs the
 Local VM and VPS proxies with the same control variables, so recording is
@@ -70,7 +70,7 @@ The journal holds at most 256 KB an entry and 32 MB in all; an entry past
 either budget is not kept and leaves its request incomplete, so it never
 saves.
 
-### 2. Saving (`server/saved-steps/`)
+### 2. Saving (`desktop/server/saved-steps/`)
 
 On the existing success signal (`settleTrackedRequest` clearing
 `requestPending` with `turnSucceeded`), the turn's journal becomes a recipe only
@@ -123,8 +123,8 @@ if **all** hold:
     right click or key press on an element whose label, an ancestor's label or
     the window's title names one (send, delete, buy, pay, post, submit, place
     an order, transfer, publish and their like, in every language the app
-    ships: `server/saved-steps/screen-words.ts`, and a test holds it to
-    `src/locales`), a pop-up choice that names one, a link that names one,
+    ships: `desktop/server/saved-steps/screen-words.ts`, and a test holds it to
+    `desktop/src/locales`), a pop-up choice that names one, a link that names one,
     Delete or Backspace, command- or control-Return, and Return pressed into a
     window whose tree names one anywhere in the request or was never read
     whole (Return presses a window's default button). Such a request always
@@ -208,7 +208,7 @@ pinned does not count. A replay runs only where the person picked it, so it
 never meets that question.
 
 Modelled on `QuickModelFallback`, wrapped where the engine starts
-(`server/index.ts` `quickFallback.sendTurn`). By then the user message, turn
+(`desktop/server/index.ts` `quickFallback.sendTurn`). By then the user message, turn
 generation, gated computer, approval mode and Stop handling are all in place.
 It replays only when: the server runs on macOS, the setting is on, the bot has
 a recipe for the key (and, for typed words or links, the exact request), the
@@ -363,5 +363,5 @@ new input route, no second binary, one permission identity. Update that doc's
 
 ## Left to the builder
 
-Exact module split under `server/saved-steps/`, message field names in
-`shared/wire.ts`, chip styling (follow existing chips), journal batching.
+Exact module split under `desktop/server/saved-steps/`, message field names in
+`packages/shared/wire.ts`, chip styling (follow existing chips), journal batching.

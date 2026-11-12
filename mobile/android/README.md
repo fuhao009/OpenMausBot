@@ -15,7 +15,7 @@ Requires **JDK 17** and an Android SDK. Gradle arrives through the wrapper, so
 there is nothing to install for it.
 
 ```sh
-cd android
+cd mobile/android
 ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug
 ```
 
@@ -30,7 +30,7 @@ Prefix `cleanTest` when a test count matters:
 ## Installable threads preview
 
 ```sh
-cd android
+cd mobile/android
 ./gradlew :app:assemblePreview
 ```
 
@@ -52,14 +52,14 @@ key to update an existing preview installation. A fresh installation after
 removing a differently signed preview loses only that preview's local data.
 
 Verify conversation changes against an isolated fixture as described in
-[`docs/verification/README.md`](../docs/verification/README.md), using a disposable
+[`docs/verification/README.md`](../../docs/verification/README.md), using a disposable
 emulator. These builds do not exercise live pairing or a physical phone by
 themselves.
 
 ## Building a release APK
 
 ```sh
-cd android
+cd mobile/android
 ./gradlew :app:assembleRelease
 ```
 

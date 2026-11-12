@@ -104,7 +104,7 @@ class PersistenceContractTest {
     private fun readXml(name: String): String {
         val candidates = listOf(
             File("src/main/res/xml", name),
-            File("android/app/src/main/res/xml", name),
+            File("mobile/android/app/src/main/res/xml", name),
         )
         val file = candidates.firstOrNull { it.isFile }
             ?: error("Could not find res/xml/$name (cwd=${File(".").absolutePath})")

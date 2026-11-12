@@ -31,14 +31,14 @@ agent-browser (Cloud) ──ws──▶ Cloud door 127.0.0.1:<port>/devtools/bro
 
 1. **Link protocol:** a stream opens either `{host, port}` (internet, unchanged) or `{chrome: true}`. The Cloud never
    names a host or port for Chrome.
-2. **Mac door (`electron/device-chrome.mjs`):** reads Chrome's `DevToolsActivePort` from Chrome's own data folders
+2. **Mac door (`desktop/electron/device-chrome.mjs`):** reads Chrome's `DevToolsActivePort` from Chrome's own data folders
    (Google Chrome, Chrome Canary, Brave), connects to `127.0.0.1:<that port>` only, and lets through one HTTP request:
    a WebSocket upgrade to `/devtools/browser…` (rewritten to Chrome's real browser path) or `/devtools/page/<id>`
    (kept). It rewrites `Host` to `127.0.0.1:<port>` and drops `Origin`. Anything else gets `403` and the stream ends.
    After the upgrade, bytes pass unchanged.
 3. **Mac's own check:** the computer opens a Chrome stream only while its own grant lends Chrome, and an internet stream
    only while its grant lends the internet connection. The link stays open while either is lent.
-4. **Cloud door (`server/browser/lent-chrome.ts`):** one loopback listener per browser session. agent-browser gets
+4. **Cloud door (`desktop/server/browser/lent-chrome.ts`):** one loopback listener per browser session. agent-browser gets
    `AGENT_BROWSER_CDP=ws://127.0.0.1:<port>/devtools/browser/<token>`. The 32-byte token keeps other local clients out.
    Each connection is checked against the session's last holder (`mayLend`), then routed through the newest online
    link of the lender that lends Chrome.

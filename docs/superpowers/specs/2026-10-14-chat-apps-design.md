@@ -37,12 +37,12 @@ This builds on the chat widgets branch (PR #2820, `docs/superpowers/specs/2026-1
 |---|---|
 | Stable spec is SEP-1865 "MCP Apps", status Stable (2026-01-26). The draft adds `ui/download-file`, `ui/notifications/request-teardown`, `sampling/createMessage`, app-provided tools, and `_meta.ui` on the `resources/list` entry. | `specification/2026-01-26/apps.mdx` and `specification/draft/apps.mdx` in github.com/modelcontextprotocol/ext-apps (commit 82221c0, 2026-09-25) |
 | SDK `@modelcontextprotocol/ext-apps` 2.0.3 (2026-09-25), MIT (the repo notes a move to Apache-2.0). Host `AppBridge` is 34 KB minified and needs peers `@modelcontextprotocol/client@^2` + `core@^2` + `zod@^4.2`. The wire is byte-identical between 1.x and 2.x. | npm tarball; `docs/migrate-to-2.md` |
-| Client advertises support as `initialize.params.capabilities.extensions["io.modelcontextprotocol/ui"] = { mimeTypes: ["text/html;profile=mcp-app"] }`. The server SDK reads it with `getUiCapability`. | spec "Client<>Server Capability Negotiation"; `src/server/index.ts` |
+| Client advertises support as `initialize.params.capabilities.extensions["io.modelcontextprotocol/ui"] = { mimeTypes: ["text/html;profile=mcp-app"] }`. The server SDK reads it with `getUiCapability`. | spec "Client<>Server Capability Negotiation"; `desktop/src/server/index.ts` |
 | The example servers, Excalidraw and tldraw send `_meta.ui` to every client, including one that advertises nothing. They also send the deprecated flat key `"ui/resourceUri"`. App-only tools (`visibility: ["app"]`) appear in `tools/list` for every client, so the host must filter them. | stdio probe of `@modelcontextprotocol/server-basic-vanillajs` and `server-debug` 2.0.3 with and without the capability; HTTP probe of `https://mcp.excalidraw.com/mcp` |
 | Excalidraw: `create_view` (`readOnlyHint: true`) → `ui://excalidraw/mcp-app.html`, 432 KB, `_meta.ui` on the content item: `csp.resourceDomains` and `csp.connectDomains` both `["https://esm.sh"]`, `permissions.clipboardWrite`, `prefersBorder: true`. It has three app-only tools with no `readOnlyHint`: `export_to_excalidraw`, `save_checkpoint` and `read_checkpoint`. | HTTP probe, no sign-in |
-| Claude Code 2.1.288 advertises only `roots` and `elicitation`, with no UI extension. It first sends `server/discover` with clientCapabilities in `_meta` (protocol 2026-07-28), then `initialize`. It hides app-only tools from the model. It replaces the model's tool_result with `structuredContent` when one is present. Its stream-json `user` event carries `tool_use_result: {content, structuredContent, _meta}`. Its `tools/call` carries `_meta["claudecode/toolUseId"]`. | `claude -p` probe against a fake stdio app server that logs frames |
+| Claude Code 2.1.288 advertises only `roots` and `elicitation`, with no UI extension. It first sends `desktop/server/discover` with clientCapabilities in `_meta` (protocol 2026-07-28), then `initialize`. It hides app-only tools from the model. It replaces the model's tool_result with `structuredContent` when one is present. Its stream-json `user` event carries `tool_use_result: {content, structuredContent, _meta}`. Its `tools/call` carries `_meta["claudecode/toolUseId"]`. | `claude -p` probe against a fake stdio app server that logs frames |
 | Codex 0.153.4 advertises only `elicitation`. Its exec JSON `mcp_tool_call` result carries `content`, `structured_content` and `_meta`. | `codex exec --json` probe, same fake server |
-| OMB's own `server/mcp-remote-proxy.ts` relays tool `_meta`, the full `tools/call` result (`structuredContent` and `_meta`) and `resources/read` unchanged. It also passes app-only tools to the engine. | Ran the proxy from this branch against `server-debug` over HTTP |
+| OMB's own `desktop/server/mcp-remote-proxy.ts` relays tool `_meta`, the full `tools/call` result (`structuredContent` and `_meta`) and `resources/read` unchanged. It also passes app-only tools to the engine. | Ran the proxy from this branch against `server-debug` over HTTP |
 | Electron 43.7.9: a `srcdoc` iframe with `sandbox="allow-scripts allow-forms"` and a CSP meta injected first runs correctly inside a page served with `frame-ancestors 'none'` + `X-Frame-Options: DENY`. Inline script runs, and a declared cdnjs script loads. Blocked: undeclared scripts, fetch, WebSocket, images, CSS images, prefetch, form posts (`onsubmit` still fires), eval (no `'unsafe-eval'`), `localStorage`, cookies, the parent DOM, clipboard writes, `window.open` and `target=_blank` (the window-open handler is never called), and top navigation. The preload bridge is `undefined` in the frame, whose origin is `"null"`. A self-navigation fires `will-frame-navigate` with `frame.origin === "null"` and an empty `frame.url`; `preventDefault()` stopped it, and the HTTP sink logged only the host page. | Electron probe in the scratchpad (headless window) |
 
 The product survey is in "Real products" below. Facts that could not be verified are listed at the end.
@@ -62,9 +62,9 @@ The product survey is in "Real products" below. Facts that could not be verified
 6. **MCP traffic is observed inside OMB's own MCP plumbing, not in driver activity.** The remote proxy (`mcp-remote-proxy.ts`, OMB's own client) observes URL servers. The gate (`mcp-gate.ts`, which relays every stdio frame) observes command servers. The chat-completions runtime observes in-process.
    - Driver activity is lossy: tool previews are truncated, and only Claude Code exposes `tool_use_result`.
    - The engines do not advertise the UI extension. A server that adapts its tools to the client's capability would never show a UI to an engine's own connection.
-7. **App servers are always mounted through those observers.** An "app server" is one whose catalog has a tool with `_meta.ui`, cached in `server/mcp-app-catalog.ts`. On Claude Code, a URL app server goes through OMB's remote proxy instead of the CLI's native HTTP. This is how every other engine already reaches URL servers, and Claude Code's own tool search still works over stdio (it ran `ToolSearch` against the stdio probe server). On every engine, a command app server goes through the gate even without a tool selection or budget. Servers without apps keep today's mounts exactly.
+7. **App servers are always mounted through those observers.** An "app server" is one whose catalog has a tool with `_meta.ui`, cached in `desktop/server/mcp-app-catalog.ts`. On Claude Code, a URL app server goes through OMB's remote proxy instead of the CLI's native HTTP. This is how every other engine already reaches URL servers, and Claude Code's own tool search still works over stdio (it ran `ToolSearch` against the stdio probe server). On every engine, a command app server goes through the gate even without a tool selection or budget. Servers without apps keep today's mounts exactly.
 8. **OMB advertises the UI extension, with a fallback.** OMB's client (`RemoteMcpClient`, the gate's rewrite of the CLI's `initialize`, the in-process chat client) adds the UI extension capability. If the server refuses that `initialize` (HTTP 400 or a JSON-RPC error), OMB resends the original handshake once without it and records `uiExtension: "refused"`, so strict servers (the Voluum case the fake `strictInitialize` server models) keep working.
-9. **The server does `resources/read` and app tool calls on its own pooled connection** (`server/mcp-app-connections.ts`), not through the engine's live connection.
+9. **The server does `resources/read` and app tool calls on its own pooled connection** (`desktop/server/mcp-app-connections.ts`), not through the engine's live connection.
    - That connection ends with the turn on most engines, and an app stays interactive long after.
    - URL servers get `withMcpSignIn` tokens, as turns do. Command servers are spawned on demand like Settings → Test and closed after 5 idle minutes.
    - The observer only reports the call, the result and the tool definition.
@@ -78,15 +78,15 @@ The product survey is in "Real products" below. Facts that could not be verified
 ## Wire
 
 ```ts
-// shared/wire.ts
+// packages/shared/wire.ts
 kind: ... | "widget" | "app";
-/** app rows (kind "app"): bot HTML or an MCP server's UI (shared/app.ts).
+/** app rows (kind "app"): bot HTML or an MCP server's UI (packages/shared/app.ts).
  * `text` is always the readable fallback. */
 app?: AppPayload;
 /** user rows sent by an app's ui/message: which app row sent them. */
 fromApp?: { messageId: string; title: string };
 
-// shared/app.ts
+// packages/shared/app.ts
 export const APP_MIME = "text/html;profile=mcp-app";
 export const APP_PROTOCOL_VERSION = "2026-01-26";
 
@@ -96,7 +96,7 @@ export interface AppPayload {
   /** Header title, one line, ≤ 80 chars. Bot HTML: the bot's title.
    * MCP: the tool's title, else its name. */
   title: string;
-  /** Content id of the stored document (server/app-docs.ts). A new value
+  /** Content id of the stored document (desktop/server/app-docs.ts). A new value
    * means the frame must reload. */
   doc: string;
   /** 0, bumped by update_html. */
@@ -147,13 +147,13 @@ export interface AppDocument {
 }
 ```
 
-Storage: `server/app-docs.ts` keeps documents content-addressed under `DATA_DIR/app-docs/`. The HTML is one blob keyed by its sha256, so the same `ui://` template is stored once across every call. Each row's data (`toolInput`, `toolResult`, `tool`) is a second blob. `AppPayload.doc` is the sha256 of `{html, data}` ids. A 512 MB ceiling refuses new documents: the row is still written, with only its text and `blocked: too-large`. Unreferenced blobs are removed by a startup sweep and when a thread is deleted. Referenced blobs are never evicted.
+Storage: `desktop/server/app-docs.ts` keeps documents content-addressed under `DATA_DIR/app-docs/`. The HTML is one blob keyed by its sha256, so the same `ui://` template is stored once across every call. Each row's data (`toolInput`, `toolResult`, `tool`) is a second blob. `AppPayload.doc` is the sha256 of `{html, data}` ids. A 512 MB ceiling refuses new documents: the row is still written, with only its text and `blocked: too-large`. Unreferenced blobs are removed by a startup sweep and when a thread is deleted. Referenced blobs are never evicted.
 
 ## Part 1: bot HTML (`show_html`)
 
 ### Tools
 
-Two tools join the agents catalog in `server/drivers/agents-app-tools.ts`, spread into `TOOL_DEFINITIONS`, carried by `agents-call-cards.ts` to `POST /api/internal/options-card` with `tool: "show_html" | "update_html"`, and stored by `createAgentCard` → `server/chat-apps.ts`. `server/index.ts` is unchanged. The descriptions below are sent on every turn and pinned by `agents-catalog-wire.test.ts`:
+Two tools join the agents catalog in `desktop/server/drivers/agents-app-tools.ts`, spread into `TOOL_DEFINITIONS`, carried by `agents-call-cards.ts` to `POST /api/internal/options-card` with `tool: "show_html" | "update_html"`, and stored by `createAgentCard` → `desktop/server/chat-apps.ts`. `desktop/server/index.ts` is unchanged. The descriptions below are sent on every turn and pinned by `agents-catalog-wire.test.ts`:
 
 - `show_html({ html, title, height?, fallback_text? })` returns `Shown as app <messageId>. To change it, call update_html with app_id "<messageId>".`
   > Show a small self-contained web page inline in this chat: an interactive mini app, a game, a chart or visualization, a calculator, a formatted report. For forms and choices use show_widget instead, and for plain data a markdown table. `html` is one HTML document (a fragment is wrapped) with inline style and script. It runs in a locked sandbox: no network requests (fetch, XHR and WebSockets fail), no cookies or storage, no popups, no form posts. Scripts, styles and fonts load only from cdnjs.cloudflare.com, cdn.jsdelivr.net, unpkg.com and Google Fonts; images must be inline data: URLs or come from those CDNs. Embed the data you need. The page sizes itself to its content, up to about 640px tall. Use the CSS variables --color-text-primary, --color-background-primary, --color-border-primary and --font-sans so it matches the person's theme. In the page, hezuo.send(text) sends text as the person's next message (only after they click in the page), hezuo.open(url) opens a link, and hezuo.setContext(text) tells you what the person is looking at, with their next message. At most 256 KB. Never put secrets in it. Not available in rooms.
@@ -177,7 +177,7 @@ Two tools join the agents catalog in `server/drivers/agents-app-tools.ts`, sprea
 After the CSP meta, the server adds:
 
 - a `<style>` with `:root` defaults for the theme variables listed in the tool description (light and dark through `light-dark()`);
-- `<script>` with the helper from `shared/app-frame/helper.ts`, about 80 lines.
+- `<script>` with the helper from `packages/shared/app-frame/helper.ts`, about 80 lines.
 
 The helper is a standard View. It sends `ui/initialize` and `ui/notifications/initialized`, reports `ui/notifications/size-changed` from a ResizeObserver, applies `hostContext.styles.variables` and `theme` on initialize and on `ui/notifications/host-context-changed`, answers `ui/resource-teardown`, and exposes:
 
@@ -236,7 +236,7 @@ Only the innermost OMB component on the path reports. The remote proxy reports f
 
 ### The observer report
 
-`server/mcp-app-observer.ts` is shared by the gate and the proxy, and is pure apart from the post. It keeps the latest `tools/list` definitions in memory. When a `tools/call` result returns for a tool with a UI, it posts the call to the harness and never delays or alters the relay to the engine. The post is fire and forget: 10 s timeout, failures go to stderr only. The report captures the result before `mcp-gate` trims it.
+`desktop/server/mcp-app-observer.ts` is shared by the gate and the proxy, and is pure apart from the post. It keeps the latest `tools/list` definitions in memory. When a `tools/call` result returns for a tool with a UI, it posts the call to the harness and never delays or alters the relay to the engine. The post is fire and forget: 10 s timeout, failures go to stderr only. The report captures the result before `mcp-gate` trims it.
 
 ```ts
 // POST /api/internal/options-card, with the turn's agents capability
@@ -255,7 +255,7 @@ interface McpAppReport {
 - The capability is the one the agents server already holds (`OMB_HARNESS_URL` and `OMB_COMMS_TOKEN` from `turn.integrations.agents`). It travels in the mount's private settings: `OMB_GATE_APPS` in the gate's env record and `OMB_REMOTE_MCP_APPS` in the proxy's. Codex keeps its private `--config-env` records. A turn without the agents integration observes nothing; the text still works.
 - Size: the whole body is ≤ 900 KB (the internal `readBody` cap is 1,000,000). If it does not fit, `structuredContent` is dropped and `oversized` is set; past that, the text content is clipped.
 
-`createAgentCard` sends `tool: "mcp_app"` to `recordMcpAppCall` in `server/chat-apps-mcp.ts`, which:
+`createAgentCard` sends `tool: "mcp_app"` to `recordMcpAppCall` in `desktop/server/chat-apps-mcp.ts`, which:
 
 1. Refuses room threads silently (no row). Ignores servers that are not among the bot's mounted servers (`engineMcpServers(bot)`), are not allowed (`canUseMcpServer`), or have `apps: false`.
 2. Reads the UI resource through `AppConnections` (`resources/read`), cached per (server config hash, uri) for 10 minutes. It requires `mimeType === APP_MIME`, and `text` or `blob` (base64) decoding to ≤ 2 MB of UTF-8 HTML. `_meta.ui` comes from the content item, else from the `resources/list` entry (draft "Metadata Location").
@@ -280,7 +280,7 @@ The domain filter keeps an entry only if it is `https://host`, `https://host:por
 
 ### App catalog
 
-`server/mcp-app-catalog.ts` is persisted to `DATA_DIR/mcp-app-catalog.json`. Each entry is keyed by server name plus config hash: `{ apps: boolean, uiExtension: "ok" | "refused" | "unknown", tools: { [name]: { title?, visibility, resourceUri?, readOnly, destructive } }, at }`.
+`desktop/server/mcp-app-catalog.ts` is persisted to `DATA_DIR/mcp-app-catalog.json`. Each entry is keyed by server name plus config hash: `{ apps: boolean, uiExtension: "ok" | "refused" | "unknown", tools: { [name]: { title?, visibility, resourceUri?, readOnly, destructive } }, at }`.
 
 It is filled by:
 
@@ -292,7 +292,7 @@ Mount code consults `apps` to choose observer mounts (Decision 7). A server that
 
 ### App connections
 
-`server/mcp-app-connections.ts` keeps one client per (server name, config hash):
+`desktop/server/mcp-app-connections.ts` keeps one client per (server name, config hash):
 
 - URL servers: `RemoteMcpClient` with `withMcpSignIn` headers and the extension advertised.
 - Command servers: a spawned stdio client with the probe environment (`mcp-probe.ts` `probeEnvironment`).
@@ -301,7 +301,7 @@ Clients close after 5 idle minutes, and at most 6 are open at once (least recent
 
 ### App → server calls
 
-Every server-proxied bridge method goes through one route: `POST /api/bots/:botId/apps/:messageId/rpc`, with body `{ threadId, method, params }`. `method` is one of `tools/call`, `tools/list`, `resources/read` or `resources/list`. The route (`server/routes/chat-apps.ts` → `server/chat-apps-mcp.ts`) answers with the JSON-RPC `result`, or with `{ error: {code, message}, signIn?, blocked? }`. It checks, in order:
+Every server-proxied bridge method goes through one route: `POST /api/bots/:botId/apps/:messageId/rpc`, with body `{ threadId, method, params }`. `method` is one of `tools/call`, `tools/list`, `resources/read` or `resources/list`. The route (`desktop/server/routes/chat-apps.ts` → `desktop/server/chat-apps-mcp.ts`) answers with the JSON-RPC `result`, or with `{ error: {code, message}, signIn?, blocked? }`. It checks, in order:
 
 1. The row is an `app` row of this bot and thread, with `source: "mcp"`. Otherwise 404.
 2. The server is still configured, enabled, mounted for this bot and `apps` is on. Otherwise 410 with `blocked.reason`.
@@ -329,13 +329,13 @@ POST /api/bots/:botId/messages
 { "threadId": "...", "sendId": "...", "appMessage": { "messageId": "<app row>", "text": "..." } }
 ```
 
-`server/routes/bot-messages.ts` checks:
+`desktop/server/routes/bot-messages.ts` checks:
 
 - the row is an `app` row in this thread;
 - the text is 1 to 4,000 chars;
 - the per-row rate is under 20 an hour.
 
-It then sends an ordinary user message with `fromApp: {messageId, title}`, as a reply to the app row. Every client draws the bubble with "Sent from <title>". `promptWithReply` (`server/replies.ts`) gets an app form:
+It then sends an ordinary user message with `fromApp: {messageId, title}`, as a reply to the app row. Every client draws the bubble with "Sent from <title>". `promptWithReply` (`desktop/server/replies.ts`) gets an app form:
 
 ```
 The current message was sent from an app shown in this chat after the person pressed something in it: <title> (<server> · <tool>, or "a page you made with show_html").
@@ -353,7 +353,7 @@ A typed reply to an app row says the person typed it, as for widgets. The closin
 
 `POST /api/bots/:botId/apps/:messageId/context` with `{threadId, content?, structuredContent?}`. The server stores `app.context = {text, at, delivered: false}`: the text blocks joined, then `structuredContent` as JSON, clipped to 4,000 chars. Each update overwrites the last.
 
-The next message the person sends in that thread, on every path (start, steer, queue), gets one block per app row whose context is undelivered, through `withAppContext(text, threadId)` in `server/chat-apps.ts`, called where the send route composes the prompt:
+The next message the person sends in that thread, on every path (start, steer, queue), gets one block per app row whose context is undelivered, through `withAppContext(text, threadId)` in `desktop/server/chat-apps.ts`, called where the send route composes the prompt:
 
 ```
 --- app context ---
@@ -491,9 +491,9 @@ There is no Allow bar: a change outside Full access is declined by the server, w
 
 ### Desktop (Electron renderer, also a remote web browser)
 
-- `src/components/app/AppFrame.tsx` creates `<iframe sandbox="allow-scripts allow-forms" srcdoc={doc.srcdoc} referrerpolicy="no-referrer">` with no `allow` attribute, wires `shared/app-frame/bridge.ts` with `event.source === iframe.contentWindow` checks, and posts with target `"*"` (an opaque origin cannot be named).
+- `desktop/src/components/app/AppFrame.tsx` creates `<iframe sandbox="allow-scripts allow-forms" srcdoc={doc.srcdoc} referrerpolicy="no-referrer">` with no `allow` attribute, wires `packages/shared/app-frame/bridge.ts` with `event.source === iframe.contentWindow` checks, and posts with target `"*"` (an opaque origin cannot be named).
 - Links go through the preload's `openExternal` (`desktop:open-external`, local only), else `window.open` in a remote browser.
-- Main process: `electron/app-frame-guard.mjs` exports `appFrameNavigationAllowed(details)`. In `will-frame-navigate`, a non-main frame whose `frame.origin === "null"` may navigate only to `about:srcdoc` or `about:blank`. Behaviour verified on 43.7.9. It is installed with one line in `main.mjs`, net zero against the ratchet.
+- Main process: `desktop/electron/app-frame-guard.mjs` exports `appFrameNavigationAllowed(details)`. In `will-frame-navigate`, a non-main frame whose `frame.origin === "null"` may navigate only to `about:srcdoc` or `about:blank`. Behaviour verified on 43.7.9. It is installed with one line in `main.mjs`, net zero against the ratchet.
 - No new permissions: `appPermissionAllowed` already refuses opaque origins.
 
 ### iOS (WKWebView, iOS 16+)
@@ -521,7 +521,7 @@ There is no Allow bar: a change outside Full access is declined by the server, w
 
 ### Phone host page
 
-`shared/app-frame/host-page.ts` plus `bridge.ts` are bundled by `scripts/build-app-host.ts` into one file, `shared/app-frame/app-host.html`. It is committed with a content hash in its first comment. `scripts/gen-app-fixtures.ts` copies it into the mobile repo (`ios/App/Resources/app-host.html`, `android/app/src/main/assets/app/app-host.html`) together with the fixtures. Phone tests fail if the hash differs from the fixture's.
+`packages/shared/app-frame/host-page.ts` plus `bridge.ts` are bundled by `scripts/build-app-host.ts` into one file, `packages/shared/app-frame/app-host.html`. It is committed with a content hash in its first comment. `scripts/gen-app-fixtures.ts` copies it into the mobile repo (`mobile/ios/App/Resources/app-host.html`, `mobile/android/app/src/main/assets/app/app-host.html`) together with the fixtures. Phone tests fail if the hash differs from the fixture's.
 
 Native ↔ host page messages, small and versioned:
 
@@ -589,10 +589,10 @@ Server:
 | `POST /api/bots/:botId/messages` with `appMessage` | `ui/message` | existing |
 | `POST /api/internal/options-card` with `tool: show_html \| update_html \| mcp_app` | bot tools and observer | existing internal |
 
-- All new routes live in `server/routes/chat-apps.ts` (`createChatAppRoutes(deps)`).
-- `server/index.ts` gains one import and one `ROUTES.push`, offset against its line ratchet. It gains no path guard.
-- `server/request-auth.ts` gets the three client entries.
-- `companion/src/routes.ts` `ALLOWED` gets them too, with a comment saying why: the document is transcript data; `rpc` reaches only the app's own server under the bot's rules; `context` is bounded text.
+- All new routes live in `desktop/server/routes/chat-apps.ts` (`createChatAppRoutes(deps)`).
+- `desktop/server/index.ts` gains one import and one `ROUTES.push`, offset against its line ratchet. It gains no path guard.
+- `desktop/server/request-auth.ts` gets the three client entries.
+- `desktop/companion/src/routes.ts` `ALLOWED` gets them too, with a comment saying why: the document is transcript data; `rpc` reaches only the app's own server under the bot's rules; `context` is bounded text.
 
 ## Tasks
 
@@ -602,14 +602,14 @@ Build order: **S1 → S2 → (S3 ∥ S4) → (I1 ∥ A1)**. Each task is sized f
 
 Pure TypeScript, no UI. Files:
 
-- `shared/app.ts`: types, limits, `parseShowHtmlInput`, `htmlFallbackText`.
-- `shared/app-frame/csp.ts`: domain filter and both policies.
-- `shared/app-frame/document.ts`: `buildSrcdoc({html, csp, botHelper})`.
-- `shared/app-frame/helper.ts`: the injected helper's source.
-- `shared/app-frame/bridge.ts`: the router, with platform adapters `{post, callRpc, sendMessage, openLink, setContext, resize, engaged, teardownRequested, now}`.
-- `shared/app-frame/host-page.ts`, `scripts/build-app-host.ts` → `shared/app-frame/app-host.html`.
-- `shared/app-samples.ts`, `scripts/gen-app-fixtures.ts`.
-- `shared/wire.ts`: kind `app`, `app?`, `fromApp?`.
+- `packages/shared/app.ts`: types, limits, `parseShowHtmlInput`, `htmlFallbackText`.
+- `packages/shared/app-frame/csp.ts`: domain filter and both policies.
+- `packages/shared/app-frame/document.ts`: `buildSrcdoc({html, csp, botHelper})`.
+- `packages/shared/app-frame/helper.ts`: the injected helper's source.
+- `packages/shared/app-frame/bridge.ts`: the router, with platform adapters `{post, callRpc, sendMessage, openLink, setContext, resize, engaged, teardownRequested, now}`.
+- `packages/shared/app-frame/host-page.ts`, `scripts/build-app-host.ts` → `packages/shared/app-frame/app-host.html`.
+- `packages/shared/app-samples.ts`, `scripts/gen-app-fixtures.ts`.
+- `packages/shared/wire.ts`: kind `app`, `app?`, `fromApp?`.
 
 Tests:
 
@@ -622,16 +622,16 @@ Tests:
 
 Owns:
 
-- `server/app-docs.ts`;
-- `server/chat-apps.ts` (`createAppCard` for `show_html` and `update_html`, `appDocument`, `withAppContext`, `setAppContext`);
-- `server/drivers/agents-app-tools.ts`, plus `agents-call-cards.ts` (add the two names), `agents-catalog.ts` and the catalog goldens;
-- `server/routes/chat-apps.ts` (all three routes; `rpc` delegates to `deps.mcpRpc`, which answers 404 until S4);
-- `server/routes/bot-messages.ts` (`appMessage`), `server/replies.ts` (app forms), `server/delta-context.ts` (`isContextMessage`, `transcriptText`);
-- `server/request-auth.ts`, `companion/src/routes.ts`, the `server/index.ts` wiring (net zero lines).
+- `desktop/server/app-docs.ts`;
+- `desktop/server/chat-apps.ts` (`createAppCard` for `show_html` and `update_html`, `appDocument`, `withAppContext`, `setAppContext`);
+- `desktop/server/drivers/agents-app-tools.ts`, plus `agents-call-cards.ts` (add the two names), `agents-catalog.ts` and the catalog goldens;
+- `desktop/server/routes/chat-apps.ts` (all three routes; `rpc` delegates to `deps.mcpRpc`, which answers 404 until S4);
+- `desktop/server/routes/bot-messages.ts` (`appMessage`), `desktop/server/replies.ts` (app forms), `desktop/server/delta-context.ts` (`isContextMessage`, `transcriptText`);
+- `desktop/server/request-auth.ts`, `desktop/companion/src/routes.ts`, the `desktop/server/index.ts` wiring (net zero lines).
 
 Tests:
 
-- `server/chat-apps.test.ts`;
+- `desktop/server/chat-apps.test.ts`;
 - the send-route tests for `appMessage` (accepted, wrong row, too long, rate, queue and steer paths carry the reply form, context block delivered once);
 - the companion allowlist test;
 - the route scope tests.
@@ -640,7 +640,7 @@ Tests:
 
 Owns:
 
-- `src/components/app/AppMessage.tsx` (row and chrome);
+- `desktop/src/components/app/AppMessage.tsx` (row and chrome);
 - `AppFrame.tsx` (iframe and bridge);
 - `AppChrome.tsx` (header, info popover, strips);
 - `app-pool.ts` (live budget and IntersectionObserver);
@@ -648,7 +648,7 @@ Owns:
 - `app-api.ts`;
 - the `ChatView.tsx` dispatch (net zero against its 1,848-line ratchet: fold the widget and app cases into one rich-row component);
 - the "Sent from" line on user bubbles;
-- `electron/app-frame-guard.mjs` plus a node test, and the one-line install in `main.mjs` (net zero);
+- `desktop/electron/app-frame-guard.mjs` plus a node test, and the one-line install in `main.mjs` (net zero);
 - the "Show its apps in chat" switch in `McpServersPanel.tsx` (the API comes from S4; hidden until it is there).
 
 Tests:
@@ -661,15 +661,15 @@ Tests:
 
 Owns:
 
-- `server/mcp-app-catalog.ts`, `server/mcp-app-observer.ts`, `server/mcp-app-connections.ts`, `server/chat-apps-mcp.ts` (`recordMcpAppCall`, `mcpRpc`);
-- `server/mcp-http.ts` (the `extensions` option and the fallback);
-- `server/mcp-remote-proxy.ts` and `server/mcp-gate.ts` (observe, filter app-only tools, rewrite initialize);
-- `server/mcp-gate-config.ts` (an `apps` option that gates without a budget or selection, and the env keys; it also hosts a shared `appMountFor(server, catalog)` decision, so `claude.ts` and `codex.ts` change by replacing lines, net zero);
-- `server/drivers/claude.ts`, `codex.ts`, `turn-mcp.ts`, `pi.ts`, `chat-mcp-tools.ts` (in-process observation);
-- `server/mcp-probe.ts`;
-- `server/mcp-registry.ts` and `server/routes/mcp-servers.ts` (the `apps` switch);
-- `server/testing/fake-http-mcp-server.ts` (UI tools, resources, app-only tools);
-- a new `server/testing/fake-stdio-app-server.ts`.
+- `desktop/server/mcp-app-catalog.ts`, `desktop/server/mcp-app-observer.ts`, `desktop/server/mcp-app-connections.ts`, `desktop/server/chat-apps-mcp.ts` (`recordMcpAppCall`, `mcpRpc`);
+- `desktop/server/mcp-http.ts` (the `extensions` option and the fallback);
+- `desktop/server/mcp-remote-proxy.ts` and `desktop/server/mcp-gate.ts` (observe, filter app-only tools, rewrite initialize);
+- `desktop/server/mcp-gate-config.ts` (an `apps` option that gates without a budget or selection, and the env keys; it also hosts a shared `appMountFor(server, catalog)` decision, so `claude.ts` and `codex.ts` change by replacing lines, net zero);
+- `desktop/server/drivers/claude.ts`, `codex.ts`, `turn-mcp.ts`, `pi.ts`, `chat-mcp-tools.ts` (in-process observation);
+- `desktop/server/mcp-probe.ts`;
+- `desktop/server/mcp-registry.ts` and `desktop/server/routes/mcp-servers.ts` (the `apps` switch);
+- `desktop/server/testing/fake-http-mcp-server.ts` (UI tools, resources, app-only tools);
+- a new `desktop/server/testing/fake-stdio-app-server.ts`.
 
 Tests:
 
@@ -683,14 +683,14 @@ Tests:
 
 Owns:
 
-- `ios/Sources/CompanionCore/ChatApp.swift` (`AppPayload` and `AppDocument` decoding, `fromApp`);
+- `mobile/ios/Sources/CompanionCore/ChatApp.swift` (`AppPayload` and `AppDocument` decoding, `fromApp`);
 - `Models.swift` (`.app` kind and fields);
 - `Client.swift` (`appDocument`, `appRPC`, `appContext`, `sendAppMessage`);
-- `ios/App/Cards/ChatAppView.swift` (row, chrome, strips, placeholder and snapshot);
-- `ios/App/Cards/ChatAppWebView.swift` (configuration, scheme handler, content world and handler, delegates, content rule lists, engagement recognizers);
-- `ios/App/Cards/ChatAppPool.swift`;
+- `mobile/ios/App/Cards/ChatAppView.swift` (row, chrome, strips, placeholder and snapshot);
+- `mobile/ios/App/Cards/ChatAppWebView.swift` (configuration, scheme handler, content world and handler, delegates, content rule lists, engagement recognizers);
+- `mobile/ios/App/Cards/ChatAppPool.swift`;
 - the `ChatView.swift` dispatch and the "Sent from" line;
-- `ios/App/Resources/app-host.html` (copied), `Localizable.xcstrings`, `project.yml` resources;
+- `mobile/ios/App/Resources/app-host.html` (copied), `Localizable.xcstrings`, `project.yml` resources;
 - fixtures and decoding tests;
 - a `WKWebView` XCTest that loads a fixture document from a local sink and asserts rules 1, 4 (blocked loads counted in the sink), 5, 6, 7, 9, 10 and 12.
 
@@ -700,10 +700,10 @@ First step: confirm that a script in a `WKContentWorld` receives the iframe's `m
 
 Owns:
 
-- `android/core/.../ChatApp.kt`, `Models.kt`, `Client.kt`;
-- `android/app/.../ui/ChatAppView.kt`, `ChatAppWebView.kt`, `ChatAppPool.kt`;
+- `mobile/android/core/.../ChatApp.kt`, `Models.kt`, `Client.kt`;
+- `mobile/android/app/.../ui/ChatAppView.kt`, `ChatAppWebView.kt`, `ChatAppPool.kt`;
 - the `MessageRow.kt` dispatch and the "Sent from" line;
-- `android/app/src/main/assets/app/app-host.html` (copied);
+- `mobile/android/app/src/main/assets/app/app-host.html` (copied);
 - `androidx.webkit` in `app/build.gradle.kts`;
 - strings;
 - core decoding tests;
@@ -729,7 +729,7 @@ End-to-end, on an isolated instance (`docs/verification/README.md`, never the in
    - "Open Link" → the browser opens (stubbed in CI).
    - "Fullscreen" → answered `inline`.
    - "200x100" / "400x300" / "800x600" change the frame's height (clamped), never its width.
-4. A bot in Ask mode with `server/testing/fake-stdio-app-server.ts`, whose view calls a model-visible tool without `readOnlyHint`: the call is declined and the error reaches the view, with no card. The same call in Full access runs.
+4. A bot in Ask mode with `desktop/server/testing/fake-stdio-app-server.ts`, whose view calls a model-visible tool without `readOnlyHint`: the call is declined and the error reaches the view, with no card. The same call in Full access runs.
 5. Scroll a thread with 6 app rows: never more than 3 live frames, torn-down rows keep their height, and the debug view logs `teardown`.
 6. Excalidraw: "draw a flowchart of our deploy" → `create_view` renders the diagram (esm.sh allowed by its CSP), its clipboard permission is denied (the info popover says so), and `save_checkpoint` runs through `rpc`.
 7. A strict server (`fake-http-mcp-server` `strictInitialize`) still connects; its catalog says `refused`.
@@ -742,7 +742,7 @@ Security: the Electron test (S3) and the two phone web-view tests (I1, A1) run e
 
 - **Opaque origin.** Views that require `localStorage`, or a stable origin for CORS (`_meta.ui.domain`, e.g. Claude's `<hash>.claudemcpcontent.com`), will not work fully. Most views reach data through `tools/call`, which works. A per-server real origin (a custom-protocol sandbox page on desktop) is the follow-up if a target app needs it.
 - **Separate app connection.** App calls use OMB's own connection, not the engine's live one. A stateful stdio server that keeps per-process state sees app calls on a different process from the bot's.
-- **Protocol version.** Servers moving to the 2026-07-28 protocol (`server/discover`, capabilities in each request's `_meta`) will need `RemoteMcpClient` to speak it. Claude Code 2.1.288 already tries it first.
+- **Protocol version.** Servers moving to the 2026-07-28 protocol (`desktop/server/discover`, capabilities in each request's `_meta`) will need `RemoteMcpClient` to speak it. Claude Code 2.1.288 already tries it first.
 - **Sign-in gates.** Figma's client allow-list, and the no-DCR servers (Asana, Slack, Box, HubSpot), are sign-in matters, not rendering ones.
 
 ## Open questions for Omkar
@@ -767,17 +767,17 @@ S1 and S2 (2026-10-14). Small deviations from the text above, so later tasks bui
 - **Wire.** `AppPayload` also carries `blocked?: AppBlockedReason` (the spec's "row is still written with `blocked`"), and its `doc` is `""` when nothing was stored. `AppBlockedReason` adds `"unavailable"` (the UI resource could not be read: offline, wrong mime) for S4. `AppDocument` has no `source`: a document with `tool` is an MCP app, one without is bot HTML (`isMcpDocument` in `bridge.ts`).
 - **Bridge adapter.** `callRpc(method, params)`. `createAppBridge` also takes `source()` (the frame's window, for rule 9), `hostVersion`, `limits.maxHeight`, `log` and `timers`. It returns `{ handleMessage, contextChanged, teardown, dispose, initialized }`. A document with no `toolResult` is sent `{content: []}`.
 - **Phone host page.** Page → native adds `{ v: 1, type: "torn-down" }` after `teardown()` (Android cannot await the call). Android's native → page messages are JSON `{ v: 1, call, args }` over `postWebMessage`, heard on the injected `appHost` object, which the page leaves in place; the page's api is also `window.hezuoAppHost`. `load` takes `limits.height`, the row's starting height. The page has no CSP of its own (a srcdoc frame inherits its parent's policy).
-- **Send path.** The prompt is composed in four places in `server/index.ts`, so `acceptDirectSend`, `startOrQueueDirectMessage` and `startTurn` take one `app: { context?, fromApp? }` option: the context block goes in front of the composed prompt on start, steer and queue, and `fromApp` is stored on the user line on every path (the steer queue carries it). The route builds the block with `appContextBlock` and marks it delivered after acceptance; a retry of an accepted `sendId` carries none. `withAppContext(store, text, threadId)` returns `{ text, deliver }`. Guarded sends carry no app context.
-- **index.ts.** `resolveReplyTarget` moved to `server/replies.ts` (`replyTargetIn`, which now admits `app` rows) to keep the file at its ratcheted length. The internal card route passes `apps: chatApps` to `createAgentCard` and awaits it, so S4's `mcp_app` branch may be async.
-- **Routes.** The document route answers 404 "This app's page is not stored on this computer." for a row whose document is missing. `context` has a 120-a-minute per-row backstop (429). `rpc` checks the row (404), the method and `params` shape (400), then calls `deps.mcpRpc`; the 60-a-minute rate is left to `mcpRpc`, in the spec's order (`rowRate` in `server/chat-apps.ts` is there for it).
+- **Send path.** The prompt is composed in four places in `desktop/server/index.ts`, so `acceptDirectSend`, `startOrQueueDirectMessage` and `startTurn` take one `app: { context?, fromApp? }` option: the context block goes in front of the composed prompt on start, steer and queue, and `fromApp` is stored on the user line on every path (the steer queue carries it). The route builds the block with `appContextBlock` and marks it delivered after acceptance; a retry of an accepted `sendId` carries none. `withAppContext(store, text, threadId)` returns `{ text, deliver }`. Guarded sends carry no app context.
+- **index.ts.** `resolveReplyTarget` moved to `desktop/server/replies.ts` (`replyTargetIn`, which now admits `app` rows) to keep the file at its ratcheted length. The internal card route passes `apps: chatApps` to `createAgentCard` and awaits it, so S4's `mcp_app` branch may be async.
+- **Routes.** The document route answers 404 "This app's page is not stored on this computer." for a row whose document is missing. `context` has a 120-a-minute per-row backstop (429). `rpc` checks the row (404), the method and `params` shape (400), then calls `deps.mcpRpc`; the 60-a-minute rate is left to `mcpRpc`, in the spec's order (`rowRate` in `desktop/server/chat-apps.ts` is there for it).
 - **Tools.** `update_html` answers `Updated app <id>.`; on an MCP row it is refused with 409, on another bot's or thread's row with 404. It drops the row's `context` (the page reloads).
 - **Replay.** `transcriptText` reads words an app sent as `[app: <title>]`, and a typed reply to an app row as `[replying to <speaker>'s app: “…”]`.
 - **Storage.** `DATA_DIR/app-docs/{html,data,doc}/<sha256>`; an MCP row's data blob also holds its filtered `network`. Sweeps run 30 s after start and 2 s after a thread is deleted, and never remove a file younger than ten minutes. `ChatApps.mcpAccess` is the hook S4 sets; until then an MCP row's document renders read-only (`blocked: server-removed`).
-- **Fixtures.** `scripts/gen-app-fixtures.ts <mausbot-mobile checkout>` writes `app-messages.json`, `app-documents.json` and `app-expectations.json` (with `appHostSha256`) under `ios/Tests/CompanionCoreTests/Fixtures`, and copies `app-host.html` to both phone apps. `node --experimental-strip-types scripts/build-app-host.ts [--check]` rebuilds the host page.
+- **Fixtures.** `scripts/gen-app-fixtures.ts <mausbot-mobile checkout>` writes `app-messages.json`, `app-documents.json` and `app-expectations.json` (with `appHostSha256`) under `mobile/ios/Tests/CompanionCoreTests/Fixtures`, and copies `app-host.html` to both phone apps. `node --experimental-strip-types scripts/build-app-host.ts [--check]` rebuilds the host page.
 
 S3, the desktop renderer and Electron (2026-10-14):
 
-- **Files.** The iframe, the bridge wiring and engagement live in `src/components/app/app-frame-host.ts`, with no React, so `scripts/smoke-app-frames.mjs` bundles the code the app runs. `AppFrame.tsx` wraps it. ChatView's widget and app cases are one `RichMessageRow` (`src/components/RichMessageRow.tsx`). That file also draws the line under the person's own bubble (`UserLineNote`: "Sent from <app>", and the existing "via call"). ChatView is 3 lines shorter, and its ratchet is now 1845.
+- **Files.** The iframe, the bridge wiring and engagement live in `desktop/src/components/app/app-frame-host.ts`, with no React, so `scripts/smoke-app-frames.mjs` bundles the code the app runs. `AppFrame.tsx` wraps it. ChatView's widget and app cases are one `RichMessageRow` (`desktop/src/components/RichMessageRow.tsx`). That file also draws the line under the person's own bubble (`UserLineNote`: "Sent from <app>", and the existing "via call"). ChatView is 3 lines shorter, and its ratchet is now 1845.
 - **Engagement in a frame Chromium isolates.** Chrome puts sandboxed frames in a process of their own. This is the remote web client's case. The page then gets no `pointerenter` and no `:hover` for the frame's element; this was measured with CDP input on Chrome 155. So focus entering a frame also counts when the page last saw the pointer within 40 px of the frame and the pointer has not left the window since. On the way in, the last `pointermove` the page sees is at the frame's edge. Measured in Electron 43.7.9, with focus emulated:
   - a click in one frame engages it;
   - a click in a second frame moves engagement to the second;
@@ -803,7 +803,7 @@ S3, the desktop renderer and Electron (2026-10-14):
 
 S4 (2026-10-14). Deviations from the text above:
 
-- **Mount decision.** `appMountFor(name, turn)` (in `mcp-gate-config.ts`) reads `turn.integrations.mcpApps` (a new `SendTurnInput` field, `Record<name, { extension: boolean }>`) and the agents capability; it does not take the catalog. `server/index.ts` asks the catalog once per 1:1 turn (`chatAppsMcp.turnMounts(custom, bot.toolScope)`, merged into the same line that sets `integrations.custom`); rooms get no `mcpApps`. `gateServer({..., apps})` returns the bare remote proxy for a URL app server without a selection (the proxy is the observer), so `claude.ts` and `pi.ts` change one argument each.
+- **Mount decision.** `appMountFor(name, turn)` (in `mcp-gate-config.ts`) reads `turn.integrations.mcpApps` (a new `SendTurnInput` field, `Record<name, { extension: boolean }>`) and the agents capability; it does not take the catalog. `desktop/server/index.ts` asks the catalog once per 1:1 turn (`chatAppsMcp.turnMounts(custom, bot.toolScope)`, merged into the same line that sets `integrations.custom`); rooms get no `mcpApps`. `gateServer({..., apps})` returns the bare remote proxy for a URL app server without a selection (the proxy is the observer), so `claude.ts` and `pi.ts` change one argument each.
 - **Filtering everywhere.** Every gate and proxy drops app-only tools and refuses a model's call to one (`-32602 "This tool belongs to an app view."`), not only the observing mounts; it costs nothing on a server without them. The directory filter is applied in the proxy before indexing; `mcp-directory.ts` is unchanged. The Chat Completions runtime never registers an app-only tool.
 - **Observer reports.** A report whose arguments alone exceed 900 KB is not sent (stderr). After `structuredContent`, content that is not text goes before the text is clipped. The in-process observer (Chat Completions, command servers) posts over HTTP like the gate and proxy, so rule 18 holds for every engine. `serverInfo` is sent only when the server gave one; the row's `serverTitle` falls back to the connection's `serverInfo`, then the mount name.
 - **Catalog.** One entry per server name, valid for the configuration it was learned from (`hash`: a URL server's type and address, a command server's command, arguments and environment; headers are left out so a refreshed sign-in token is the same server). It keeps only app-relevant tools (a UI or a visibility). It learns from Settings → Test, the background probe, the app connections' own tools/list and every reported call, not from the engine's tools/list through a gate or proxy (that would need a second report kind). `mcp-probe.ts` still reads one page of tools.

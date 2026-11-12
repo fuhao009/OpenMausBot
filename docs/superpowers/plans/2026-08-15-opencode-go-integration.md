@@ -4,7 +4,7 @@
 
 **Goal:** Add OpenCode Go as an optional ACP-backed Hezuo engine with dynamic models, write-only credentials, setup UX, and comprehensive tests.
 
-**Architecture:** Extend the generic ACP support SPI with an optional asynchronous model resolver and keep OpenCode-specific behavior in `server/drivers/acp/opencode-go.ts`. Load the API key from config/environment into the child process only, register the driver in the normal fleet, and reuse the existing registry, `/api/instances`, setup UI, and ACP event machinery.
+**Architecture:** Extend the generic ACP support SPI with an optional asynchronous model resolver and keep OpenCode-specific behavior in `desktop/server/drivers/acp/opencode-go.ts`. Load the API key from config/environment into the child process only, register the driver in the normal fleet, and reuse the existing registry, `/api/instances`, setup UI, and ACP event machinery.
 
 **Tech Stack:** TypeScript, Node 24, Vitest, React, Vite, pnpm, JSON-RPC ACP over stdio.
 
@@ -12,31 +12,31 @@
 
 ## File map
 
-- Create `server/drivers/acp/opencode-go.ts`: OpenCode Go executable, catalog, credential and ACP support definition.
-- Create `server/drivers/acp/opencode-go.test.ts`: resolver, config, environment, catalog and driver contract tests.
-- Modify `server/drivers/acp/core.ts`: optional async model resolution without changing existing harness behavior.
-- Modify `server/drivers/builtIn.ts`: register the driver.
-- Modify `server/config.ts`: persist and inject `opencodeGo.apiKey`, while preserving write-only semantics.
-- Modify `server/index.ts`: expose only configured status and accept the new credential patch.
-- Modify `src/components/ApiKeys.tsx` and `src/components/SettingsModal.tsx`: add the optional OpenCode Go credential row.
-- Modify `src/components/Onboarding.tsx`: show OpenCode Go in the engine check.
-- Modify `src/components/ProviderIcons.tsx`: add a stable OpenCode mark/fallback.
-- Modify `server/testing/fake-acp-cli.ts` and `server/drivers/acp/acp.test.ts`: exercise exact ACP ordering/model selection with a fake CLI.
+- Create `desktop/server/drivers/acp/opencode-go.ts`: OpenCode Go executable, catalog, credential and ACP support definition.
+- Create `desktop/server/drivers/acp/opencode-go.test.ts`: resolver, config, environment, catalog and driver contract tests.
+- Modify `desktop/server/drivers/acp/core.ts`: optional async model resolution without changing existing harness behavior.
+- Modify `desktop/server/drivers/builtIn.ts`: register the driver.
+- Modify `desktop/server/config.ts`: persist and inject `opencodeGo.apiKey`, while preserving write-only semantics.
+- Modify `desktop/server/index.ts`: expose only configured status and accept the new credential patch.
+- Modify `desktop/src/components/ApiKeys.tsx` and `desktop/src/components/SettingsModal.tsx`: add the optional OpenCode Go credential row.
+- Modify `desktop/src/components/Onboarding.tsx`: show OpenCode Go in the engine check.
+- Modify `desktop/src/components/ProviderIcons.tsx`: add a stable OpenCode mark/fallback.
+- Modify `desktop/server/testing/fake-acp-cli.ts` and `desktop/server/drivers/acp/acp.test.ts`: exercise exact ACP ordering/model selection with a fake CLI.
 - Modify `docs/opencode-go.md`: document prerequisites, live links, privacy boundary, and opt-in behavior.
 
 ### Task 1: Extend ACP model resolution
 
-**Files:** `server/drivers/acp/core.ts`, `server/drivers/acp/acp.test.ts`
+**Files:** `desktop/server/drivers/acp/core.ts`, `desktop/server/drivers/acp/acp.test.ts`
 
 - [ ] Add a failing test proving an ACP support can provide `resolveModels(environment)` and that the created instance exposes the resolved catalog while existing static supports remain unchanged.
-- [ ] Run `pnpm vitest run server/drivers/acp/acp.test.ts`; expect the new test to fail because `AcpSupport` has no resolver.
+- [ ] Run `pnpm vitest run desktop/server/drivers/acp/acp.test.ts`; expect the new test to fail because `AcpSupport` has no resolver.
 - [ ] Add `resolveModels?: (environment) => Promise<ModelCatalog>` to `AcpSupport`; resolve it at creation and expose `refreshModels()` so `/api/instances` can replace the existing instance catalog without recreating it, falling back to `support.models` when it rejects.
 - [ ] Run the focused test and then the existing ACP suite; expect all tests to pass.
 - [ ] Commit `feat(acp): support dynamic model catalogs`.
 
 ### Task 2: Implement OpenCode Go support and catalog
 
-**Files:** `server/drivers/acp/opencode-go.ts`, `server/drivers/acp/opencode-go.test.ts`
+**Files:** `desktop/server/drivers/acp/opencode-go.ts`, `desktop/server/drivers/acp/opencode-go.test.ts`
 
 - [ ] Write failing tests for default config `{ cli: "opencode", fullAuto: false, workspace: undefined }`, `opencode acp` arguments, deletion of unrelated provider API-key variables, and full `opencode-go/<id>` model IDs.
 - [ ] Write failing catalog tests using injected `fetch`: accept only valid model records, preserve deterministic labels, reject malformed/empty payloads, and return the last successful cache/static fallback on timeout or HTTP failure.
@@ -48,7 +48,7 @@
 
 ### Task 3: Wire credential storage and registration
 
-**Files:** `server/config.ts`, `server/index.ts`, `server/drivers/builtIn.ts`, `server/index.test.ts`, `server/config.test.ts` if needed
+**Files:** `desktop/server/config.ts`, `desktop/server/index.ts`, `desktop/server/drivers/builtIn.ts`, `desktop/server/index.test.ts`, `desktop/server/config.test.ts` if needed
 
 - [ ] Add failing tests proving `opencodeGo.apiKey` is loaded from `OPENCODE_API_KEY`, saved to disk, passed only in the configured instance environment, and never appears in `configStatus()` or GET `/api/config`.
 - [ ] Run the focused tests and confirm failure before implementation.
@@ -59,7 +59,7 @@
 
 ### Task 4: Add settings, onboarding, and icon integration
 
-**Files:** `src/components/ApiKeys.tsx`, `src/components/SettingsModal.tsx`, `src/components/Onboarding.tsx`, `src/components/ProviderIcons.tsx`
+**Files:** `desktop/src/components/ApiKeys.tsx`, `desktop/src/components/SettingsModal.tsx`, `desktop/src/components/Onboarding.tsx`, `desktop/src/components/ProviderIcons.tsx`
 
 - [ ] Add component tests or existing test-style coverage for the credential row payload `{ opencodeGo: { apiKey } }` and the onboarding engine label `OpenCode Go`.
 - [ ] Run the new focused tests and verify the missing row/label failure.
@@ -69,7 +69,7 @@
 
 ### Task 5: Verify ACP runtime behavior end to end
 
-**Files:** `server/testing/fake-acp-cli.ts`, `server/drivers/acp/opencode-go.test.ts`
+**Files:** `desktop/server/testing/fake-acp-cli.ts`, `desktop/server/drivers/acp/opencode-go.test.ts`
 
 - [ ] Add a fake-CLI mode that records received JSON-RPC methods/model config in a test-only temporary file and emits initialize, session/new, session/set_config_option, session/update, permission, and prompt result messages.
 - [ ] Add failing integration tests asserting order `initialize -> session/new/load -> session/set_config_option(model=opencode-go/...) -> session/prompt`, no duplicate final text, permission allow/deny, resume fallback, cancellation, malformed JSON-RPC, and process cleanup.

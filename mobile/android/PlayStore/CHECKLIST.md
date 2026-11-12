@@ -16,7 +16,7 @@ commit and artifact being submitted; unchecked items remain release work.
 - [ ] Verify the signature of
   `mobile/android/app/build/outputs/bundle/release/app-release.aab`; record its hash,
   version, and certificate identity.
-- [ ] Run the applicable [Android checks](../../docs/verification/android-threads.md)
+- [ ] Run the applicable [Android checks](../../../docs/verification/android-threads.md)
   and manual release workflows using an isolated fixture and disposable emulator.
   Record results and gaps; do not use the user's live app or data.
 - [ ] Test installation/upgrade and every advertised workflow on the release

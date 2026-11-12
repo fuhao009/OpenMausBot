@@ -4,7 +4,7 @@
 
 **Goal:** A URL MCP server that requires OAuth (e.g. Higgsfield) can be signed into from the desktop app; tokens are stored, refreshed, and sent to every engine as `Authorization: Bearer`.
 
-**Architecture:** Three new server modules — discovery (`mcp-oauth-discovery.ts`), storage (`mcp-oauth-store.ts`), and the flow/refresh manager (`mcp-oauth.ts`) modelled on `server/drivers/chatgpt-plan-auth.ts` (loopback listener, PKCE, state check, polled status). `server/index.ts` gains four routes and injects tokens where turns get their servers. The MCP servers panel gains a status chip and Sign in / Sign out.
+**Architecture:** Three new server modules — discovery (`mcp-oauth-discovery.ts`), storage (`mcp-oauth-store.ts`), and the flow/refresh manager (`mcp-oauth.ts`) modelled on `desktop/server/drivers/chatgpt-plan-auth.ts` (loopback listener, PKCE, state check, polled status). `desktop/server/index.ts` gains four routes and injects tokens where turns get their servers. The MCP servers panel gains a status chip and Sign in / Sign out.
 
 **Tech Stack:** Node 24 (`~/.nvm/versions/node/v24.14.1/bin`), TypeScript, zod, vitest, React.
 
@@ -34,8 +34,8 @@
 ### Task 1: OAuth metadata discovery
 
 **Files:**
-- Create: `server/mcp-oauth-discovery.ts`
-- Test: `server/mcp-oauth-discovery.test.ts`
+- Create: `desktop/server/mcp-oauth-discovery.ts`
+- Test: `desktop/server/mcp-oauth-discovery.test.ts`
 
 **Interfaces:**
 - Produces:
@@ -46,7 +46,7 @@
 
 - [ ] **Step 1: Write the failing tests** — cover: `resource_metadata="…"` parsed from a Bearer challenge; discovery via header hint; fallback to `/.well-known/oauth-protected-resource`; fallback to MCP origin when no PRM; OIDC fallback; `null` when S256 missing; `null` for non-https metadata endpoints on non-loopback hosts. Use a `fetch` stub mapping URL → JSON.
 
-- [ ] **Step 2: Run** `npx vitest run server/mcp-oauth-discovery.test.ts` — expect FAIL (module missing).
+- [ ] **Step 2: Run** `npx vitest run desktop/server/mcp-oauth-discovery.test.ts` — expect FAIL (module missing).
 
 - [ ] **Step 3: Implement** — PRM lookup order: header hint, then `${origin}/.well-known/oauth-protected-resource${path}`, then `${origin}/.well-known/oauth-protected-resource`. Authorization-server metadata: `${issuer}/.well-known/oauth-authorization-server`, then `/.well-known/openid-configuration`. Require `authorization_endpoint`, `token_endpoint`, and `code_challenge_methods_supported` containing `S256` (treat absence as unsupported). Each fetch: 5 s timeout, `accept: application/json`, response ≤ 64 KB. `resource` = MCP URL without hash.
 
@@ -57,10 +57,10 @@
 ### Task 2: Probe reports "needs sign-in"
 
 **Files:**
-- Modify: `server/mcp-http.ts` (`McpHttpError` gains `wwwAuthenticate`; `post()` and the SSE GET pass it on 401)
-- Modify: `server/mcp-probe.ts` (`McpProbeResult` failure gains `auth?: "required"`; 401 → `discoverMcpAuth`)
-- Modify: `server/testing/fake-http-mcp-server.ts` (options `wwwAuthenticate?: string`, `acceptBearer?: (header: string | undefined) => boolean`)
-- Test: `server/mcp-probe.test.ts`
+- Modify: `desktop/server/mcp-http.ts` (`McpHttpError` gains `wwwAuthenticate`; `post()` and the SSE GET pass it on 401)
+- Modify: `desktop/server/mcp-probe.ts` (`McpProbeResult` failure gains `auth?: "required"`; 401 → `discoverMcpAuth`)
+- Modify: `desktop/server/testing/fake-http-mcp-server.ts` (options `wwwAuthenticate?: string`, `acceptBearer?: (header: string | undefined) => boolean`)
+- Test: `desktop/server/mcp-probe.test.ts`
 
 **Interfaces:**
 - Consumes: `discoverMcpAuth` (Task 1)
@@ -75,8 +75,8 @@
 ### Task 3: Token store
 
 **Files:**
-- Create: `server/mcp-oauth-store.ts`
-- Test: `server/mcp-oauth-store.test.ts`
+- Create: `desktop/server/mcp-oauth-store.ts`
+- Test: `desktop/server/mcp-oauth-store.test.ts`
 
 **Interfaces:**
 - Produces:
@@ -101,9 +101,9 @@
 ### Task 4: Sign-in flow and refresh (`McpOAuthManager`)
 
 **Files:**
-- Create: `server/mcp-oauth.ts`
-- Create: `server/testing/fake-oauth-server.ts` (PRM, AS metadata, `/register`, `/authorize` → 302 to `redirect_uri?code&state`, `/token` for `authorization_code` + `refresh_token`, `/revoke`; configurable `expiresIn`, `rejectRefresh`)
-- Test: `server/mcp-oauth.test.ts`
+- Create: `desktop/server/mcp-oauth.ts`
+- Create: `desktop/server/testing/fake-oauth-server.ts` (PRM, AS metadata, `/register`, `/authorize` → 302 to `redirect_uri?code&state`, `/token` for `authorization_code` + `refresh_token`, `/revoke`; configurable `expiresIn`, `rejectRefresh`)
+- Test: `desktop/server/mcp-oauth.test.ts`
 
 **Interfaces:**
 - Consumes: Tasks 1, 3.
@@ -134,9 +134,9 @@
 ### Task 5: Server wiring
 
 **Files:**
-- Modify: `server/index.ts` — construct `mcpOAuth = new McpOAuthManager({ file: join(DATA_DIR, "mcp-oauth.json") })`; routes; listing field; token injection; URL-change/delete cleanup; Test route.
-- Modify: `server/mcp-registry.ts` — `RemoteMcpServerListing.auth?: "signed-in" | "needs-sign-in"`.
-- Test: `server/index.test.ts` (new `it` beside the URL-server test)
+- Modify: `desktop/server/index.ts` — construct `mcpOAuth = new McpOAuthManager({ file: join(DATA_DIR, "mcp-oauth.json") })`; routes; listing field; token injection; URL-change/delete cleanup; Test route.
+- Modify: `desktop/server/mcp-registry.ts` — `RemoteMcpServerListing.auth?: "signed-in" | "needs-sign-in"`.
+- Test: `desktop/server/index.test.ts` (new `it` beside the URL-server test)
 
 **Routes (all behind the existing `/api/mcp/servers` auth):**
 - `POST /api/mcp/servers/:name/sign-in` → loopback gate (409 `remote_workspace`), must be a remote server (400), `mcpOAuth.start` → `200 { auth }`; `McpOAuthError` → 400 with a sentence per code.
@@ -153,17 +153,17 @@
 - `mcpOAuth.dispose()` on shutdown where other auth controllers are disposed.
 
 - [ ] **Step 1: Failing test** — fake OAuth + fake MCP requiring the issued bearer: add server → Test → `auth: "required"`, listing `auth: "needs-sign-in"` → sign-in via route, follow `authorizationUrl` → status `succeeded` → listing `auth: "signed-in"`, no token text anywhere in responses → Test passes with tools → enable, and assert `authorizedMcpServers` output (via the existing turn-integration seam or a small exported test hook) carries `Authorization: Bearer <token>` → PUT a new URL → listing has no `auth` → DELETE clean. Also: a request with `x-forwarded-for` gets 409.
-- [ ] **Step 2: Run** `npx vitest run server/index.test.ts -t "OAuth"` — FAIL.
+- [ ] **Step 2: Run** `npx vitest run desktop/server/index.test.ts -t "OAuth"` — FAIL.
 - [ ] **Step 3: Implement** the routes and behaviour above.
-- [ ] **Step 4: Run** the new test, then `npx vitest run server/mcp-*.test.ts server/index.test.ts` — PASS.
+- [ ] **Step 4: Run** the new test, then `npx vitest run desktop/server/mcp-*.test.ts desktop/server/index.test.ts` — PASS.
 - [ ] **Step 5: Commit** `feat(mcp): wire URL-server sign-in into the API and turns`
 
 ### Task 6: MCP servers panel
 
 **Files:**
-- Modify: `src/components/McpServersPanel.tsx`
-- Modify: `src/locales/en.json` (`mcp.auth.signedIn`, `mcp.auth.needsSignIn`, `mcp.auth.signIn`, `mcp.auth.signOut`, `mcp.auth.cancel`, `mcp.auth.waiting`, `mcp.auth.failed`, `mcp.auth.remote`)
-- Test: `src/components/McpServersPanel.test.ts` (or the existing panel test file)
+- Modify: `desktop/src/components/McpServersPanel.tsx`
+- Modify: `desktop/src/locales/en.json` (`mcp.auth.signedIn`, `mcp.auth.needsSignIn`, `mcp.auth.signIn`, `mcp.auth.signOut`, `mcp.auth.cancel`, `mcp.auth.waiting`, `mcp.auth.failed`, `mcp.auth.remote`)
+- Test: `desktop/src/components/McpServersPanel.test.ts` (or the existing panel test file)
 
 - [ ] **Step 1: Failing test** — a remote listing with `auth: "needs-sign-in"` renders the chip and a Sign in button; clicking POSTs sign-in, calls `openExternalLink` with the returned https URL (a non-https URL is refused), polls the flow until `succeeded`, then reloads the list; `auth: "signed-in"` shows Sign out.
 - [ ] **Step 2: Run** — FAIL.
@@ -173,7 +173,7 @@
 
 ### Task 7: Verification
 
-- [ ] `npx tsc -p tsconfig.server.json --noEmit` and `npx tsc -p tsconfig.json --noEmit` — clean.
-- [ ] `npx vitest run server/mcp-* server/index.test.ts src/components/McpServers*` — PASS.
+- [ ] `npx tsc -p desktop/tsconfig.server.json --noEmit` and `npx tsc -p desktop/tsconfig.json --noEmit` — clean.
+- [ ] `npx vitest run desktop/server/mcp-* desktop/server/index.test.ts desktop/src/components/McpServers*` — PASS.
 - [ ] Live check against Higgsfield with a scratch data dir (`OMB_DATA_DIR`): probe → needs sign-in; start → authorization URL on `clerk.higgsfield.ai` (sign-in itself needs Omkar).
 - [ ] Hand-off: OMB2 side-by-side build for Omkar to sign in and run a bot turn.

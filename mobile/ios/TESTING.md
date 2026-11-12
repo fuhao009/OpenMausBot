@@ -49,7 +49,7 @@ No full Xcode, simulator, or phone is required. This is the cheapest place to
 catch wire-model, parser, and state-fold regressions.
 
 ```sh
-cd ios
+cd mobile/ios
 swift build
 swift test
 ```
@@ -120,7 +120,7 @@ This is the likeliest snag on macOS, and it is not a bug in the phone.
 
 ```sh
 brew install xcodegen
-cd ios && xcodegen generate && open OpenMausCompanion.xcodeproj
+cd mobile/ios && xcodegen generate && open OpenMausCompanion.xcodeproj
 ```
 
 Build for the simulator first — it is a faster loop for compile errors.
