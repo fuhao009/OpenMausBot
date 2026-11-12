@@ -5,6 +5,14 @@ installation ownership, and per-installation managed companion endpoints. It
 does **not** store or move local bots, chats, desktop SQLite state, prompts, or
 tool output.
 
+## 开发与客户端接入入口
+
+- [后端开发与维护交接](../../docs/backend-development.md)：目录职责、数据与密钥、本地验证、部署回滚和协作约定。
+- [客户端 API 统一入口](../../docs/gateway-client-api.md)：桌面/手机鉴权、模型调用、安装、中继及错误处理。
+- [渠道与模型管理](../../docs/gateway-channels.md)：版本化配置、只写密钥、实际路由和客户端边界。
+- [当前部署记录](../../docs/gateway-deployment-193.md)：实际部署提交与验证范围。
+
+
 ### Hezuo identity migration boundaries
 
 Product presentation uses Hezuo. The deployed `openmausbot-control-plane`
@@ -176,7 +184,7 @@ product's own service credit (1 point = 1,000,000 micro-points); points are not
 a currency and are never derived from upstream billed money. Grants are
 additive, and a balance is never overwritten.
 
-Upstream configuration is deployment-only, never user input:
+Upstream configuration belongs to operators, never ordinary client input. Before the first saved channel catalog, the deployment fields below provide the legacy single upstream. After `/v1/operator/channels` is saved, the versioned D1 catalog is authoritative, including an explicitly empty catalog; new requests read it without restarting. See [channel management](../../docs/gateway-channels.md).
 
 | Name | Kind | Meaning |
 | --- | --- | --- |
@@ -210,9 +218,7 @@ upstream project's domains and needs `CLOUDFLARE_ACCOUNT_ID`,
 `OMB_PRODUCT_SERVICE_URL`, `OMB_PRODUCT_D1_ID`, and `EMAIL_FROM` in both modes.
 See [Shipping the hosted product build](../../docs/product-release.md).
 
-Inference goes to exactly two paths (`/v1/ai/chat/completions` and
-`/v1/ai/responses`) on the one upstream named by the deployment; the client
-never chooses a URL or a key. A request is authenticated before its body is
+Inference uses `/v1/ai/chat/completions` and `/v1/ai/responses`; each public model is routed to its configured channel, or the deployment's single upstream before channel migration. Clients never choose a URL or key. A request is authenticated before its body is
 read, its body is capped at 48 MiB, and its top-level fields, `n`, output cap,
 remote storage, background mode, and tools (local functions only) are checked
 before anything is reserved. Each call reserves its worst-case cost from the
