@@ -207,6 +207,8 @@ curl --cacert "$CA" --get "$BASE/v1/account/ai/ledger" \
 
 普通账号/管理 API 常见包络 `{ "error": "code" }`；推理 API 包络 `{ "error": { "code": "…", "type": "…", "message": "…" } }`。两者需分别解析。
 
+`x-request-id` 标识 HTTP 请求；`x-ai-request-id` 标识账本中的推理请求行。只有预占成功后才带 `x-ai-request-id`，包括成功、拒绝释放、待复核及 SSE；鉴权/校验/余额/并发准入失败不带。客户端详情保留两个 ID，运营者用后者关联账本。
+
 | HTTP / code | 客户端处理 |
 | --- | --- |
 | 401 `unauthorized` | 账号会话失效，重新登录 |
@@ -214,13 +216,17 @@ curl --cacert "$CA" --get "$BASE/v1/account/ai/ledger" \
 | 403 `ai_not_enabled` / `ai_suspended` | 联系管理员，停止自动请求 |
 | 403 `model_not_allowed` | 刷新账号模型目录，检查协议、模型或渠道是否停用 |
 | 402 `insufficient_balance` | 显示余额/预占，停止自动重试 |
-| 429 `ai_busy` / 其他限流 | 尊重 Retry-After（若存在），退避；不要并发猛重试 |
+| 429 `ai_busy` | 账号并发已满，尚未预占；固定 `Retry-After: 2`，可排队等待再发送 |
+| 503 `ai_temporarily_busy` | 上游 429，按内测策略释放预占，用户积分未扣；稍后可以重新发送 |
+| 503 `ai_temporarily_unavailable` | 指定上游拒绝状态按内测策略释放预占，用户积分未扣；服务恢复后可以重新发送 |
 | 503 `ai_unavailable` | 配置/运行时不可用，不假装模型正常 |
 | 400 `invalid_request` | 修正字段，不重试相同错误请求 |
 | 413 `request_too_large` | 缩小请求，48 MiB 上限 |
 | 502 `upstream_error` / 流中断 | 结果可能已计费，刷新流水并提示复核，禁止透明重放 |
 
 模型推理没有通用 `operationId` 幂等协议。管理员充值的幂等 UUID 不能套用于 Chat/Responses。对请求结果未知的自动重试会产生新的预占和上游调用。
+
+释放策略仅针对完整拒绝响应的 400/401/403/404/408/409/413/422/429 且没有可结算 usage；有 usage 仍按实际用量结算。此为运营方承担失败成本的策略，不证明上游未计费。5xx、重定向、压缩响应、读取中断、网络超时及流式 200 后失败仍保留 review；绝不自动重放。
 
 ## 联调交付清单
 

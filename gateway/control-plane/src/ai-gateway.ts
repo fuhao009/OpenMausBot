@@ -1,7 +1,7 @@
 import { authenticateModelToken } from "./account-ai";
 import { findModel, publicModels, type AiConfig, type AiModelConfig } from "./ai-config";
 import { loadRuntimeAiConfig } from "./channel-store";
-import { markRequestStreaming, reserveRequest, reviewRequest, settleRequest } from "./ai-wallet";
+import { markRequestStreaming, releaseRequest, reserveRequest, reviewRequest, settleRequest } from "./ai-wallet";
 import { HTTPError, JSON_HEADERS, json, readBoundedJSON } from "./http";
 
 /** Screenshots and tool context ride in this body; still bounded. */
@@ -17,6 +17,8 @@ export const AI_UPSTREAM_TIMEOUT_MS = 300_000;
 const MODELS_PATH = "/v1/ai/models";
 const CHAT_PATH = "/v1/ai/chat/completions";
 const RESPONSES_PATH = "/v1/ai/responses";
+const UPSTREAM_REFUSAL_STATUSES = new Set([400, 401, 403, 404, 408, 409, 413, 422, 429]);
+const AI_BUSY_RETRY_AFTER_SECONDS = 2;
 
 const CHAT_FIELDS = new Set([
   "model",
@@ -116,7 +118,9 @@ function failure(error: unknown): Response {
     return inferenceError(402, "insufficient_balance", "Available points cannot cover another request.");
   }
   if (error.status === 429) {
-    return inferenceError(429, "ai_busy", "Too many requests are in flight for this account.");
+    const response = inferenceError(429, "ai_busy", "Too many requests are in flight for this account.");
+    response.headers.set("retry-after", String(AI_BUSY_RETRY_AFTER_SECONDS));
+    return response;
   }
   if (error.status === 403) {
     if (error.code === "ai_suspended") {
@@ -707,17 +711,13 @@ async function readLimitedBody(response: Response, limit: number): Promise<Uint8
 }
 
 /** Usage a failed exchange still reported: a chat error body with usage, a
- * responses body, or a responses terminal `response.failed` event. Anything
- * else is untrusted and leaves the reservation for review. */
+ * responses body, or a responses terminal `response.failed` event. Body read
+ * failures propagate so a partial exchange never releases points. */
 async function failureUsage(upstream: Response, mode: InferenceMode): Promise<UsageCandidate | null> {
-  let text: string;
-  try {
-    text = new TextDecoder("utf-8", { fatal: true }).decode(
-      await readLimitedBody(upstream, AI_JSON_RESPONSE_LIMIT_BYTES),
-    );
-  } catch {
-    return null;
-  }
+  if (!upstream.body) return null;
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(
+    await readLimitedBody(upstream, AI_JSON_RESPONSE_LIMIT_BYTES),
+  );
   const contentType = upstream.headers.get("content-type")?.toLowerCase() ?? "";
   if (contentType.includes("text/event-stream")) {
     const sse = new SseReader(AI_SSE_FRAME_LIMIT_BYTES);
@@ -870,10 +870,17 @@ async function dispatch(options: {
     if (upstream.status < 200 || upstream.status >= 300 || encoded) {
       const candidate = encoded ? null : await failureUsage(upstream, mode);
       await upstream.body?.cancel().catch(() => {});
-      // A failed exchange that still reported trustworthy usage is settled;
-      // anything else keeps the reservation for review.
       if (candidate) await settleUsage(env, requestId, candidate);
-      else await markReview(env, requestId, encoded ? "upstream_content_encoding" : `upstream_status_${upstream.status}`);
+      else if (!encoded && UPSTREAM_REFUSAL_STATUSES.has(upstream.status)) {
+        // This policy releases end-user points, not any upstream billing obligation.
+        const released = await releaseRequest(env, requestId, `upstream_refused_${upstream.status}`);
+        if (released) {
+          return upstream.status === 429
+            ? inferenceError(503, "ai_temporarily_busy", "The AI service is busy. No points were charged.")
+            : inferenceError(503, "ai_temporarily_unavailable", "The AI service is temporarily unavailable. No points were charged.");
+        }
+        await markReview(env, requestId, "upstream_release_failed");
+      } else await markReview(env, requestId, encoded ? "upstream_content_encoding" : `upstream_status_${upstream.status}`);
       return inferenceError(502, "upstream_error", "The upstream request failed.");
     }
 
@@ -920,6 +927,7 @@ export async function routeAiGateway(
   const { pathname } = new URL(request.url);
   if (pathname !== MODELS_PATH && pathname !== CHAT_PATH && pathname !== RESPONSES_PATH) return null;
 
+  let requestId: string | undefined;
   try {
     const aiConfig = await loadRuntimeAiConfig(env);
     // Authenticate before touching the (potentially 48 MiB) body.
@@ -945,15 +953,23 @@ export async function routeAiGateway(
     if (!aiConfig.ready || (aiConfig.routes ? !aiConfig.routes.has(prepared.model.id) : !aiConfig.upstreamBaseURL || !aiConfig.upstreamApiKey)) {
       throw new HTTPError(503, "ai_unavailable");
     }
-    const requestId = await reserve({
+    requestId = await reserve({
       env,
       mode,
       ownerUserId: admission.ownerUserId,
       prepared,
       tokenId: admission.tokenId,
     });
-    return await dispatch({ aiConfig, env, fetcher, mode, prepared, request, requestId });
+    const response = await dispatch({ aiConfig, env, fetcher, mode, prepared, request, requestId });
+    response.headers.set("x-ai-request-id", requestId);
+    return response;
   } catch (error) {
+    if (requestId) {
+      await markReview(env, requestId, "upstream_unreachable");
+      const response = inferenceError(502, "upstream_error", "The upstream request failed.");
+      response.headers.set("x-ai-request-id", requestId);
+      return response;
+    }
     return failure(error);
   }
 }

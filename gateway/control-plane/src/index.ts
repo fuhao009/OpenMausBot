@@ -43,6 +43,13 @@ function routeError(pathname: string, status: number, code: string): Response {
 const SIGN_IN_OTP_PATH = "/api/auth/sign-in/email-otp";
 const ROTATE_ROUTE = /^\/v1\/installations\/([^/]+)\/credentials\/rotate$/;
 const INSTALLATION_ROUTE = /^\/v1\/installations\/([^/]+)$/;
+const MANAGED_ENDPOINT_SETTINGS = [
+  "CLOUDFLARE_ACCOUNT_ID",
+  "CLOUDFLARE_ZONE_ID",
+  "CLOUDFLARE_API_TOKEN",
+  "COMPANION_HOST_SUFFIX",
+  "CLOUDFLARE_ENDPOINT_ACCOUNTS",
+] as const;
 
 function endpointConfig(env: Env): ControlPlaneConfig {
   try { return readConfig(env); }
@@ -314,6 +321,10 @@ export function createWorker(
         console.error(JSON.stringify({ message: "highlevel flow sweep failed", requestId, errorCode: "highlevel_internal" }));
       }));
       ctx.waitUntil((async () => {
+        if (!MANAGED_ENDPOINT_SETTINGS.some((name) => {
+          const value = env[name];
+          return value !== undefined && value !== null && value !== "";
+        })) return;
         let config: ControlPlaneConfig;
         try {
           config = readConfig(env);
