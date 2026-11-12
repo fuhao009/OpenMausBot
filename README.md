@@ -297,12 +297,12 @@ flowchart LR
 
 | Layer | Where | What it does |
 |---|---|---|
-| Drivers | `server/drivers/` | One per provider: Claude, Codex, and Grok Build over their local CLIs (stream-JSON / JSON-RPC / ACP), plus a cloud-computer agent. Unknown drivers degrade to "unavailable", never crash the fleet. |
-| Harness | `server/harness/` | Registry (configs → live instances) and the fan-in event bus every client folds. |
-| API | `server/index.ts` | Bots, turns, approvals, model catalog, computer lifecycle, connectors, config — HTTP + SSE. |
-| Voice | `server/tts/` | ElevenLabs, Fish Audio, Grok (xAI), built-in Mac voices, or local Chatterbox. Cloud keys stay on the harness; markdown is rewritten into something worth hearing before it is spoken. |
-| App | `src/` | The chat shell. Server-backed store, one reducer, zero client-side transports. |
-| Desktop | `electron/` | macOS, Windows, and Ubuntu shells with an embedded harness and platform capabilities; Apple speech stays macOS-only, Ubuntu Xorg has opt-in local control, and Wayland remains fail-closed. |
+| Drivers | `desktop/server/drivers/` | One per provider: Claude, Codex, and Grok Build over their local CLIs (stream-JSON / JSON-RPC / ACP), plus a cloud-computer agent. Unknown drivers degrade to "unavailable", never crash the fleet. |
+| Harness | `desktop/server/harness/` | Registry (configs → live instances) and the fan-in event bus every client folds. |
+| API | `desktop/server/index.ts` | Bots, turns, approvals, model catalog, computer lifecycle, connectors, config — HTTP + SSE. |
+| Voice | `desktop/server/tts/` | ElevenLabs, Fish Audio, Grok (xAI), built-in Mac voices, or local Chatterbox. Cloud keys stay on the harness; markdown is rewritten into something worth hearing before it is spoken. |
+| App | `desktop/src/` | The chat shell. Server-backed store, one reducer, zero client-side transports. |
+| Desktop | `desktop/electron/` | macOS, Windows, and Ubuntu shells with an embedded harness and platform capabilities; Apple speech stays macOS-only, Ubuntu Xorg has opt-in local control, and Wayland remains fail-closed. |
 
 ### Orchestrate Hezuo over MCP
 
@@ -454,8 +454,8 @@ triggers currently use the local receiver rather than an always-on hosted relay.
 Hosted voice needs an ElevenLabs, Fish Audio, or xAI key; built-in Mac and local Chatterbox voices need no cloud key. Calls are macOS-only for now (they ride the same on-device dictation as
 the composer mic) — see [`docs/voice-mode.md`](docs/voice-mode.md) for the design and the known gaps.
 
-Contributions welcome — the driver SPI in [`server/contracts.ts`](server/contracts.ts) is deliberately
-small; adding a provider is one file in [`server/drivers/`](server/drivers/) plus a one-line registration.
+Contributions welcome — the driver SPI in [`desktop/server/contracts.ts`](desktop/server/contracts.ts) is deliberately
+small; adding a provider is one file in [`desktop/server/drivers/`](desktop/server/drivers/) plus a one-line registration.
 No code needed at all for your own engines: any ACP-speaking CLI or OpenAI-compatible endpoint
 plugs in through config — see [`docs/custom-engines.md`](docs/custom-engines.md).
 Users can add their own MCP tool servers with zero code via [`docs/custom-mcp-servers.md`](docs/custom-mcp-servers.md).

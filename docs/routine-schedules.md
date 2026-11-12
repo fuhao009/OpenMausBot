@@ -100,7 +100,7 @@ use an appropriate event/webhook workflow instead of a fake weekly schedule.
   routine's next occurrence is due gives way to that occurrence.
 - An unattended run (scheduled, webhook or Run now) recovers from a passing
   failure by itself, the same on the desktop, a headless server and a Cloud
-  home (`server/routine-recovery.ts`):
+  home (`desktop/server/routine-recovery.ts`):
   - Its engine stalled, Hezuo restarted while it ran, the provider
     rate-limited it, or the provider failed for a moment: it starts once more
     in the same conversation after a short wait (15 s; a minute after a rate

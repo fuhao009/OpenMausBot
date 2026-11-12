@@ -4,7 +4,7 @@ Source-available features for hosted and white-labelled deployments. This
 folder has its own [LICENSE](./LICENSE); everything outside it is Apache 2.0.
 
 **Delete this folder and you have the open-source edition.** Core only
-reaches the layer through one hook point, `server/enterprise.ts`, which
+reaches the layer through one hook point, `desktop/server/enterprise.ts`, which
 loads `enterprise/server/index.ts` (or the bundled `index.js`) if it exists
 and otherwise reports the open-source edition. No core file imports anything
 from here.
@@ -59,7 +59,7 @@ must not silently fall back to standalone email or pairing credentials.
 
 [FEATURES](./FEATURES) is the authoritative list.
 
-Core gates a feature with `entitled("id")` from `server/enterprise.ts`.
+Core gates a feature with `entitled("id")` from `desktop/server/enterprise.ts`.
 Unknown ids are carried in the key but grant nothing, so keys can be issued
 ahead of a feature landing.
 
@@ -90,7 +90,7 @@ working until they expire.
 
 ## Hosted workspace sign-in (`admin`)
 
-The workspace-side adapter in `server/workspace-access.ts` connects to an
+The workspace-side adapter in `desktop/server/workspace-access.ts` connects to an
 independently deployed identity service over HTTPS. The service's console,
 invitations, provider gateway and deployment automation are not shipped in
 this repository. The desktop and ordinary self-hosted server do not start

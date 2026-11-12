@@ -14,7 +14,7 @@ try {
   writeFileSync(wrapper, [
     "#!/usr/bin/env node",
     'process.env.FAKE_CODEX_MODE = "helper-events";',
-    `await import(${JSON.stringify(pathToFileURL(join(process.cwd(), "server/testing/fake-codex-app-server.ts")).href)});`,
+    `await import(${JSON.stringify(pathToFileURL(join(process.cwd(), "desktop/server/testing/fake-codex-app-server.ts")).href)});`,
   ].join("\n"), { mode: 0o700 });
   const configPath = join(fixture.info.dataDir, "config.json");
   const config = JSON.parse(readFileSync(configPath, "utf8"));

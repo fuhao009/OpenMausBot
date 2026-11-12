@@ -6,11 +6,11 @@ import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { resolveAgentBrowserBinary } from "../../server/browser-engine.ts";
-import { FixtureServer } from "../../server/browser/cdp/testing/fixtures.ts";
-import { ChromeLauncher } from "../../server/browser/chrome/launcher.ts";
-import { chromeHost, installedGoogleChrome, isHeadlessShell } from "../../server/browser/chrome/resolve.ts";
-import { removeTempDir } from "../../server/testing/cleanup.ts";
+import { resolveAgentBrowserBinary } from "../../desktop/server/browser-engine.ts";
+import { FixtureServer } from "../../desktop/server/browser/cdp/testing/fixtures.ts";
+import { ChromeLauncher } from "../../desktop/server/browser/chrome/launcher.ts";
+import { chromeHost, installedGoogleChrome, isHeadlessShell } from "../../desktop/server/browser/chrome/resolve.ts";
+import { removeTempDir } from "../../desktop/server/testing/cleanup.ts";
 import { openOwnPageAsBot, withBotBrowser, type BotCall } from "../verify-browser-identity.ts";
 import { ensureUiBrowser, UI_TOOLS_DIR } from "./control-omb-ui.ts";
 

@@ -27,12 +27,12 @@ try {
 }
 
 async function capture() {
-  const { containerRunArgs, perBotLocalVmTarget, CUA_EXECUTABLE, CUA_SOCKET } = await import("../server/container-computer.ts");
+  const { containerRunArgs, perBotLocalVmTarget, CUA_EXECUTABLE, CUA_SOCKET } = await import("../desktop/server/container-computer.ts");
   const run = (args: string[]) => execFileSync(podman!, ["--connection", machine!, ...args], { env: podmanEnv, encoding: "utf8", timeout: 90_000 }).trim();
   const machineRun = (args: string[]) => execFileSync(podman!, ["machine", "ssh", machine!, ...args], { env: podmanEnv, encoding: "utf8", timeout: 90_000 }).trim();
   const driverEnv = ["-e", "DISPLAY=:1", "-e", "HOME=/home/cua", "-e", "CUA_DRIVER_INSTALL_CHANNEL=python_package", "-e", "CUA_DRIVER_RS_TELEMETRY_ENABLED=0"];
   const imageId = run(["image", "inspect", image!, "--format", "{{.Id}}"]);
-  const localHtml = resolve(output, "index.html");
+  const localHtml = resolve(output, "desktop/index.html");
   writeFileSync(localHtml, '<!doctype html><meta charset="utf-8"><title>日本語の表示確認</title><h1>日本語の表示確認</h1><p>会社紹介・製品一覧・検証結果</p>');
   const records = [];
   for (const attempt of [1, 2]) {

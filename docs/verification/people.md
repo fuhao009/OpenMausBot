@@ -22,10 +22,10 @@
 ## Driving it
 
 ```sh
-pnpm exec vitest run server/people-invite.test.ts server/email-signin.test.ts src/components/PeopleSection.test.ts src/lib/session.test.ts
+pnpm exec vitest run desktop/server/people-invite.test.ts desktop/server/email-signin.test.ts desktop/src/components/PeopleSection.test.ts desktop/src/lib/session.test.ts
 ```
 
-`server/people-invite.test.ts` boots the real server with no sign-in list and a
+`desktop/server/people-invite.test.ts` boots the real server with no sign-in list and a
 stubbed control plane, then walks the card's own requests: the owner adds the
 first admin, the admin signs in with the emailed code and invites a user,
 the user's link serves the sign-in page, the user gets a chat-only cookie

@@ -6,7 +6,7 @@ import {
   MASCOT_BODY_IDS,
   botMascotBody,
   mascotBodySchema,
-} from "../../shared/mascot-bodies.ts";
+} from "../../packages/shared/mascot-bodies.ts";
 
 describe("the generated catalog", () => {
   it("carries all ten bodies", () => {

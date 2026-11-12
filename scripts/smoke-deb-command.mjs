@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-import { packageInstallCommand } from "../electron/package-install-command.mjs";
+import { packageInstallCommand } from "../desktop/electron/package-install-command.mjs";
 
 const IMAGE = process.env.OMB_DEB_SMOKE_IMAGE || "ubuntu:24.04";
 const RUNTIME = process.env.OMB_DEB_SMOKE_RUNTIME || "docker";

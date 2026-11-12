@@ -12,7 +12,7 @@ started with `OMB_TEST_ORG_LIBRARY_KEY`.
 ## Library units
 
 ```sh
-pnpm exec vitest run server/org-library.test.ts
+pnpm exec vitest run desktop/server/org-library.test.ts
 ```
 
 This test uses a real store, routine manager and skill store in a throwaway
@@ -76,7 +76,7 @@ checks the following:
 ## HTTP through a fixture server
 
 ```sh
-pnpm exec vitest run server/org-library.e2e.test.ts --silent=false
+pnpm exec vitest run desktop/server/org-library.e2e.test.ts --silent=false
 ```
 
 This launches and cleans its own fake-engine fixture with
@@ -97,7 +97,7 @@ checks the following:
 ## Renderer
 
 ```sh
-pnpm exec vitest run src/lib/org-library.test.ts
+pnpm exec vitest run desktop/src/lib/org-library.test.ts
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/org-library-ui.e2e.test.ts --silent=false
 ```
 
@@ -135,11 +135,11 @@ This ran on macOS (arm64) against disposable fixtures only. These passed:
 - `pnpm typecheck`, `pnpm lint` and `pnpm i18n:check`;
 - the four commands above, including the headless-renderer run with
   `OMB_UI_E2E=1`;
-- `server/package-import.test.ts`, `server/package-export.test.ts`,
-  `shared/package-format.test.ts`, `server/bot-package.test.ts`,
-  `server/skills.test.ts`, `server/routines.test.ts`, `server/store.test.ts`,
-  `server/team-share.e2e.test.ts`, `src/components/ShareTeamDialog.test.ts`
-  and `src/lib/team-import.test.ts`.
+- `desktop/server/package-import.test.ts`, `desktop/server/package-export.test.ts`,
+  `packages/shared/package-format.test.ts`, `desktop/server/bot-package.test.ts`,
+  `desktop/server/skills.test.ts`, `desktop/server/routines.test.ts`, `desktop/server/store.test.ts`,
+  `desktop/server/team-share.e2e.test.ts`, `desktop/src/components/ShareTeamDialog.test.ts`
+  and `desktop/src/lib/team-import.test.ts`.
 
 Each of these was mutation-checked: the behaviour was broken, the named test
 was seen failing, and the fix was restored.
@@ -195,7 +195,7 @@ fixtures only:
 These passed: `pnpm typecheck`, `pnpm lint`, the four commands above
 (including the headless-renderer run with `OMB_UI_E2E=1`, together with
 `scripts/testing/team-share-ui.e2e.test.ts`), and the neighbouring tests
-listed in the section above plus `src/lib/team-share.test.ts`.
+listed in the section above plus `desktop/src/lib/team-share.test.ts`.
 
 Each of these was mutation-checked, with the named test seen failing:
 
@@ -210,7 +210,7 @@ Each of these was mutation-checked, with the named test seen failing:
 - a withdrawal skipping a removed team's leftover skill, and acting on it
   again after the person switched it back on (the withdrawal test for a
   removed team);
-- the provenance line shown for a file stamp (`src/lib/org-library.test.ts`).
+- the provenance line shown for a file stamp (`desktop/src/lib/org-library.test.ts`).
 
 Not tested: an actual process kill. The stops are simulated by copying the
 installation's files mid-import. The order in which each bot's starter notes
@@ -228,9 +228,9 @@ them, and a team deleted whole notes all of its parts as well as becoming
 `removed`. Run on macOS (arm64) against disposable fixtures only.
 
 These passed: `pnpm typecheck`, `pnpm lint`, `pnpm i18n:check`, and
-`pnpm exec vitest run` on `server/org-library.test.ts`,
-`server/org-library.e2e.test.ts`, `src/lib/org-library.test.ts`,
-`server/package-import.test.ts` and
+`pnpm exec vitest run` on `desktop/server/org-library.test.ts`,
+`desktop/server/org-library.e2e.test.ts`, `desktop/src/lib/org-library.test.ts`,
+`desktop/server/package-import.test.ts` and
 `scripts/testing/verification-docs.test.ts`.
 
 Mutation-checked, with the named tests seen failing:

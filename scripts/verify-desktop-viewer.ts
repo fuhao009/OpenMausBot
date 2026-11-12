@@ -10,7 +10,7 @@ import { launchVerificationServer, runControlOmb, type VerificationServer } from
 import { agentBrowser, ensureUiBrowser, sessionEnv } from "./testing/control-omb-ui.ts";
 import { fixtureApi } from "./testing/preview-fixture.ts";
 import { fakeVnc } from "./testing/fake-vnc.ts";
-import { BASE_IMAGE_DIGEST, CUA_DRIVER_VERSION, IMAGE, IMAGE_LAYER_VERSION } from "../server/container-computer.ts";
+import { BASE_IMAGE_DIGEST, CUA_DRIVER_VERSION, IMAGE, IMAGE_LAYER_VERSION } from "../desktop/server/container-computer.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), "omb-viewer-fixture-"));
@@ -140,7 +140,7 @@ process.on('SIGTERM',()=>{fs.appendFileSync(log,'close ');process.exit(0)});
   assert.equal(notice.status, 200);
   assert.equal(notice.headers.get("content-type"), "text/plain; charset=utf-8");
   const noticeText = await notice.text();
-  assert.equal(noticeText, readFileSync(join(root, "public/novnc-NOTICE.txt"), "utf8"));
+  assert.equal(noticeText, readFileSync(join(root, "desktop/public/novnc-NOTICE.txt"), "utf8"));
   const novncVersion = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).dependencies["@novnc/novnc"];
   assert.ok(noticeText.includes(`https://github.com/novnc/noVNC/tree/v${novncVersion}`));
   assert.ok(noticeText.includes(readFileSync(join(root, "node_modules/@novnc/novnc/vendor/pako/LICENSE"), "utf8")));

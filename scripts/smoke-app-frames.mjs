@@ -99,9 +99,9 @@ const GRABBER = `<!DOCTYPE html><html><body style="margin:0"><button id="b" styl
 
 if (!process.versions.electron) {
   const { build } = await import("esbuild");
-  const { createChatApps } = await import("../server/chat-apps.ts");
-  const { BOT_HTML_CSP } = await import("../shared/app-frame/csp.ts");
-  const { CSP_META_PREFIX } = await import("../shared/app-frame/document.ts");
+  const { createChatApps } = await import("../desktop/server/chat-apps.ts");
+  const { BOT_HTML_CSP } = await import("../packages/shared/app-frame/csp.ts");
+  const { CSP_META_PREFIX } = await import("../packages/shared/app-frame/document.ts");
   const engagement = process.argv.includes("--engagement");
 
   const sinkHits = [];
@@ -152,7 +152,7 @@ if (!process.versions.electron) {
     const bundle = await build({
       stdin: {
         contents: "import { mountAppFrame, APP_FRAME_SANDBOX } from \"./app-frame-host.ts\";\nwindow.__appFrameHost = { mountAppFrame, APP_FRAME_SANDBOX };\n",
-        resolveDir: join(ROOT, "src/components/app"), sourcefile: "smoke-entry.ts", loader: "ts",
+        resolveDir: join(ROOT, "desktop/src/components/app"), sourcefile: "smoke-entry.ts", loader: "ts",
       },
       bundle: true, write: false, format: "iife", platform: "browser", target: ["chrome120"],
     });
@@ -192,8 +192,8 @@ const [data, inputPath] = process.argv.slice(2);
 assert.ok(data && inputPath, "Run this smoke with Node so its parent owns the temporary profile");
 app.setPath("userData", data);
 app.commandLine.appendSwitch("use-fake-device-for-media-stream");
-const { appFrameNavigationAllowed } = await import("../electron/app-frame-guard.mjs");
-const { appPermissionHandlers } = await import("../electron/app-permissions.mjs");
+const { appFrameNavigationAllowed } = await import("../desktop/electron/app-frame-guard.mjs");
+const { appPermissionHandlers } = await import("../desktop/electron/app-permissions.mjs");
 const input = JSON.parse(readFileSync(inputPath, "utf8"));
 const report = (name, text) => writeFileSync(join(data, name), text);
 const trace = (line) => { try { writeFileSync(join(data, "console.txt"), `${line}\n`, { flag: "a" }); } catch { /* best effort */ } };

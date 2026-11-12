@@ -9,8 +9,8 @@ The same two synthetic utterances in the isolated browser fixture:
 Run the regression tests with synthetic Japanese text:
 
 ```sh
-node --test electron/speech-transcript.node-test.mjs
-pnpm exec vitest run electron/speech.test.mjs src/components/Composer.dictation.test.ts src/components/Composer.ime.test.ts src/components/CallView.composer.test.ts src/components/CallView.voiceSetup.test.ts src/components/ChatView.voice.test.ts --maxWorkers=1
+node --test desktop/electron/speech-transcript.node-test.mjs
+pnpm exec vitest run desktop/electron/speech.test.mjs desktop/src/components/Composer.dictation.test.ts desktop/src/components/Composer.ime.test.ts desktop/src/components/CallView.composer.test.ts desktop/src/components/CallView.voiceSetup.test.ts desktop/src/components/ChatView.voice.test.ts --maxWorkers=1
 pnpm exec vitest run scripts/testing/dictation.e2e.test.ts --maxWorkers=1
 ```
 

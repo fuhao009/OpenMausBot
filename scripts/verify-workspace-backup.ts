@@ -6,8 +6,8 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { launchVerificationServer, runControlOmb, type VerificationServer } from "./control-omb.ts";
-import { waitForExit } from "../server/testing/cleanup.ts";
-import { escapeAttribute } from "../src/lib/composer-attachments.ts";
+import { waitForExit } from "../desktop/server/testing/cleanup.ts";
+import { escapeAttribute } from "../desktop/src/lib/composer-attachments.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PASSWORD = "fixture-backup-password-only";
@@ -18,7 +18,7 @@ async function restartFixture(fixture: VerificationServer): Promise<ChildProcess
   await waitForExit(fixture.child, { signal: "SIGTERM" });
   const dataDir = fixture.info.dataDir;
   const config = JSON.parse(readFileSync(join(dataDir, "config.json"), "utf8"));
-  assert.equal(resolve(config.instances.claude.config.cli), join(ROOT, "server", "testing", "fake-claude-cli.ts"));
+  assert.equal(resolve(config.instances.claude.config.cli), join(ROOT, "desktop", "server", "testing", "fake-claude-cli.ts"));
   const env: NodeJS.ProcessEnv = {};
   for (const key of ["SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "LANG", "LC_ALL", "TZ"]) {
     if (process.env[key]) env[key] = process.env[key];
@@ -38,7 +38,7 @@ async function restartFixture(fixture: VerificationServer): Promise<ChildProcess
     PATH: dirname(process.execPath),
   });
   const log = openSync(fixture.info.logPath, "a", 0o600);
-  const child = spawn(process.execPath, ["--experimental-strip-types", join(ROOT, "server", "index.ts")], {
+  const child = spawn(process.execPath, ["--experimental-strip-types", join(ROOT, "desktop", "server", "index.ts")], {
     cwd: ROOT, env, stdio: ["ignore", log, log],
   });
   closeSync(log);

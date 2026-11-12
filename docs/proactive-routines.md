@@ -5,10 +5,10 @@ Hezuo keeps an eye on the person's day with one ordinary routine,
 or Cloud that can reach connected apps, and it is built from four upgrades every
 routine can use, plus the helper models for the inbox.
 The bot that is proactive is the one `proactiveOwner` names
-(`server/host/proactive-owner.ts`): the place's Hezuo, shown in the sidebar or
+(`desktop/server/host/proactive-owner.ts`): the place's Hezuo, shown in the sidebar or
 not, and the main Chief only where there is no Hezuo. A Team Cloud member's
 Hezuo is never the one. There is no second bot and no separate watcher: the
-routine engine (`server/routines.ts`) runs it like any other routine, on the
+routine engine (`desktop/server/routines.ts`) runs it like any other routine, on the
 desktop, headless and on a Cloud.
 
 ## Who owns it
@@ -77,9 +77,9 @@ there is no brief at all. Its row says
    answers with one small JSON object: `{"quiet": true}`, or important emails
    and preps by item id. The server reads it. An answer it cannot read fails the
    run and is never posted, and its items wait for the next check. Every other
-   routine keeps the NOTHING NEW convention in `server/automation-reports.ts`.
+   routine keeps the NOTHING NEW convention in `desktop/server/automation-reports.ts`.
 3. **Read-and-draft runs** (`access: "read-and-draft"`), in
-   `server/read-and-draft.ts`. Everything is allow-only:
+   `desktop/server/read-and-draft.ts`. Everything is allow-only:
    - the run runs at Ask, and the server refuses every request in it outright,
      never as a card;
    - its Hezuo routes are conversation reads, its own results, the
@@ -96,7 +96,7 @@ there is no brief at all. Its row says
    The model work needs an engine whose every tool use reaches Hezuo's
    answerer (Claude today). On any other engine the watch prepares no meeting,
    says so in the brief, and still does what needs no AI.
-5. **Helper models sort the inbox** (`server/host/inbox-triage.ts`). With a
+5. **Helper models sort the inbox** (`desktop/server/host/inbox-triage.ts`). With a
    decision model set up (Settings → Decision and extraction: the person's own
    Cloudflare Workers AI or Jev key, or Cloud's included one), new mail is
    sorted with no AI turn, on every engine: Clairic reads each email (sender,
@@ -145,7 +145,7 @@ there is no brief at all. Its row says
   starts no turn. Recent dismissals go into the next triage as records.
 - A hosted team workspace or Team Cloud gets no watch and no brief. Presence is
   recorded for the owner only.
-- A personal Cloud that began with its first hour (`server/host/first-hour.ts`)
+- A personal Cloud that began with its first hour (`desktop/server/host/first-hour.ts`)
   also has a morning time, 8:00 in the person's zone: the day's brief is posted
   or refreshed then and pushed, with its first line saying what was done since
   the person was last here (emails sorted, reply drafts written, meetings
@@ -170,4 +170,4 @@ there is no brief at all. Its row says
 - Quiet hours.
 - A sweep of old run conversations.
 - A run against a real Google account: the Composio slugs and answer shapes
-  follow its documentation and the fixtures in `server/testing/fixtures/`.
+  follow its documentation and the fixtures in `desktop/server/testing/fixtures/`.

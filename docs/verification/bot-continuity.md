@@ -1,7 +1,7 @@
 # Bot setup, model scope, and file continuity
 
 ```sh
-pnpm exec vitest run server/setup-mode.test.ts server/bot-setup.e2e.test.ts server/bot-continuity.e2e.test.ts server/independent-threads-api.test.ts
+pnpm exec vitest run desktop/server/setup-mode.test.ts desktop/server/bot-setup.e2e.test.ts desktop/server/bot-continuity.e2e.test.ts desktop/server/independent-threads-api.test.ts
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/control-omb-ui.e2e.test.ts
 pnpm exec electron scripts/smoke-approval-modes.cjs --model-ui-only
 ```
@@ -48,9 +48,9 @@ a missing Codex installation. The signed-out account stays in the picker's
 never its cloud models. The missing Codex, which no bot uses, stays in Settings
 only, and the picker keeps an **Engines and accounts** shortcut. A missing
 engine that a bot already runs on stays in that bot's picker with its install
-card, so the model never silently vanishes. `src/lib/engine-rail.test.ts`
+card, so the model never silently vanishes. `desktop/src/lib/engine-rail.test.ts`
 covers these rules for each Claude account, empty catalogs and leaving the
-source catalog unchanged. `src/components/ModelPicker.interaction.test.ts`
+source catalog unchanged. `desktop/src/components/ModelPicker.interaction.test.ts`
 opens the real picker component and checks the sign-in and install cards, that
 no cloud model can be picked on a signed-out account while its local models
 still can, and that opening local models re-probes local servers behind a
@@ -74,7 +74,7 @@ with Claude's own "Not logged in" frame. Pepper is on that Claude.
 - Opening the picker shows **Claude** on the rail with **Sign-in required**,
   the **Sign in to Claude** card and **Use a local model**; no Claude model row
   is offered. Before this fix the filter returned no engine at all for this
-  fixture; that reproduction is now a test in `src/lib/engine-rail.test.ts`.
+  fixture; that reproduction is now a test in `desktop/src/lib/engine-rail.test.ts`.
 - **Use a local model** sent one `POST /api/instances/claude/refresh-models`
   and showed **Looking for local models…** (held for three seconds by delaying
   that request in the page), then **No local models found**.

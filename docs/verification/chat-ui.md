@@ -3,7 +3,7 @@
 The `ui` group of `control-omb` drives the real React renderer — the same
 `<App/>` the desktop shell loads, mounted by `scripts/testing/threads-preview.tsx`
 — in a headless Chrome through the agent-browser binary the harness pins
-(`server/browser-engine-release.ts`, implementation in
+(`desktop/server/browser-engine-release.ts`, implementation in
 `scripts/testing/control-omb-ui.ts`). Everything it touches is disposable: the
 fake-engine fixture from `launch`, a Vite preview of the app, and one browser
 session whose `HOME` is the fixture's data directory. The user's app on port
@@ -36,7 +36,7 @@ session named `omb-ui-<port>`, and prints a handle:
 ```
 
 `--tool-calls` and `--mode` script the fake engine (`FAKE_CLAUDE_TOOL_CALLS`
-and `FAKE_CLAUDE_MODE` in `server/testing/fake-claude-cli.ts`). Pass `ui.json`
+and `FAKE_CLAUDE_MODE` in `desktop/server/testing/fake-claude-cli.ts`). Pass `ui.json`
 to every other verb as `--ui`; there is no discovery, so a recipe cannot drive
 a browser it did not launch.
 
@@ -114,7 +114,7 @@ step with the verified ones tagged `(verified)`. A run with no verified step
 asks in plain words instead — `Save the steps below as a reusable skill for my
 review.`, then `Goal: <request>`, then "Keep the exact commands and note the
 failed ones as gotchas. Do not re-run anything.", then the step lines; the
-server (`server/skill-learn.ts`) expands a turn that opens with that sentence
+server (`desktop/server/skill-learn.ts`) expands a turn that opens with that sentence
 into the same skill-authoring turn as `/learn`, so nobody sees or types a slash
 command. In both shapes the caret is in the composer and no new user message
 was sent — the transcript still holds exactly one `StaticText "hello"`. The person adds any notes and
@@ -148,7 +148,7 @@ screenshot; it is not one of the required checks.
 
 ```sh
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/mobile-code-blocks-ui.e2e.test.ts
-pnpm exec vitest run src/components/ChatMarkdown.block-actions.test.ts src/components/ChatMarkdown.test.ts src/lib/copy-text.test.ts
+pnpm exec vitest run desktop/src/components/ChatMarkdown.block-actions.test.ts desktop/src/components/ChatMarkdown.test.ts desktop/src/lib/copy-text.test.ts
 ```
 
 The browser recipe sends a synthetic reply through a disposable fake-engine
@@ -215,13 +215,13 @@ OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/thinking-timer-ui.e2e.test.ts
 
 The desktop shows a reply once it is finished; while a turn runs, the chat
 shows the bot's busy state. The renderer keeps no streamed text:
-`runtimeFrameAction` in `src/state/store.tsx` passes only the model-variant
-frames on, and `src/state/store.test.ts` checks that a reply or reasoning
-delta leaves the store state unchanged. `src/components/ChatView.follow.test.ts`
+`runtimeFrameAction` in `desktop/src/state/store.tsx` passes only the model-variant
+frames on, and `desktop/src/state/store.test.ts` checks that a reply or reasoning
+delta leaves the store state unchanged. `desktop/src/components/ChatView.follow.test.ts`
 checks that the finished reply still moves a following transcript to its end.
 
 ```sh
-pnpm exec vitest run src/state/store.test.ts src/components/ChatView.follow.test.ts
+pnpm exec vitest run desktop/src/state/store.test.ts desktop/src/components/ChatView.follow.test.ts
 ```
 
 ## What a bot is doing right now
@@ -263,13 +263,13 @@ The before-and-after screenshots were removed because they showed real example
 data; run the `scripts/control-omb.ts ui launch` command above to see the
 working line and the Now card.
 
-The checks are `server/step-summary.test.ts` (the words and their redaction),
-`server/harness/live-steps.test.ts` and `server/harness/bus.test.ts` (one path
+The checks are `desktop/server/step-summary.test.ts` (the words and their redaction),
+`desktop/server/harness/live-steps.test.ts` and `desktop/server/harness/bus.test.ts` (one path
 for every engine, the sign of life, the output's last lines),
-`server/bot-visibility.test.ts` (a step reaches only someone who may see the
-chat), `src/components/TurnPresence.test.ts`,
-`src/components/ChatView.live-status.test.ts` (the line and the card) and
-`src/components/Sidebar.simple-mode.test.ts` (the sidebar row).
+`desktop/server/bot-visibility.test.ts` (a step reaches only someone who may see the
+chat), `desktop/src/components/TurnPresence.test.ts`,
+`desktop/src/components/ChatView.live-status.test.ts` (the line and the card) and
+`desktop/src/components/Sidebar.simple-mode.test.ts` (the sidebar row).
 
 ## Bot setup and MCP access recipe
 
@@ -282,7 +282,7 @@ per-bot MCP switches and saved opt-outs, and modal Tab/Escape containment.
 The MCP command is an inert fixture command; no real accounts are connected.
 The advisory renderer job runs both recipes. Runtime mounting, direct/channel
 turns, busy-state rejection and revoked-session imports are separately exercised
-by `server/mcp-selection.e2e.test.ts` against disposable fake-engine servers.
+by `desktop/server/mcp-selection.e2e.test.ts` against disposable fake-engine servers.
 
 ## Cleanup
 

@@ -5,10 +5,10 @@ integration recipe starts its own temporary server and installs only the
 repository's fake Claude and fake Codex engines:
 
 ```sh
-pnpm exec vitest run server/team-setup.e2e.test.ts
-pnpm exec vitest run server/bot-deletion-write-failure.e2e.test.ts
-pnpm exec vitest run server/team-setup-requests.test.ts server/store.test.ts
-pnpm exec vitest run server/index.test.ts -t 'delet|Full and Custom bots'
+pnpm exec vitest run desktop/server/team-setup.e2e.test.ts
+pnpm exec vitest run desktop/server/bot-deletion-write-failure.e2e.test.ts
+pnpm exec vitest run desktop/server/team-setup-requests.test.ts desktop/server/store.test.ts
+pnpm exec vitest run desktop/server/index.test.ts -t 'delet|Full and Custom bots'
 pnpm typecheck
 pnpm lint
 ```

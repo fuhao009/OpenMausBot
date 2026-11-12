@@ -14,9 +14,9 @@ afterEach(() => {
 /** Every package the server loads at runtime through nativeRequire, which the bundle cannot include. */
 function nativelyRequired() {
   const names = new Set();
-  for (const file of readdirSync(join(root, "server"), { recursive: true })) {
+  for (const file of readdirSync(join(root, "desktop", "server"), { recursive: true })) {
     if (!file.endsWith(".ts") || file.endsWith(".test.ts")) continue;
-    for (const [, name] of readFileSync(join(root, "server", file), "utf8").matchAll(/nativeRequire\([^)]*\)\(\s*"([^"]+)"\s*\)/g)) names.add(name);
+    for (const [, name] of readFileSync(join(root, "desktop", "server", file), "utf8").matchAll(/nativeRequire\([^)]*\)\(\s*"([^"]+)"\s*\)/g)) names.add(name);
   }
   return [...names].sort();
 }

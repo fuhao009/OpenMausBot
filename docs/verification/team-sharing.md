@@ -7,7 +7,7 @@ is described in [../team-sharing.md](../team-sharing.md).
 ## HTTP round trip
 
 ```sh
-pnpm exec vitest run server/team-share.e2e.test.ts --silent=false
+pnpm exec vitest run desktop/server/team-share.e2e.test.ts --silent=false
 ```
 
 This launches and cleans its own fake-engine fixture through
@@ -50,15 +50,15 @@ The printed JSON line names the fixture's data directory and server log.
 ## Format, export and import units
 
 ```sh
-pnpm exec vitest run shared/package-format.test.ts server/package-export.test.ts server/package-import.test.ts server/bot-package.test.ts
+pnpm exec vitest run packages/shared/package-format.test.ts desktop/server/package-export.test.ts desktop/server/package-import.test.ts desktop/server/bot-package.test.ts
 ```
 
-- `shared/package-format.test.ts` parses every file in
-  `shared/package-fixtures/` to the sha256, keys, summary, secret findings and
+- `packages/shared/package-format.test.ts` parses every file in
+  `packages/shared/package-fixtures/` to the sha256, keys, summary, secret findings and
   v1 downgrade recorded in `manifest.json` (Admin reads the same files), and
   covers the 4 MiB boundary, stripped authority fields, the publisher rule,
   each refusal sentence, redaction and the canonical form.
-- `server/package-export.test.ts` covers team scoping, starter-note caps,
+- `desktop/server/package-export.test.ts` covers team scoping, starter-note caps,
   redaction, picture and connection skips, key stability across renames,
   what "all" leaves out (30 per bot with switched-on skills first, 60 per
   team, conflicting names), exact choices refused with `TeamExportError`,
@@ -70,7 +70,7 @@ pnpm exec vitest run shared/package-format.test.ts server/package-export.test.ts
   name, a percent-escaped key) and one of plain addresses that must stay
   byte for byte (`github-mcp-server-2024`, `acme-corp-2025-sales`,
   `path%20with%20spaces`, localhost).
-- `server/package-import.test.ts` imports into a real store, routine manager,
+- `desktop/server/package-import.test.ts` imports into a real store, routine manager,
   skill store and memory in a throwaway home: every part, repeat imports,
   MCP policy refusal, full rollback when the last step fails, the library
   refusal, run-limit adjustment, and the organization path (skills on,
@@ -79,14 +79,14 @@ pnpm exec vitest run shared/package-format.test.ts server/package-export.test.ts
 ## Renderer
 
 ```sh
-pnpm exec vitest run src/components/ShareTeamDialog.test.ts src/lib/team-share.test.ts src/lib/team-import.test.ts
+pnpm exec vitest run desktop/src/components/ShareTeamDialog.test.ts desktop/src/lib/team-share.test.ts desktop/src/lib/team-import.test.ts
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/team-share-ui.e2e.test.ts --silent=false
 ```
 
 The first command renders the team menu, the dialog's contents list (with
 each connection's full address), the skill boxes drawn from a refused
 31-skill choice, and the import preview to markup, and checks the saved file.
-`src/lib/team-share.test.ts` also covers the dialog's state as pure
+`desktop/src/lib/team-share.test.ts` also covers the dialog's state as pure
 functions: starter notes and pictures ticked by default with the matching
 line, an answer setting the starting ticks only on the first look, and a
 refusal dropping the counts (so Save is off) while keeping every skill box.
@@ -123,7 +123,7 @@ save dialog or packaged app was involved, and the organization channel
 
 On macOS (arm64) against disposable fixtures only: `pnpm typecheck`,
 `pnpm lint`, `pnpm i18n:check`, the commands above (including the
-headless-renderer run with `OMB_UI_E2E=1`), `server/index.test.ts`, and the
+headless-renderer run with `OMB_UI_E2E=1`), `desktop/server/index.test.ts`, and the
 neighbouring team, package, backup, visibility, store and sign-in test files
 all passed. Each of these was mutation-checked (broken, the named test seen
 failing, restored): the route never asking for "all"; the per-bot fit
@@ -144,9 +144,9 @@ id; the dialog shows the address it will write.
 ## 2026-09-24 (second review): what was actually run
 
 On macOS (arm64) against disposable fixtures only: `pnpm typecheck`,
-`pnpm lint`, `pnpm i18n:check`, `server/package-export.test.ts`,
-`server/team-share.e2e.test.ts`, `src/components/ShareTeamDialog.test.ts`,
-`src/lib/team-share.test.ts`, `src/state/store.test.ts`, and the
+`pnpm lint`, `pnpm i18n:check`, `desktop/server/package-export.test.ts`,
+`desktop/server/team-share.e2e.test.ts`, `desktop/src/components/ShareTeamDialog.test.ts`,
+`desktop/src/lib/team-share.test.ts`, `desktop/src/state/store.test.ts`, and the
 headless-renderer run with `OMB_UI_E2E=1` all passed. Each of these was
 mutation-checked (broken, the named test seen failing, restored): host labels
 not tested; whole segments matched instead of runs inside them; the

@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { launchVerificationServer, runControlOmb } from "./control-omb.ts";
-import { readQwenModelCatalog } from "../server/drivers/acp/qwen.ts";
+import { readQwenModelCatalog } from "../desktop/server/drivers/acp/qwen.ts";
 
 const fixture = await launchVerificationServer();
 const { url, dataDir } = fixture.info;
@@ -23,7 +23,7 @@ try {
   const rpcAppend = join(dataDir, "qwen-rpc-append.jsonl");
   const useAgents = join(dataDir, "use-agents");
   const cli = join(dataDir, "fixture-qwen.ts");
-  const fake = pathToFileURL(fileURLToPath(new URL("../server/testing/fake-acp-cli.ts", import.meta.url))).href;
+  const fake = pathToFileURL(fileURLToPath(new URL("../desktop/server/testing/fake-acp-cli.ts", import.meta.url))).href;
   writeFileSync(cli, `#!/usr/bin/env node
 import { existsSync } from "node:fs";
 process.env.FAKE_ACP_MODELS = ${JSON.stringify(expected.options.map((option) => option.id).join(","))};

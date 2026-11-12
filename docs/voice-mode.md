@@ -7,7 +7,7 @@ local Chatterbox. See the current [voice guide](../apps/docs/content/docs/featur
 ## Shape
 
 ```
-Renderer (src/)                        Harness (server/)
+Renderer (desktop/src/)                        Harness (desktop/server/)
 ├── lib/tts/index.ts   the speaker     ├── tts/speech-text.ts  markdown → speakable
 │     queue · prefetch · interrupt     └── tts/elevenlabs.ts   verify · voices · synthesize
 └── components/CallView.tsx
@@ -35,7 +35,7 @@ without either throws `NoVoiceConfigured`, which the route turns into a 409 —
 
 The half that decides whether this is pleasant. Agents write for a screen:
 fenced code, file paths, tables, link soup. Read aloud verbatim, a diff is four
-minutes of punctuation and `server/drivers/acp/core.ts` is "server slash drivers
+minutes of punctuation and `desktop/server/drivers/acp/core.ts` is "server slash drivers
 slash a c p slash core dot t s".
 
 `speech-text.ts` says the prose, names the artifacts, drops the syntax. It also
@@ -90,12 +90,12 @@ hand real work to specialists with `coordinate_bots` — no new machinery requir
 | Kokoro-82M in the renderer | Genuinely good and free, but it is a second provider, a 2.2MB chunk, an ONNX runtime and a first-run model download. Simplicity won. |
 | Cartesia | Cheaper and faster to first byte, but a second provider earns its keep only once one is not enough |
 | ElevenLabs Agents | Its custom-LLM `cascade_timeout_seconds` maxes at 15s and agent turns exceed that; it also wants to own turn-taking and tool calls, which is what the harness owns |
-| OpenAI Realtime / Gemini Live (speech-to-speech) | They replace the brain, and the brain being Claude Code on your own machine *is* the product. (Later: GPT-Live's *client delegation* keeps the bot as the brain, so it became the optional Live call mode — see `server/live-call.ts`.) |
+| OpenAI Realtime / Gemini Live (speech-to-speech) | They replace the brain, and the brain being Claude Code on your own machine *is* the product. (Later: GPT-Live's *client delegation* keeps the bot as the brain, so it became the optional Live call mode — see `desktop/server/live-call.ts`.) |
 
 ## Known gaps
 
 - **Take-turns calls are macOS-only**, because dictation is. The voice half
-  works everywhere. Live calls (GPT-Live, `server/live-call.ts`) need no
+  works everywhere. Live calls (GPT-Live, `desktop/server/live-call.ts`) need no
   dictation, so they work in the desktop app on any computer and on the
   phones, with the person's own OpenAI key. A Cloud's page, in a web browser
   or the desktop app, runs the same code, but no Live call has been made end

@@ -28,7 +28,7 @@ Cloud/VPS file transfer and mobile file rendering are outside this change.
 
 Captured on 2026-09-19 against upstream `main` (v0.1.84) with a real Claude Code CLI
 (2.1.251) running Z.ai `glm-5.3`, a per-bot Podman Local VM desktop, and the
-production build served by the real `server/index.ts` (`OMB_STATIC_DIR`) on a
+production build served by the real `desktop/server/index.ts` (`OMB_STATIC_DIR`) on a
 disposable data directory. Every assistant message in the session transcript records
 `glm-5.3`.
 
@@ -179,9 +179,9 @@ After:
 
 ## Tests
 
-`server/bot-attachment.test.ts` (path mapping, every supported type, refusals),
-`server/container-exec.test.ts` (command line, exit codes, time limit, clipping),
-`server/index.test.ts` (attach, serve only through the message, refusals, per-turn cap,
-no VM), `server/drivers/agents-proxy.test.ts` (tool list, request bodies, failure
-wording), and `src/components/AttachmentGallery.test.ts` (bot attachments become private
+`desktop/server/bot-attachment.test.ts` (path mapping, every supported type, refusals),
+`desktop/server/container-exec.test.ts` (command line, exit codes, time limit, clipping),
+`desktop/server/index.test.ts` (attach, serve only through the message, refusals, per-turn cap,
+no VM), `desktop/server/drivers/agents-proxy.test.ts` (tool list, request bodies, failure
+wording), and `desktop/src/components/AttachmentGallery.test.ts` (bot attachments become private
 files, audio loading, MIME and size limits).

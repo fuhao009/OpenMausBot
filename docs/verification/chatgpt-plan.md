@@ -38,8 +38,8 @@ configured providers remain unchanged.
 ## Verification
 
 ```sh
-pnpm exec vitest run server/drivers/chatgpt-plan-auth.test.ts server/drivers/codex.test.ts server/chatgpt-plan-api.test.ts
-pnpm exec vitest run src/components/ChatGptPlanSignIn.interaction.test.ts src/components/DeviceSignIn.test.ts src/components/EnginesSettings.test.ts src/components/EngineSetup.test.ts src/components/ModelPicker.interaction.test.ts src/components/ChatView.controls.test.ts
+pnpm exec vitest run desktop/server/drivers/chatgpt-plan-auth.test.ts desktop/server/drivers/codex.test.ts desktop/server/chatgpt-plan-api.test.ts
+pnpm exec vitest run desktop/src/components/ChatGptPlanSignIn.interaction.test.ts desktop/src/components/DeviceSignIn.test.ts desktop/src/components/EnginesSettings.test.ts desktop/src/components/EngineSetup.test.ts desktop/src/components/ModelPicker.interaction.test.ts desktop/src/components/ChatView.controls.test.ts
 pnpm typecheck
 pnpm i18n:check
 PROBE_CODEX=/path/to/codex node --experimental-strip-types scripts/verify-chatgpt-plan.mjs

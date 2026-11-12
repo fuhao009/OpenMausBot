@@ -7,8 +7,8 @@ import { promisify } from "node:util";
 import { launchVerificationServer, runControlOmb } from "./control-omb.ts";
 import { ensureUiBrowser } from "./testing/control-omb-ui.ts";
 import { fixtureApi, mountPreview, type MountedPreview } from "./testing/preview-fixture.ts";
-import { startFakeOAuth } from "../server/testing/fake-oauth-server.ts";
-import { startFakeHttpMcp } from "../server/testing/fake-http-mcp-server.ts";
+import { startFakeOAuth } from "../desktop/server/testing/fake-oauth-server.ts";
+import { startFakeHttpMcp } from "../desktop/server/testing/fake-http-mcp-server.ts";
 
 const fixture = await launchVerificationServer();
 let oauth: Awaited<ReturnType<typeof startFakeOAuth>> | undefined;

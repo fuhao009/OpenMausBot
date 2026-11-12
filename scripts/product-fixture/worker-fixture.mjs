@@ -1,5 +1,5 @@
 // A real local deployment of the account Worker: this repository's
-// cloudflare/control-plane bundled with esbuild, run by the Miniflare that the
+// gateway/control-plane bundled with esbuild, run by the Miniflare that the
 // control-plane's pinned Wrangler ships, over TLS on 127.0.0.1, with a real D1
 // database (this checkout's migrations), the Worker's real EMAIL binding
 // writing a disposable mailbox, and a real loopback upstream that the Worker

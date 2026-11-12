@@ -45,11 +45,11 @@ them as frequent stalls.
 ## Verification
 
 ```sh
-pnpm exec vitest run server/workspace-backup-worker.test.ts \
-  server/workspace-backup.test.ts server/workspace-backup-policy.test.ts \
-  server/workspace-backup-http.test.ts server/workspace-backup-maintenance.test.ts \
-  server/workspace-backup-workflow.test.ts \
-  server/webhook-ingress.test.ts server/request-auth.test.ts
+pnpm exec vitest run desktop/server/workspace-backup-worker.test.ts \
+  desktop/server/workspace-backup.test.ts desktop/server/workspace-backup-policy.test.ts \
+  desktop/server/workspace-backup-http.test.ts desktop/server/workspace-backup-maintenance.test.ts \
+  desktop/server/workspace-backup-workflow.test.ts \
+  desktop/server/webhook-ingress.test.ts desktop/server/request-auth.test.ts
 pnpm lint
 pnpm typecheck
 pnpm test:packaged-server

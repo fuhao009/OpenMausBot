@@ -3,7 +3,7 @@
   "corpusPath": "scripts/testing/fixtures/voice-latency/corpus.json",
   "generator": "scripts/testing/voice-latency-corpus.ts",
   "splitter": {
-    "entry": "server/tts/speech-text.ts#toUtterances",
+    "entry": "desktop/server/tts/speech-text.ts#toUtterances",
     "minChars": 12,
     "maxChars": 320
   },

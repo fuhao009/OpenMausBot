@@ -1,18 +1,18 @@
 # A new Cloud's first hour
 
 What a new personal Cloud's Chief does in its first hour and day
-(`server/host/first-hour.ts`), and how to see it without a real Google account,
+(`desktop/server/host/first-hour.ts`), and how to see it without a real Google account,
 a model or the Electron app.
 
 ## The end-to-end scenario
 
 ```sh
-pnpm exec vitest run server/first-hour.e2e.test.ts
+pnpm exec vitest run desktop/server/first-hour.e2e.test.ts
 ```
 
 It starts a real Cloud home (`OMB_CLOUD_ROLE=home`) in a temporary home with
 the fake Claude CLI, and the connected-apps service from
-`server/testing/broker-fake.ts`, which the Cloud registers with by itself as
+`desktop/server/testing/broker-fake.ts`, which the Cloud registers with by itself as
 its plan includes it. The fake CLI answers by a marker in its prompt
 (`FAKE_CLAUDE_MARKER_REPLIES`) and makes the Composio calls written in a file
 (`FAKE_CLAUDE_TOOL_CALLS_FILE`). Nothing reaches Google, Composio or a model.
@@ -43,10 +43,10 @@ Expected:
 ## The pieces
 
 ```sh
-pnpm exec vitest run server/host/first-hour.test.ts server/host/brief-morning.test.ts server/host/first-hour-words.test.ts server/host/value-ledger.test.ts server/read-and-draft.test.ts
+pnpm exec vitest run desktop/server/host/first-hour.test.ts desktop/server/host/brief-morning.test.ts desktop/server/host/first-hour-words.test.ts desktop/server/host/value-ledger.test.ts desktop/server/read-and-draft.test.ts
 ```
 
-- `server/host/first-hour.test.ts`: the greeting in the person's language and by name only
+- `desktop/server/host/first-hour.test.ts`: the greeting in the person's language and by name only
   while unanswered; the offer once, after the first answer or unasked after 90
   seconds; the first look, then the brief line and the phone, each once; a
   decline carries on to the phone with no brief line; a first look that could
@@ -54,9 +54,9 @@ pnpm exec vitest run server/host/first-hour.test.ts server/host/brief-morning.te
   paired after the first look; the day-two recap ("So far I've sorted 40
   emails, drafted 6 replies and prepped 4 meetings: about 2 hours back.") only
   after 8:00 on day two, once, and never when nothing was done.
-- `server/host/brief-morning.test.ts`: the brief posted and pushed at 8:00 in the person's
+- `desktop/server/host/brief-morning.test.ts`: the brief posted and pushed at 8:00 in the person's
   zone and not a minute before, once a day; its first line from the counts since
   the person was last here, left out when they just were; a running watch run
   waited for up to 20 minutes; the wake ten minutes early, through a clock
   change; nothing where no morning time is set.
-- `server/read-and-draft.test.ts`: the first look's relay fence.
+- `desktop/server/read-and-draft.test.ts`: the first look's relay fence.

@@ -4,8 +4,8 @@ Run from the repository root:
 
 ```sh
 node --experimental-strip-types scripts/verify-connected-apps.ts
-pnpm exec vitest run server/composio.test.ts server/composio-availability.test.ts src/lib/connector-oauth.test.ts src/components/PluginsPanel.navigation.test.ts src/components/PluginsPanel.i18n.test.ts
-pnpm exec vitest run server/index.test.ts -t 'second-account cards|retries abandoned connector OAuth'
+pnpm exec vitest run desktop/server/composio.test.ts desktop/server/composio-availability.test.ts desktop/src/lib/connector-oauth.test.ts desktop/src/components/PluginsPanel.navigation.test.ts desktop/src/components/PluginsPanel.i18n.test.ts
+pnpm exec vitest run desktop/server/index.test.ts -t 'second-account cards|retries abandoned connector OAuth'
 pnpm broker:test
 pnpm broker:check
 ```

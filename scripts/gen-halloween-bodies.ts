@@ -1,5 +1,5 @@
 /**
- * Bakes the Halloween bodies into `shared/halloween-bodies.ts`. Run with `pnpm gen:halloween`.
+ * Bakes the Halloween bodies into `packages/shared/halloween-bodies.ts`. Run with `pnpm gen:halloween`.
  *
  * Every drawing lives in a 240-unit square centred on x = 120.
  *
@@ -306,7 +306,7 @@ function emitSwift(): string {
       `        ),`,
     ].join("\n")
   })
-  return `// The Halloween bodies a bot can wear — the phone's half of \`shared/halloween-bodies.ts\`.
+  return `// The Halloween bodies a bot can wear — the phone's half of \`packages/shared/halloween-bodies.ts\`.
 //
 // GENERATED FILE — do not hand-edit. Run \`pnpm gen:halloween --swift <file>\` to rebuild it
 // from \`scripts/gen-halloween-bodies.ts\`.
@@ -389,7 +389,7 @@ function emitKotlin(): string {
   return `package com.openmausbot.companion.ui
 
 /**
- * The Halloween bodies a bot can wear — the Android half of \`shared/halloween-bodies.ts\`.
+ * The Halloween bodies a bot can wear — the Android half of \`packages/shared/halloween-bodies.ts\`.
  *
  * GENERATED FILE — do not hand-edit. Run \`pnpm gen:halloween --kotlin <file>\` to rebuild it
  * from \`scripts/gen-halloween-bodies.ts\`.
@@ -436,9 +436,9 @@ ${entries.join("\n")}
 `
 }
 
-const out = fileURLToPath(new URL("../shared/halloween-bodies.ts", import.meta.url))
+const out = fileURLToPath(new URL("../packages/shared/halloween-bodies.ts", import.meta.url))
 writeFileSync(out, emitTs())
-console.log(`wrote ${BAKED.length} Halloween bodies to shared/halloween-bodies.ts`)
+console.log(`wrote ${BAKED.length} Halloween bodies to packages/shared/halloween-bodies.ts`)
 
 for (const [flag, emitNative] of [["--swift", emitSwift], ["--kotlin", emitKotlin]] as const) {
   const at = process.argv.indexOf(flag)

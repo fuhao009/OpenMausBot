@@ -4,7 +4,7 @@ A Live call (OpenAI GPT-Live as the voice, the bot as the brain) leaves two
 things in its chat. Every request spoken on it carries the call's id, and a call
 that went live leaves one "call" row when it ends, which the desktop draws as a
 record of what the bot did. This recipe checks both against the fake GPT-Live
-(`server/testing/fake-openai-live.ts`) and the fake engine in a disposable
+(`desktop/server/testing/fake-openai-live.ts`) and the fake engine in a disposable
 workspace. Nothing here touches audio, a real OpenAI key or a phone. The design
 is "The call id and the call row" in
 `docs/superpowers/specs/2026-09-25-live-call-bar-design.md`.
@@ -34,7 +34,7 @@ phone through the companion. Each call uses the person's own OpenAI key: the
 separate Live key when one is saved (`live.key`, `OMB_OPENAI_LIVE_KEY`, or the
 desktop credential `openaiLiveKey`), else the OpenAI API key from Settings →
 API keys (`openai.key`, `OMB_OPENAI_API_KEY`); `liveCallKey` in
-`server/live-settings.ts`. `GET /api/config` reports `live.configured` and
+`desktop/server/live-settings.ts`. `GET /api/config` reports `live.configured` and
 `live.keySource` (`live` or `openai`), never the key. Without either key,
 `POST /api/live/session` answers
 `409 { "error": "Live calls use your own OpenAI key. Add it in Settings → API keys.", "needsKey": true }`
@@ -43,11 +43,11 @@ unchanged. The desktop and web app show that sentence under the call button
 with **Open API keys**, which opens Settings at API keys.
 
 ```sh
-pnpm exec vitest run server/live-settings.test.ts server/live-call-controller.test.ts server/routes/live.test.ts companion/test/proxy-response.test.ts
-pnpm exec vitest run src/lib/live-call-media.test.ts src/components/CallView.live-mode.test.ts src/components/LiveKeyNeeded.test.ts src/components/LiveCallBar.render.test.ts
+pnpm exec vitest run desktop/server/live-settings.test.ts desktop/server/live-call-controller.test.ts desktop/server/routes/live.test.ts desktop/companion/test/proxy-response.test.ts
+pnpm exec vitest run desktop/src/lib/live-call-media.test.ts desktop/src/components/CallView.live-mode.test.ts desktop/src/components/LiveKeyNeeded.test.ts desktop/src/components/LiveCallBar.render.test.ts
 ```
 
-`server/live-call.e2e.test.ts` boots a server with no plan and no key: a
+`desktop/server/live-call.e2e.test.ts` boots a server with no plan and no key: a
 phone's start (through the companion or by its own client) and a desktop's
 start answer 409 `needsKey`; after the OpenAI key is saved through
 `PUT /api/config`, a phone's call starts with that key; a separate Live key
@@ -65,14 +65,14 @@ The server paths, including steer, queue, restart and late answers, need a
 scripted voice, so their recipe is the end-to-end test:
 
 ```sh
-pnpm exec vitest run server/live-call.e2e.test.ts server/chat-followups-restart.test.ts
-pnpm exec vitest run server/live-call-record.test.ts server/live-call-controller.test.ts server/steer-queue.test.ts server/thread-title.test.ts server/delta-context.test.ts server/live-call.test.ts server/store.test.ts
-pnpm exec vitest run src/lib/call-record.test.ts src/lib/live-activity.test.ts src/lib/activity-runs.test.ts src/components/CallRecordRow.test.ts src/components/ChatView.via-call.test.ts src/components/ChatView.rows.test.ts
+pnpm exec vitest run desktop/server/live-call.e2e.test.ts desktop/server/chat-followups-restart.test.ts
+pnpm exec vitest run desktop/server/live-call-record.test.ts desktop/server/live-call-controller.test.ts desktop/server/steer-queue.test.ts desktop/server/thread-title.test.ts desktop/server/delta-context.test.ts desktop/server/live-call.test.ts desktop/server/store.test.ts
+pnpm exec vitest run desktop/src/lib/call-record.test.ts desktop/src/lib/live-activity.test.ts desktop/src/lib/activity-runs.test.ts desktop/src/components/CallRecordRow.test.ts desktop/src/components/ChatView.via-call.test.ts desktop/src/components/ChatView.rows.test.ts
 pnpm typecheck
 pnpm i18n:check
 ```
 
-`server/live-call.e2e.test.ts` boots the real harness in a disposable home with
+`desktop/server/live-call.e2e.test.ts` boots the real harness in a disposable home with
 fake engines and the fake GPT-Live, starts calls the way a client does
 (`POST /api/live/session`), plays the voice's side over the sideband (some
 `session.input_transcript.delta` events, then a `session.delegation.created`)
@@ -83,7 +83,7 @@ did or whose bot was deleted; the title patch with generated titles on, and
 none while they are off; the row's absence from the next call's startup
 history; and that the row and the server log hold none of the spoken words and
 neither the log nor the event stream holds the key.
-`server/chat-followups-restart.test.ts` kills a fixture server in the middle of
+`desktop/server/chat-followups-restart.test.ts` kills a fixture server in the middle of
 a dispatch and checks the recovered lines: one spoken on a call comes back with
 its call id, a typed one that carried a stray call id comes back without it.
 
@@ -92,7 +92,7 @@ standalone fake cannot be scripted from the shell, so nothing is asked on it:
 
 ```sh
 # terminal 1: the fake GPT-Live prints its base URL
-node --experimental-strip-types server/testing/fake-openai-live.ts
+node --experimental-strip-types desktop/server/testing/fake-openai-live.ts
 # terminal 2: the renderer fixture, pointed at it (the key only ever reaches
 # the fake)
 OMB_OPENAI_LIVE_URL=http://127.0.0.1:FAKE_PORT OMB_OPENAI_LIVE_KEY=sk-fake \
@@ -157,8 +157,8 @@ no `title`, because nothing was asked; and the snapshot's transcript has
   hang-up while a turn is still working, a step that never reported how it went
   (running only while the chat works) and a call that began before the loaded
   page (the record says some of it may be in earlier messages) are covered by
-  `src/lib/call-record.test.ts`, `src/components/CallRecordRow.test.ts` and
-  `src/components/ChatView.via-call.test.ts`, and a spoken yes by the e2e's
+  `desktop/src/lib/call-record.test.ts`, `desktop/src/components/CallRecordRow.test.ts` and
+  `desktop/src/components/ChatView.via-call.test.ts`, and a spoken yes by the e2e's
   approval test. The fixture run below does not draw them.
 
 ## Last exercised
@@ -196,7 +196,7 @@ repository, that called `startFakeOpenAiLive` and `emit` the way the e2e does.
   nor the key anywhere.
 - Ctrl-C stopped the fixture and removed its data directory; no fixture, preview
   or driver process was left. The log stays at its printed path.
-- `pnpm exec vitest run server/live-call.e2e.test.ts server/chat-followups-restart.test.ts`:
+- `pnpm exec vitest run desktop/server/live-call.e2e.test.ts desktop/server/chat-followups-restart.test.ts`:
   2 files, 18 tests passed in 258 s with the machine's load average above 150.
   The 13 unit files in the second and third commands above: 404 passed.
 - Since that run the final fix wave changed what the renderer draws: the record
@@ -230,7 +230,7 @@ call, titles off, one spoken request ("what is six times seven"), hung up.
 - Not driven here, because the fake engine settles every tool call it makes and
   a page of more than 200 messages is out of reach of a hand run: a step with no
   outcome (the dash), "Expired", and the partial-record hint. The component
-  tests pin them (`src/components/CallRecordRow.test.ts`,
-  `src/components/ChatView.via-call.test.ts`).
+  tests pin them (`desktop/src/components/CallRecordRow.test.ts`,
+  `desktop/src/components/ChatView.via-call.test.ts`).
 - SIGINT to the exact `ui launch` pid removed its data directory and the driver
   was stopped; `ps` showed no fixture, preview, driver or browser process left.

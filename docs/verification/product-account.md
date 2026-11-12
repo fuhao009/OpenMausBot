@@ -28,13 +28,13 @@ create-account and sign-in forms are driven instead of the emailed-code tab,
 lookup still finds the (unconfirmed) account because that deployment's policy
 does not gate on confirmation. The default run keeps the emailed-code route.
 
-The first form builds `cloudflare/control-plane/src/index.ts` with esbuild and
+The first form builds `gateway/control-plane/src/index.ts` with esbuild and
 runs it under the Miniflare that the control-plane's pinned Wrangler ships, over
 TLS on `127.0.0.1` with a self-signed certificate. It applies this checkout's
 migrations to a fresh D1 database, sends its one-time codes through the Worker's
 real `EMAIL` binding (a disposable mailbox), and reaches a loopback upstream
 through the Worker's own egress. The desktop app is the real
-`electron/main.mjs`, started with its explicit fixture entry
+`desktop/electron/main.mjs`, started with its explicit fixture entry
 (`OMB_PRODUCT_FIXTURE=1` and `--omb-product-fixture-root=`), so its product gate,
 account window, workspace window, server child and product AI provider are the
 production ones.

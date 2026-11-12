@@ -5,7 +5,7 @@ settings → Backup AIs in Simple) are used in order with no switch: choosing on
 turns it on for that bot. Settings → General → Automatic recovery is off by
 default; turned on with one backup engine/model, it covers every bot that has
 no backups of its own. The same lists also feed the usage-limit takeover
-(`server/host/limit-takeover.ts`), which never needed the switch: at a usage
+(`desktop/server/host/limit-takeover.ts`), which never needed the switch: at a usage
 limit a conversation moves to the first of them that can take over (for one
 model's own limit, that AI's default model goes first) and goes back once the
 limit resets. When an ACP engine fails during startup, before sending
@@ -36,9 +36,9 @@ runner changes require a manual choice. Backup provider charges may apply.
 ## Repeatable checks
 
 ```sh
-pnpm exec vitest run server/automatic-recovery.test.ts server/automatic-recovery.e2e.test.ts server/drivers/acp/acp.test.ts server/drivers/retry.test.ts server/turn-dispatch-guard.test.ts server/config.test.ts src/components/AutomaticRecoverySettings.test.ts src/state/store.test.ts
-pnpm exec vitest run server/drivers/claude-auth-recovery.test.ts server/drivers/claude.test.ts
-pnpm exec vitest run server/direct-coordination.e2e.test.ts server/guarded-messages-api.test.ts server/acp-recovery.e2e.test.ts --maxWorkers=2
+pnpm exec vitest run desktop/server/automatic-recovery.test.ts desktop/server/automatic-recovery.e2e.test.ts desktop/server/drivers/acp/acp.test.ts desktop/server/drivers/retry.test.ts desktop/server/turn-dispatch-guard.test.ts desktop/server/config.test.ts desktop/src/components/AutomaticRecoverySettings.test.ts desktop/src/state/store.test.ts
+pnpm exec vitest run desktop/server/drivers/claude-auth-recovery.test.ts desktop/server/drivers/claude.test.ts
+pnpm exec vitest run desktop/server/direct-coordination.e2e.test.ts desktop/server/guarded-messages-api.test.ts desktop/server/acp-recovery.e2e.test.ts --maxWorkers=2
 pnpm typecheck
 pnpm lint
 pnpm i18n:check
@@ -71,7 +71,7 @@ AI or ones already listed, the bin removes one, and the list keeps its order (up
 to five). There is no switch; the card says when a backup is used.
 
 ```sh
-pnpm exec vitest run src/components/bot-panel/BackupAis.dom.test.ts src/components/BotSettingsDialog.simple.test.ts src/components/bot-settings/ModelSection.test.ts
+pnpm exec vitest run desktop/src/components/bot-panel/BackupAis.dom.test.ts desktop/src/components/BotSettingsDialog.simple.test.ts desktop/src/components/bot-settings/ModelSection.test.ts
 ```
 
 The pictures come from `control-omb ui launch --engine codex` (fake Claude and

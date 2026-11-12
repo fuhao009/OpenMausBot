@@ -29,7 +29,7 @@ send is refused with the limit message once the cap is reached.
 ## Driving it
 
 ```sh
-pnpm exec vitest run --no-file-parallelism server/spend-cap-api.test.ts
+pnpm exec vitest run --no-file-parallelism desktop/server/spend-cap-api.test.ts
 ```
 
 The test writes a stand-in enterprise layer (the folder shape core loads,
@@ -47,13 +47,13 @@ The memory regression also proves that one helper reaching the cap blocks
 the next step in that same upkeep pass, and that raising the cap resumes it.
 
 For the same by hand, launch a fixture with `OMB_ENTERPRISE_DIR` pointing at a
-folder whose `server/index.js` exports such a `register()`, and
+folder whose `desktop/server/index.js` exports such a `register()`, and
 `OMB_LICENSE_KEY` set to any value, then use the normal chat-turn commands.
 
 ## Unit regressions
 
 ```sh
-pnpm exec vitest run server/spend.test.ts server/model-prices.test.ts server/prices.ts server/config.test.ts src/components/UsageBudget.test.ts server/usage-ledger.test.ts src/lib/notify.test.ts
+pnpm exec vitest run desktop/server/spend.test.ts desktop/server/model-prices.test.ts desktop/server/prices.ts desktop/server/config.test.ts desktop/src/components/UsageBudget.test.ts desktop/server/usage-ledger.test.ts desktop/src/lib/notify.test.ts
 ```
 
 These cover price precedence and cached-input pricing, month-to-date sums

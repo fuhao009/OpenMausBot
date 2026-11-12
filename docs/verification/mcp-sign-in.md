@@ -3,8 +3,8 @@
 Run the focused unit tests and API tests:
 
 ```sh
-pnpm exec vitest run server/mcp-oauth.test.ts server/mcp-oauth-discovery.test.ts server/mcp-oauth-store.test.ts server/mcp-probe.test.ts src/lib/mcp-sign-in.test.ts src/components/McpServersPanel.test.ts
-pnpm exec vitest run server/index.test.ts -t 'MCP OAuth|OAuth URL MCP'
+pnpm exec vitest run desktop/server/mcp-oauth.test.ts desktop/server/mcp-oauth-discovery.test.ts desktop/server/mcp-oauth-store.test.ts desktop/server/mcp-probe.test.ts desktop/src/lib/mcp-sign-in.test.ts desktop/src/components/McpServersPanel.test.ts
+pnpm exec vitest run desktop/server/index.test.ts -t 'MCP OAuth|OAuth URL MCP'
 ```
 
 Run the real MCP settings panel against a disposable fake-engine workspace:

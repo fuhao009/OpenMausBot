@@ -1,11 +1,11 @@
 import { createRoot } from "react-dom/client";
-import { Composer } from "../../src/components/Composer";
-import { DesktopCapabilitiesProvider } from "../../src/components/DesktopCapabilities";
-import { initialDesktopCapabilities } from "../../src/lib/desktop";
-import { setLocale } from "../../src/lib/i18n";
-import { StoreProvider, useStore } from "../../src/state/store";
-import { createSpeechTranscript } from "../../electron/speech-transcript.mjs";
-import "../../src/styles.css";
+import { Composer } from "../../desktop/src/components/Composer";
+import { DesktopCapabilitiesProvider } from "../../desktop/src/components/DesktopCapabilities";
+import { initialDesktopCapabilities } from "../../desktop/src/lib/desktop";
+import { setLocale } from "../../desktop/src/lib/i18n";
+import { StoreProvider, useStore } from "../../desktop/src/state/store";
+import { createSpeechTranscript } from "../../desktop/electron/speech-transcript.mjs";
+import "../../desktop/src/styles.css";
 
 setLocale("en");
 

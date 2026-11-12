@@ -89,7 +89,7 @@ export async function buildWindowsBrowserVendor(output) {
     command("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], source);
     command("pnpm", ["--filter", "dashboard", "build"], source);
     const dashboard = join(source, "packages/dashboard/out");
-    assert(!readFileSync(join(dashboard, "index.html"), "utf8").includes("Dashboard not built"));
+    assert(!readFileSync(join(dashboard, "desktop/index.html"), "utf8").includes("Dashboard not built"));
     command("cargo", ["build", "--locked", "--release", "--manifest-path", "cli/Cargo.toml", "--target", WINDOWS_VENDOR_TARGET], source);
     const binary = join(source, "cli/target", WINDOWS_VENDOR_TARGET, "release/agent-browser.exe");
     const bytes = readFileSync(binary);

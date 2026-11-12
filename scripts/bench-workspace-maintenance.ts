@@ -10,10 +10,10 @@ import { setTimeout as delay, setImmediate } from "node:timers/promises";
 const directory = mkdtempSync(join(tmpdir(), "omb-maintenance-probe-"));
 const previousDataDir = process.env.OMB_DATA_DIR;
 process.env.OMB_DATA_DIR = directory;
-const db = await import("../server/message-db.ts");
-const { Store } = await import("../server/store.ts");
-const memory = await import("../server/workspace.ts");
-const backups = await import("../server/workspace-backup.ts");
+const db = await import("../desktop/server/message-db.ts");
+const { Store } = await import("../desktop/server/store.ts");
+const memory = await import("../desktop/server/workspace.ts");
+const backups = await import("../desktop/server/workspace-backup.ts");
 const inline = process.argv.includes("--in-process");
 console.log(JSON.stringify({ node: process.version, platform: process.platform, arch: process.arch, inline,
   scope: "Synthetic file-backed method pressure, not HTTP throughput or production capacity." }));

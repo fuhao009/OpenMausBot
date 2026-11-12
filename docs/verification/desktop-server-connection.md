@@ -14,7 +14,7 @@ and the isolated fake-engine server it starts.
 It never opens the operator's app, server list, credentials or browser profile.
 
 The smoke mounts `RemoteComputerSection`, `ConnectedWorkspacesSettings`, and
-`DesktopWorkspaceSwitcher` with the real styles and `electron/preload.cjs`.
+`DesktopWorkspaceSwitcher` with the real styles and `desktop/electron/preload.cjs`.
 It also opens the real app shell against a disposable fake-engine server.
 It checks:
 
@@ -63,7 +63,7 @@ Native menu items are selected programmatically; this is not a physical
 mouse/keyboard test of the operating system's popup.
 The existing production handler still performs native confirmation and opens
 the server's pairing page; its URL/state helpers are checked separately with
-`node --test electron/environments.node-test.mjs`. Do not report this offline
+`node --test desktop/electron/environments.node-test.mjs`. Do not report this offline
 smoke as an authenticated connection to a customer's server.
 
 ## User flow
@@ -144,15 +144,15 @@ around them was chosen: `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.azure`, `~/.kube`,
 `~/.claude`, `~/.claude.json`, `~/.codex`, `~/.config/{gh,gcloud,op,git,fish,
 autostart,systemd}`, browser profiles, `~/Library/{Keychains,Cookies,
 LaunchAgents,Safari}` and `~/.local/bin` (the list is
-`PERSONAL_SECRETS` in `electron/shared-computer-access.mjs`). A listing shows
+`PERSONAL_SECRETS` in `desktop/electron/shared-computer-access.mjs`). A listing shows
 them as `protected`. Writes are refused inside any `.git` directory, because
 git runs commands from its configuration and hooks. Other files that programs
 later run (scripts, build files) can still be edited in a writable folder.
 
 **Computer control** offers only on-screen tools and, for each, only the
 arguments that observe or operate the screen (`LENT_SCREEN_ARGUMENTS` in
-`electron/lent-screen-tools.mjs`, derived from the driver's own schemas and
-checked against a snapshot of them in `electron/fixtures`). The local driver's
+`desktop/electron/lent-screen-tools.mjs`, derived from the driver's own schemas and
+checked against a snapshot of them in `desktop/electron/fixtures`). The local driver's
 other tools (uploading a local file into a page by path, recording or
 replaying to a path, changing or updating its configuration, installing a
 binary, opening a DevTools port, killing a process, raising permission
@@ -198,8 +198,8 @@ and a native operation already admitted may have completed.
 ## Connector and authority tests
 
 ```sh
-pnpm exec vitest run server/shared-computers.test.ts server/shared-computers.e2e.test.ts server/shared-computers.gate.test.ts
-node --test electron/shared-computer-access.node-test.mjs electron/lending-guards.node-test.mjs
+pnpm exec vitest run desktop/server/shared-computers.test.ts desktop/server/shared-computers.e2e.test.ts desktop/server/shared-computers.gate.test.ts
+node --test desktop/electron/shared-computer-access.node-test.mjs desktop/electron/lending-guards.node-test.mjs
 ```
 
 The **Shared terminal smoke** workflow runs the native terminal tests and this

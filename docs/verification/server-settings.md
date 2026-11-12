@@ -6,7 +6,7 @@ domain, or configuration to verify these controls.
 ## Automated checks
 
 ```sh
-pnpm exec vitest run server/custom-domain.test.ts server/provider-auth-sessions.test.ts server/drivers/codex-device-auth.test.ts server/drivers/acp/grok-device-auth.test.ts server/grok-sign-in-api.test.ts server/request-auth.test.ts server/config.test.ts src/components/DeviceSignIn.test.ts src/components/CustomDomainSettings.test.ts src/components/EngineSetup.test.ts src/components/EnginesSettings.test.ts
+pnpm exec vitest run desktop/server/custom-domain.test.ts desktop/server/provider-auth-sessions.test.ts desktop/server/drivers/codex-device-auth.test.ts desktop/server/drivers/acp/grok-device-auth.test.ts desktop/server/grok-sign-in-api.test.ts desktop/server/request-auth.test.ts desktop/server/config.test.ts desktop/src/components/DeviceSignIn.test.ts desktop/src/components/CustomDomainSettings.test.ts desktop/src/components/EngineSetup.test.ts desktop/src/components/EnginesSettings.test.ts
 pnpm typecheck
 pnpm build
 pnpm build:server
@@ -46,7 +46,7 @@ not prove a customer's real DNS, certificate, or reverse proxy is configured.
    and links inside the collapsed advanced guide.
 4. To exercise Codex, add an instance to **only the fixture's config.json**:
    driver `codex`, CLI set to the absolute path of
-   `server/testing/fake-codex-login-cli.ts`, environment
+   `desktop/server/testing/fake-codex-login-cli.ts`, environment
    `OMB_DEVICE_AUTH_FIXTURE=1`, `HOME` set to the fixture's temporary directory,
    and `CODEX_HOME` set to its `.codex` subdirectory. Reload that isolated
    provider registry and refresh the preview. Never substitute the real Codex

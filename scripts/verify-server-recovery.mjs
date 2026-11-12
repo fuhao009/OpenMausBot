@@ -9,9 +9,9 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createServerSupervisor } from "../electron/server-supervisor.mjs";
-import { pollServerIdentity } from "../electron/server-boot-probe.mjs";
-import { acquireDataDirLease } from "../electron/data-dir-lease.mjs";
+import { createServerSupervisor } from "../desktop/electron/server-supervisor.mjs";
+import { pollServerIdentity } from "../desktop/electron/server-boot-probe.mjs";
+import { acquireDataDirLease } from "../desktop/electron/data-dir-lease.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const flag = "--omb-server-recovery-fixture";
@@ -42,8 +42,8 @@ if (process.versions.electron && process.argv.includes(flag)) {
   app.commandLine.appendSwitch("disable-background-networking");
   process.once("SIGTERM", () => app.quit());
   process.once("SIGINT", () => app.quit());
-  const { createTrustedApprovalModeCoordinator } = createRequire(import.meta.url)("../electron/approval-trusted-mode.cjs");
-  const { DESKTOP_MUTATION_HEADER } = createRequire(import.meta.url)("../electron/desktop-server-auth.cjs");
+  const { createTrustedApprovalModeCoordinator } = createRequire(import.meta.url)("../desktop/electron/approval-trusted-mode.cjs");
+  const { DESKTOP_MUTATION_HEADER } = createRequire(import.meta.url)("../desktop/electron/desktop-server-auth.cjs");
   const approval = createTrustedApprovalModeCoordinator({ randomId: randomUUID });
   const events = [];
   const commands = [];
@@ -92,7 +92,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
     const dataDir = join(home, "data");
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(join(dataDir, "config.json"), JSON.stringify({ instances: {
-      claude: { driver: "claudeAgent", displayName: "Isolated fake", config: { cli: join(root, "server/testing/fake-claude-cli.ts") } },
+      claude: { driver: "claudeAgent", displayName: "Isolated fake", config: { cli: join(root, "desktop/server/testing/fake-claude-cli.ts") } },
     } }));
     const port = await freePort();
     let webhookPort;

@@ -2,7 +2,7 @@
 
 Hezuo ships its translations inside the app. It does not contact a
 translation service at runtime, and contributors do not need an API key.
-English in `src/locales/en.json` is the source catalog; the other JSON files
+English in `desktop/src/locales/en.json` is the source catalog; the other JSON files
 are partial overlays that fall back to English for missing keys.
 
 ## Add or update a language
@@ -10,7 +10,7 @@ are partial overlays that fall back to English for missing keys.
 1. Use a lowercase BCP-47 filename such as `de.json` or `pt-br.json`.
 2. Keep every key identical to an English key and preserve placeholders such
    as `{name}` exactly, including repeated placeholders.
-3. Register a new pack in `src/locales/index.ts`.
+3. Register a new pack in `desktop/src/locales/index.ts`.
 4. Run `pnpm i18n:check` and test the language from **Settings → General**.
 
 `pnpm i18n:check` is deterministic. It validates JSON structure, unknown or
@@ -22,7 +22,7 @@ an English fallback.
 
 ## Source hashes are recorded at release
 
-`src/locales/source-hashes.json` holds, per language, the sha256 of the
+`desktop/src/locales/source-hashes.json` holds, per language, the sha256 of the
 English each translation was made from. A pull request does not edit it:
 
 - a new translated key has no hash yet and counts as current;
@@ -69,7 +69,7 @@ node scripts/generate-locale.mjs pt-br --accept
 pnpm i18n:check
 ```
 
-Commit `src/locales/source-hashes.json` with the catalog in that case only;
+Commit `desktop/src/locales/source-hashes.json` with the catalog in that case only;
 adding new keys and their translations needs no hash edit. The hash contains
 no translation content or credential; it only lets CI detect stale copy.
 

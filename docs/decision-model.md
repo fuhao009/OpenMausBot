@@ -212,8 +212,8 @@ API is alpha at OpenRouter and may change. The model list comes from
 
 ## Measuring it
 
-`server/decider/room-routing.eval.test.ts` replays 53 labelled room messages
-(`server/decider/fixtures/room-routing.json`) against the live model. It is
+`desktop/server/decider/room-routing.eval.test.ts` replays 53 labelled room messages
+(`desktop/server/decider/fixtures/room-routing.json`) against the live model. It is
 skipped unless `OMB_JEV_LIVE_EVAL=1` is set with a key, and costs about
 $0.002 per run. The same eval runs against OpenRouter with
 `OMB_OPENROUTER_LIVE_EVAL=1` and `OMB_OPENROUTER_DECIDER_KEY`, using the

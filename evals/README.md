@@ -38,7 +38,7 @@ Each fixture declares a `world`, the `bots` to create with their scripted `turns
 ## Worlds
 
 - `coordination` — the packaged verification server with the scripted room engine: ordinary chat, `coordinate_bots` handoffs, routines.
-- `localVm` — the real server with the container boundary replaced by the in-repo VM fixture (`server/testing/group-local-vm-hooks.mjs`): hermetic Local VM lifecycle, no Podman. The runner plays the bridge's computer-control poll, which is the seam the lazy claim lives at.
+- `localVm` — the real server with the container boundary replaced by the in-repo VM fixture (`desktop/server/testing/group-local-vm-hooks.mjs`): hermetic Local VM lifecycle, no Podman. The runner plays the bridge's computer-control poll, which is the seam the lazy claim lives at.
 
 ## Tier 2 — golden-thread replay
 

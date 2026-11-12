@@ -1,7 +1,7 @@
 // Record-protocol TTS endpoint for the voice-latency cut (2026-10-17): the
 // record runs never call the live engine and never read an engine key
 // (Brad's directive, 2026-10-17). This loopback server speaks the ElevenLabs
-// wire shape the provider module uses (server/tts/elevenlabs.ts) with
+// wire shape the provider module uses (desktop/server/tts/elevenlabs.ts) with
 // synthesis latency and clip duration modeled from the text length at the
 // RTF pinned in the corpus manifest, so both sides of the before/after
 // measurement share one deterministic synthesis timeline.

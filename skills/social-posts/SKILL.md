@@ -43,7 +43,7 @@ Pick by what the post has:
 | The post has | Do this |
 |---|---|
 | Only text, or slides you wrote | Send the file's whole text as `html`. At most 256 KB, and the template is about 48 KB. |
-| Images on disk | Make a folder: the template as `index.html`, the images beside it, named in `src` (`"src": "photo.jpg"`). Show it with `path`. png, jpg, gif, webp, avif and svg work. The folder holds at most 5 MB and 200 files, and `index.html` at most 256 KB, so shrink big images first. |
+| Images on disk | Make a folder: the template as `desktop/index.html`, the images beside it, named in `src` (`"src": "photo.jpg"`). Show it with `path`. png, jpg, gif, webp, avif and svg work. The folder holds at most 5 MB and 200 files, and `desktop/index.html` at most 256 KB, so shrink big images first. |
 | An image on the web | Download it into the folder first. The chat blocks images from other sites, and the card says so. |
 | A video on disk | Put it in the folder and name it: `{ "video": "clip.mp4", "poster": "frame.jpg" }`. It plays and seeks in the chat, at any size: mp4 (H.264), webm or mov. It plays from the folder and isn't copied, so keep the file there unchanged. If it is moved, edited or deleted, the card falls back to the poster until you show the page again. Always add a poster. |
 | A public link | `publish_page` leaves video out and says so, and the public page shows the poster with a play mark. The chat card keeps playing the video. |

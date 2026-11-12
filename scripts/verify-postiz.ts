@@ -4,7 +4,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { launchVerificationServer } from "./control-omb.ts";
 import { fixtureApi, mountPreview, type MountedPreview } from "./testing/preview-fixture.ts";
-import { FAKE_POSTIZ_KEY, startFakePostiz } from "../server/testing/fake-postiz.ts";
+import { FAKE_POSTIZ_KEY, startFakePostiz } from "../desktop/server/testing/fake-postiz.ts";
 
 const cloud = await startFakePostiz();
 const own = await startFakePostiz();

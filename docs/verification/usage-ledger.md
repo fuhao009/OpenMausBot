@@ -35,7 +35,7 @@ CSV** stays one line per turn.
 ## Driving it
 
 ```sh
-pnpm exec vitest run --no-file-parallelism server/usage-ledger-api.test.ts server/usage-attribution.e2e.test.ts
+pnpm exec vitest run --no-file-parallelism desktop/server/usage-ledger-api.test.ts desktop/server/usage-attribution.e2e.test.ts
 ```
 
 The test launches a fresh `control-omb` fixture with the repository's fake
@@ -47,7 +47,7 @@ engine's `0.01` per turn, that `GET /api/usage.csv` returns three lines, and
 that a client-scoped device is refused. It prints the fixture's server log
 path as evidence and removes its temporary home.
 
-`server/usage-attribution.e2e.test.ts` boots the server against the fake Claude, ACP
+`desktop/server/usage-attribution.e2e.test.ts` boots the server against the fake Claude, ACP
 and Codex engines in a disposable home and reads the month file back: an ACP
 turn on `grok-4.7` is booked at xAI's list price and marked estimated while an
 unlisted model stays unpriced; a paired person's queued message, a live steer
@@ -76,7 +76,7 @@ listed with its bot, and that **Where it went** shows it under **Bot** and under
 ## Traces
 
 ```sh
-pnpm exec vitest run server/usage-trace server/usage-traces.e2e.test.ts src/lib/usage-trace.test.ts
+pnpm exec vitest run desktop/server/usage-trace desktop/server/usage-traces.e2e.test.ts desktop/src/lib/usage-trace.test.ts
 ```
 
 The e2e sends a person's message to a Chief whose scripted engine delegates to a
@@ -113,7 +113,7 @@ waits for settlement, and checks that the tooltip separates 10 uncached input,
 headline. Its JSON evidence sits next to the fixture log; no live account is used.
 
 ```sh
-pnpm exec vitest run server/usage-ledger.test.ts src/lib/usage-trace.test.ts server/request-auth.test.ts
+pnpm exec vitest run desktop/server/usage-ledger.test.ts desktop/src/lib/usage-trace.test.ts desktop/server/request-auth.test.ts
 ```
 
 These cover month files and 0600 modes, torn lines, clamped tokens, a blocked
@@ -127,7 +127,7 @@ scope on both routes.
   settles leaves no row, so a failed turn is not billed.
 - The cost column is what the engine reported (real on a metered key, an
   equivalent on a subscription) or, for engines that report none, an estimate
-  from `server/model-prices.ts`, marked `~` in History and People and labelled
+  from `desktop/server/model-prices.ts`, marked `~` in History and People and labelled
   in the CSV's `cost_source` column. A model with no known price stays
   unpriced; the summary counts those turns separately instead of treating them
   as free.

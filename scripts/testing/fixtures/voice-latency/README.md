@@ -10,7 +10,7 @@ replays before and after it.
 - `corpus.json` — the adversarial corpus (canonical form, trailing newline).
   `corpusFixtureId` = sha256 of this exact file.
 - `manifest.json` — fixture ID, per-reply char/block counts from the real
-  `toUtterances` splitter (`server/tts/speech-text.ts`), shape pins, totals,
+  `toUtterances` splitter (`desktop/server/tts/speech-text.ts`), shape pins, totals,
   and the protocol pins both sides share (replay cadence, gap threshold,
   modeled synthesis timing).
 - `logs/before-<sha12>.json` — the baseline run, recorded before any of the
@@ -36,7 +36,7 @@ Totals: 116 blocks, mean ~66 chars.
 
 Synthesis comes from the record stub, not the live engine:
 `voice-latency-stub.ts` serves the ElevenLabs wire shape
-(`server/tts/elevenlabs.ts`) on loopback, and the harness points the fixture
+(`desktop/server/tts/elevenlabs.ts`) on loopback, and the harness points the fixture
 server at it through `OMB_ELEVENLABS_API`. No live engine call, no engine key:
 record runs need no `OMB_TTS_KEY` and never reach api.elevenlabs.io; the stub
 key in the fixture config is a literal that only ever reaches loopback.
@@ -61,12 +61,12 @@ node --experimental-strip-types scripts/testing/voice-latency-firstbyte.ts;
 every timing in it is modeled.
 
 Delta replay cadence, identical on both sides: `FAKE_CLAUDE_STREAM_CADENCE`
-(server/testing/fake-claude-cli.ts) streams each scripted reply as 24-char
+(desktop/server/testing/fake-claude-cli.ts) streams each scripted reply as 24-char
 `text_delta` chunks every 150 ms (160 chars/s) before the assistant message.
 Injection point: the fake claude CLI's turn output — the real driver
-(server/drivers/claude.ts stream_event → content.delta) forwards it, the
+(desktop/server/drivers/claude.ts stream_event → content.delta) forwards it, the
 server broadcasts {kind:"runtime"} frames, and the renderer store records
-arrival (src/lib/voice-latency-probe.ts, enabled only by `?ombVoiceProbe=1`
+arrival (desktop/src/lib/voice-latency-probe.ts, enabled only by `?ombVoiceProbe=1`
 on the preview page).
 
 Reply routing is by prompt marker, not ordered slots: the harness POSTs
@@ -84,9 +84,9 @@ block j and the start of block j+1 longer than 200 ms, counted after first
 audio, within one reply.
 
 Instrumentation is inert without the probe sink: with the harness disabled, the
-speak path and the discard-delta behavior (src/state/store.tsx
+speak path and the discard-delta behavior (desktop/src/state/store.tsx
 runtimeFrameAction / case "runtime") are byte-for-byte the shipped path.
-src/state/store.test.ts and src/lib/tts/index.test.ts pin that.
+desktop/src/state/store.test.ts and desktop/src/lib/tts/index.test.ts pin that.
 
 ## Run
 

@@ -3,7 +3,7 @@
 Run the focused checks and real Electron utility-process fixture:
 
 ```sh
-node --test electron/server-supervisor.node-test.mjs electron/server-boot-probe.node-test.mjs
+node --test desktop/electron/server-supervisor.node-test.mjs desktop/electron/server-boot-probe.node-test.mjs
 pnpm build:server
 node scripts/verify-server-recovery.mjs
 ```
@@ -12,7 +12,7 @@ The fixture supports macOS and Linux (Linux needs a graphical session, or
 `xvfb-run -a node scripts/verify-server-recovery.mjs`). It creates disposable
 homes and profiles, copies the bundled server outside the repository, chooses
 fresh loopback ports, and configures only the repository's inert fake engine.
-It never launches `electron/main.mjs`, a real computer/browser driver, the
+It never launches `desktop/electron/main.mjs`, a real computer/browser driver, the
 operator's installed app, or their data directory. It accepts no server URL.
 
 Three separate Electron parents exercise the production supervisor, PID health

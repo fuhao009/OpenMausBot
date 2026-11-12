@@ -6,12 +6,12 @@ import { createServer, request, type IncomingMessage, type ServerResponse } from
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SessionRegistry, type Scope } from "../../server/sessions.ts";
-import { hostedWorkspaceConfiguration } from "../../server/enterprise.ts";
-import { resolveRequestAuth } from "../../server/request-auth.ts";
-import { removeTempDir } from "../../server/testing/cleanup.ts";
+import { SessionRegistry, type Scope } from "../../desktop/server/sessions.ts";
+import { hostedWorkspaceConfiguration } from "../../desktop/server/enterprise.ts";
+import { resolveRequestAuth } from "../../desktop/server/request-auth.ts";
+import { removeTempDir } from "../../desktop/server/testing/cleanup.ts";
 import { createWorkspaceAccess } from "./workspace-access.ts";
-import { HOSTED_CONTRACT_VERSION } from "../../server/hosted-contract.ts";
+import { HOSTED_CONTRACT_VERSION } from "../../desktop/server/hosted-contract.ts";
 
 const env = { OMB_ADMIN_URL: "https://admin.example.test", OMB_ADMIN_WORKSPACE: "acme", OMB_PUBLIC_URL: "https://acme.example.test" };
 const email = "member@example.test";

@@ -16,7 +16,7 @@ that with `show_html` and the page's `app_id`; the same card refreshes.
 |---|---|
 | A quick answer or one chart | No page. Use the Data tools (`data_sql`, `data_show`) or a markdown table. |
 | A small summary to look at here | A chat page (`show_html`) with pre-aggregated rows embedded as CSV. |
-| To explore bigger data, or a link to share | Query with the Data tools, export the slice with `data_export` (`format: "parquet"`) into a folder beside `index.html`, show the folder in the chat with `show_html` `path`, and `publish_page` it when the person wants a link: the same card gains it. |
+| To explore bigger data, or a link to share | Query with the Data tools, export the slice with `data_export` (`format: "parquet"`) into a folder beside `desktop/index.html`, show the folder in the chat with `show_html` `path`, and `publish_page` it when the person wants a link: the same card gains it. |
 | "Keep it up to date" | The shared page, plus a schedule (`trigger`, `action=create`, `when=schedule`) whose instructions re-run the export, set `CONFIG.updated`, and publish the same folder again. Publishing the same path keeps the same link. |
 
 Publish only when the person asks to share. A published page is public: never put secrets, personal details or rows they didn't ask to share in it.
@@ -25,7 +25,7 @@ Publish only when the person asks to share. A published page is public: never pu
 
 `dashboard.html` sits next to this guide, in the folder named by this skill's `root`. It is tested in the chat
 sandbox and on published pages, in light and dark, at phone and desktop widths. Copy it to your working folder as
-`index.html` (a small chat page sends its text as `html`; a folder page is shown with `path`) and change only what the
+`desktop/index.html` (a small chat page sends its text as `html`; a folder page is shown with `path`) and change only what the
 data needs:
 
 1. `CONFIG`: `dataFile` (`data.parquet` or `data.csv`), `source`, `updated` (when the data was refreshed, ISO time), `currency`.
@@ -43,7 +43,7 @@ Cut cards rather than adding a fifth chart.
 - **Aggregate first.** Ship the smallest table that answers the questions: one row per day and dimension, not raw events. Do the heavy work with the Data tools, then export.
 - **Size.** Keep data at or under about 5 MB (a published page holds 5 MB in all). A chat page is at most 256 KB including the template (about 28 KB), so embed at most about 200 KB of CSV.
 - **A page sent as `html` reads embedded CSV only.** A folder page (`show_html` `path`) loads the files beside its
-  index.html, Parquet included, so it shows inline exactly as it will publish.
+  desktop/index.html, Parquet included, so it shows inline exactly as it will publish.
 - **Published pages:** prefer Parquet. It is often 10 to 20 times smaller than CSV; DuckDB fetches its Parquet reader (about 0.5 MB) on first load. CSV works too.
 - **Types.** Dates as DATE (Parquet) or `YYYY-MM-DD` (CSV). Cast sums and counts to DOUBLE in SQL so they arrive as plain numbers.
 - Put filter values into SQL only through the template's `quote()`.

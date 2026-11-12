@@ -7,8 +7,8 @@ actions transactional, nor authorize a deployment.
 ## Drive and evidence
 
 ```sh
-pnpm exec vitest run server/digest-control.e2e.test.ts
-pnpm exec vitest run server/commands.test.ts server/store.test.ts server/message-db.test.ts server/digest.test.ts server/checkpoints.test.ts server/hooks/omb-hook.test.ts server/hooks.e2e.test.ts server/digest.e2e.test.ts
+pnpm exec vitest run desktop/server/digest-control.e2e.test.ts
+pnpm exec vitest run desktop/server/commands.test.ts desktop/server/store.test.ts desktop/server/message-db.test.ts desktop/server/digest.test.ts desktop/server/checkpoints.test.ts desktop/server/hooks/omb-hook.test.ts desktop/server/hooks.e2e.test.ts desktop/server/digest.e2e.test.ts
 ```
 
 The first test starts `launchVerificationServer`, then uses the shared
@@ -36,7 +36,7 @@ commands" prompt section, and a timed-out call's `PostToolUseFailure` hook gets
 detached, or to use `mdfind`/a scoped folder instead of `find /`.
 
 ```sh
-pnpm exec vitest run server/shell-timeout-hint.test.ts server/hooks.e2e.test.ts
+pnpm exec vitest run desktop/server/shell-timeout-hint.test.ts desktop/server/hooks.e2e.test.ts
 FAKE_CLAUDE_HOOKS=1 FAKE_CLAUDE_TOOL_CALLS='[{"name":"Bash","input":{"command":"find / -name x"},"ok":false,"output":"Exit code 143\nCommand timed out after 2m 0s"}]' \
   node --experimental-strip-types scripts/control-omb.ts launch
 ```
@@ -57,7 +57,7 @@ sections remain visible; the stored digest is not deleted.
 Regression checks:
 
 ```sh
-pnpm exec vitest run src/components/DigestChip.test.ts
+pnpm exec vitest run desktop/src/components/DigestChip.test.ts
 (cd ios && swift test --filter RoutineRunDigestTests)
 (cd android && ./gradlew :core:test --tests '*TurnDigestTest' --tests '*ChatPreferencesTest' :app:testDebugUnitTest --tests '*TranscriptPresentationTest')
 ```

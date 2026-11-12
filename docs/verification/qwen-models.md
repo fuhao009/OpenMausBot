@@ -13,7 +13,7 @@ prompting; update Qwen Code using its official installer and refresh models.
 Offline verification (no provider login or paid calls):
 
 ```sh
-pnpm exec vitest run server/drivers/acp/qwen-catalog.test.ts server/drivers/local-inject.test.ts server/drivers/local-inject-matrix.test.ts server/drivers/acp/acp.test.ts server/drivers/acp/approval-matrix.test.ts server/drivers/acp/opencode-go.test.ts
+pnpm exec vitest run desktop/server/drivers/acp/qwen-catalog.test.ts desktop/server/drivers/local-inject.test.ts desktop/server/drivers/local-inject-matrix.test.ts desktop/server/drivers/acp/acp.test.ts desktop/server/drivers/acp/approval-matrix.test.ts desktop/server/drivers/acp/opencode-go.test.ts
 node --experimental-strip-types scripts/verify-qwen-models.ts
 ```
 

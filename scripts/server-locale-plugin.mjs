@@ -1,5 +1,5 @@
-// The app's language packs (src/locales/*.json) hold every screen's words, about 13 MB. The server reads only the lines
-// it writes itself, the "server." keys (server/server-lines.ts), so the server's bundles carry only those.
+// The app's language packs (desktop/src/locales/*.json) hold every screen's words, about 13 MB. The server reads only the lines
+// it writes itself, the "server." keys (desktop/server/server-lines.ts), so the server's bundles carry only those.
 import { readFileSync } from "node:fs";
 
 export const SERVER_KEY_PREFIX = "server.";

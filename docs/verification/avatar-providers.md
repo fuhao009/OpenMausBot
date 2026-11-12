@@ -40,8 +40,8 @@ test. The fixture does not prove paid provider access or native desktop secure
 storage; payload/credential mapping tests cover those contracts offline.
 
 ```sh
-pnpm exec vitest run server/avatar-image.test.ts server/generated-image.test.ts server/config.test.ts shared/image-generation.test.ts electron/workspace-credentials.test.mjs electron/diagnostics.test.mjs
-pnpm exec vitest run server/index.test.ts -t 'avatar|image key'
+pnpm exec vitest run desktop/server/avatar-image.test.ts desktop/server/generated-image.test.ts desktop/server/config.test.ts packages/shared/image-generation.test.ts desktop/electron/workspace-credentials.test.mjs desktop/electron/diagnostics.test.mjs
+pnpm exec vitest run desktop/server/index.test.ts -t 'avatar|image key'
 pnpm build
 ```
 

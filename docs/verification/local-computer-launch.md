@@ -8,9 +8,9 @@ and focuses the existing OMB window instead of answering MCP requests.
 Run the isolated regression:
 
 ```sh
-pnpm exec vitest run server/local-computer.test.ts \
-  server/local-computer-proxy.test.ts server/mcp-bridge.test.ts \
-  server/system-prompt.test.ts server/local-routing.test.ts
+pnpm exec vitest run desktop/server/local-computer.test.ts \
+  desktop/server/local-computer-proxy.test.ts desktop/server/mcp-bridge.test.ts \
+  desktop/server/system-prompt.test.ts desktop/server/local-routing.test.ts
 ```
 
 The proxy test builds the production connection descriptor inside both Node
@@ -29,7 +29,7 @@ background-input guarantee.
 
 ## Responsive desktop startup
 
-`pnpm exec vitest run electron/cua-launch.test.mjs` checks the desktop CUA
+`pnpm exec vitest run desktop/electron/cua-launch.test.mjs` checks the desktop CUA
 startup boundary without native permissions or controlling a real app. Electron
 and the CUA SDK are mocked; every subprocess is redirected to an inert Node
 child in a disposable home. The checks cover responsive asynchronous launch,
@@ -81,12 +81,12 @@ silently falling back to the console binary.
 `pnpm smoke:cua-win-lend`, which CI's Windows CUA job runs after that smoke,
 copies Electron under the installed app's name, so `app.isPackaged` is true,
 and places the staged files where `electron-builder.yml` puts them. In
-Electron's main process it runs `electron/cua.mjs`'s packaged start unchanged,
+Electron's main process it runs `desktop/electron/cua.mjs`'s packaged start unchanged,
 then a Cloud's first look at the PC through the lend path: the tool list, the
 screen's size and the list of apps, over the proxy a lent screen starts with
 the environment it gets. It sends no input. It prints computer control's mode,
 the reason Windows gave when it did not start, and whether apps and screen
-would be lent. On a pull request it first runs the base branch's `electron/`
+would be lent. On a pull request it first runs the base branch's `desktop/electron/`
 the same way, so one run shows what the change does; only this branch's result
 decides the job.
 
@@ -115,10 +115,10 @@ the request goes on by itself once the computer lends what was needed. Only on
 the person's own Cloud, never a Team Cloud.
 
 ```sh
-node --test electron/screen-status.node-test.mjs electron/computer-asks.node-test.mjs
-pnpm exec vitest run electron/capabilities.test.mjs server/computer-asks.test.ts \
-  server/host/computer-asks-host.test.ts shared/computer-ask.test.ts src/components/ComputerAskCard.test.ts
-pnpm exec vitest run server/cloud-lending.e2e.test.ts -t "paused, the PC still hears"
+node --test desktop/electron/screen-status.node-test.mjs desktop/electron/computer-asks.node-test.mjs
+pnpm exec vitest run desktop/electron/capabilities.test.mjs desktop/server/computer-asks.test.ts \
+  desktop/server/host/computer-asks-host.test.ts packages/shared/computer-ask.test.ts desktop/src/components/ComputerAskCard.test.ts
+pnpm exec vitest run desktop/server/cloud-lending.e2e.test.ts -t "paused, the PC still hears"
 ```
 
 The last one boots a real Cloud home and lends to it through the real
@@ -127,7 +127,7 @@ resumes it, and the bot's waiting call returns the computer.
 
 `node --experimental-strip-types scripts/verify-windows-lend.ts --shots <dir>`
 photographs the taskbar icon's menu as the real module builds it, the card in
-the real chat (`computer-ask-preview.html`) and the PC's own screen-control
+the real chat (`desktop/computer-ask-preview.html`) and the PC's own screen-control
 status, in a light and a dark look; `docs/verification/evidence/windows-lend/`
 holds the current set.
 
@@ -140,10 +140,10 @@ driver older than 0.35.0, Hezuo types such text one character at a time
 and tells the bot that the click was sent:
 
 ```sh
-node --test electron/paced-typing.node-test.mjs electron/shared-computer-access.node-test.mjs
-pnpm exec vitest run server/local-computer-proxy.test.ts server/mcp-bridge.test.ts \
-  server/local-computer-guidance.test.ts server/unconfirmed-click.test.ts \
-  server/lent-screen-guidance.test.ts
+node --test desktop/electron/paced-typing.node-test.mjs desktop/electron/shared-computer-access.node-test.mjs
+pnpm exec vitest run desktop/server/local-computer-proxy.test.ts desktop/server/mcp-bridge.test.ts \
+  desktop/server/local-computer-guidance.test.ts desktop/server/unconfirmed-click.test.ts \
+  desktop/server/lent-screen-guidance.test.ts
 ```
 
 A fake driver scrambles a burst the way the report showed (" Zeile Drei"
@@ -156,10 +156,10 @@ The portable conversion checks use synthetic inert PE data:
 
 ```sh
 pnpm exec vitest run scripts/cua-windows-background.test.mjs \
-  electron/cua-windows-isolation.test.mjs electron/cua-launch.test.mjs
+  desktop/electron/cua-windows-isolation.test.mjs desktop/electron/cua-launch.test.mjs
 ```
 
-`pnpm exec vitest run electron/cua-windows-isolation.test.mjs` exercises the
+`pnpm exec vitest run desktop/electron/cua-windows-isolation.test.mjs` exercises the
 Windows branch with a disposable directory and mocked SDK: private embedded
 startup, failed host, cancellation, replacement isolation, shutdown,
 and development binary discovery. It refuses macOS permission imports and any

@@ -16,16 +16,16 @@ const flag = "--omb-organization-fixture";
 
 if (process.versions.electron && process.argv.includes(flag)) {
   const { app, BrowserWindow, ipcMain, session } = await import("electron");
-  const { createManagedDesktopClient, createManagedDesktopRelay } = await import("../electron/managed-desktop.mjs");
-  const { createOrganizationEntry } = await import("../electron/organization-entry.mjs");
-  const { buildApplicationMenu } = await import("../electron/menu.mjs");
-  const { parseEnvironments, serializeEnvironments, activeEnvironment } = createRequire(import.meta.url)("../electron/environments.cjs");
+  const { createManagedDesktopClient, createManagedDesktopRelay } = await import("../desktop/electron/managed-desktop.mjs");
+  const { createOrganizationEntry } = await import("../desktop/electron/organization-entry.mjs");
+  const { buildApplicationMenu } = await import("../desktop/electron/menu.mjs");
+  const { parseEnvironments, serializeEnvironments, activeEnvironment } = createRequire(import.meta.url)("../desktop/electron/environments.cjs");
   const [url, output, runtimeUrl] = process.argv.slice(process.argv.indexOf(flag) + 1);
   app.setPath("userData", join(output, "user-data"));
   app.setPath("sessionData", join(output, "user-data"));
   app.commandLine.appendSwitch("disable-background-networking");
   const localOrigin = new URL(url).origin;
-  const localOriginGuard = createRequire(import.meta.url)("../electron/local-origin.cjs");
+  const localOriginGuard = createRequire(import.meta.url)("../desktop/electron/local-origin.cjs");
   localOriginGuard.setLocalOrigin(localOrigin);
   const organization = { id: "11111111-1111-4111-8111-111111111111", name: "Fixture Studio" };
   const image = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRZkAAAAASUVORK5CYII=";
@@ -93,11 +93,11 @@ if (process.versions.electron && process.argv.includes(flag)) {
   ipcMain.handle("companion:state", () => ({ running: false, enabled: false, devices: [], bind: null, publicUrl: null }));
   ipcMain.handle("perm:status", () => ({}));
   ipcMain.handle("window:state", () => ({ maximized: false, fullscreen: false }));
-  ipcMain.handle("desktop:capabilities", event => createRequire(import.meta.url)("../electron/capabilities.cjs").desktopCapabilities({
+  ipcMain.handle("desktop:capabilities", event => createRequire(import.meta.url)("../desktop/electron/capabilities.cjs").desktopCapabilities({
     platform: process.platform,
     remote: !localOriginGuard.isLocalSender(event),
   }));
-  ipcMain.handle("workspaces:state", () => createRequire(import.meta.url)("../electron/environments.cjs").workspaceSummary({ activeId: "local", environments: [] }));
+  ipcMain.handle("workspaces:state", () => createRequire(import.meta.url)("../desktop/electron/environments.cjs").workspaceSummary({ activeId: "local", environments: [] }));
   ipcMain.handle("environments:state", () => ({ activeId: "local", environments: [] }));
   ipcMain.handle("desktop-remote:state", () => ({ active: false }));
 
@@ -108,7 +108,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
     });
     const open = async (local, path = url) => {
       const window = new BrowserWindow({ show: false, width: 820, height: 760, webPreferences: {
-        preload: join(root, "electron/preload.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false,
+        preload: join(root, "desktop/electron/preload.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false,
         additionalArguments: [`--omb-local-origin=${local ? localOrigin : "https://remote-fixture.invalid"}`, "--omb-company-desktop=1"],
       } });
       await window.loadURL(path); return window;
@@ -265,7 +265,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
     await until(() => !restartIntent, "confirmed restart intent consumed after local panel mounts");
     assert.equal(readEnvironments().activeId, "local");
     assert.equal(await evaluate(`Boolean(${button("Sign in with your organization")})`), true);
-    const receipt = { passed: true, renderer: "OrganizationSettings + actual app shell", preload: "electron/preload.cjs", client: "electron/managed-desktop.mjs",
+    const receipt = { passed: true, renderer: "OrganizationSettings + actual app shell", preload: "desktop/electron/preload.cjs", client: "desktop/electron/managed-desktop.mjs",
       checks: ["organization logo and icon grid", "chosen icon becomes a durable local attachment", "admin removal clears branding without deleting chosen avatar", "one-button default organization sign-in", "custom Admin kept under Advanced", "browser handoff and automatic connection", "security code collapsed and cancel works", "approved company and model counts", "model-only capability sent to private process", "no token or private connection method in renderer", "organisation sign-in preserves local desktop capabilities", "390px no overflow", "cancel/confirm disconnect", "revocation requires reconnect", "remote bridge absent", "normal app startup unchanged", "explicit Organisation Settings before local onboarding", "saved old hosted renderer restored without local authority", "cancel keeps hosted selection", "native menu returns to local Organisation Settings", "hosted entry remains saved", "persisted local selection survives recreated renderer"],
       limitation: "Synthetic loopback Admin, confirmation, credential store and utility-process acknowledgement. Renderer recreation and a synthetic restart intent, not an installed update or OS relaunch; no real Admin consent, OS keychain, native driver execution, private runtime synchronization, backups or public DNS/TLS." };
     writeFileSync(join(output, "receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
@@ -280,7 +280,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
   const fixture = await launchVerificationServer();
   const output = mkdtempSync(join(tmpdir(), "omb-organization-ui-"));
   for (const name of ["home", "user-data"]) mkdirSync(join(output, name));
-  const ui = await createServer({ configFile: false, root, resolve: { alias: { "@": join(root, "src") } },
+  const ui = await createServer({ configFile: false, root, resolve: { alias: { "@": join(root, "desktop", "src") } },
     define: { __APP_VERSION__: JSON.stringify("fixture") },
     server: { host: "127.0.0.1", port: 0, proxy: { "/api": { target: fixture.info.url } } },
     plugins: [react(), tailwindcss(), {

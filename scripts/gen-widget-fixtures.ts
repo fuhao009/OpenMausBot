@@ -6,10 +6,10 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { WIDGET_SAMPLES } from "../shared/widget-samples.ts";
+import { WIDGET_SAMPLES } from "../packages/shared/widget-samples.ts";
 import {
   parseWidgetInput, widgetActions, widgetFields, widgetInitialValues, widgetScope, widgetTakesOther, widgetToText, type WidgetPayload, type WidgetRoot,
-} from "../shared/widget.ts";
+} from "../packages/shared/widget.ts";
 
 const dir = process.argv[2];
 if (!dir) throw new Error("usage: gen-widget-fixtures.ts <fixtures dir>");

@@ -1,5 +1,5 @@
 // The desktop window onto My Cloud, in a real headless Chrome, with main's own handlers: the home window
-// (electron/home-window.mjs), its IPC, the startup screen, the permission rule, and main.mjs's own chat-link delivery,
+// (desktop/electron/home-window.mjs), its IPC, the startup screen, the permission rule, and main.mjs's own chat-link delivery,
 // against the two real servers of cloud-send-fixture.ts. Chrome stands in for Electron: each window is a Chrome tab
 // driven over the DevTools protocol, the real preload runs in every page it loads (its ipcRenderer reaches main's
 // handlers over loopback), webRequest's onCompleted is Chrome's own response events, and the permission handler's answer
@@ -17,29 +17,29 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import vm from "node:vm";
 import { createServer as createViteServer, type ViteDevServer } from "vite";
-import { appPermissionHandlers } from "../../electron/app-permissions.mjs";
-import capabilities from "../../electron/capabilities.cjs";
-import { chatLinkFrom } from "../../electron/chat-link.mjs";
-import { parsePairingGrant, withCloudHome } from "../../electron/cloud-home.mjs";
-import { createCloudPowerGate } from "../../electron/cloud-power.mjs";
-import environments from "../../electron/environments.cjs";
-import { createHomePlaces } from "../../electron/home-places.mjs";
-import { createHomeWindow, installHomeWindowIpc, HOME_SCREEN_PATH } from "../../electron/home-window.mjs";
-import { createStartupScreen } from "../../electron/startup-screen.mjs";
-import { packageUrlFromDeepLink } from "../../electron/package-link.mjs";
-import { WELCOME_VERSION } from "../../electron/onboarding-record.mjs";
-import { SPOTLIGHTS } from "../../src/lib/first-conversation.ts";
-import { TOUR_STEPS } from "../../src/lib/guided-tour.ts";
-import { NOTICES } from "../../src/lib/notices.ts";
-import { waitForExit } from "../../server/testing/cleanup.ts";
+import { appPermissionHandlers } from "../../desktop/electron/app-permissions.mjs";
+import capabilities from "../../desktop/electron/capabilities.cjs";
+import { chatLinkFrom } from "../../desktop/electron/chat-link.mjs";
+import { parsePairingGrant, withCloudHome } from "../../desktop/electron/cloud-home.mjs";
+import { createCloudPowerGate } from "../../desktop/electron/cloud-power.mjs";
+import environments from "../../desktop/electron/environments.cjs";
+import { createHomePlaces } from "../../desktop/electron/home-places.mjs";
+import { createHomeWindow, installHomeWindowIpc, HOME_SCREEN_PATH } from "../../desktop/electron/home-window.mjs";
+import { createStartupScreen } from "../../desktop/electron/startup-screen.mjs";
+import { packageUrlFromDeepLink } from "../../desktop/electron/package-link.mjs";
+import { WELCOME_VERSION } from "../../desktop/electron/onboarding-record.mjs";
+import { SPOTLIGHTS } from "../../desktop/src/lib/first-conversation.ts";
+import { TOUR_STEPS } from "../../desktop/src/lib/guided-tour.ts";
+import { NOTICES } from "../../desktop/src/lib/notices.ts";
+import { waitForExit } from "../../desktop/server/testing/cleanup.ts";
 import type { CloudSendFixture } from "./cloud-send-fixture.ts";
 import { REPO_ROOT } from "./preview-fixture.ts";
 
-const PRELOAD = readFileSync(join(REPO_ROOT, "electron", "preload.cjs"), "utf8");
-const MAIN = readFileSync(join(REPO_ROOT, "electron", "main.mjs"), "utf8").replace(/\r\n/g, "\n");
-const SPLASH_ICON = join(REPO_ROOT, "electron", "resources", "app-icon.png");
+const PRELOAD = readFileSync(join(REPO_ROOT, "desktop", "electron", "preload.cjs"), "utf8");
+const MAIN = readFileSync(join(REPO_ROOT, "desktop", "electron", "main.mjs"), "utf8").replace(/\r\n/g, "\n");
+const SPLASH_ICON = join(REPO_ROOT, "desktop", "electron", "resources", "app-icon.png");
 export const ACCOUNT_ID = "acct-fixture";
-/** The renderer's own routes to its server; the same keys as vite.config.ts, so none of its own targets is kept. */
+/** The renderer's own routes to its server; the same keys as desktop/vite.config.ts, so none of its own targets is kept. */
 const PROXIED = ["/api", "/.well-known/hezuo/environment"];
 
 type Cdp = Awaited<ReturnType<typeof connectCdp>>;

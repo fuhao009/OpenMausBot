@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ConnectorCard } from "../../src/components/ConnectorCard";
-import { PluginsPanel } from "../../src/components/PluginsPanel";
-import { StoreProvider, useStore, type Message } from "../../src/state/store";
-import { setAnalyticsEnabled } from "../../src/lib/analytics";
-import { applySkin, readSkin } from "../../src/lib/skins";
-import "../../src/styles.css";
+import { ConnectorCard } from "../../desktop/src/components/ConnectorCard";
+import { PluginsPanel } from "../../desktop/src/components/PluginsPanel";
+import { StoreProvider, useStore, type Message } from "../../desktop/src/state/store";
+import { setAnalyticsEnabled } from "../../desktop/src/lib/analytics";
+import { applySkin, readSkin } from "../../desktop/src/lib/skins";
+import "../../desktop/src/styles.css";
 
 // Only the disposable OAuth recipe serves this entry; production components
 // stay mounted, while these controls simulate a server card update/deletion.

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { runControlOmb } from "../../scripts/control-omb.ts";
-import { readHandoffs as readRuntimeHandoffs } from "../../server/testing/handoff-rows.ts";
+import { readHandoffs as readRuntimeHandoffs } from "../../desktop/server/testing/handoff-rows.ts";
 import type { Scenario, Step } from "../types.ts";
 import { BaseWorld, type WorldContext } from "../runners/base-world.ts";
 import { waitUntil } from "../runners/api.ts";

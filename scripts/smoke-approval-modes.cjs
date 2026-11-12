@@ -10,7 +10,7 @@ const { join, resolve } = require("node:path");
 const { createServer } = require("node:net");
 const { once } = require("node:events");
 const { setTimeout: delay } = require("node:timers/promises");
-const { createTrustedApprovalModeCoordinator } = require("../electron/approval-trusted-mode.cjs");
+const { createTrustedApprovalModeCoordinator } = require("../desktop/electron/approval-trusted-mode.cjs");
 
 const root = resolve(__dirname, "..");
 const home = mkdtempSync(join(tmpdir(), "omb-approval-smoke-"));
@@ -42,7 +42,7 @@ app.whenReady().then(async () => {
   let webhookPort = await freePort();
   while (webhookPort === port) webhookPort = await freePort();
   const agy = join(home, "fake-antigravity.ts");
-  copyFileSync(join(root, "server/testing/fake-acp-cli.ts"), agy);
+  copyFileSync(join(root, "desktop/server/testing/fake-acp-cli.ts"), agy);
   const harness = join(home, process.platform === "win32" ? "localharness_external.exe" : "localharness_external");
   writeFileSync(harness, "fake harness");
   if (process.platform !== "win32") { chmodSync(agy, 0o755); chmodSync(harness, 0o755); }
@@ -65,7 +65,7 @@ app.whenReady().then(async () => {
   mkdirSync(join(home, ".grok"), { recursive: true });
   writeFileSync(join(home, ".grok", "auth.json"), "{}", { mode: 0o600 });
   const grokFixture = (mode, toolCall) => ({
-    driver: "grokAgent", config: { cli: join(root, "server/testing/fake-acp-cli.ts") },
+    driver: "grokAgent", config: { cli: join(root, "desktop/server/testing/fake-acp-cli.ts") },
     environment: {
       FAKE_ACP_MODE: mode, FAKE_ACP_AUTH_METHOD: "cached_token",
       FAKE_ACP_MODELS: "grok-4.6,grok-4.5", FAKE_ACP_DUMP: grokDump, FAKE_ACP_RPC_DUMP: grokRpc,
@@ -73,9 +73,9 @@ app.whenReady().then(async () => {
     },
   });
   writeFileSync(join(home, "config.json"), JSON.stringify({ instances: {
-    claude: { driver: "claudeAgent", config: { cli: join(root, "server/testing/fake-claude-cli.ts") },
+    claude: { driver: "claudeAgent", config: { cli: join(root, "desktop/server/testing/fake-claude-cli.ts") },
       ...(process.argv.includes("--model-ui-only") ? { environment: { FAKE_CLAUDE_VERSION: "2.1.284" } } : {}) },
-    codex: { driver: "codex", config: { cli: join(root, "server/testing/fake-codex-app-server.ts") }, environment: { FAKE_CODEX_MODE: "approval", FAKE_CODEX_DUMP: codexDump } },
+    codex: { driver: "codex", config: { cli: join(root, "desktop/server/testing/fake-codex-app-server.ts") }, environment: { FAKE_CODEX_MODE: "approval", FAKE_CODEX_DUMP: codexDump } },
     agy: { driver: "antigravityAgent", config: { cli: agy }, environment: { FAKE_ACP_DUMP: agyDump, FAKE_ACP_RPC_DUMP: agyRpc } },
     "agy-question": { driver: "antigravityAgent", config: { cli: agy }, environment: { FAKE_ACP_MODE: "question" } },
     "grok-reads": grokFixture("safe-agent-reads"),
@@ -84,14 +84,14 @@ app.whenReady().then(async () => {
     "grok-spoof": grokFixture("permission", { kind: "execute", title: "agents__list_bots", rawInput: { command: "cat ~/.ssh/id_ed25519" } }),
     "grok-question": grokFixture("question"),
     ...(process.argv.includes("--model-ui-only") ? {
-      "claude-signed-out": { driver: "claudeAgent", displayName: "Signed-out fixture", config: { cli: join(root, "server/testing/fake-claude-cli.ts") }, environment: { FAKE_CLAUDE_AUTH: "out" } },
+      "claude-signed-out": { driver: "claudeAgent", displayName: "Signed-out fixture", config: { cli: join(root, "desktop/server/testing/fake-claude-cli.ts") }, environment: { FAKE_CLAUDE_AUTH: "out" } },
       "missing-codex": { driver: "codex", displayName: "Missing provider fixture", config: { cli: join(home, "not-installed") } },
     } : {}),
   } }));
   const dump = join(home, "claude-argv.json");
   const testCapabilityKey = randomUUID();
   const coordinator = createTrustedApprovalModeCoordinator({ randomId: randomUUID });
-  child = utilityProcess.fork(join(root, "server/index.ts"), [], {
+  child = utilityProcess.fork(join(root, "desktop/server/index.ts"), [], {
     cwd: root,
     execArgv: ["--experimental-strip-types"],
     env: {

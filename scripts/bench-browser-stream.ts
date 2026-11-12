@@ -26,14 +26,14 @@ if (!chrome) throw new Error("Name a Chrome with --chrome PATH.");
 // The test service reads which Chrome to run when it loads.
 process.env.OMB_CDP_CHROME = chrome;
 
-const { displayScreen } = await import("../server/browser/display.ts");
-const { FixtureServer } = await import("../server/browser/cdp/testing/fixtures.ts");
-const { startService, jpegSize } = await import("../server/browser/testing/real-service.ts");
-const { StreamV2 } = await import("../server/browser/viewers/stream-v2.ts");
-const { createBrowserViewerRoutes } = await import("../server/routes/browser-viewers.ts");
-const { createUpgrades } = await import("../server/routes/upgrades.ts");
-const { dispatchRoutes } = await import("../server/routes/table.ts");
-const { json, readBody } = await import("../server/harness/http.ts");
+const { displayScreen } = await import("../desktop/server/browser/display.ts");
+const { FixtureServer } = await import("../desktop/server/browser/cdp/testing/fixtures.ts");
+const { startService, jpegSize } = await import("../desktop/server/browser/testing/real-service.ts");
+const { StreamV2 } = await import("../desktop/server/browser/viewers/stream-v2.ts");
+const { createBrowserViewerRoutes } = await import("../desktop/server/routes/browser-viewers.ts");
+const { createUpgrades } = await import("../desktop/server/routes/upgrades.ts");
+const { dispatchRoutes } = await import("../desktop/server/routes/table.ts");
+const { json, readBody } = await import("../desktop/server/harness/http.ts");
 
 const WIDTH = Number(values.width);
 const HEIGHT = Number(values.height);

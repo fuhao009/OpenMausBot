@@ -26,7 +26,7 @@ try {
     const wrapper = join(fixture.info.dataDir, "read-fixture-claude.mjs");
     writeFileSync(wrapper, ["#!/usr/bin/env node", 'process.env.FAKE_CLAUDE_MODE = "slow";',
       `process.env.FAKE_CLAUDE_SLOW_FINISH_GATE = ${JSON.stringify(join(fixture.info.dataDir, "finish-read-fixture"))};`,
-      `await import(${JSON.stringify(pathToFileURL(fileURLToPath(new URL("../server/testing/fake-claude-cli.ts", import.meta.url))).href)});`,
+      `await import(${JSON.stringify(pathToFileURL(fileURLToPath(new URL("../desktop/server/testing/fake-claude-cli.ts", import.meta.url))).href)});`,
     ].join("\n"));
     await api("PATCH", "/api/instances/claude", { cli: wrapper });
     await api("PATCH", "/api/config", { threads: { maxConcurrentPerBot: 1 } });

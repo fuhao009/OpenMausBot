@@ -41,22 +41,22 @@ export const AREA_CHECKS = {
  * other than English (the renderer's files take about nine minutes in one
  * process), with the Electron node tests, which compare their own copy of some
  * strings with every catalog, and the server's tests of its lines in other
- * languages (they load server/server-line-packs.ts). Docs tests: every test that
+ * languages (they load desktop/server/server-line-packs.ts). Docs tests: every test that
  * reads the docs. */
 export const VITEST_SUBSETS = {
   "locale-tests": {
     part: "locale tests",
-    files: ["src/", "scripts/generate-locale.test.mjs", "scripts/testing/key-readback.e2e.test.ts", "scripts/server-locale-plugin.test.ts",
-      "server/server-lines.test.ts", "server/host/devs-reports.test.ts", "server/automation-reports.test.ts", "server/incidents.test.ts",
-      "server/routine-run-card.test.ts", "server/host/chief-notices-retry.test.ts", "server/connector-card-text.test.ts", "server/host/secret-cards.test.ts",
-      "server/notify.test.ts", "server/room-lines.test.ts", "server/post-to-room.test.ts", "server/product-bot-selection.test.ts",
-      "server/teammate-lines.test.ts", "server/cloud-send-arrived.test.ts"],
+    files: ["desktop/src/", "scripts/generate-locale.test.mjs", "scripts/testing/key-readback.e2e.test.ts", "scripts/server-locale-plugin.test.ts",
+      "desktop/server/server-lines.test.ts", "desktop/server/host/devs-reports.test.ts", "desktop/server/automation-reports.test.ts", "desktop/server/incidents.test.ts",
+      "desktop/server/routine-run-card.test.ts", "desktop/server/host/chief-notices-retry.test.ts", "desktop/server/connector-card-text.test.ts", "desktop/server/host/secret-cards.test.ts",
+      "desktop/server/notify.test.ts", "desktop/server/room-lines.test.ts", "desktop/server/post-to-room.test.ts", "desktop/server/product-bot-selection.test.ts",
+      "desktop/server/teammate-lines.test.ts", "desktop/server/cloud-send-arrived.test.ts"],
     shards: 2,
     nodeTests: true,
   },
   "docs-tests": {
     part: "docs tests",
-    files: ["scripts/testing/analytics-docs.test.ts", "server/model-providers-docs.test.ts", "src/locales/vocabulary.test.ts"],
+    files: ["scripts/testing/analytics-docs.test.ts", "desktop/server/model-providers-docs.test.ts", "desktop/src/locales/vocabulary.test.ts"],
     shards: 1,
     nodeTests: false,
   },
@@ -68,9 +68,9 @@ export const VITEST_SUBSETS = {
  * server reads their "server." lines: a change to English runs every Linux test,
  * and one to another language runs every test that reads it (the locale tests). */
 export const SRC_OUTSIDE_RENDERER = [
-  "src/components/app/app-frame-host.ts",
-  "src/lib/citations.ts",
-  "src/lib/composer-attachments.ts",
+  "desktop/src/components/app/app-frame-host.ts",
+  "desktop/src/lib/citations.ts",
+  "desktop/src/lib/composer-attachments.ts",
 ];
 
 export const DOCS = /^(?:[^/]+\.md|docs\/.+\.md|\.github\/FUNDING\.yml)$/;
@@ -80,13 +80,13 @@ export const DOCS = /^(?:[^/]+\.md|docs\/.+\.md|\.github\/FUNDING\.yml)$/;
 const AREAS = [
   [DOCS, "docs"],
   [/^(?:apps\/)?docs\//, "docs"],
-  [/^scripts\/.+\.test\.[cm]?[jt]sx?$/, "script-tests"],
-  [/^src\/locales\/(?:(?!en\.json$)[^/]+\.json|[^/]+\.test\.ts)$/, "locales"],
-  [/^(?:src|public)\/|^[^/]+-preview\.html$/, "web"],
-  [/^(?:server|shared|enterprise|companion|evals|skills|deploy|cloudflare\/composio-broker)\/|^(?:Dockerfile|\.dockerignore|compose\.yaml)$/, "server"],
-  [/^electron\/(?:cua|cua-failure|cua-connection|capabilities|screen-status|shared-cua-connection|shared-computer-access|lent-screen-tools|lent-screen-failures|paced-typing)\.[cm]js$/, "windows-computer-control"],
-  [/^(?:electron|build)\/|^(?:electron-builder\.yml|index\.html|rail\.html)$/, "desktop"],
-  [/^cloudflare\/control-plane\//, "control-plane"],
+  [/^(?:scripts|gateway\/(?:local|scripts))\/.+\.test\.[cm]?[jt]sx?$/, "script-tests"],
+  [/^desktop\/src\/locales\/(?:(?!en\.json$)[^/]+\.json|[^/]+\.test\.ts)$/, "locales"],
+  [/^desktop\/(?:src|public)\/|^desktop\/[^/]+-preview\.html$/, "web"],
+  [/^desktop\/(?:server|companion)\/|^(?:packages|enterprise|evals|skills|deploy|gateway\/composio-broker)\/|^(?:Dockerfile|\.dockerignore|compose\.yaml)$/, "server"],
+  [/^desktop\/electron\/(?:cua|cua-failure|cua-connection|capabilities|screen-status|shared-cua-connection|shared-computer-access|lent-screen-tools|lent-screen-failures|paced-typing)\.[cm]js$/, "windows-computer-control"],
+  [/^desktop\/(?:electron|build)\/|^desktop\/(?:index|rail)\.html$|^electron-builder\.yml$/, "desktop"],
+  [/^gateway\/control-plane\//, "control-plane"],
 ];
 
 export function areaOf(file) {
@@ -128,10 +128,10 @@ export const WINDOWS_LABEL = "windows";
 export const WINDOWS_PATH = new RegExp([
   String.raw`(?:^|[/._-])(?:win|win32|win64|windows|nsis|powershell|pwsh)(?:[/._-]|$)`,
   String.raw`\.(?:ps1|psm1|psd1|cmd|bat|exe|msi|nsh|nsi)$`,
-  String.raw`^(?:electron|build|third_party)/`,
-  String.raw`^(?:electron-builder\.yml|package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc|\.gitattributes|vite\.config\.ts)$`,
+  String.raw`^desktop/(?:electron|build)/|^third_party/`,
+  String.raw`^(?:electron-builder\.yml|package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc|\.gitattributes|desktop\/vite\.config\.ts|vitest\.config\.ts)$`,
   String.raw`^\.github/workflows/ci\.yml$|^scripts/ci-scope\.mjs$`,
-  String.raw`^scripts/testing/(?:host-e2e\.ts|duration-sequencer\.ts|vitest-shard-weights\.json|ci-retry-[^/]+)$|^server/testing/host-timeout\.ts$`,
+  String.raw`^scripts/testing/(?:host-e2e\.ts|duration-sequencer\.ts|vitest-shard-weights\.json|ci-retry-[^/]+)$|^desktop/server/testing/host-timeout\.ts$`,
   String.raw`^scripts/(?:build|bundle|prepare|package|smoke|after-pack|stage)[^/]*$`,
 ].join("|"), "i");
 
@@ -287,7 +287,7 @@ function changedFiles(range) {
 /** The added and removed lines of a range's code, docs and translations left out. */
 function changedCodeLines(range) {
   return execFileSync("git", [
-    "diff", "-U0", "--no-renames", "--no-color", "--no-ext-diff", range, "--", ".", ":(exclude)*.md", ":(exclude)docs/**", ":(exclude)src/locales/**",
+    "diff", "-U0", "--no-renames", "--no-color", "--no-ext-diff", range, "--", ".", ":(exclude)*.md", ":(exclude)docs/**", ":(exclude)desktop/src/locales/**",
   ], { encoding: "utf8", timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] }).split("\n");
 }
 

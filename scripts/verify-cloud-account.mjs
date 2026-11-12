@@ -12,8 +12,8 @@ const root = fileURLToPath(new URL("..", import.meta.url)), flag = "--omb-cloud-
 if (process.versions.electron && process.argv.includes(flag)) {
   const { app, BrowserWindow, ipcMain, session } = await import("electron");
   const { createServer } = await import("node:http");
-  const { createCloudAccountClient } = await import("../electron/cloud-account.mjs");
-  const local = createRequire(import.meta.url)("../electron/local-origin.cjs");
+  const { createCloudAccountClient } = await import("../desktop/electron/cloud-account.mjs");
+  const local = createRequire(import.meta.url)("../desktop/electron/local-origin.cjs");
   const [preview, output] = process.argv.slice(process.argv.indexOf(flag) + 1), previewOrigin = new URL(preview).origin;
   app.setPath("userData", join(output, "user-data")); app.setPath("sessionData", join(output, "user-data"));
   app.commandLine.appendSwitch("disable-background-networking"); local.setLocalOrigin(previewOrigin);
@@ -50,7 +50,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
   });
   try {
     await client.start(); assert.equal(begins, 0); assert.deepEqual(browsers, []);
-    win = new BrowserWindow({ width: 740, height: 780, show: false, webPreferences: { preload: join(root, "electron/preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true,
+    win = new BrowserWindow({ width: 740, height: 780, show: false, webPreferences: { preload: join(root, "desktop/electron/preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true,
       additionalArguments: [`--omb-local-origin=${previewOrigin}`, "--omb-company-desktop=1"] } });
     const evaluate = source => win.webContents.executeJavaScript(source, true);
     const wait = async text => { for (let count = 0; count < 240; count++) { if (await evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`)) return; await new Promise(resolve => setTimeout(resolve, 50)); } throw new Error(`Missing fixture UI: ${text}`); };
@@ -94,7 +94,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
   const { createServer } = await import("vite"), { default: react } = await import("@vitejs/plugin-react"), { default: tailwindcss } = await import("@tailwindcss/vite");
   const output = mkdtempSync(join(tmpdir(), "omb-cloud-account-ui-"));
   for (const name of ["home", "user-data"]) mkdirSync(join(output, name));
-  const ui = await createServer({ configFile: false, root, resolve: { alias: { "@": join(root, "src") } }, define: { __APP_VERSION__: JSON.stringify("fixture") },
+  const ui = await createServer({ configFile: false, root, resolve: { alias: { "@": join(root, "desktop", "src") } }, define: { __APP_VERSION__: JSON.stringify("fixture") },
     server: { host: "127.0.0.1", port: 0 }, plugins: [react(), tailwindcss(), {
       name: "cloud-account-fixture", resolveId(id) { if (id === "virtual:cloud-account-fixture") return `\0${id}`; },
       load(id) { if (id === "\0virtual:cloud-account-fixture") return `import React from 'react'; import { createRoot } from 'react-dom/client'; import { CloudAccountSettings } from '/src/components/CloudAccountSettings.tsx'; import { setLocale } from '/src/lib/i18n.ts'; import '/src/styles.css'; setLocale('en'); createRoot(document.getElementById('root')).render(React.createElement('main',{className:'mx-auto flex max-w-xl flex-col gap-4'},React.createElement(CloudAccountSettings)));`; },

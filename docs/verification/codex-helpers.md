@@ -6,7 +6,7 @@ may update the parent transcript, usage, or completion. Scoped child/stale error
 are excluded too; connection-level errors still surface. Approval requests
 continue through the existing broker, including requests from helpers.
 
-Run `pnpm exec vitest run server/drivers/codex.test.ts` for interleaved helper,
+Run `pnpm exec vitest run desktop/server/drivers/codex.test.ts` for interleaved helper,
 stale-turn, missing-scope and early-notification regression checks. The helper
 test fails on the old driver: it emits the child's final and kills the parent
 before its next approval. The fixed driver answers that approval and completes

@@ -23,7 +23,7 @@ import {
 } from "./prepare-cloudflared.mjs";
 
 const require = createRequire(import.meta.url);
-const { validateDriverCandidate } = require("../electron/cua-linux.cjs");
+const { validateDriverCandidate } = require("../desktop/electron/cua-linux.cjs");
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const releaseDir = path.resolve(process.argv[2] ?? path.join(root, "release"));

@@ -1,4 +1,4 @@
-// Renders the talk box (electron/talk-panel.mjs) in headless Chrome for every state, light and dark, into
+// Renders the talk box (desktop/electron/talk-panel.mjs) in headless Chrome for every state, light and dark, into
 // docs/verification/evidence/talk-shortcut/. The viewport is the box's own window: 400 px wide and as tall as the card,
 // 56 to 240 px, at 2x. Each skin is rendered with macOS's appearance emulated the other way round, so the pictures show
 // the box following the app's skin. Reduced motion is on, so the listening ring is still.
@@ -9,8 +9,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { replyPreview, TALK_PANEL, talkPanelHtml } from "../electron/talk-panel.mjs";
-import { TALK_TEXT } from "../electron/talk-session.mjs";
+import { replyPreview, TALK_PANEL, talkPanelHtml } from "../desktop/electron/talk-panel.mjs";
+import { TALK_TEXT } from "../desktop/electron/talk-session.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const out = join(root, "docs/verification/evidence/talk-shortcut");
@@ -33,7 +33,7 @@ const BACKDROP = { light: { r: 222, g: 222, b: 222, a: 1 }, dark: { r: 40, g: 40
 const scratch = mkdtempSync(join(tmpdir(), "talk-box-evidence-"));
 /** The mascot at the 56 px the app inlines (talk-panel.mjs resizes it with nativeImage; here macOS's sips does). */
 function mascot() {
-  const icon = join(root, "electron/resources/app-icon.png"), small = join(scratch, "mascot.png");
+  const icon = join(root, "desktop/electron/resources/app-icon.png"), small = join(scratch, "mascot.png");
   try {
     execFileSync("sips", ["-z", "56", "56", icon, "--out", small], { stdio: "ignore" });
     return readFileSync(small).toString("base64");

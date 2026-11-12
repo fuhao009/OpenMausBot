@@ -1,9 +1,9 @@
 import { createRoot } from "react-dom/client";
-import { McpServersPanel } from "../../src/components/McpServersPanel";
-import { StoreProvider } from "../../src/state/store";
-import { setAnalyticsEnabled } from "../../src/lib/analytics";
-import { applySkin, readSkin } from "../../src/lib/skins";
-import "../../src/styles.css";
+import { McpServersPanel } from "../../desktop/src/components/McpServersPanel";
+import { StoreProvider } from "../../desktop/src/state/store";
+import { setAnalyticsEnabled } from "../../desktop/src/lib/analytics";
+import { applySkin, readSkin } from "../../desktop/src/lib/skins";
+import "../../desktop/src/styles.css";
 
 setAnalyticsEnabled(false);
 applySkin(readSkin());

@@ -6,7 +6,7 @@ const { createInterface } = require("node:readline");
 const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
 
-const code = process.env.OMB_SMOKE_CODE || resolve(__dirname, "..", "electron");
+const code = process.env.OMB_SMOKE_CODE || resolve(__dirname, "..", "desktop", "electron");
 app.setPath("userData", process.env.OMB_SMOKE_USER_DATA);
 const report = { code: process.env.OMB_SMOKE_LABEL ?? "this branch", packaged: app.isPackaged, resourcesPath: process.resourcesPath };
 const say = (line) => console.log(`[lend smoke, ${report.code}] ${line}`);

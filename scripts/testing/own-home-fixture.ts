@@ -1,6 +1,6 @@
 // This computer's server, started as the desktop app starts it (its private port emulated over Node's IPC), and servers of
 // the person's own (`hezuo serve`, nothing of Hezuo Cloud), each paired with this app as a pairing link pairs it.
-// Main's own wiring for the move to such a server (electron/own-home-main.mjs) sits between them, its requests carrying
+// Main's own wiring for the move to such a server (desktop/electron/own-home-main.mjs) sits between them, its requests carrying
 // the pairing's session as the window's would. Disposable homes and a synthetic Claude CLI; no network.
 import { randomBytes } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -8,12 +8,12 @@ import { mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createLoginHandoffClient } from "../../electron/cloud-logins.mjs";
-import { installOwnHome } from "../../electron/own-home-main.mjs";
-import { removeTempDir, waitForExit } from "../../server/testing/cleanup.ts";
-import { freePortBlock } from "../../server/testing/ports.ts";
+import { createLoginHandoffClient } from "../../desktop/electron/cloud-logins.mjs";
+import { installOwnHome } from "../../desktop/electron/own-home-main.mjs";
+import { removeTempDir, waitForExit } from "../../desktop/server/testing/cleanup.ts";
+import { freePortBlock } from "../../desktop/server/testing/ports.ts";
 
-const SERVER_DIR = fileURLToPath(new URL("../../server/", import.meta.url));
+const SERVER_DIR = fileURLToPath(new URL("../../desktop/server/", import.meta.url));
 const parse = (text: string) => { try { return JSON.parse(text); } catch { return null; } };
 type Answer = { status: number; body: any };
 type Side = (method: string, path: string, body?: unknown) => Promise<Answer>;
@@ -78,7 +78,7 @@ await import(${JSON.stringify(pathToFileURL(join(SERVER_DIR, "testing", "fake-cl
     }
     const offline = `data:text/javascript,${encodeURIComponent('const real = globalThis.fetch; globalThis.fetch = async (url, init) => String(url).startsWith("http://127.0.0.1:") ? real(url, init) : new Response("offline fixture", { status: 503 });')}`;
     const child = spawn(process.execPath, ["--import", offline, ...extra, join(SERVER_DIR, "index.ts")], {
-      cwd: join(SERVER_DIR, ".."),
+      cwd: join(SERVER_DIR, "..", ".."),
       env: { PATH: process.env.PATH, ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}), HOME: home, USERPROFILE: home, OMB_DATA_DIR: dataDir,
         OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(port + 1), ...env, ...own },
       stdio: ["ignore", "pipe", "pipe", ...(ipc ? ["ipc" as const] : [])],

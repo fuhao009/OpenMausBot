@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { removeTempDir, waitForExit } from "../../server/testing/cleanup.ts";
+import { removeTempDir, waitForExit } from "../../desktop/server/testing/cleanup.ts";
 
 type Params = Record<string, unknown>;
 const CDP_ANSWER_MS = 120_000;

@@ -1,9 +1,9 @@
 // Relative thread stamps at every label age, for before/after evidence: six
 // staged threads and one pinned clock, driven headlessly through mountPreview.
 import { createRoot } from "react-dom/client";
-import { SidebarThreadRow } from "../../src/components/SidebarThreadRow";
-import { applySkin, readSkin } from "../../src/lib/skins";
-import "../../src/styles.css";
+import { SidebarThreadRow } from "../../desktop/src/components/SidebarThreadRow";
+import { applySkin, readSkin } from "../../desktop/src/lib/skins";
+import "../../desktop/src/styles.css";
 
 const now = Date.now();
 const ages: [label: string, ms: number][] = [

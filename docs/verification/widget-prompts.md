@@ -112,7 +112,7 @@ Expect: No password field appears. The bot should say it cannot, or use the cred
 
 ## Show a known-good widget
 
-Each prompt hands the bot a finished tree from `shared/widget-samples.ts`, so what appears does not depend on the bot's own design. Use these to check a renderer.
+Each prompt hands the bot a finished tree from `packages/shared/widget-samples.ts`, so what appears does not depend on the bot's own design. Use these to check a renderer.
 
 ### A. dinnerChoice
 
@@ -200,7 +200,7 @@ Call show_widget with exactly this widget, change nothing, and say nothing else:
 Call show_widget with exactly this widget, change nothing, and say nothing else:
 
 ```json
-{"type":"ListView","title":"Sources","caption":"What Scout read for this answer","limit":2,"children":[{"type":"ListViewItem","onClickAction":{"type":"open_url","payload":{"url":"https://developers.openai.com/api/docs/guides/chatkit-widgets"}},"children":[{"type":"Icon","name":"globe"},{"type":"Col","flex":1,"children":[{"type":"Text","value":"ChatKit widgets guide","weight":"medium"},{"type":"Caption","value":"developers.openai.com"}]},{"type":"Icon","name":"external-link","color":"tertiary"}]},{"type":"ListViewItem","onClickAction":{"type":"open_url","payload":{"url":"https://widgets.chatkit.studio/gallery"}},"children":[{"type":"Icon","name":"globe"},{"type":"Col","flex":1,"children":[{"type":"Text","value":"Widget Builder gallery","weight":"medium"},{"type":"Caption","value":"widgets.chatkit.studio"}]},{"type":"Icon","name":"external-link","color":"tertiary"}]},{"type":"ListViewItem","children":[{"type":"Icon","name":"document"},{"type":"Col","flex":1,"children":[{"type":"Text","value":"shared/wire.ts","weight":"medium"},{"type":"Caption","value":"Hezuo · this computer"}]}]}]}
+{"type":"ListView","title":"Sources","caption":"What Scout read for this answer","limit":2,"children":[{"type":"ListViewItem","onClickAction":{"type":"open_url","payload":{"url":"https://developers.openai.com/api/docs/guides/chatkit-widgets"}},"children":[{"type":"Icon","name":"globe"},{"type":"Col","flex":1,"children":[{"type":"Text","value":"ChatKit widgets guide","weight":"medium"},{"type":"Caption","value":"developers.openai.com"}]},{"type":"Icon","name":"external-link","color":"tertiary"}]},{"type":"ListViewItem","onClickAction":{"type":"open_url","payload":{"url":"https://widgets.chatkit.studio/gallery"}},"children":[{"type":"Icon","name":"globe"},{"type":"Col","flex":1,"children":[{"type":"Text","value":"Widget Builder gallery","weight":"medium"},{"type":"Caption","value":"widgets.chatkit.studio"}]},{"type":"Icon","name":"external-link","color":"tertiary"}]},{"type":"ListViewItem","children":[{"type":"Icon","name":"document"},{"type":"Col","flex":1,"children":[{"type":"Text","value":"packages/shared/wire.ts","weight":"medium"},{"type":"Caption","value":"Hezuo · this computer"}]}]}]}
 ```
 ````
 

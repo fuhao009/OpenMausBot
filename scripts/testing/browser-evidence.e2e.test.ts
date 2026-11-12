@@ -11,14 +11,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { BrowserEvidence, type StepRecord } from "../../server/browser-evidence.ts";
-import { agentBrowserIntegration, closeBrowserSession, prepareBrowserSessionState, resolveAgentBrowserBinary, setBrowserViewport } from "../../server/browser-engine.ts";
-import { relay, RelayPorts, relayTarget } from "../../server/browser-relay.ts";
-import { BrowserRuntime, browserRuntimeEnv, type BrowserSpawnSpec, type BrowserTiming } from "../../server/browser-runtime.ts";
-import { BrowserSteps, type StepContext } from "../../server/browser-steps.ts";
-import { openGate, type EgressGate } from "../../server/browser/egress/gate.ts";
-import { refusalFor } from "../../server/browser/egress/policy.ts";
-import { removeTempDir } from "../../server/testing/cleanup.ts";
+import { BrowserEvidence, type StepRecord } from "../../desktop/server/browser-evidence.ts";
+import { agentBrowserIntegration, closeBrowserSession, prepareBrowserSessionState, resolveAgentBrowserBinary, setBrowserViewport } from "../../desktop/server/browser-engine.ts";
+import { relay, RelayPorts, relayTarget } from "../../desktop/server/browser-relay.ts";
+import { BrowserRuntime, browserRuntimeEnv, type BrowserSpawnSpec, type BrowserTiming } from "../../desktop/server/browser-runtime.ts";
+import { BrowserSteps, type StepContext } from "../../desktop/server/browser-steps.ts";
+import { openGate, type EgressGate } from "../../desktop/server/browser/egress/gate.ts";
+import { refusalFor } from "../../desktop/server/browser/egress/policy.ts";
+import { removeTempDir } from "../../desktop/server/testing/cleanup.ts";
 import { launchVerificationServer, runControlOmb } from "../control-omb.ts";
 import { ensureUiBrowser, UI_TOOLS_DIR } from "./control-omb-ui.ts";
 
@@ -218,7 +218,7 @@ describe("page health and browser steps on the real engine", () => {
     expect(children.length).toBeGreaterThan(0);
     for (const [pid] of children) process.kill(Number(pid), "SIGKILL");
     await expect.poll(async () => (await relay(port, { action: "stream_status" }, { timeoutMs: 2_000 })).data?.connected, { timeout: 10_000 }).toBe(false);
-    await expect(runtime.previewFrame(session, () => import("../../server/browser-relay.ts").then((module) => module.captureFrame(ports, target())))).rejects.toThrow(/no open page/);
+    await expect(runtime.previewFrame(session, () => import("../../desktop/server/browser-relay.ts").then((module) => module.captureFrame(ports, target())))).rejects.toThrow(/no open page/);
     expect((await relay(port, { action: "stream_status" }, { timeoutMs: 2_000 })).data?.connected).toBe(false);
     const snapshot = await call("snapshot", {}, false);
     expect(snapshot.join("\n")).toContain("The browser had stopped and was started again during this call");

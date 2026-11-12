@@ -11,13 +11,13 @@ too) into areas, and runs only the jobs some area can affect:
 | Area | Paths | What runs |
 | --- | --- | --- |
 | docs | `*.md` at the root, everything under `docs/` and `apps/docs/`, `.github/FUNDING.yml` | lint, the docs tests (the three vitest files that read the docs) on Linux |
-| locales | `src/locales/*.json` except `en.json`, `src/locales/*.test.ts` | the build, the locale tests: every `src/` test and `scripts/generate-locale.test.mjs` in two Linux shards, with the Electron node tests |
-| web | the rest of `src/`, `public/`, the root `*-preview.html` pages | the build, the eight Linux shards, the renderer smoke |
+| locales | `desktop/src/locales/*.json` except `en.json`, `desktop/src/locales/*.test.ts` | the build, the locale tests: every `desktop/src/` test and `scripts/generate-locale.test.mjs` in two Linux shards, with the Electron node tests |
+| web | the rest of `desktop/src/`, `desktop/public/`, `desktop/*-preview.html` pages | the build, the eight Linux shards, the renderer smoke |
 | script tests | `scripts/**/*.test.*` | the Linux shards (and Windows', see Windows), the renderer smoke, browser identity |
-| server | `server/`, `shared/`, `enterprise/`, `companion/`, `evals/`, `skills/`, `deploy/`, the composio broker, the Dockerfile, and the renderer files the server or a smoke loads | the build, Linux shards (and Windows', see Windows), behavior evals, packaged server, open-source edition, the macOS smokes, renderer smoke, browser identity, browser driver, Linux package |
-| Windows computer control | the `electron/` modules that start computer control and lend a PC's screen: `cua`, `cua-failure`, `cua-connection`, `capabilities`, `screen-status`, `shared-cua-connection`, `shared-computer-access`, `lent-screen-tools`, `lent-screen-failures`, `paced-typing` | the same as server, and Windows CUA |
-| desktop | the rest of `electron/`, `build/`, `electron-builder.yml`, `index.html` | the same as server |
-| control plane | `cloudflare/control-plane/` | the control-plane job |
+| server | `desktop/server/`, `packages/shared/`, `enterprise/`, `desktop/companion/`, `evals/`, `skills/`, `deploy/`, the composio broker, the Dockerfile, and the renderer files the server or a smoke loads | the build, Linux shards (and Windows', see Windows), behavior evals, packaged server, open-source edition, the macOS smokes, renderer smoke, browser identity, browser driver, Linux package |
+| Windows computer control | the `desktop/electron/` modules that start computer control and lend a PC's screen: `cua`, `cua-failure`, `cua-connection`, `capabilities`, `screen-status`, `shared-cua-connection`, `shared-computer-access`, `lent-screen-tools`, `lent-screen-failures`, `paced-typing` | the same as server, and Windows CUA |
+| desktop | the rest of `desktop/electron/`, `desktop/build/`, `electron-builder.yml`, `desktop/index.html` | the same as server |
+| control plane | `gateway/control-plane/` | the control-plane job |
 | everything | anything else: `.github/` workflows, `package.json`, the lockfile and workspace, tsconfig, vite and vitest config, `third_party/`, `scripts/` code, unknown paths | every job |
 
 The build is static's typecheck, Electron syntax check and UI build. Several
@@ -33,7 +33,7 @@ areas run the union of their jobs. Why the mapping is what it is:
   the platform from the desktop bridge, never the host. The full lane still
   runs both.
 - English (`en.json`) is the text every test reads, so it is web. Other
-  catalogs are read only by `src/` tests, the locale generator's test and an
+  catalogs are read only by `desktop/src/` tests, the locale generator's test and an
   Electron node test; `scripts/ci-scope.test.ts` fails if another test starts
   reading them, or the docs, without being listed.
 - Windows CUA starts computer control the way the installed app does and
@@ -98,7 +98,7 @@ Windows run eight shards each, macOS four (the full lane only);
 OMB's own logic through a real server and fake engines, which is the same on
 every OS, and they were 70% of a Windows shard's time, so only Linux runs
 them: the Windows and macOS shards set `OMB_VITEST_E2E=host`, and
-`vite.config.ts` then leaves out every e2e file not listed in
+`desktop/vite.config.ts` then leaves out every e2e file not listed in
 `scripts/testing/host-e2e.ts`. The list keeps an e2e file on every host when
 it has a test that never runs on Linux (Auto on the person's own desktop, the
 built-in Mac voices) or depends on the OS (PowerShell and Windows process
@@ -191,12 +191,12 @@ its change can break Windows first
 - the PR carries the `windows` label;
 - a path names Windows (`win`, `win32`, `windows`, `nsis`, `powershell` as a
   word of the path, `.ps1`, `.cmd`, `.bat`, `.exe`), or is the desktop app and
-  its installer (`electron/`, `build/`, `electron-builder.yml`), the
+  its installer (`desktop/electron/`, `desktop/build/`, `electron-builder.yml`), the
   dependencies (`package.json`, the lockfile and workspace, `.npmrc`,
-  `third_party/`), `.gitattributes`, `vite.config.ts`, a script that builds,
+  `third_party/`), `.gitattributes`, `desktop/vite.config.ts`, a script that builds,
   bundles, prepares, packages, stages or smokes the app, or what decides how
   the Windows shards run (`ci.yml`, `ci-scope.mjs`, the host e2e list, the
-  shard weights, the retry list and runner, `server/testing/host-timeout.ts`);
+  shard weights, the retry list and runner, `desktop/server/testing/host-timeout.ts`);
 - it changes one of the e2e files the Windows shards also run
   (`scripts/testing/host-e2e.ts`);
 - an added or removed line of its code (not docs or translations) names
@@ -217,7 +217,7 @@ PR's running checks.
 ## Browser driver (S4)
 
 `browser driver S4 (<os>)` runs the omb-cdp conformance suites
-(`server/browser/cdp/s4-*.e2e.test.ts`) against real Chrome: snapshots across
+(`desktop/server/browser/cdp/s4-*.e2e.test.ts`) against real Chrome: snapshots across
 out-of-process frames and closed shadow roots, every action, dialogs,
 downloads, popups and tabs, both evaluation worlds, waiting, the calibrated
 identity against the headed browser and across page, worker, service worker,
@@ -230,18 +230,18 @@ without a browser: the method guard refuses those methods and no driver
 source names them.
 
 The same job runs the new browser's suites on that Chrome:
-`server/browser/checklist.e2e.test.ts` (the design's checklist items the
+`desktop/server/browser/checklist.e2e.test.ts` (the design's checklist items the
 browser service owns: tools and refs, sign-ins kept across a restart of the
 browser, erase and temporary profiles, uploads, downloads, dialogs, popups,
 HTTP sign-in, a person's hold, restart and idle close) and
-`server/browser/viewers/viewers.e2e.test.ts` (the page filling the viewer
+`desktop/server/browser/viewers/viewers.e2e.test.ts` (the page filling the viewer
 at the screen's device scale, resizes, presets, acknowledged frames, a
 scroll ending on a sharp frame, and the phone's v1 live view against its
-golden from agent-browser), `server/browser/passkey-wall.e2e.test.ts` (a
+golden from agent-browser), `desktop/server/browser/passkey-wall.e2e.test.ts` (a
 sign-in shaped like Google's that stops at a passkey or a security key: the
 bot's notice, the request ending at once as unavailable, Try another way, the
 options and a code, and no passkey registered) and
-`server/browser/viewers/stream-v2.e2e.test.ts`
+`desktop/server/browser/viewers/stream-v2.e2e.test.ts`
 (the panel's WebSocket stream through its routes: a 1600x1000 panel getting a
 1600x1000 page and 3200x2000 frames on a 2x screen, the page's file picker
 answered by an upload, a dropdown list drawn by the viewer, a download served
@@ -269,8 +269,8 @@ to it, the page's cursor and copied text).
   about a minute and a half after Chrome first runs, in the middle of the
   suites.
 - Locally: `OMB_CDP_CHROME=<chrome executable> pnpm exec vitest run
-  server/browser/cdp/s4- server/browser/checklist.e2e server/browser/passkey-wall.e2e
-  server/browser/viewers/viewers.e2e server/browser/viewers/stream-v2.e2e` (or
+  desktop/server/browser/cdp/s4- desktop/server/browser/checklist.e2e desktop/server/browser/passkey-wall.e2e
+  desktop/server/browser/viewers/viewers.e2e desktop/server/browser/viewers/stream-v2.e2e` (or
   `OMB_CDP_E2E=1` for the installed Google Chrome). Without either the suites
   skip. `OMB_CDP_TEST_TMP` moves the throwaway profiles.
 - `pnpm bench:browser-stream` measures the panel's stream on the installed
@@ -329,7 +329,7 @@ two retries; nothing else is retried, and local runs never retry. Retries
 are bounded per file: once a listed test fails all three attempts, that is a
 real failure, and the file's later listed tests get no retry. Otherwise a
 regression that breaks a whole fixture (six listed tests share
-`server/delta-context.e2e.test.ts`) would triple their wall time and push the
+`desktop/server/delta-context.e2e.test.ts`) would triple their wall time and push the
 Linux shard past its 25-minute cap, and a timed-out job loses the failing
 tests' annotations and this summary. The cost: a real flake listed after a
 broken test in the same file is not retried in that run. A listed
@@ -340,8 +340,8 @@ that passed is still seen. Fix the test, then delete its entry;
 exists.
 
 Windows runners run the suite about 1.45x slower than Linux. Every test and
-hook timeout doubles there (`server/testing/host-timeout.ts`): the defaults in
-`vite.config.ts`, and a test's own timeout written as `hostTimeout(ms)`. Linux
+hook timeout doubles there (`desktop/server/testing/host-timeout.ts`): the defaults in
+`desktop/vite.config.ts`, and a test's own timeout written as `hostTimeout(ms)`. Linux
 and macOS keep the strict numbers, such as the 120 s budget for the
 3,000-file checkpoints test.
 

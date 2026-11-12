@@ -12,8 +12,8 @@ prompt or dialog: visibility is access control and the log is a record.
 - **Per-bot visibility.** `PATCH /api/bots/:id` takes `visibility`:
   `"everyone"` (default), `"admins"`, or `{ "people": [emails or @domains] }`
   (admins always included). Members' PATCHes may not set it (the client
-  body filter in `server/request-auth.ts`). The rules live in
-  `server/bot-visibility.ts`; `server/index.ts` applies them:
+  body filter in `desktop/server/request-auth.ts`). The rules live in
+  `desktop/server/bot-visibility.ts`; `desktop/server/index.ts` applies them:
   - one gate for every path naming a bot, thread, room, routine, run or
     attachment (`pathSubject` / `subjectVisible`): a hidden one answers 404
     exactly like an unknown id;
@@ -27,11 +27,11 @@ prompt or dialog: visibility is access control and the log is a record.
     that becomes visible arrives whole with a transcript page;
   - rooms need every bot visible; teams need a visible bot or room;
   - bots reach teammates only with exactly the same audience
-    (`peerAllowed` in `server/peer-roster.ts`, used by rosters, `list_bots`,
+    (`peerAllowed` in `desktop/server/peer-roster.ts`, used by rosters, `list_bots`,
     `coordinate_bots` hand-offs, @mentions and the Chief's team);
   - admins, the owner on this machine and a session-less local service see
     everything; members never receive a bot's audience list.
-- **Admin activity log.** `server/admin-activity.ts`. Each successful admin
+- **Admin activity log.** `desktop/server/admin-activity.ts`. Each successful admin
   change is diffed around its request (config.json, the bot's audited
   fields, the bot and webhook lists, sessions, pairing codes, engine actions)
   and written to `<data>/admin-activity/YYYY-MM.ndjson` (0600) with the
@@ -47,13 +47,13 @@ prompt or dialog: visibility is access control and the log is a record.
 ## Driving it
 
 ```sh
-pnpm exec vitest run server/bot-visibility.test.ts server/bot-visibility.e2e.test.ts \
-  server/admin-activity.test.ts server/admin-activity.e2e.test.ts server/peer-roster.test.ts \
-  server/cli.test.ts src/components/ActivitySection.test.ts \
-  src/components/bot-settings/VisibilitySection.test.ts
+pnpm exec vitest run desktop/server/bot-visibility.test.ts desktop/server/bot-visibility.e2e.test.ts \
+  desktop/server/admin-activity.test.ts desktop/server/admin-activity.e2e.test.ts desktop/server/peer-roster.test.ts \
+  desktop/server/cli.test.ts desktop/src/components/ActivitySection.test.ts \
+  desktop/src/components/bot-settings/VisibilitySection.test.ts
 ```
 
-- `server/bot-visibility.e2e.test.ts` boots a server with an admin (Boss) and
+- `desktop/server/bot-visibility.e2e.test.ts` boots a server with an admin (Boss) and
   two members (Ada, Bob) on the sign-in list and the fake ACP engine. Boss
   restricts "Payroll" to Ada and "Board" to admins, puts Payroll in a room
   with an everyone-visible bot, gives it a routine, a webhook, an image in
@@ -68,7 +68,7 @@ pnpm exec vitest run server/bot-visibility.test.ts server/bot-visibility.e2e.tes
   `group.deleted`, and later changes to it send them nothing). Finally, two
   bots with the same audience are teammates and a bot with a different one
   is not, in the real system prompt.
-- `server/admin-activity.e2e.test.ts` changes people, an engine key, a spend
+- `desktop/server/admin-activity.e2e.test.ts` changes people, an engine key, a spend
   limit and settings (as Boss, as the owner on loopback, and with the
   command-line marker), adds an MCP server with a secret, creates, restricts,
   re-permissions and deletes a bot, creates and deletes a webhook, revokes a
@@ -76,7 +76,7 @@ pnpm exec vitest run server/bot-visibility.test.ts server/bot-visibility.e2e.tes
   with each filter and the CSV. It checks who is named, that display-only
   and refused changes leave no row, that neither secret reaches the file or
   the CSV, that the file is 0600, and that a member gets 403.
-- `server/cli.test.ts` ("hezuo access") checks the command line's rows.
+- `desktop/server/cli.test.ts` ("hezuo access") checks the command line's rows.
 
 ## Not proven here
 
@@ -94,18 +94,18 @@ pnpm exec vitest run server/bot-visibility.test.ts server/bot-visibility.e2e.tes
 On a disposable worktree stacked on #1708 and rebased onto Hezuo main
 `0b132aec`: `pnpm typecheck`, `pnpm lint`, `pnpm i18n:check` and the files
 above passed. Before that rebase (main `0bb37982` plus #1708),
-`pnpm test:packaged-server` and `server/index.test.ts`,
-`server/independent-threads-api.test.ts`,
-`server/notification-routing.e2e.test.ts`, `server/comms.test.ts`,
-`server/guarded-messages-api.test.ts`,
-`server/paired-thread-targets-api.test.ts`, `server/chief-rooms.e2e.test.ts`,
-`server/direct-coordination.e2e.test.ts`, `server/request-auth.test.ts`,
-`server/decision-log.test.ts`, `server/decision-log-wiring.test.ts`,
-`server/card-answerers.e2e.test.ts`, `server/peer-allowlist.e2e.test.ts`,
-`server/runtime-coordinator.test.ts`, `server/chief-of-staff.test.ts`,
-`server/thread-capacity-api.test.ts`, `server/cli-service-trust.e2e.test.ts`
+`pnpm test:packaged-server` and `desktop/server/index.test.ts`,
+`desktop/server/independent-threads-api.test.ts`,
+`desktop/server/notification-routing.e2e.test.ts`, `desktop/server/comms.test.ts`,
+`desktop/server/guarded-messages-api.test.ts`,
+`desktop/server/paired-thread-targets-api.test.ts`, `desktop/server/chief-rooms.e2e.test.ts`,
+`desktop/server/direct-coordination.e2e.test.ts`, `desktop/server/request-auth.test.ts`,
+`desktop/server/decision-log.test.ts`, `desktop/server/decision-log-wiring.test.ts`,
+`desktop/server/card-answerers.e2e.test.ts`, `desktop/server/peer-allowlist.e2e.test.ts`,
+`desktop/server/runtime-coordinator.test.ts`, `desktop/server/chief-of-staff.test.ts`,
+`desktop/server/thread-capacity-api.test.ts`, `desktop/server/cli-service-trust.e2e.test.ts`
 and the Settings/People/session UI tests passed on macOS.
-`server/hosted-access.test.ts` passed except once for its 8-second licence
+`desktop/server/hosted-access.test.ts` passed except once for its 8-second licence
 expiry case, which failed under load and passed when rerun alone.
 
 Mutation checks, each restored afterwards, turned a named test red: the
@@ -126,9 +126,9 @@ A review of #1717 reproduced eight problems; each is now covered.
 - **Room recall.** A bot everyone sees repeated, in a member's 1:1, what a
   restricted bot said in a room they shared (the recent-work brief and
   `session_search`). Rooms whose bots have a narrower audience than the
-  recalling bot are now left out (`roomFeeds` in `server/bot-visibility.ts`),
+  recalling bot are now left out (`roomFeeds` in `desktop/server/bot-visibility.ts`),
   and creating a room or adding a member with a different audience is
-  refused. `server/bot-visibility.e2e.test.ts` ("keeps a room fewer people
+  refused. `desktop/server/bot-visibility.e2e.test.ts` ("keeps a room fewer people
   can see out of a visible bot's recall…") checks Bob's real reply and the
   real `/api/internal/session-search`.
 - **Restricted at creation.** `POST /api/bots` and `POST /api/teams/import`
@@ -136,7 +136,7 @@ A review of #1717 reproduced eight problems; each is now covered.
   frame is already restricted ("never shows a member a bot created, copied
   or imported already restricted").
 - **Every response narrowed.** A response hook (`onJsonBody` in
-  `server/harness/http.ts`) passes every JSON answer a member receives
+  `desktop/server/harness/http.ts`) passes every JSON answer a member receives
   through `memberBody` ("sends a member every bot without its audience list
   or hidden teammates, whichever route answers": read, display edit,
   profile, task create and switch, list).
@@ -144,7 +144,7 @@ A review of #1717 reproduced eight problems; each is now covered.
   any member cursor at or before it resumes with a fresh snapshot
   (`resumed:false`), including a member who was away; admin streams stay up.
 - **Redaction.** Flag values after `--api-key`/`--token` and credential URL
-  parameters are hidden (`server/admin-activity.test.ts`).
+  parameters are hidden (`desktop/server/admin-activity.test.ts`).
 - **Attribution.** Config rows come from each `saveConfig` in the request's
   own async context; bot and webhook rows compare only the fields the
   request named; creations come from the request's own answer
@@ -158,7 +158,7 @@ A review of #1717 reproduced eight problems; each is now covered.
 
 Observed on a disposable worktree on Hezuo main `3eb90469`:
 `pnpm typecheck`, `pnpm lint`, `pnpm i18n:check`, the files above and their
-neighbours (`server/index.test.ts`, card answerers, CLI, recent work, room
+neighbours (`desktop/server/index.test.ts`, card answerers, CLI, recent work, room
 and team suites) passed on macOS. Mutation checks, each restored afterwards,
 turned a named test red: recent-work or `session_search` reading every room;
 mixed rooms allowed; creation ignoring `visibility`; the member response hook

@@ -1,6 +1,6 @@
 // The one Vite preview every verify-* fixture mounts: an isolated page for a
 // single entry module whose /api calls reach only the disposable fake-engine
-// server. vite.config.ts is inherited on purpose (react, tailwind, the @ alias)
+// server. desktop/vite.config.ts is inherited on purpose (react, tailwind, the @ alias)
 // so the page renders exactly what the app renders; only the host, the port
 // and the /api target are pinned here.
 import { realpathSync } from "node:fs";

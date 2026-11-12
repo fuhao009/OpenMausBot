@@ -8,10 +8,10 @@ It needs no provider account, API key, browser, or desktop access.
 Run the permanent acceptance test:
 
 ```sh
-pnpm exec vitest run server/openai-tools.e2e.test.ts
+pnpm exec vitest run desktop/server/openai-tools.e2e.test.ts
 ```
 
-`server/openai-tools.e2e.test.ts` launches its own server with
+`desktop/server/openai-tools.e2e.test.ts` launches its own server with
 `launchVerificationServer`, then uses `runControlOmb` with the launcher's exact
 URL for `new-bot`, `set-model`, `send`, `wait`, `messages`, and `interrupt`.
 Configuration and approval go through the fixture's existing HTTP routes;
@@ -51,7 +51,7 @@ Driver contract tests cover the three shared adapters, protocol errors,
 non-streaming responses, tool errors, and lifecycle edge cases:
 
 ```sh
-pnpm exec vitest run server/drivers/openai-chat-tools.test.ts server/workspace.test.ts
+pnpm exec vitest run desktop/server/drivers/openai-chat-tools.test.ts desktop/server/workspace.test.ts
 ```
 
 OpenAI-compatible and Cerebras turns recover explicit unfinished action
@@ -79,7 +79,7 @@ last budget is read at `GET /api/bots/ID/tool-budget`. The driver tests
 cover it with real stdio servers:
 
 ```sh
-pnpm exec vitest run server/drivers/chat-mcp-tools.test.ts server/drivers/openai-chat-tools.test.ts
+pnpm exec vitest run desktop/server/drivers/chat-mcp-tools.test.ts desktop/server/drivers/openai-chat-tools.test.ts
 ```
 
 The harness proves the OpenAI-compatible adapter and the shared execution
@@ -123,7 +123,7 @@ inference, and do not establish vision/tool support for every provider model.
 
 ### Boat cloud computer
 
-`pnpm exec vitest run server/cloud-computer-tools.test.ts server/harness-mcp-proxy.test.ts server/openai-boat.e2e.test.ts server/hosted-desktop.e2e.test.ts`
+`pnpm exec vitest run desktop/server/cloud-computer-tools.test.ts desktop/server/harness-mcp-proxy.test.ts desktop/server/openai-boat.e2e.test.ts desktop/server/hosted-desktop.e2e.test.ts`
 tests an owned loopback Boat/API fixture. It covers direct chats, group member
 turns and cloud routines retaining the selected model, screenshots arriving as
 image parts, and human control blocking an approved action. The tool tests
@@ -133,7 +133,7 @@ capabilities and in-flight cancellation without replay. The hosted-desktop
 fixture runs the same tools for a Claude bot and proves Boat's own runner is
 never asked.
 
-`pnpm exec vitest run server/cloud-computer-lazy.e2e.test.ts server/cloud-computer-slow-start.e2e.test.ts server/computer-selection.test.ts server/room-turn-end.test.ts server/boat-wait-ready.test.ts src/components/ComputerPanel.lazy.test.ts`
+`pnpm exec vitest run desktop/server/cloud-computer-lazy.e2e.test.ts desktop/server/cloud-computer-slow-start.e2e.test.ts desktop/server/computer-selection.test.ts desktop/server/room-turn-end.test.ts desktop/server/boat-wait-ready.test.ts desktop/src/components/ComputerPanel.lazy.test.ts`
 proves a cloud computer starts only when the bot uses it. Against a loopback
 relay that counts every request, a plain chat ("hi") on Works on: Cloud
 computer, in a bot's chat or a room, makes no relay call; choosing Cloud
@@ -203,7 +203,7 @@ waking it. Dispatch repeats the check so a removed key or unavailable Boat fails
 the run before model execution. Explicit Cloud still permits creating/waking
 the bot’s own Boat; a missing assigned team computer requires explicit repair.
 
-Run `pnpm exec vitest run server/routine-requests.test.ts server/openai-boat.e2e.test.ts`
+Run `pnpm exec vitest run desktop/server/routine-requests.test.ts desktop/server/openai-boat.e2e.test.ts`
 for target selection and the isolated direct/group/scheduled bridge fixture,
 including credentials removed after scheduling and a Boat outage at dispatch.
 The fixture also holds the Boat readiness response: the execution stays busy,

@@ -71,7 +71,7 @@ async function validateCloudflared(resources, platform, required) {
   );
 }
 
-// The DuckDB binding the server requires at runtime (server/data/engine.ts):
+// The DuckDB binding the server requires at runtime (desktop/server/data/engine.ts):
 // the pinned packages, the native binding beside its library, and on macOS
 // only this app's slice, so an Intel Mac never gets an arm64-only dylib.
 async function validateDuckdb(resources, platform, arch, required) {

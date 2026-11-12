@@ -13,8 +13,8 @@ is reported.
 
 ## What Add does
 
-The package goes through the same importer as a file (`server/package-import.ts`),
-called with `trust: "org"` from `server/org-library.ts` and nowhere else.
+The package goes through the same importer as a file (`desktop/server/package-import.ts`),
+called with `trust: "org"` from `desktop/server/org-library.ts` and nowhere else.
 Compared with a file:
 
 - **Skills arrive switched on.** The organization's Admin published them,
@@ -30,7 +30,7 @@ Compared with a file:
   The hashes live on bots (`packageBase`), group chats (`installedPackage`),
   routines (`installedPackage`) and skill state (`package`). The later
   automatic update uses them to tell your edits from the publisher's changes.
-  Value shapes are in `server/package-parts.ts`.
+  Value shapes are in `desktop/server/package-parts.ts`.
 - **A skills-only package** creates no records. Its skills are *offered*:
   **Bot → Skills → From {Organization}** lists them, and **Add** there puts
   one on that bot, switched on and stamped. A team's skills that no bot
@@ -68,7 +68,7 @@ package that disappears from the catalog changes nothing: copies stay.
 
 ## How the catalog arrives
 
-This runtime never talks to Admin. Electron main (`electron/managed-desktop.mjs`)
+This runtime never talks to Admin. Electron main (`desktop/electron/managed-desktop.mjs`)
 owns the Admin connection: it fetches the catalog and each release file,
 checks their SHA-256, and writes the files to
 `DATA_DIR/org-library/blobs/<sha256>.json`. It then relays the catalog over
@@ -126,7 +126,7 @@ contains names, paths or error text.
 | `state.json` | runtime | The index of what was added (contract §3.4), plus `kind`, `name` and `withdrawnHandled` per install, and `adding`: team Adds that have started and not finished. Mode 0600. |
 | `blobs/<sha256>.json` | Electron | Release bytes, checked on every read. |
 | `catalog.json` | Electron | The last applied catalog body. The runtime does not read it. |
-| `presets.json` | runtime (`server/presets.ts`) | Preset bots, from files and from installs here ([presets.md](presets.md)). An install's presets are listed under `presets` in `state.json`. |
+| `presets.json` | runtime (`desktop/server/presets.ts`) | Preset bots, from files and from installs here ([presets.md](presets.md)). An install's presets are listed under `presets` in `state.json`. |
 
 Preset rows in `presets.json` carry their install id too. They are how a
 package of presets and skills (no bots) is recognized again if its

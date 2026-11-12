@@ -5,18 +5,18 @@ of this computer's bots to that server, and this computer then working for it by
 itself; and that none of it happens for a server other people sign in to.
 
 ```sh
-pnpm exec vitest run server/own-home.e2e.test.ts server/own-home.test.ts server/move-freeze.test.ts
-node --test electron/own-home-main.node-test.mjs electron/lending-target.node-test.mjs electron/lend-automatically.node-test.mjs electron/one-home-main.node-test.mjs electron/cloud-rail.node-test.mjs electron/home-window.node-test.mjs electron/cloud-connections.node-test.mjs
+pnpm exec vitest run desktop/server/own-home.e2e.test.ts desktop/server/own-home.test.ts desktop/server/move-freeze.test.ts
+node --test desktop/electron/own-home-main.node-test.mjs desktop/electron/lending-target.node-test.mjs desktop/electron/lend-automatically.node-test.mjs desktop/electron/one-home-main.node-test.mjs desktop/electron/cloud-rail.node-test.mjs desktop/electron/home-window.node-test.mjs desktop/electron/cloud-connections.node-test.mjs
 ```
 
 `scripts/testing/own-home-fixture.ts` starts this computer's server as the
 desktop app starts it, and servers of the person's own (`hezuo serve`,
 nothing of Hezuo Cloud), each paired as a pairing link pairs it, with main's
-own wiring for the move (`electron/own-home-main.mjs`) between them. Its
+own wiring for the move (`desktop/electron/own-home-main.mjs`) between them. Its
 requests carry the pairing's session as the window's would. Temp homes and a
 synthetic Claude CLI; no network.
 
-`server/own-home.e2e.test.ts` checks:
+`desktop/server/own-home.e2e.test.ts` checks:
 
 - a server paired only with the person (no members, no other admin) says the
   session is its owner's (`own` on `/api/auth/session`) and that it takes a
@@ -51,12 +51,12 @@ has no such service, so the move's check still passes.
 ## Bots in two places, noticed
 
 ```sh
-pnpm exec vitest run server/two-places.e2e.test.ts src/components/AppNotices.test.ts src/lib/notices.test.ts
-node --test electron/two-places.node-test.mjs
+pnpm exec vitest run desktop/server/two-places.e2e.test.ts desktop/src/components/AppNotices.test.ts desktop/src/lib/notices.test.ts
+node --test desktop/electron/two-places.node-test.mjs
 ```
 
-`server/two-places.e2e.test.ts` runs main's own wiring for the suggestion
-(`electron/two-places-main.mjs`) over the same fixture: nothing while each place
+`desktop/server/two-places.e2e.test.ts` runs main's own wiring for the suggestion
+(`desktop/electron/two-places-main.mjs`) over the same fixture: nothing while each place
 has only its untouched first bot; nothing for bots that live only where others
 sign in; once this computer and the person's own server both have bots, one
 suggestion names that server, the shared server is never even asked, and Not
@@ -67,22 +67,22 @@ The node tests cover the rest: a bot counts as the move would carry it, My Cloud
 comes first and only while the person keeps this computer's bots here, nothing
 is suggested while a move is under way, after this computer's bots were deleted,
 or for a place that couldn't say, and each place is read again at most every ten
-minutes unless the places changed. `src/components/AppNotices.test.ts` shows the
+minutes unless the places changed. `desktop/src/components/AppNotices.test.ts` shows the
 card once on this computer's page before any promotion, never during the welcome
 or the tour, and never on a Cloud's or a server's page, which never get the bridge.
 
 ## Bots that say where another bot lives
 
 ```sh
-pnpm exec vitest run server/places-elsewhere.e2e.test.ts server/places-elsewhere.test.ts server/routes/waits.test.ts
-node --test electron/two-places.node-test.mjs
+pnpm exec vitest run desktop/server/places-elsewhere.e2e.test.ts desktop/server/places-elsewhere.test.ts desktop/server/routes/waits.test.ts
+node --test desktop/electron/two-places.node-test.mjs
 ```
 
 The person's app tells each of their own places (this computer, a server that
 says it is theirs alone, My Cloud while awake) the names of the bots their other
 places have, and nothing more: no address, id or message, and never a team's
 place or one others sign in to (`PUT /api/places/elsewhere`, owner only).
-`server/places-elsewhere.e2e.test.ts` checks, over the same fixture:
+`desktop/server/places-elsewhere.e2e.test.ts` checks, over the same fixture:
 
 - before the app said anything, `coordinate_bots` to a name nowhere here answers
   no such bot and that bots work together only within one place, with the way to

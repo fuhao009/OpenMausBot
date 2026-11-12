@@ -9,13 +9,13 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 
-import { agentBrowserIntegration, closeBrowserSession, prepareBrowserSessionState, resolveAgentBrowserBinary, setBrowserViewport } from "../server/browser-engine.ts";
-import { BrowserRuntime, browserRuntimeEnv, type BrowserSpawnSpec } from "../server/browser-runtime.ts";
-import { ChromeLauncher } from "../server/browser/chrome/launcher.ts";
-import { openGate } from "../server/browser/egress/gate.ts";
-import { refusalFor } from "../server/browser/egress/policy.ts";
-import { DATA_DIR } from "../server/config.ts";
-import { removeTempDir } from "../server/testing/cleanup.ts";
+import { agentBrowserIntegration, closeBrowserSession, prepareBrowserSessionState, resolveAgentBrowserBinary, setBrowserViewport } from "../desktop/server/browser-engine.ts";
+import { BrowserRuntime, browserRuntimeEnv, type BrowserSpawnSpec } from "../desktop/server/browser-runtime.ts";
+import { ChromeLauncher } from "../desktop/server/browser/chrome/launcher.ts";
+import { openGate } from "../desktop/server/browser/egress/gate.ts";
+import { refusalFor } from "../desktop/server/browser/egress/policy.ts";
+import { DATA_DIR } from "../desktop/server/config.ts";
+import { removeTempDir } from "../desktop/server/testing/cleanup.ts";
 import { expectedUserAgent, startIdentityProbe, type ProbeReports, type ReportedIdentity } from "./testing/browser-identity-probe.ts";
 
 export const PUBLIC_PAGES = [

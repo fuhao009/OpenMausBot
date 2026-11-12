@@ -2,7 +2,7 @@
 
 One card, **HighLevel**, in Connected apps, on desktop and on a Cloud home alike. It also covers Growably and every
 other HighLevel-based white-label CRM: the sign-in uses HighLevel's white-label page, so those users never see the
-HighLevel brand. Composio is not involved; the server (`server/highlevel/*`) talks to
+HighLevel brand. Composio is not involved; the server (`desktop/server/highlevel/*`) talks to
 `https://services.leadconnectorhq.com` itself.
 
 ## How it works
@@ -24,7 +24,7 @@ OMB server (desktop or Cloud home)         accounts.openmausbot.com (relay)     
 - **Private Integration token** (for agencies that hide the Marketplace): `POST /api/highlevel/token {token, locationId}`.
   The token is created inside the sub-account (Settings → Private Integrations) with the permissions under
   [Permissions](#permissions-scopes), and checked with `GET /locations/{locationId}` before it is saved, so it needs
-  **View Locations**. A refused check says which case it is (`tokenCheckError` in `server/highlevel/client.ts`), adds
+  **View Locations**. A refused check says which case it is (`tokenCheckError` in `desktop/server/highlevel/client.ts`), adds
   HighLevel's own reason (secrets redacted, at most 160 characters) and never repeats the token:
   - 401 "not authorized for this scope": the token is missing View Locations; turn it on (the token stays the same).
   - any other 401: the token was not accepted (mistyped, rotated or deleted), or lacks View Locations.
@@ -50,7 +50,7 @@ cannot get past it. Either ask the agency admin to install the app for that sub-
 installs), or use **Use a Private Integration token instead** on the card: a sub-account admin can create one under Settings →
 Private Integrations when the agency allows it.
 
-## Owner routes (`server/routes/highlevel.ts`, admin or owner session only)
+## Owner routes (`desktop/server/routes/highlevel.ts`, admin or owner session only)
 
 | Route | Answer |
 |---|---|
@@ -101,7 +101,7 @@ Errors are one plain sentence: "HighLevel refused this (403): the connection lac
 
 **Never:** no tool sends SMS, email or WhatsApp, starts a campaign or workflow, books or changes appointments, deletes a
 record (except removing tags) or touches payments. The guard is in the client (`assertAllowedPath` and
-`FORBIDDEN_PATHS` in `server/highlevel/client.ts`), so no later tool can grow a path to those endpoints; a test asserts
+`FORBIDDEN_PATHS` in `desktop/server/highlevel/client.ts`), so no later tool can grow a path to those endpoints; a test asserts
 the client has no such method. The system prompt tells the bot the same.
 
 ## Per-bot scope
@@ -115,7 +115,7 @@ The same rules as other connected apps, with slug `highlevel`:
   **Off**, **Read** or **Read & write** per bot (`connectorScopes.apps.highlevel`). There is no per-tool picker for
   HighLevel: the tool-grants picker lists Composio apps only (`AccessSection.tsx` filters `highlevel` out).
 - `connectorTools.highlevel.tools`: `"*"` or a list of tool names, still honoured on every call when a bot record carries
-  one. `shared/highlevel.ts` `HIGHLEVEL_TOOL_GROUPS` defines four groups (*Contacts and notes*, *Pipelines and deals*,
+  one. `packages/shared/highlevel.ts` `HIGHLEVEL_TOOL_GROUPS` defines four groups (*Contacts and notes*, *Pipelines and deals*,
   *Conversations (read)*, *Calendars (read)*; `HIGHLEVEL_GET_LOCATION` is in every group) for such grants; no screen
   shows them yet.
 - Whatever the level, sending messages, campaigns, workflows and payments stay blocked for every bot
@@ -127,7 +127,7 @@ The same rules as other connected apps, with slug `highlevel`:
 ## Permissions (scopes)
 
 Each call needs one HighLevel scope. A Private Integration is given them by name on HighLevel's Private Integrations
-page; the Marketplace app asks for `HIGHLEVEL_SCOPES` (`cloudflare/control-plane/wrangler.jsonc`), which must match the
+page; the Marketplace app asks for `HIGHLEVEL_SCOPES` (`gateway/control-plane/wrangler.jsonc`), which must match the
 scopes approved for the app in HighLevel's developer dashboard. That list does not include
 `locations/customFields.readonly` or `conversations/message.readonly` yet, so a Marketplace connection reads custom
 fields keyed by id and, per HighLevel's API reference, cannot read a conversation's messages until both are added in
@@ -184,14 +184,14 @@ locations at once (one connection per installation).
 
 ## Tests
 
-- `server/highlevel/client.test.ts`: request shapes, trimming, Version header, refresh-once with rotation persisted,
+- `desktop/server/highlevel/client.test.ts`: request shapes, trimming, Version header, refresh-once with rotation persisted,
   refreshes and late 401s that race a reconnect or another refresh,
   429 backoff, 5xx retry without replaying a create, the budget, plain errors, the store's encryption and the no-messaging guard; a missing scope
   is not a sign-out (token and OAuth) while a dead token still is; the token check's 401/403/404 sentences and redaction.
-- `server/highlevel/rpc.test.ts`: per-bot scoping (read-only refusal text, grants, tools/list filtering), the write
+- `desktop/server/highlevel/rpc.test.ts`: per-bot scoping (read-only refusal text, grants, tools/list filtering), the write
   record and the host's activity row.
-- `server/highlevel/cancellation.test.ts`: Stop during 429, 5xx and budget waits, before dispatch, and concurrent call isolation.
-- `server/highlevel/sign-in.test.ts`: the relay contract, the sign-in flow, a replaced flow's late claim, the token path
+- `desktop/server/highlevel/cancellation.test.ts`: Stop during 429, 5xx and budget waits, before dispatch, and concurrent call isolation.
+- `desktop/server/highlevel/sign-in.test.ts`: the relay contract, the sign-in flow, a replaced flow's late claim, the token path
   and the owner routes.
-- `server/highlevel.e2e.test.ts`: a real server, fake relay and fake HighLevel, Connect → tools → refresh →
+- `desktop/server/highlevel.e2e.test.ts`: a real server, fake relay and fake HighLevel, Connect → tools → refresh →
   revocation → Disconnect → Private Integration token, and Stop during a 429 wait without a later write.

@@ -1,6 +1,6 @@
 import type { Assertion } from "../types.ts";
 import type { WorldSnapshot } from "./snapshot.ts";
-import { TURN_CLOCK_LEAD } from "../../server/turn-clock.ts";
+import { TURN_CLOCK_LEAD } from "../../desktop/server/turn-clock.ts";
 
 /** Pure scorers: each assertion is evaluated against the world snapshot
  * the runner collected after the scenario steps finished. The snapshot is

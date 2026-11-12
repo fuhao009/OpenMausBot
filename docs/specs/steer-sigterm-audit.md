@@ -13,9 +13,9 @@ sites that can touch a codex child:
 
 | # | Site | Trigger | Mid-turn? | Class | Evidence | Residual risk |
 |---|------|---------|-----------|-------|----------|---------------|
-| 1 | Catalog probe reap | model catalog query finishes | No — separate probe process, never the turn child | Kill (reap of an answered probe) | server/drivers/codex-catalog.ts:87 | none for (c) |
-| 2 | Auth/sign-out probe reap | identity probe answers or times out (1s) | No — separate probe process | Kill (reap) | server/drivers/codex-identity.ts:44,52 | none for (c) |
-| 3 | Turn-child funnel `terminate()` | the only kill path for a turn's app-server | Yes (Stop semantics) | Kill, but see callers below | server/drivers/codex.ts:783 | see per-caller rows |
+| 1 | Catalog probe reap | model catalog query finishes | No — separate probe process, never the turn child | Kill (reap of an answered probe) | desktop/server/drivers/codex-catalog.ts:87 | none for (c) |
+| 2 | Auth/sign-out probe reap | identity probe answers or times out (1s) | No — separate probe process | Kill (reap) | desktop/server/drivers/codex-identity.ts:44,52 | none for (c) |
+| 3 | Turn-child funnel `terminate()` | the only kill path for a turn's app-server | Yes (Stop semantics) | Kill, but see callers below | desktop/server/drivers/codex.ts:783 | see per-caller rows |
 
 ### Callers of the turn-child funnel (`terminate`, codex.ts:783)
 
@@ -28,7 +28,7 @@ sites that can touch a codex child:
 
 ## Every `interruptTurn` caller (all funnel into `stop()`, graceful-first)
 
-server/index.ts: explicit Stop endpoint :1023; stall watchdog :3359; direct-turn
+desktop/server/index.ts: explicit Stop endpoint :1023; stall watchdog :3359; direct-turn
 dispatch abort :6134; group stop :6404 and :6439; routine cancel facade :6525
 (routines.ts:1111,1306,1361); room turn deadline :7804; stop that raced adapter
 auth :7869; speaker cancellation batch :9812; group cancel batches :13402,
@@ -67,7 +67,7 @@ graceful-first stop when its instance is disposed. No deletion path calls
   a new turn. No interrupt or kill.
 - The queue drain (index.ts:5055-5075) subscribes to `turn.completed` and calls
   `startTurn`; it never touches the previous child.
-- `rg -n "kill|interrupt|stop\(" server/steer-queue.ts` matches nothing
+- `rg -n "kill|interrupt|stop\(" desktop/server/steer-queue.ts` matches nothing
   (only comments/warns).
 - The room queue/steer endpoint (index.ts:13355-13437) rides the same
   contract: it lifts the channel queue atomically (holdChannelQueue),

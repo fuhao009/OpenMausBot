@@ -19,7 +19,7 @@ Nothing new. Lending a folder is what it was; the copy happens behind it. There 
 
 ## Lent folders while the computer is away
 
-`electron/lent-folders.mjs` (which folders get a copy), `electron/lent-staged.mjs` (bots' changes landing here), `server/lent-copies.ts` (My Cloud's side).
+`desktop/electron/lent-folders.mjs` (which folders get a copy), `desktop/electron/lent-staged.mjs` (bots' changes landing here), `desktop/server/lent-copies.ts` (My Cloud's side).
 
 - **Which folders get a copy.** Each folder lent to My Cloud, when Files may share it (the refusals below hold, so the home folder lent read only stays live only) and it holds at most 3 GB, counted in full in a moment (`COPY_MAX_BYTES`; a folder too big or with too many files to count stays live only). New copies take the room left on My Cloud's disk, which grows by itself up to the plan's size (20 GB on Starter and Personal, 100 GB on Pro, Max and Team), less what My Cloud keeps free for itself (`cloudReserveBytes`): smallest first. A folder copied already keeps its copy. A folder lent without a copy is counted again every 6 hours. A folder added on the Files page is copied whatever its size, as before.
 - **What My Cloud is told.** After each pass the desktop says what it lends (`POST /api/sync/lent`): each folder's id, name, whether it is lent with editing, and its copy (a Files folder) or why it has none. A pass in step with this computer says how fresh that copy is (`POST /api/sync/folders/<id>/synced`).
@@ -35,7 +35,7 @@ Nothing new. Lending a folder is what it was; the copy happens behind it. There 
 
 ## Git repositories
 
-`electron/lent-git.mjs` (which lent folders are GitHub repositories), `server/lent-clone.ts` (the clone).
+`desktop/electron/lent-git.mjs` (which lent folders are GitHub repositories), `desktop/server/lent-clone.ts` (the clone).
 
 - **A lent folder that is a GitHub repository** (its own `.git` folder, with an `origin` on github.com) says so to My Cloud: its `owner/name`, branch and commit, read from `.git`'s own files. A user name or token in the remote is never sent.
 - **Its copy starts as a clone.** When My Cloud registers a new copy of one, it clones `https://github.com/<owner>/<name>.git` there in the background, history without file contents (`--filter=blob:none`), at the computer's commit on its branch; a commit GitHub doesn't have yet falls back to the branch as GitHub has it. git there never asks for a sign-in: it uses whatever git on My Cloud already signs in with (a public repository needs none), with no hooks. Until it is done, the desktop leaves that copy alone (`cloning`); then Files sends only what differs on the computer: changes not pushed yet, and files git ignores that Files carries, such as `.env`. The size and room rules are the same as for any lent folder.
@@ -49,7 +49,7 @@ Folders shared from the Files page before lent folders keep working. Once this c
 
 ## Shared folders (this computer → My Cloud)
 
-`electron/cloud-sync-plan.mjs` `planShare`, `electron/cloud-sync-engine.mjs` `shareFolder`.
+`desktop/electron/cloud-sync-plan.mjs` `planShare`, `desktop/electron/cloud-sync-engine.mjs` `shareFolder`.
 
 - **The computer decides what is shared.** The desktop keeps its own list (`settings.json` `shared`) and syncs only folders it registered itself. A folder My Cloud lists for this computer is never read or written on that basis.
 - **Folders that are never shared:**
@@ -83,7 +83,7 @@ Folders shared from the Files page before lent folders keep working. Once this c
 
 ## On My Cloud
 
-`server/cloud-sync.ts`, `server/routes/cloud-sync.ts`.
+`desktop/server/cloud-sync.ts`, `desktop/server/routes/cloud-sync.ts`.
 
 - **Access.** `/api/sync/*` answers only on a Cloud home, and only to the owner's admin session.
 - **Where things live:**
@@ -96,7 +96,7 @@ Folders shared from the Files page before lent folders keep working. Once this c
 
 ## The desktop's channels
 
-The calls are listed in `electron/cloud-sync.d.mts` (`CloudFilesBridge`).
+The calls are listed in `desktop/electron/cloud-sync.d.mts` (`CloudFilesBridge`).
 
 - **Who can call them.** The channels answer this computer's own window only (`localWorkspaceOnly`). The My Cloud page gets no Files bridge.
 - **How a folder is shared.** A folder reaches `share` only as a token for one the person picked in the native dialog, or one the app suggested and checked. A token is used once, and expires after 30 minutes.

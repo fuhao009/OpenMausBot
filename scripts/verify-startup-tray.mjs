@@ -31,8 +31,8 @@ if (!process.versions.electron) {
   const output = process.argv[process.argv.indexOf(flag) + 1];
   const record = value => appendFileSync(join(output, "progress.log"), `${value}\n`);
   const { app, BrowserWindow, Menu, Tray, nativeImage, session } = await import("electron");
-  const { createStartupScreen } = await import("../electron/startup-screen.mjs");
-  const { createSystemTray } = await import("../electron/system-tray.mjs");
+  const { createStartupScreen } = await import("../desktop/electron/startup-screen.mjs");
+  const { createSystemTray } = await import("../desktop/electron/system-tray.mjs");
   app.setPath("userData", join(output, "profile"));
   app.setPath("sessionData", join(output, "profile"));
   app.commandLine.appendSwitch("disable-background-networking");
@@ -42,7 +42,7 @@ if (!process.versions.electron) {
   session.defaultSession.webRequest.onBeforeRequest((request, callback) => {
     callback({ cancel: !request.url.startsWith("data:") });
   });
-  const iconPath = fileURLToPath(new URL("../electron/resources/app-icon.png", import.meta.url));
+  const iconPath = fileURLToPath(new URL("../desktop/electron/resources/app-icon.png", import.meta.url));
   let active, quitting = false, tray, splash, trayMenu;
   const requestQuit = () => { quitting = true; };
   try {

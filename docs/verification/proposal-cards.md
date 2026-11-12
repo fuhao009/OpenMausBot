@@ -3,7 +3,7 @@
 Run the launcher-managed fake-engine fixture:
 
 ```sh
-pnpm exec vitest run server/profile-card-lifecycle.e2e.test.ts
+pnpm exec vitest run desktop/server/profile-card-lifecycle.e2e.test.ts
 ```
 
 The test starts a disposable server, obtains a real turn capability from its

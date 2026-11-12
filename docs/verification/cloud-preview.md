@@ -80,7 +80,7 @@ and persistent server log. To reuse already installed test binaries, set
 
 The fixture tests actual image decoding, request cancellation, fresh frame
 selection, and renderer feedback. Host work continuing after cancellation is
-simulated in-page; `server/vps-routing.test.ts` separately covers the real HTTP
+simulated in-page; `desktop/server/vps-routing.test.ts` separately covers the real HTTP
 route with fake SSH/Docker. Neither fixture proves a real VPS connection, Boat
 provisioning, native viewer windows, or account authentication. Test those
 separately with an explicitly isolated provider fixture when changing those paths.

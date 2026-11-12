@@ -9,10 +9,10 @@ when no model wrote the summary, it says the agent continues from recent excerpt
 ## Exercise the real path
 
 ```sh
-pnpm exec vitest run server/context-compaction.e2e.test.ts
-pnpm exec vitest run server/context-rebuild.test.ts server/compaction-summary.test.ts server/context-budget.test.ts server/delta-context.e2e.test.ts
-pnpm exec vitest run server/side-jobs.test.ts server/helper-model.e2e.test.ts
-pnpm exec vitest run server/store.test.ts server/config.test.ts src/components/DigestChip.test.ts
+pnpm exec vitest run desktop/server/context-compaction.e2e.test.ts
+pnpm exec vitest run desktop/server/context-rebuild.test.ts desktop/server/compaction-summary.test.ts desktop/server/context-budget.test.ts desktop/server/delta-context.e2e.test.ts
+pnpm exec vitest run desktop/server/side-jobs.test.ts desktop/server/helper-model.e2e.test.ts
+pnpm exec vitest run desktop/server/store.test.ts desktop/server/config.test.ts desktop/src/components/DigestChip.test.ts
 pnpm test:packaged-server
 ```
 
@@ -80,8 +80,8 @@ the next turn starts small.
   keep-warm ping.
 
 ```sh
-pnpm exec vitest run server/warm-summary.e2e.test.ts
-pnpm exec vitest run server/warm-summary.test.ts server/host/warm-summary-host.test.ts server/drivers/claude-warm-summary.test.ts server/thread-presence.test.ts server/routes/presence.test.ts
+pnpm exec vitest run desktop/server/warm-summary.e2e.test.ts
+pnpm exec vitest run desktop/server/warm-summary.test.ts desktop/server/host/warm-summary-host.test.ts desktop/server/drivers/claude-warm-summary.test.ts desktop/server/thread-presence.test.ts desktop/server/routes/presence.test.ts
 ```
 
 The fixture runs the real server with the fake Claude Code:
@@ -134,7 +134,7 @@ driver replaces the thread's one warm process), and once it is older than the
 session idle window or the thread's keep-warm hold, whichever ends later.
 
 ```sh
-pnpm exec vitest run server/room-context.e2e.test.ts server/room-context.test.ts src/lib/context-warning.test.ts
+pnpm exec vitest run desktop/server/room-context.e2e.test.ts desktop/server/room-context.test.ts desktop/src/lib/context-warning.test.ts
 ```
 
 The fixture proves a warm process is kept below the threshold or with
@@ -243,8 +243,8 @@ a model alias). The session reopened is the recorded one and holds what the
 room says it holds; what that costs has not been measured.
 
 ```sh
-pnpm exec vitest run server/room-sessions.e2e.test.ts
-pnpm exec vitest run server/host/room-sessions.test.ts server/host/room-transcript.test.ts server/room-context-settings.test.ts
+pnpm exec vitest run desktop/server/room-sessions.e2e.test.ts
+pnpm exec vitest run desktop/server/host/room-sessions.test.ts desktop/server/host/room-transcript.test.ts desktop/server/room-context-settings.test.ts
 ```
 
 The fixture wraps the fake Claude so every launch records its `--resume` or
@@ -272,7 +272,7 @@ for an ACP member (no mark, no automatic fresh session, 409 from the room's
 Compact now). The 1:1 header's warning and its button follow the shown figure.
 
 ```sh
-pnpm exec vitest run server/acp-context-reports.e2e.test.ts server/context-budget.test.ts
+pnpm exec vitest run desktop/server/acp-context-reports.e2e.test.ts desktop/server/context-budget.test.ts
 ```
 
 The fixture runs each 1:1 scenario twice, with the fake agent silent and with
@@ -306,12 +306,12 @@ rewind, a session the provider lost, a compaction) is sent what was said. With
 `context.replayToolHistory: true` in config.json, or `OMB_REPLAY_TOOL_HISTORY=1`
 in the server's environment (`0` forces it off), that replay also names each
 earlier tool call on one line, between the two messages it ran between, as
-`[ran: Bash: pnpm test — failed]` or `[ran: Read: server/config.ts — ok]`. It is
+`[ran: Bash: pnpm test — failed]` or `[ran: Read: desktop/server/config.ts — ok]`. It is
 off by default, and off the replay is byte-for-byte what it was.
 
 ```sh
-pnpm exec vitest run server/replay-tool-history.e2e.test.ts
-pnpm exec vitest run server/context-rebuild.test.ts server/replay-settings.test.ts server/turn-context.test.ts server/config.test.ts
+pnpm exec vitest run desktop/server/replay-tool-history.e2e.test.ts
+pnpm exec vitest run desktop/server/context-rebuild.test.ts desktop/server/replay-settings.test.ts desktop/server/turn-context.test.ts desktop/server/config.test.ts
 ```
 
 The fixture's engine runs a command and reads a file each turn. The test rewinds
@@ -333,7 +333,7 @@ is a single line of at most 200 characters. Never a tool result, and nothing
 else of the preview (a `Write`'s content, an `Edit`'s old and new text).
 
 Each line is put on one line, redacted, cleared of anything that would open a
-harness note (`escapeNotes` in `server/peer-provenance.ts`), then clipped to 120
+harness note (`escapeNotes` in `desktop/server/peer-provenance.ts`), then clipped to 120
 characters; a long path keeps its end. At most 20 lines are sent, the most
 recent, only for calls between the first and last replayed message, and only
 from the bytes of `rebuildBytes` that messages left unused: the messages
@@ -370,7 +370,7 @@ unless a helper model is set ([the memory guide](../memory.md), "The helper
 model"). That instance then writes the summary under the same 20-second timeout
 and fallback, and its call is one usage row with the trigger `helper`. A bot
 switched to never use the helper (`helperModel: false`) keeps the fallback.
-`server/helper-model.e2e.test.ts` boots its own server in a throwaway home with
+`desktop/server/helper-model.e2e.test.ts` boots its own server in a throwaway home with
 the fake Claude, Codex and Pi engines, once with the setting and once without.
 
 This slice covers direct threads. It does not add channel compaction, change

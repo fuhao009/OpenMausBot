@@ -3,10 +3,10 @@
 Run the isolated regression fixtures:
 
 ```sh
-pnpm exec vitest run server/vps-routing.test.ts server/vps-computer.test.ts server/vps-computer.runner.test.ts server/vps-ssh.test.ts server/vps-container-mcp.test.ts server/mcp-bridge.test.ts server/vps-inventory.test.ts server/kill-tree.test.ts
+pnpm exec vitest run desktop/server/vps-routing.test.ts desktop/server/vps-computer.test.ts desktop/server/vps-computer.runner.test.ts desktop/server/vps-ssh.test.ts desktop/server/vps-container-mcp.test.ts desktop/server/mcp-bridge.test.ts desktop/server/vps-inventory.test.ts desktop/server/kill-tree.test.ts
 ```
 
-`server/vps-routing.test.ts` launches the real server and a fake engine in a temporary home.
+`desktop/server/vps-routing.test.ts` launches the real server and a fake engine in a temporary home.
 Only Docker/SSH are replaced with fixture executables. It holds a screenshot beyond
 the old five-second lock deadline, sends a message in both Cloud and Auto, then
 releases the screenshot. Both turns must complete with the correct VPS tools mounted.

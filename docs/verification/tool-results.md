@@ -3,7 +3,7 @@
 Run the permanent checks from a clean checkout:
 
 ```sh
-pnpm exec vitest run server/tool-results.test.ts server/drivers/agents-result.test.ts server/drivers/agents-proxy.test.ts server/agent-tool-policy.test.ts server/tool-results.e2e.test.ts
+pnpm exec vitest run desktop/server/tool-results.test.ts desktop/server/drivers/agents-result.test.ts desktop/server/drivers/agents-proxy.test.ts desktop/server/agent-tool-policy.test.ts desktop/server/tool-results.e2e.test.ts
 ```
 
 The end-to-end test launches the shared `launchVerificationServer` fixture with

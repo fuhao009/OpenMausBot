@@ -9,7 +9,7 @@ The runtime's shelf and the Add path are verified with the runtime.
 ## Run
 
 ```sh
-node --test electron/org-library.node-test.mjs
+node --test desktop/electron/org-library.node-test.mjs
 pnpm test:electron
 pnpm check:electron
 ```
@@ -18,8 +18,8 @@ The first command needs no Electron, keychain, network or user data. Each test
 makes its own temporary folder and removes it. Admin is a fake `fetch` (or a
 fake `fetchBytes`) answering with the shapes of contract §5 and Admin's
 desktop library routes (catalog, release files and report); the runtime is a fake utility process that
-acknowledges every relay at once, as `server/org-library.ts` must. Release
-bytes are the committed `shared/package-fixtures/*.v2.json` files.
+acknowledges every relay at once, as `desktop/server/org-library.ts` must. Release
+bytes are the committed `packages/shared/package-fixtures/*.v2.json` files.
 
 It checks:
 
@@ -79,13 +79,13 @@ Workspace and company backups leave out `org-library/catalog.json` and
 `org-library/blobs/` and keep the runtime's `state.json` and `presets.json`:
 
 ```sh
-pnpm exec vitest run server/workspace-backup-policy.test.ts server/workspace-backup.test.ts
+pnpm exec vitest run desktop/server/workspace-backup-policy.test.ts desktop/server/workspace-backup.test.ts
 ```
 
 ## Mutation checks (2026-09-24)
 
 Each change below was made to the code, `node --test
-electron/org-library.node-test.mjs` failed, and the change was reverted:
+desktop/electron/org-library.node-test.mjs` failed, and the change was reverted:
 
 | Broken on purpose | Failing test |
 |---|---|
@@ -110,11 +110,11 @@ before the catalog is applied still stops it, and the sign-out's own
 `store.write(null)` runs after. It stays as a guard in depth.
 
 In `main.mjs`, each of these was broken and `node --test
-electron/company-backup-main.node-test.mjs` failed: no `runtimeReady()` on
+desktop/electron/company-backup-main.node-test.mjs` failed: no `runtimeReady()` on
 server ready, no `receive()` of runtime messages, no `close()` on quit, the
 client not given the library, the record sharing `company-connection.bin`, the
 relay sent to another process, and downloads not going through the client. In
-`server/workspace-backup.ts`, a walker without the Organization library rule,
+`desktop/server/workspace-backup.ts`, a walker without the Organization library rule,
 and a rule that also drops `state.json`, each failed the two backup tests above.
 
 ## Not covered here
@@ -124,4 +124,4 @@ the OS keychain behind `company-library.bin`, a real utility process, or a
 real Admin. The cross-repository test in Admin (contract §7.4, after the
 runtime pin moves) drives this module against a real Admin fixture. The
 runtime's handling of `hezuo:managed-library` and its
-`managed-library-state` snapshots belongs to `server/org-library.ts`.
+`managed-library-state` snapshots belongs to `desktop/server/org-library.ts`.

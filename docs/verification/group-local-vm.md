@@ -88,10 +88,10 @@ Boat as its computer tools; no engine runs a turn on Boat's own agent.
 Run the regression coverage without a container engine:
 
 ```sh
-node node_modules/vitest/vitest.mjs run server/group-local-vm.e2e.test.ts server/vps-routing.test.ts server/local-vm-lease.test.ts server/group-goal-run.test.ts server/group-goal-run.e2e.test.ts server/group-goal-wait-cap.e2e.test.ts server/control-omb.test.ts
+node node_modules/vitest/vitest.mjs run desktop/server/group-local-vm.e2e.test.ts desktop/server/vps-routing.test.ts desktop/server/local-vm-lease.test.ts desktop/server/group-goal-run.test.ts desktop/server/group-goal-run.e2e.test.ts desktop/server/group-goal-wait-cap.e2e.test.ts desktop/server/control-omb.test.ts
 ```
 
-The test-only Node loader in `server/testing/group-local-vm-hooks.mjs` replaces
+The test-only Node loader in `desktop/server/testing/group-local-vm-hooks.mjs` replaces
 container status and controls lease expiry and watchdog/deadline timing inside
 that child process.
 Production launchers never import it. No provider or live desktop is used by

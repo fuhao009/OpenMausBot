@@ -10,8 +10,8 @@ const directory = mkdtempSync(join(tmpdir(), "omb-today-bench-"));
 process.env.HOME = directory;
 process.env.USERPROFILE = directory;
 process.env.OMB_DATA_DIR = join(directory, "data");
-const messageDb = await import("../server/message-db.ts");
-const { todayReport } = await import("../server/today.ts");
+const messageDb = await import("../desktop/server/message-db.ts");
+const { todayReport } = await import("../desktop/server/today.ts");
 
 const total = Number(process.argv[2] ?? 50_000);
 const days = Number(process.argv[3] ?? 30);

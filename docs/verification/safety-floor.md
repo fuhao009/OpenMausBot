@@ -17,15 +17,15 @@ runner it checks that nothing is applied, and stops there.
 ## Run
 
 ```sh
-pnpm exec vitest run server/safety-floor.test.ts server/safety-floor-gate.test.ts server/auto-approve-undelivered.test.ts
-pnpm exec vitest run server/drivers/openai-chat-safety-floor.test.ts server/drivers/self-answer-safety-floor.test.ts
-pnpm exec vitest run server/safety-floor.e2e.test.ts
-pnpm exec vitest run server/auto-approve.test.ts server/command-allowlist.e2e.test.ts
+pnpm exec vitest run desktop/server/safety-floor.test.ts desktop/server/safety-floor-gate.test.ts desktop/server/auto-approve-undelivered.test.ts
+pnpm exec vitest run desktop/server/drivers/openai-chat-safety-floor.test.ts desktop/server/drivers/self-answer-safety-floor.test.ts
+pnpm exec vitest run desktop/server/safety-floor.e2e.test.ts
+pnpm exec vitest run desktop/server/auto-approve.test.ts desktop/server/command-allowlist.e2e.test.ts
 ```
 
 ## What it checks
 
-- `server/safety-floor.test.ts` calls the classifier in `server/safety-floor.ts`
+- `desktop/server/safety-floor.test.ts` calls the classifier in `desktop/server/safety-floor.ts`
   with tables of command lines: every spelling that must be blocked (flags in
   any order, quotes, trailing slashes and dot segments, `sudo`/`doas`/`env`
   prefixes, `sh -c` and `cmd /c` wrappers, chains, cmd and PowerShell forms)
@@ -40,8 +40,8 @@ pnpm exec vitest run server/auto-approve.test.ts server/command-allowlist.e2e.te
   on Windows. Separate cases cover a reading
   that loses its place (never "clear"), the 32 KB cap, and a 20 KB body full
   of escaped quotes.
-- `server/safety-floor-gate.test.ts` feeds fake permission requests to
-  `server/safety-floor-gate.ts` with an adapter that only records its answer:
+- `desktop/server/safety-floor-gate.test.ts` feeds fake permission requests to
+  `desktop/server/safety-floor-gate.ts` with an adapter that only records its answer:
   the setting is off by default and the environment can only add it; a
   never-list command is denied with a reason, one status line and one
   `auto-denied` decision row; anything else is left to the grant; a denial
@@ -53,13 +53,13 @@ pnpm exec vitest run server/auto-approve.test.ts server/command-allowlist.e2e.te
   that fails) is neither denied nor allowed: the grant's verdict becomes a
   card, the log says so once without the command, and a runtime with no card
   to show refuses the call.
-- `server/drivers/openai-chat-safety-floor.test.ts` drives the chat runtime
+- `desktop/server/drivers/openai-chat-safety-floor.test.ts` drives the chat runtime
   against a local fake provider and a fixture MCP tool that records the
   command it is handed and runs nothing. At Full access and under "Always
   allow this session" the never-list command never reaches the tool; at Ask
   the card reaches a person and their Allow stands; with the floor off
   nothing changes.
-- `server/drivers/self-answer-safety-floor.test.ts` drives the Codex and ACP
+- `desktop/server/drivers/self-answer-safety-floor.test.ts` drives the Codex and ACP
   drivers against their scripted fakes, which send a permission request and
   record the answer. Codex at Full access accepts a request inside the
   driver; with the floor on it raises a never-list command as a request
@@ -70,7 +70,7 @@ pnpm exec vitest run server/auto-approve.test.ts server/command-allowlist.e2e.te
   fold's own check: a Codex request with no working directory and an ACP
   request not typed as a shell command both reach it with their command
   line, and it denies them.
-- `server/safety-floor.e2e.test.ts` launches the real server in an isolated
+- `desktop/server/safety-floor.e2e.test.ts` launches the real server in an isolated
   home with the fake Claude CLI parked, and raises Bash requests through its
   actual permission socket. A saved command answers `rm -rf /` while the
   floor is off; after `PUT /api/config` switches it on, the same request is
@@ -85,14 +85,14 @@ pnpm exec vitest run server/auto-approve.test.ts server/command-allowlist.e2e.te
 ## Limits
 
 Not applied on a Windows server yet. The gate in
-`server/safety-floor-gate.ts` is inert there whatever the setting says. The
+`desktop/server/safety-floor-gate.ts` is inert there whatever the setting says. The
 classifier still has a Windows reading (every line read as POSIX and as
 cmd/PowerShell), and the win32 rows of the tables keep it tested through the
 platform argument, but nothing uses it: on a real Windows server it leaves
 too many ordinary commands unread. The gate tests check the inert path with
 the platform given as Windows: nothing is classified, denied, held or logged,
 and the startup notice is written once. On a Windows runner
-`server/safety-floor.e2e.test.ts` checks the same against the real server and
+`desktop/server/safety-floor.e2e.test.ts` checks the same against the real server and
 stops there.
 
 On macOS and Linux a command is read as a POSIX shell line. cmd commands are
@@ -129,7 +129,7 @@ only. A request's display summary is cut at 200 characters and is never read
 as a command; the floor reads the engine's own command line, which every
 driver that has one puts on the request.
 
-Read the Full access leg of `server/safety-floor.e2e.test.ts` for what it is.
+Read the Full access leg of `desktop/server/safety-floor.e2e.test.ts` for what it is.
 The test itself writes the Bash request to the broker's socket. It proves
 that a shell request reaching the server at Full access is denied; it does
 not show that Claude Code sends one, and under `bypassPermissions` the real

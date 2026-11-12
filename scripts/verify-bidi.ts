@@ -3,7 +3,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { removeTempDir } from "../server/testing/cleanup.ts";
+import { removeTempDir } from "../desktop/server/testing/cleanup.ts";
 import { launchVerificationServer, runControlOmb } from "./control-omb.ts";
 import { fixtureApi, mountPreview, parkUntilSignal, type MountedPreview } from "./testing/preview-fixture.ts";
 
@@ -26,7 +26,7 @@ const ARABIC_REPLY = [
   "",
   "> ملاحظة: القياسات أُخذت على macOS مع Node 24، وقد تختلف على Linux.",
   "",
-  "الإصلاح المقترح في `src/lib/index.ts`:",
+  "الإصلاح المقترح في `desktop/src/lib/index.ts`:",
   "",
   "```ts",
   "// hoist the read out of the loop and memoize per content hash",
@@ -45,7 +45,7 @@ const ARABIC_REPLY = [
 const ENGLISH_REPLY = [
   "## Weekly performance report",
   "",
-  "`buildIndex()` owns the delay: 340ms of 512ms. Fix it in `src/lib/index.ts`.",
+  "`buildIndex()` owns the delay: 340ms of 512ms. Fix it in `desktop/src/lib/index.ts`.",
   "",
   "- hoist the read out of the loop",
   "- memoize per content hash",

@@ -62,7 +62,7 @@ The full-app automated regression covers those repeated external opens, plus
 role creation, optional setup, connected-app settings and failure recovery:
 
 ```sh
-pnpm exec vitest run scripts/testing/bot-tools-ui.e2e.test.ts src/state/store.test.ts
+pnpm exec vitest run scripts/testing/bot-tools-ui.e2e.test.ts desktop/src/state/store.test.ts
 ```
 
 It uses the disposable `control-omb ui` launcher, not the running app. Set
@@ -91,7 +91,7 @@ existing names, and survive switching away from Identity and back. Type a
 custom name, then randomize again. Cancelling must leave the server
 unchanged. These buttons also appear in a ready-made bot's review (Templates →
 Add) but not in an existing bot's profile. Dataset provenance
-and licenses are in `src/data/given-names/`; `src/lib/random-bot-name.test.ts`
+and licenses are in `desktop/src/data/given-names/`; `desktop/src/lib/random-bot-name.test.ts`
 checks the pools and selection behavior without a network or model request.
 
 Save defaults containing a title, model, memory topic, skill, and paused
@@ -104,8 +104,8 @@ Use only the fixture's harmless skills and routines.
 Automated coverage:
 
 ```sh
-pnpm exec vitest run server/new-bot-defaults.test.ts server/new-bot-defaults.e2e.test.ts src/lib/bot-creation-draft.test.ts src/lib/create-configured-bot.test.ts src/lib/new-bot.test.ts src/state/bot-creation.test.ts src/components/NewBotDialog.test.ts
-node --test electron/approval-trusted-mode.node-test.mjs
+pnpm exec vitest run desktop/server/new-bot-defaults.test.ts desktop/server/new-bot-defaults.e2e.test.ts desktop/src/lib/bot-creation-draft.test.ts desktop/src/lib/create-configured-bot.test.ts desktop/src/lib/new-bot.test.ts desktop/src/state/bot-creation.test.ts desktop/src/components/NewBotDialog.test.ts
+node --test desktop/electron/approval-trusted-mode.node-test.mjs
 ```
 
 The HTTP tests launch a fresh temporary server. They cover defaults persistence,
@@ -118,8 +118,8 @@ execution; those require the native approval verification separately.
 
 Companion connections make the bot with a single request: they cannot read
 host defaults or patch host settings, so the host applies its defaults.
-`companion/test/proxy.test.ts` checks creation succeeds while those routes
-remain blocked, and `src/lib/new-bot.test.ts` that a paired device sends only
+`desktop/companion/test/proxy.test.ts` checks creation succeeds while those routes
+remain blocked, and `desktop/src/lib/new-bot.test.ts` that a paired device sends only
 that request. The dialog tests also check that a caller's synchronous
 exception or rejected promise after creation is reported without leaving a
 retryable creation dialog open.
@@ -195,8 +195,8 @@ Check these user paths:
 
 Not proven by this run: real connected apps and real signed-in sites need a
 Composio account and a signed-in browser, which the fixture does not have.
-Their rows are covered by `src/components/BotSettingsDialog.simple.test.ts` and
-`src/lib/bot-app-access.test.ts`.
+Their rows are covered by `desktop/src/components/BotSettingsDialog.simple.test.ts` and
+`desktop/src/lib/bot-app-access.test.ts`.
 
 ## Earlier settings verification
 

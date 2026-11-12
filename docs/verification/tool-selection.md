@@ -6,10 +6,10 @@ not read the user's Hezuo data or connect a real mail account.
 ## Repeatable automated checks
 
 ```sh
-pnpm exec vitest run shared/tool-scope.test.ts server/mcp-gate.test.ts server/mcp-gate-config.test.ts server/mcp-remote-proxy.test.ts
-pnpm exec vitest run server/store.test.ts server/tool-scope.e2e.test.ts server/drivers/tool-scope-coverage.test.ts server/drivers/acp/tool-scope.test.ts
-pnpm exec vitest run server/drivers/pi.test.ts server/drivers/pi-mcp-extension.test.ts server/drivers/chat-mcp-tools.test.ts server/drivers/openai-chat.test.ts server/openai-tools.e2e.test.ts
-pnpm exec vitest run src/components/bot-settings/AccessSection.test.ts src/state/store.test.ts src/lib/create-configured-bot.test.ts src/lib/bot-creation-draft.test.ts
+pnpm exec vitest run packages/shared/tool-scope.test.ts desktop/server/mcp-gate.test.ts desktop/server/mcp-gate-config.test.ts desktop/server/mcp-remote-proxy.test.ts
+pnpm exec vitest run desktop/server/store.test.ts desktop/server/tool-scope.e2e.test.ts desktop/server/drivers/tool-scope-coverage.test.ts desktop/server/drivers/acp/tool-scope.test.ts
+pnpm exec vitest run desktop/server/drivers/pi.test.ts desktop/server/drivers/pi-mcp-extension.test.ts desktop/server/drivers/chat-mcp-tools.test.ts desktop/server/drivers/openai-chat.test.ts desktop/server/openai-tools.e2e.test.ts
+pnpm exec vitest run desktop/src/components/bot-settings/AccessSection.test.ts desktop/src/state/store.test.ts desktop/src/lib/create-configured-bot.test.ts desktop/src/lib/bot-creation-draft.test.ts
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/tool-selection-ui.e2e.test.ts
 ```
 

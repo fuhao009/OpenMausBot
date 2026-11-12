@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import { launchVerificationServer, runControlOmb, type VerificationServer } from "../control-omb.ts";
-import { waitForExit } from "../../server/testing/cleanup.ts";
+import { waitForExit } from "../../desktop/server/testing/cleanup.ts";
 import { ensureUiBrowser } from "./control-omb-ui.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -49,7 +49,7 @@ async function connect(url: string) {
 }
 
 (enabled ? it : it.skip)("qualifies the served phone web app and keeps controls inside safe areas", async () => {
-  if (!existsSync(join(build, "index.html"))) throw new Error("Run pnpm build before OMB_UI_E2E=1 web-app qualification");
+  if (!existsSync(join(build, "desktop/index.html"))) throw new Error("Run pnpm build before OMB_UI_E2E=1 web-app qualification");
   let fixture: VerificationServer | undefined;
   let chrome: ChildProcess | undefined;
   let cdp: Awaited<ReturnType<typeof connect>> | undefined;

@@ -1,7 +1,7 @@
 // pnpm build:server
 // pnpm exec electron scripts/smoke-login-handoff.cjs
 // Send to My Cloud's secret path in real Electron: main asks the packaged server, forked as a utility process, for a saved
-// login over the private utility port (electron/cloud-logins.mjs, server/login-handoff.ts), exactly as cloud-send-main.mjs
+// login over the private utility port (desktop/electron/cloud-logins.mjs, desktop/server/login-handoff.ts), exactly as cloud-send-main.mjs
 // does. Disposable home, fake engine; obvious fake secrets, never printed.
 const { app, utilityProcess } = require("electron");
 const assert = require("node:assert/strict");
@@ -41,10 +41,10 @@ async function until(check) {
 }
 
 app.whenReady().then(async () => {
-  const { createLoginHandoffClient } = await import(pathToFileURL(join(root, "electron/cloud-logins.mjs")).href);
+  const { createLoginHandoffClient } = await import(pathToFileURL(join(root, "desktop/electron/cloud-logins.mjs")).href);
   const port = await freePort();
   writeFileSync(join(home, "config.json"), JSON.stringify({ instances: {
-    claude: { driver: "claudeAgent", config: { cli: join(root, "server/testing/fake-claude-cli.ts") } },
+    claude: { driver: "claudeAgent", config: { cli: join(root, "desktop/server/testing/fake-claude-cli.ts") } },
   } }));
   harness = utilityProcess.fork(join(root, "dist-server/index.js"), [], { cwd: root, stdio: "pipe", env: {
     HOME: home, USERPROFILE: home, OMB_DATA_DIR: home, PATH: "", OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(await freePort()),

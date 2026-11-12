@@ -10,8 +10,8 @@ the control surface cannot drive them, so this is not in the map in
 ## Floor: automated checks
 
 ```sh
-node --test electron/talk-*.node-test.mjs electron/home-window.node-test.mjs electron/desktop-prefs.node-test.mjs electron/preload.node-test.mjs electron/speech-helper-release.node-test.mjs
-pnpm exec vitest run electron/speech.test.mjs electron/skin-overlay.test.mjs server/task-select.test.ts server/talk-server.e2e.test.ts src/lib/call-presence.test.ts src/components/TalkShortcutRow.test.ts --maxWorkers=1
+node --test desktop/electron/talk-*.node-test.mjs desktop/electron/home-window.node-test.mjs desktop/electron/desktop-prefs.node-test.mjs desktop/electron/preload.node-test.mjs desktop/electron/speech-helper-release.node-test.mjs
+pnpm exec vitest run desktop/electron/speech.test.mjs desktop/electron/skin-overlay.test.mjs desktop/server/task-select.test.ts desktop/server/talk-server.e2e.test.ts desktop/src/lib/call-presence.test.ts desktop/src/components/TalkShortcutRow.test.ts --maxWorkers=1
 pnpm typecheck && pnpm lint && pnpm i18n:check
 ```
 

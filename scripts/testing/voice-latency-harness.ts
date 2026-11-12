@@ -19,7 +19,7 @@ import {
   summarizeVoiceTurn,
   summarizeVoiceRun,
   type VoiceProbeSample,
-} from "../../shared/voice-latency-probe.ts";
+} from "../../packages/shared/voice-latency-probe.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_DIR = join(HERE, "fixtures", "voice-latency");

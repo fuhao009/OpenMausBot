@@ -50,10 +50,10 @@ waits on a teammate, is never taken for the run's result or failure.
 ## Automated checks
 
 ```sh
-pnpm exec vitest run server/automation-reports.test.ts server/automation-reports.e2e.test.ts \
-  server/routine-results.e2e.test.ts server/triggers.e2e.test.ts server/routines.test.ts \
-  server/today.test.ts server/recent-work.test.ts src/components/ChatView.automation.test.ts src/lib/automations.test.ts
-pnpm exec vitest run server/cloud-routine-level.e2e.test.ts server/cloud-lending-memory.e2e.test.ts server/card-answerers.e2e.test.ts
+pnpm exec vitest run desktop/server/automation-reports.test.ts desktop/server/automation-reports.e2e.test.ts \
+  desktop/server/routine-results.e2e.test.ts desktop/server/triggers.e2e.test.ts desktop/server/routines.test.ts \
+  desktop/server/today.test.ts desktop/server/recent-work.test.ts desktop/src/components/ChatView.automation.test.ts desktop/src/lib/automations.test.ts
+pnpm exec vitest run desktop/server/cloud-routine-level.e2e.test.ts desktop/server/cloud-lending-memory.e2e.test.ts desktop/server/card-answerers.e2e.test.ts
 ```
 
 The end-to-end file runs the real server and Claude driver with the scripted
@@ -64,7 +64,7 @@ a `NEEDS INPUT` answer (typed or a 👍) reaching the bot with the report in its
 webhook run, failures said once, Chief escalations, and a person's turn in a
 waiting run's conversation.
 On a shared workspace, only someone who may answer in the chat a run reports
-to can answer the copy of its card there (`server/card-answerers.e2e.test.ts`).
+to can answer the copy of its card there (`desktop/server/card-answerers.e2e.test.ts`).
 
 ## In the real renderer
 

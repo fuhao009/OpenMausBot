@@ -19,8 +19,8 @@ const pause = ms => new Promise(done => setTimeout(done, ms));
 
 if (process.versions.electron && process.argv.includes(flag)) {
   const { app, BrowserWindow, ipcMain, session } = await import("electron");
-  const { createCompanyBackups } = await import("../electron/company-backups.mjs");
-  const { createCompanyBackupSchedule } = await import("../electron/company-backup-schedule.mjs");
+  const { createCompanyBackups } = await import("../desktop/electron/company-backups.mjs");
+  const { createCompanyBackupSchedule } = await import("../desktop/electron/company-backup-schedule.mjs");
   const [url, output, runtimeUrl, sourceBotId, fixtureDataDir] = process.argv.slice(process.argv.indexOf(flag) + 1);
   const localOrigin = new URL(url).origin;
   app.setPath("userData", join(output, "user-data"));
@@ -220,7 +220,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
     });
     const open = async local => {
       const window = new BrowserWindow({ show: false, width: 850, height: 850, webPreferences: {
-        preload: join(root, "electron/preload.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false,
+        preload: join(root, "desktop/electron/preload.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false,
         additionalArguments: [`--omb-local-origin=${local ? localOrigin : "https://remote-fixture.invalid"}`, "--omb-company-desktop=1"],
       } });
       return window;
@@ -395,7 +395,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
     assert.ok(progressPhases.has("uploading") && progressPhases.has("downloading") && progressPhases.has("preparing"));
     const receipt = { passed: true, checks, createCalls, restoreCalls, restartCalls, deleteCalls, cloudRequests, objectRequests, scheduledRuns,
       progressPhases: [...progressPhases], archiveBytes: objects.get(first).length,
-      production: ["CompanyBackupSettings", "WorkspaceBackupRecovery", "electron/preload.cjs", "electron/company-backups.mjs", "electron/company-backup-schedule.mjs", "real local workspace-backup HTTP/archive/restart"],
+      production: ["CompanyBackupSettings", "WorkspaceBackupRecovery", "desktop/electron/preload.cjs", "desktop/electron/company-backups.mjs", "desktop/electron/company-backup-schedule.mjs", "real local workspace-backup HTTP/archive/restart"],
       limits: "Synthetic company state, schedule clock/credential store and fixture IPC wiring, loopback Admin/object store, one small real part; desktop:relaunch restarts the owned server and renderer, not the full production Electron main process; not real Admin consent/auth, keychain, R2/TLS, multi-part scale or a 10 GiB stress test." };
     writeFileSync(join(output, "receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
     console.log(JSON.stringify(receipt)); scheduler.close(); admin.close(); win.destroy(); app.exit(0);
@@ -410,7 +410,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
   const { default: react } = await import("@vitejs/plugin-react");
   const { default: tailwindcss } = await import("@tailwindcss/vite");
   const { launchVerificationServer, runControlOmb } = await import("./control-omb.ts");
-  const { waitForExit } = await import("../server/testing/cleanup.ts");
+  const { waitForExit } = await import("../desktop/server/testing/cleanup.ts");
   const fixture = await launchVerificationServer({});
   let runtime = fixture.child, child, ui, restartTask;
   const output = mkdtempSync(join(tmpdir(), "omb-company-backup-ui-"));
@@ -418,7 +418,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
   const restart = async () => {
     await waitForExit(runtime, { signal: "SIGTERM" });
     const config = JSON.parse(readFileSync(join(fixture.info.dataDir, "config.json"), "utf8"));
-    assert.equal(resolve(config.instances.claude.config.cli), join(root, "server/testing/fake-claude-cli.ts"));
+    assert.equal(resolve(config.instances.claude.config.cli), join(root, "desktop/server/testing/fake-claude-cli.ts"));
     const home = join(fixture.info.dataDir, "providers", "fixture-home"), temporary = join(fixture.info.dataDir, "tmp");
     mkdirSync(home, { recursive: true }); mkdirSync(temporary, { recursive: true });
     const env = { PATH: dirname(process.execPath), HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, ".config"),
@@ -428,7 +428,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
       FAKE_CLAUDE_MODE: "happy", FAKE_CLAUDE_DUMP: fixture.fixtureDumpPath };
     for (const key of ["SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "LANG", "LC_ALL", "TZ"]) if (process.env[key]) env[key] = process.env[key];
     const log = openSync(fixture.info.logPath, "a", 0o600);
-    runtime = spawn(process.execPath, ["--experimental-strip-types", join(root, "server/index.ts")], { cwd: root, env, stdio: ["ignore", log, log] }); closeSync(log);
+    runtime = spawn(process.execPath, ["--experimental-strip-types", join(root, "desktop/server/index.ts")], { cwd: root, env, stdio: ["ignore", log, log] }); closeSync(log);
     for (let attempt = 0; attempt < 300; attempt++) {
       if (runtime.exitCode !== null || runtime.signalCode !== null) throw new Error("Owned backup runtime exited during restart");
       try { const response = await fetch(`${fixture.info.url}/api/health`, { signal: AbortSignal.timeout(1_000) }); if (response.ok && (await response.json()).pid === runtime.pid) return; } catch { /* Exact owned PID handshake only. */ }
@@ -441,7 +441,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
     // excluded providers/ so no CLI-login directory can enter an archive.
     await restart();
     const seeded = await runControlOmb(["new-bot", "--name", "Original cloud snapshot bot", "--url", fixture.info.url]);
-    ui = await createServer({ configFile: false, root, resolve: { alias: { "@": join(root, "src") } }, define: { __APP_VERSION__: JSON.stringify("0.1.78") },
+    ui = await createServer({ configFile: false, root, resolve: { alias: { "@": join(root, "desktop", "src") } }, define: { __APP_VERSION__: JSON.stringify("0.1.78") },
       server: { host: "127.0.0.1", port: 0, proxy: { "/api": { target: fixture.info.url } } }, plugins: [react(), tailwindcss(), {
         name: "company-backup-fixture", resolveId(id) { if (id === "virtual:company-backup-fixture") return `\0${id}`; },
         load(id) { if (id === "\0virtual:company-backup-fixture") return `import React from 'react'; import {createRoot} from 'react-dom/client'; import {CompanyBackupSettings} from '/src/components/CompanyBackupSettings.tsx'; import {WorkspaceBackupRecovery} from '/src/components/WorkspaceBackupSettings.tsx'; import {setLocale} from '/src/lib/i18n.ts'; import '/src/styles.css'; setLocale('en'); localStorage.setItem('omb-analytics-opt-out','1'); createRoot(document.getElementById('root')).render(React.createElement(WorkspaceBackupRecovery,null,React.createElement('main',{className:'mx-auto max-w-2xl p-4'},React.createElement(CompanyBackupSettings)))); document.body.dataset.ready='true';`; },

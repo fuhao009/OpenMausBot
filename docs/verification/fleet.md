@@ -23,7 +23,7 @@ An operator runs the commands on the server. A client's admin gets a link to
 The planners and the command are proven offline:
 
 ```sh
-pnpm exec vitest run server/fleet.test.ts server/fleet-cli.test.ts server/fleet-cli-filesystem.test.ts server/fleet-agent.test.ts server/cli.test.ts
+pnpm exec vitest run desktop/server/fleet.test.ts desktop/server/fleet-cli.test.ts desktop/server/fleet-cli-filesystem.test.ts desktop/server/fleet-agent.test.ts desktop/server/cli.test.ts
 ```
 
 These pin the rendered template unit (per-slug user, private `/tmp`, no new
@@ -69,7 +69,7 @@ an actual root-to-tenant privilege transition.
   fences; it reapplies the fence even when its oneshot unit is already active.
 - Tenant config reads, writes and directory creation run only after dropping
   supplementary groups, gid and uid in a bounded child with a minimal
-  environment. Descriptor checks reject shared/special files, reads are
+  environment. Descriptor checks reject packages/shared/special files, reads are
   bounded, and writes use same-directory atomic replacement. Visible links
   are refused. This is a root-privilege boundary, not a guarantee against
   same-tenant concurrent renames or tenant edits. Usage summaries use that same

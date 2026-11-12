@@ -1,6 +1,6 @@
 # Remote desktop viewer
 
-Build and run the isolated server/browser fixture on Linux or macOS:
+Build and run the isolated desktop/server/browser fixture on Linux or macOS:
 
 ```sh
 pnpm build
@@ -61,7 +61,7 @@ upstream rejection/timeouts, and stripping workspace credentials from the
 upstream request:
 
 ```sh
-pnpm exec vitest run server/routes/desktop-viewer.test.ts server/container-computer.test.ts server/request-auth.test.ts server/vps-computer.test.ts
+pnpm exec vitest run desktop/server/routes/desktop-viewer.test.ts desktop/server/container-computer.test.ts desktop/server/request-auth.test.ts desktop/server/vps-computer.test.ts
 pnpm exec vitest run scripts/testing/verification-docs.test.ts
 ```
 
@@ -80,7 +80,7 @@ viewer ownership and reclaim remote-only tunnels after the 30-second reconnect
 grace period. Provider-hosted Cloud URLs are outside this proxy; they can also
 use WebRTC.
 
-The consolidated `public/novnc-NOTICE.txt` contains the source and MPL-2.0
+The consolidated `desktop/public/novnc-NOTICE.txt` contains the source and MPL-2.0
 links plus the bundled Pako and DES notices. Vite includes this static asset
 in `dist`, which existing web, npm and desktop packaging already ship. The
 fixture checks the served notice against that file and the dependency notices.

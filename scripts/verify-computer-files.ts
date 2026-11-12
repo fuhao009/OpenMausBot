@@ -30,7 +30,7 @@ try {
   const wrapper = join(fixture.info.dataDir, "files-claude.mjs");
   writeFileSync(wrapper, ["#!/usr/bin/env node",
     `process.env.FAKE_CLAUDE_REPLIES = ${JSON.stringify(JSON.stringify([reply]))};`,
-    `await import(${JSON.stringify(pathToFileURL(join(root, "server/testing/fake-claude-cli.ts")).href)});`,
+    `await import(${JSON.stringify(pathToFileURL(join(root, "desktop/server/testing/fake-claude-cli.ts")).href)});`,
   ].join("\n"), { mode: 0o700 });
   await api("PATCH", "/api/instances/claude", { cli: wrapper });
   const sent = await control(["send", "--bot", bot.id, "--text", "Prepare the sample report and table."]);

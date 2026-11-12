@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import viteConfig from "../../vite.config.ts";
+import viteConfig from "../../desktop/vite.config.ts";
 import { E2E, HOST_E2E, hostE2eOnly, isPortableE2e, portableE2eFiles } from "./host-e2e.ts";
 
 const ROOT = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
@@ -35,9 +35,9 @@ describe("the e2e files every host runs", () => {
   });
 
   it("leave every other test file to every host", () => {
-    expect(isPortableE2e("server/room-coordination.e2e.test.ts")).toBe(true);
-    expect(isPortableE2e("server/shared-computers.e2e.test.ts")).toBe(false);
-    expect(isPortableE2e("server/steer-queue.test.ts")).toBe(false);
+    expect(isPortableE2e("desktop/server/room-coordination.e2e.test.ts")).toBe(true);
+    expect(isPortableE2e("desktop/server/shared-computers.e2e.test.ts")).toBe(false);
+    expect(isPortableE2e("desktop/server/steer-queue.test.ts")).toBe(false);
     const portable = portableE2eFiles(ROOT, INCLUDE);
     expect(portable.length).toBeGreaterThan(100);
     expect(portable.every((file) => E2E.test(file) && !Object.hasOwn(HOST_E2E, file))).toBe(true);

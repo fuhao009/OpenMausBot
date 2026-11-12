@@ -34,7 +34,7 @@ export function tightenSizes(text, linesOf) {
   return { text: text.slice(0, open) + lines.join("\n") + text.slice(close), changes };
 }
 
-/** Each needle keeps the lower of its number and how often server/index.ts has it now. */
+/** Each needle keeps the lower of its number and how often desktop/server/index.ts has it now. */
 export function tightenRoutes(text, timesOf) {
   const { open, close } = block(text, "EXACT");
   const changes = [];
@@ -53,7 +53,7 @@ export function tightenRoutes(text, timesOf) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const path = (file) => new URL(file, ROOT);
   const linesOf = (file) => existsSync(path(file)) ? readFileSync(path(file), "utf8").split("\n").length - 1 : null;
-  const index = readFileSync(path("server/index.ts"), "utf8");
+  const index = readFileSync(path("desktop/server/index.ts"), "utf8");
   const sizes = tightenSizes(readFileSync(path(SIZES), "utf8"), linesOf);
   const routes = tightenRoutes(readFileSync(path(ROUTES), "utf8"), (needle) => index.split(needle).length - 1);
   if (sizes.changes.length) writeFileSync(path(SIZES), sizes.text);

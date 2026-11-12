@@ -6,7 +6,7 @@ issues, and writes those issues to its own folder outside the data dir (see
 [Privacy model](#privacy-model)). An `--out` inside the data dir is refused.
 It is plain code with no model calls,
 and it runs out of process on a schedule, so it keeps working after the app
-crashes. The code lives in [`server/sentinel/`](../server/sentinel/). Every
+crashes. The code lives in [`desktop/server/sentinel/`](../server/sentinel/). Every
 input is explicit, so the same scan could later run inside the server.
 
 ```sh
@@ -100,7 +100,7 @@ changes nothing.
 ## Detectors
 
 A detector is a pure function from the records in a scan window to
-observations ([`server/sentinel/types.ts`](../server/sentinel/types.ts)):
+observations ([`desktop/server/sentinel/types.ts`](../server/sentinel/types.ts)):
 
 ```ts
 interface Detector {
@@ -111,7 +111,7 @@ interface Detector {
 // turnId?, at, occurrence (stable id, counted once), evidence
 ```
 
-Adding a detector takes one file in `server/sentinel/detectors/` and one line
+Adding a detector takes one file in `desktop/server/sentinel/detectors/` and one line
 in its `index.ts`. A detector may see the same record on several scans. The
 `occurrence` key keeps those repeat sightings from being counted twice.
 

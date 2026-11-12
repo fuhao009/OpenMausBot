@@ -6,14 +6,14 @@ without a real Google account, a model or the Electron app.
 ## The end-to-end scenario
 
 ```sh
-pnpm exec vitest run server/proactive-routines.e2e.test.ts
+pnpm exec vitest run desktop/server/proactive-routines.e2e.test.ts
 ```
 
 It launches the same isolated fixture as `control-omb launch`: a temporary home
 and data directory and the fake Claude CLI. It points the fixture at
-`server/testing/fake-connected-apps.ts`, a loopback stand-in for the
+`desktop/server/testing/fake-connected-apps.ts`, a loopback stand-in for the
 connected-apps service that answers Composio's Gmail and Calendar tools from
-`server/testing/fixtures/`. The fake CLI answers the watch with a scripted JSON
+`desktop/server/testing/fixtures/`. The fake CLI answers the watch with a scripted JSON
 result picked by a marker in its prompt (`FAKE_CLAUDE_MARKER_REPLIES`).
 
 Expected:
@@ -50,7 +50,7 @@ Expected:
 ## Hezuo as the owner
 
 ```sh
-pnpm exec vitest run server/host/proactive-hezuo.test.ts
+pnpm exec vitest run desktop/server/host/proactive-hezuo.test.ts
 ```
 
 Each step starts the store, the routines and the proactive side from the files
@@ -83,21 +83,21 @@ Expected:
 
 ## Unit tests
 
-`server/routine-checks-engine.test.ts` covers the routine engine with checks:
+`desktop/server/routine-checks-engine.test.ts` covers the routine engine with checks:
 quiet ticks, one batched run, overlap, catch-up, wake times, backoff, the daily
 cap, busy bots, and Run now. The others:
 
-- `server/host/routine-checks.test.ts`, `server/host/check-plan.test.ts` and
-  `server/host/check-prompts.test.ts`: the checks, planner and prompts;
-- `server/host/brief.test.ts`, `server/host/proactive.test.ts` and
-  `server/host/proactive-hezuo.test.ts`: the brief, the default routine and
+- `desktop/server/host/routine-checks.test.ts`, `desktop/server/host/check-plan.test.ts` and
+  `desktop/server/host/check-prompts.test.ts`: the checks, planner and prompts;
+- `desktop/server/host/brief.test.ts`, `desktop/server/host/proactive.test.ts` and
+  `desktop/server/host/proactive-hezuo.test.ts`: the brief, the default routine and
   its owner;
-- `server/connected-reads.test.ts` and `server/records-block.test.ts`: the
+- `desktop/server/connected-reads.test.ts` and `desktop/server/records-block.test.ts`: the
   readers and the sanitiser;
-- `server/read-and-draft.test.ts`: the fence;
-- `server/routes/bot-messages.test.ts` and `server/routes/presence.test.ts`: the
+- `desktop/server/read-and-draft.test.ts`: the fence;
+- `desktop/server/routes/bot-messages.test.ts` and `desktop/server/routes/presence.test.ts`: the
   press fences and presence;
-- `src/lib/automations.test.ts`: the Automations row.
+- `desktop/src/lib/automations.test.ts`: the Automations row.
 
 ## Looking at it in the real renderer
 

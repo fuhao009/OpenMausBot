@@ -6,7 +6,7 @@ Organization. A connected Hezuo desktop keeps a verified copy of that
 catalog and of each package's release file, so **Templates → From
 {Organization}** can show and add them. This page describes the desktop's half
 of that channel: Electron main. The runtime's shelf, the Add button and the
-provenance lines are described with the runtime (`server/org-library.ts`).
+provenance lines are described with the runtime (`desktop/server/org-library.ts`).
 
 Nothing on this channel asks anyone anything. What an Organization offers is
 decided in Admin; adding a package is a person's own click. There are no
@@ -138,7 +138,7 @@ Main waits 5 s after a snapshot arrives and sends only the newest one.
 | No organization account | as before | — |
 
 This channel and the runtime's handler for `hezuo:managed-library`
-(`server/org-library.ts`) ship in the same release. A runtime without that
+(`desktop/server/org-library.ts`) ship in the same release. A runtime without that
 handler never acknowledges, so main would relay again on every sync and wait
 out the 15 s timeout each time.
 

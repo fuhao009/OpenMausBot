@@ -9,11 +9,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { expect, it } from "vitest";
 
-import { cloudHomeChildEnvironments, spawnWithSecrets } from "../../server/cloud-home-start.ts";
-import { cloudHomeConfiguration, cloudPairingSignature } from "../../server/cloud-home.ts";
-import { removeTempDir, waitForExit } from "../../server/testing/cleanup.ts";
-import { freePortBlock } from "../../server/testing/ports.ts";
-import { launchRestartableServer, type RestartableServer } from "../../server/testing/restartable-server.ts";
+import { cloudHomeChildEnvironments, spawnWithSecrets } from "../../desktop/server/cloud-home-start.ts";
+import { cloudHomeConfiguration, cloudPairingSignature } from "../../desktop/server/cloud-home.ts";
+import { removeTempDir, waitForExit } from "../../desktop/server/testing/cleanup.ts";
+import { freePortBlock } from "../../desktop/server/testing/ports.ts";
+import { launchRestartableServer, type RestartableServer } from "../../desktop/server/testing/restartable-server.ts";
 import { runControlOmb } from "../control-omb.ts";
 import { agentBrowser, ensureUiBrowser, sessionEnv, type UiHandle } from "./control-omb-ui.ts";
 import { mountPreview } from "./preview-fixture.ts";
@@ -410,7 +410,7 @@ async function launchCloudHome() {
 if (process.argv[2] === "auth") { console.log(JSON.stringify({ loggedIn: true, email: "owner@example.test" })); process.exit(0); }
 process.env.FAKE_CLAUDE_VERSION = "2.1.284";
 process.env.FAKE_CLAUDE_MODE ??= "happy";
-await import(${JSON.stringify(pathToFileURL(join(ROOT, "server", "testing", "fake-claude-cli.ts")).href)});
+await import(${JSON.stringify(pathToFileURL(join(ROOT, "desktop", "server", "testing", "fake-claude-cli.ts")).href)});
 `, { mode: 0o755 });
   writeFileSync(join(dataDir, "config.json"), JSON.stringify({ language: "en", instances: {
     ...Object.fromEntries(["cursor", "githubCopilot", "openaiCompat", "qwen", "hermes", "pi"].map((id) => [id, { driver: "not-a-real-driver" }])),
@@ -429,7 +429,7 @@ await import(${JSON.stringify(pathToFileURL(join(ROOT, "server", "testing", "fak
   mkdirSync(evidenceDir, { recursive: true });
   const logPath = join(evidenceDir, `cloud-journey-${Date.now()}-${process.pid}.log`);
   const log = createWriteStream(logPath);
-  const child: ChildProcess = spawnWithSecrets(process.execPath, ["--import", offline, join(ROOT, "server", "index.ts")], env, secrets, undefined, true);
+  const child: ChildProcess = spawnWithSecrets(process.execPath, ["--import", offline, join(ROOT, "desktop", "server", "index.ts")], env, secrets, undefined, true);
   child.stdout?.pipe(log);
   child.stderr?.pipe(log);
   const url = `http://127.0.0.1:${port}`;

@@ -168,20 +168,20 @@ async function linuxProductResources(scratch) {
     ["hezuo-browser", "hezuo-product-browser"],
     [ROOT_SENTINEL, PRODUCT_INSTALL_ROOT],
   ];
-  const afterInstall = substitute(await readFile(path.join(root, "build", "linux-after-install.sh"), "utf8"), pairs)
+  const afterInstall = substitute(await readFile(path.join(root, "desktop", "build", "linux-after-install.sh"), "utf8"), pairs)
     // The install root contains a space, so its shell assignment must be quoted.
     .replace(`APP_ROOT=${PRODUCT_INSTALL_ROOT}\n`, `APP_ROOT="${PRODUCT_INSTALL_ROOT}"\n`);
   if (!afterInstall.includes(`APP_ROOT="${PRODUCT_INSTALL_ROOT}"`)) {
-    throw new Error("build/linux-after-install.sh no longer assigns APP_ROOT in the form this wrapper must rewrite");
+    throw new Error("desktop/build/linux-after-install.sh no longer assigns APP_ROOT in the form this wrapper must rewrite");
   }
-  const afterRemove = substitute(await readFile(path.join(root, "build", "linux-after-remove.sh"), "utf8"), pairs)
+  const afterRemove = substitute(await readFile(path.join(root, "desktop", "build", "linux-after-remove.sh"), "utf8"), pairs)
     // Both places pass the installed executable as a bare word; the product
     // install root contains a space, so each must be quoted.
     .split(`${PRODUCT_INSTALL_ROOT}/hezuo-product`).join(`"${PRODUCT_INSTALL_ROOT}/hezuo-product"`);
   if (!afterRemove.includes(`"${PRODUCT_INSTALL_ROOT}/hezuo-product"`)) {
-    throw new Error("build/linux-after-remove.sh no longer names the installed executable in the form this wrapper must rewrite");
+    throw new Error("desktop/build/linux-after-remove.sh no longer names the installed executable in the form this wrapper must rewrite");
   }
-  const profileSource = await readFile(path.join(root, "build", "linux-hezuo-browser.apparmor"), "utf8");
+  const profileSource = await readFile(path.join(root, "desktop", "build", "linux-hezuo-browser.apparmor"), "utf8");
   // The policy line must name the product's executable with the install root
   // quoted: AppArmor takes an unquoted path up to the first space.
   const profile = profileSource.replace(
@@ -189,7 +189,7 @@ async function linuxProductResources(scratch) {
     `profile hezuo-product-browser "${PRODUCT_INSTALL_ROOT}/resources/browser-engine/chrome/chrome-headless-shell-linux64/chrome-headless-shell" flags=`,
   );
   if (!profile.includes(`profile hezuo-product-browser "${PRODUCT_INSTALL_ROOT}/`)) {
-    throw new Error("build/linux-hezuo-browser.apparmor no longer has the browser policy line this wrapper must rewrite");
+    throw new Error("desktop/build/linux-hezuo-browser.apparmor no longer has the browser policy line this wrapper must rewrite");
   }
   const afterInstallPath = path.join(scratch, "linux-after-install.sh");
   const afterRemovePath = path.join(scratch, "linux-after-remove.sh");

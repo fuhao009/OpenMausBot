@@ -8,15 +8,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
-import { cloudPairingSignature, cloudRequestSignature } from "../../server/cloud-home.ts";
-import { removeTempDir, waitForExit } from "../../server/testing/cleanup.ts";
-import { hostTimeout } from "../../server/testing/host-timeout.ts";
-import { freePortBlock } from "../../server/testing/ports.ts";
-import { openSse } from "../../server/testing/sse.ts";
-import { cloudAsleep, markCloudAwake, resetCloudPowerForTests } from "../../src/lib/cloud-power.ts";
-import { openLiveEvents, type LiveEventSourceLike, type LiveFrame } from "../../src/lib/live-events.ts";
+import { cloudPairingSignature, cloudRequestSignature } from "../../desktop/server/cloud-home.ts";
+import { removeTempDir, waitForExit } from "../../desktop/server/testing/cleanup.ts";
+import { hostTimeout } from "../../desktop/server/testing/host-timeout.ts";
+import { freePortBlock } from "../../desktop/server/testing/ports.ts";
+import { openSse } from "../../desktop/server/testing/sse.ts";
+import { cloudAsleep, markCloudAwake, resetCloudPowerForTests } from "../../desktop/src/lib/cloud-power.ts";
+import { openLiveEvents, type LiveEventSourceLike, type LiveFrame } from "../../desktop/src/lib/live-events.ts";
 
-const SERVER_DIR = fileURLToPath(new URL("../../server/", import.meta.url));
+const SERVER_DIR = fileURLToPath(new URL("../../desktop/server/", import.meta.url));
 const HOST = "omb-t-7c6b5a4d3e2f.fly.dev";
 const MACHINE = "5c9e3d2f-0b8a-4f7e-9d6c-2b3c4d5e6f70";
 const EDGE = { host: HOST, "x-forwarded-for": "203.0.113.9", "x-forwarded-proto": "https", origin: `https://${HOST}` };
@@ -95,8 +95,8 @@ beforeAll(async () => {
   const port = await freePortBlock([0, 1]);
   base = `http://127.0.0.1:${port}`;
   const offline = `data:text/javascript,${encodeURIComponent('const real = globalThis.fetch; globalThis.fetch = async (url, init) => String(url).startsWith("http://127.0.0.1:") ? real(url, init) : new Response("offline fixture", { status: 503 });')}`;
-  child = spawn(process.execPath, ["--import", offline, "--import", new URL("../../server/testing/power-clock-hooks.mjs", import.meta.url).href, join(SERVER_DIR, "index.ts")], {
-    cwd: join(SERVER_DIR, ".."),
+  child = spawn(process.execPath, ["--import", offline, "--import", new URL("../../desktop/server/testing/power-clock-hooks.mjs", import.meta.url).href, join(SERVER_DIR, "index.ts")], {
+    cwd: join(SERVER_DIR, "..", ".."),
     env: {
       PATH: process.env.PATH, HOME: home, USERPROFILE: home, OMB_DATA_DIR: home, OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(port + 1),
       OMB_CLOUD_ROLE: "home", OMB_CLOUD_MACHINE_ID: MACHINE, OMB_CLOUD_ADMIN_URL: "https://cloud.example.test",

@@ -38,7 +38,7 @@ try {
       { name: "Read", input: { file_path: "missing.txt" }, output: "File not found: missing.txt", ok: false },
       { name: "Search", input: { query: "release notes" }, ok: true },
     ]))};`,
-    `await import(${JSON.stringify(pathToFileURL(join(root, "server/testing/fake-claude-cli.ts")).href)});`,
+    `await import(${JSON.stringify(pathToFileURL(join(root, "desktop/server/testing/fake-claude-cli.ts")).href)});`,
   ].join("\n"), { mode: 0o700 });
   await api("PATCH", "/api/instances/claude", { cli: wrapper });
   await api("PATCH", "/api/config", { features: { showToolCalls: true }, language: "en" });

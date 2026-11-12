@@ -3,7 +3,7 @@
 # server, the Cloudflare tunnel does, in this home's network namespace). The
 # Hezuo server listens only on 127.0.0.1, and every request forwarded
 # to it carries X-Forwarded-*, so it is never the loopback owner
-# (server/request-auth.ts): a remote client needs a paired session.
+# (desktop/server/request-auth.ts): a remote client needs a paired session.
 #
 # OMB_CLOUD_EDGE_HOLD (a duration, unset: 0s, as before): how long a request
 # waits for the server while it starts, instead of a 502. The Admin sets it
@@ -19,7 +19,7 @@
 		# Only these peers may name the real client, and only in this header:
 		# Fly's proxy from its private ranges in Fly-Client-IP, or an own
 		# server's tunnel from this home's loopback in Cf-Connecting-IP (the
-		# launcher sets both: server/cloud-home-start.ts). Any other peer's
+		# launcher sets both: desktop/server/cloud-home-start.ts). Any other peer's
 		# header is ignored, and unset, no peer may name one. The address feeds
 		# the pairing lockout, never authorization.
 		trusted_proxies static {$OMB_CLOUD_EDGE_TRUSTED_PROXIES}

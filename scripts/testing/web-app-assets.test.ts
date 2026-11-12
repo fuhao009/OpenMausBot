@@ -4,7 +4,7 @@ import { Window } from "happy-dom";
 import { describe, expect, it } from "vitest";
 
 const root = new URL("../../", import.meta.url);
-const html = readFileSync(new URL("index.html", root), "utf8");
+const html = readFileSync(new URL("desktop/index.html", root), "utf8");
 const window = new Window({ settings: { disableJavaScriptEvaluation: true, disableJavaScriptFileLoading: true, disableCSSFileLoading: true } });
 const head = new window.DOMParser().parseFromString(html, "text/html").head;
 

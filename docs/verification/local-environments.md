@@ -12,7 +12,7 @@ by hand on an installed build, exactly as below.
 ## Floor: unit tests
 
 ```sh
-node --test electron/environments.node-test.mjs electron/environment-switch.node-test.mjs
+node --test desktop/electron/environments.node-test.mjs desktop/electron/environment-switch.node-test.mjs
 ```
 
 `pnpm test:electron` runs these with the whole Electron suite. They cover
@@ -117,6 +117,6 @@ dev; only local data-dir switching is packaged-gated.
 ## Not proven here
 
 Cross-process lease contention (two app processes, one environment) is
-covered by `electron/data-dir-lease.node-test.mjs`, not this recipe. This
+covered by `desktop/electron/data-dir-lease.node-test.mjs`, not this recipe. This
 recipe does not cover Forget's delete-files choice, Windows/Linux paths, or
 the packaged build matrix.

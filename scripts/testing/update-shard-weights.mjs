@@ -20,7 +20,7 @@ const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const OUTPUT = "scripts/testing/vitest-shard-weights.json";
 const HEAVY_SECONDS = 5;
 const E2E = /\.e2e\.test\.[cm]?[jt]s$/;
-// The default reporter's line per file: "✓ server/a.test.ts (12 tests) 345ms".
+// The default reporter's line per file: "✓ desktop/server/a.test.ts (12 tests) 345ms".
 // A fully skipped file prints no time. `gh` prints escapes as a literal "^[".
 const FILE_LINE = /\s[✓×❯↓] ((?:[\w.@-]+\/)+[\w.@-]+\.test\.[cm]?[jt]s)(?: \([^)]*\))?(?: (\d+)ms)?\s*$/;
 // oxlint-disable-next-line no-control-regex -- strips colour codes from a CI log

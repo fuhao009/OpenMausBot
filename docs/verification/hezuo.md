@@ -9,22 +9,22 @@ its menu's **Hide from sidebar** also turns off.
 ## Automated checks
 
 ```sh
-pnpm exec vitest run server/default-bot.test.ts server/default-bot.e2e.test.ts \
-  server/team-setup-requests.test.ts src/lib/default-bot.test.ts src/components/HezuoWelcome.test.ts \
-  src/lib/hezuo-landing.test.ts
+pnpm exec vitest run desktop/server/default-bot.test.ts desktop/server/default-bot.e2e.test.ts \
+  desktop/server/team-setup-requests.test.ts desktop/src/lib/default-bot.test.ts desktop/src/components/HezuoWelcome.test.ts \
+  desktop/src/lib/hezuo-landing.test.ts
 ```
 
-- `server/default-bot.test.ts`: a fresh install gets one Hezuo once; an
+- `desktop/server/default-bot.test.ts`: a fresh install gets one Hezuo once; an
   existing install gets one once on update and its Chief is untouched; a new
   install's renamed Hezuo is adopted, not duplicated; the intro shows once,
   not after it was answered or dismissed; delete and archive are refused; a
   move to My Cloud and coming home leave exactly one; each Team Cloud member
   gets their own; a Team User's Hezuo holds no Chief tools.
-- `server/default-bot.e2e.test.ts`: on a real fixture server, `DELETE
+- `desktop/server/default-bot.e2e.test.ts`: on a real fixture server, `DELETE
   /api/bots/:id` answers 409, the switch hides and shows it, and a Hezuo that
   is not the Chief creates a bot with `create_bot`.
-- `server/hezuo-notifications.test.ts`, `server/drivers/agents-hezuo-tools.test.ts`
-  and the second case of `server/default-bot.e2e.test.ts`: Hezuo alone gets
+- `desktop/server/hezuo-notifications.test.ts`, `desktop/server/drivers/agents-hezuo-tools.test.ts`
+  and the second case of `desktop/server/default-bot.e2e.test.ts`: Hezuo alone gets
   `list_unread_notifications` and `mark_notifications_read`, listed last.
   The list returns the unread feed (bounded, trimmed) with a lean per item;
   marking read takes only finished work (`done`, `delegation-settled`), leaves
@@ -35,19 +35,19 @@ pnpm exec vitest run server/default-bot.test.ts server/default-bot.e2e.test.ts \
   such an item is the person's, to be marked read only if they said so.
   Personal installs only (refused on any team server); no other bot may call
   them. The list is annotated read-only like the other reviewed reads.
-  `server/drivers/agents-catalog-wire.test.ts` budgets the `+hezuo` profiles,
+  `desktop/server/drivers/agents-catalog-wire.test.ts` budgets the `+hezuo` profiles,
   each within 2% of the same Chief's list without them.
-- `server/team-setup-requests.test.ts` ("Hezuo's Chief-level team setup"):
+- `desktop/server/team-setup-requests.test.ts` ("Hezuo's Chief-level team setup"):
   it adds specialists like a Chief but never changes who the Chief is.
-- `src/components/HezuoWelcome.test.ts` and `src/lib/default-bot.test.ts`:
+- `desktop/src/components/HezuoWelcome.test.ts` and `desktop/src/lib/default-bot.test.ts`:
   the first-launch welcome shows once with its panel closed, Add pins it and Not
   now turns the switch off, a name, colour, look or uploaded picture is saved as
   the bot's own edit screen saves it, a renamed Hezuo is still found by its
   mark, and a new install's intro offers only the setup still to do.
-- `src/lib/hezuo-landing.test.ts`: the rows already in the sidebar glide down
+- `desktop/src/lib/hezuo-landing.test.ts`: the rows already in the sidebar glide down
   by the new row's height, the avatar lands in the new slot and leaves nothing
   behind, reduced motion only fades the row in, and a hidden sidebar just adds it.
-- `server/default-bot.test.ts` also: a place with no Chief gets Hezuo as its
+- `desktop/server/default-bot.test.ts` also: a place with no Chief gets Hezuo as its
   Chief; a place with a Chief keeps it. Either way the daily brief comes from
   Hezuo, hidden from the sidebar or not, and its intro says so. How the watch
   moves to Hezuo is in [Proactive routines and the brief](proactive-routines.md).

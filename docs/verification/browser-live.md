@@ -132,21 +132,21 @@ from the menu (new engine) still shows bands on purpose.
 | ![Before](images/browser-fill/before-midnight-maximized.png) | ![After](images/browser-fill/after-midnight-maximized.png) | ![Wide](images/browser-fill/after-midnight-advanced-wide.png) | ![Tablet](images/browser-fill/after-new-engine-tablet-preset.png) |
 
 `scripts/testing/browser-fill.e2e.test.ts` runs the agent-browser side against the pinned engine and
-`server/browser/viewers/viewers.e2e.test.ts` the new engine's (`OMB_CDP_CHROME`).
+`desktop/server/browser/viewers/viewers.e2e.test.ts` the new engine's (`OMB_CDP_CHROME`).
 
 Focused automated coverage:
 
 ```sh
-pnpm exec vitest run server/browser-engine.test.ts server/browser-runtime.test.ts server/browser-page-size.test.ts \
-  server/harness-mcp-proxy.test.ts server/browser-live.test.ts server/browser-dialogs.test.ts \
-  server/browser-live-routes.test.ts server/browser-codex-path.integration.test.ts \
-  src/lib/browser-stream-v1.test.ts src/lib/browser-stream-client.test.ts src/lib/browser-control.test.ts \
-  src/lib/browser-profiles.test.ts src/components/BrowserProfilesManager.test.ts \
-  src/components/browser/StreamSurface.test.ts server/routes/browser-viewers.test.ts \
-  src/components/BrowserPanel.test.ts src/components/SignInRequestCard.test.ts \
-  server/sign-in-request.e2e.test.ts server/login-fill.test.ts server/login-store.test.ts \
-  server/totp.test.ts server/routes/logins.test.ts src/components/LoginsSettings.test.ts \
-  server/saved-login.e2e.test.ts server/onepassword.test.ts scripts/prepare-duckdb.test.mjs
+pnpm exec vitest run desktop/server/browser-engine.test.ts desktop/server/browser-runtime.test.ts desktop/server/browser-page-size.test.ts \
+  desktop/server/harness-mcp-proxy.test.ts desktop/server/browser-live.test.ts desktop/server/browser-dialogs.test.ts \
+  desktop/server/browser-live-routes.test.ts desktop/server/browser-codex-path.integration.test.ts \
+  desktop/src/lib/browser-stream-v1.test.ts desktop/src/lib/browser-stream-client.test.ts desktop/src/lib/browser-control.test.ts \
+  desktop/src/lib/browser-profiles.test.ts desktop/src/components/BrowserProfilesManager.test.ts \
+  desktop/src/components/browser/StreamSurface.test.ts desktop/server/routes/browser-viewers.test.ts \
+  desktop/src/components/BrowserPanel.test.ts desktop/src/components/SignInRequestCard.test.ts \
+  desktop/server/sign-in-request.e2e.test.ts desktop/server/login-fill.test.ts desktop/server/login-store.test.ts \
+  desktop/server/totp.test.ts desktop/server/routes/logins.test.ts desktop/src/components/LoginsSettings.test.ts \
+  desktop/server/saved-login.e2e.test.ts desktop/server/onepassword.test.ts scripts/prepare-duckdb.test.mjs
 ```
 
 Those tests cover native transport lifecycle, owner/session scoping, gate races,
@@ -233,6 +233,6 @@ composer and panel must keep the real destination highlighted during sends.
 
 Ctrl-C closes the exact fixture and removes the copied sign-in and browser
 data. VM/cloud transport and turn-bound switching are separately covered by
-`server/group-local-vm.e2e.test.ts`, `server/vps-routing.test.ts` and
-`server/index.test.ts` with
+`desktop/server/group-local-vm.e2e.test.ts`, `desktop/server/vps-routing.test.ts` and
+`desktop/server/index.test.ts` with
 isolated providers. These are not evidence of real cloud provisioning.

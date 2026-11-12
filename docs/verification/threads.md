@@ -115,7 +115,7 @@ orders of the full response and slim event, including late old-thread messages.
 For approval verification, new fake-provider launches also write fixture-only
 `<thread-id>.launch.json` receipts inside the printed disposable data directory.
 The live broker in their `mcpConfig.mcpServers.ogb` entry can be exercised using
-the same `permission` recipe in `server/thread-capacity-api.test.ts`. Request a
+the same `permission` recipe in `desktop/server/thread-capacity-api.test.ts`. Request a
 synthetic approval, switch away, and navigate back using an activity control
 with Show threads off. Answer **Allow once** and verify that broker receives
 the matching answer. This proves the app's approval routing, not a real model
@@ -155,7 +155,7 @@ matching who may edit a bot's working folder. Sidebar folders still organize
 threads and do not determine their filesystem location.
 
 ```sh
-pnpm exec vitest run server/task-cwd-api.test.ts src/components/NewTaskFolderDialog.test.ts src/components/Sidebar.working-folder.test.ts src/state/task-folder-navigation.test.ts
+pnpm exec vitest run desktop/server/task-cwd-api.test.ts desktop/src/components/NewTaskFolderDialog.test.ts desktop/src/components/Sidebar.working-folder.test.ts desktop/src/state/task-folder-navigation.test.ts
 ```
 
 The API check launches the standard disposable fake-Claude fixture and proves
@@ -173,7 +173,7 @@ operating-system folder picker.
 ## Permanent regression checks
 
 ```sh
-pnpm exec vitest run server/independent-threads-api.test.ts server/paired-thread-targets-api.test.ts server/direct-screen-settlement-api.test.ts server/bot-projects-api.test.ts server/thread-capacity-api.test.ts src/components/BotThreads.test.ts src/components/BotProjects.test.ts src/components/ThreadConcurrencySettings.test.ts src/components/ComposerQueuedMessages.test.ts src/lib/folder-order.test.ts src/state/store.test.ts
+pnpm exec vitest run desktop/server/independent-threads-api.test.ts desktop/server/paired-thread-targets-api.test.ts desktop/server/direct-screen-settlement-api.test.ts desktop/server/bot-projects-api.test.ts desktop/server/thread-capacity-api.test.ts desktop/src/components/BotThreads.test.ts desktop/src/components/BotProjects.test.ts desktop/src/components/ThreadConcurrencySettings.test.ts desktop/src/components/ComposerQueuedMessages.test.ts desktop/src/lib/folder-order.test.ts desktop/src/state/store.test.ts
 ```
 
 These cover thread-pinned tools and permissions, stale legacy phone requests,

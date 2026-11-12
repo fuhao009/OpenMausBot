@@ -29,7 +29,7 @@ installation flow. Desktop packaging does not silently enlarge the npm tarball.
 
 agent-browser still drives every bot browser, but the browser it starts is a
 real Chrome whenever this machine has one, chosen once per machine
-(`server/browser/chrome/resolve.ts`):
+(`desktop/server/browser/chrome/resolve.ts`):
 
 1. The person's installed **Google Chrome**, unless an organization manages it
    (`/Library/Managed Preferences/com.google.Chrome.plist`, the
@@ -98,7 +98,7 @@ and [Hezuo Cloud](cloud-pro.md#your-chrome).
 
 Every Chrome Hezuo launches for a bot sends all of its connections
 through an egress gate: a SOCKS5 server on `127.0.0.1`, one per browser
-session, run by the Hezuo server (`server/browser/egress/`). The gate
+session, run by the Hezuo server (`desktop/server/browser/egress/`). The gate
 resolves names itself and checks every address a name resolves to before it
 connects, so redirects and DNS rebinding reach nothing it would refuse. It
 carries bytes only, so TLS, HTTP/2 and WebSockets are unchanged. Chrome sends
@@ -257,8 +257,8 @@ sandbox policy. Restricted hosts may need the `.deb` rather than the AppImage.
 ## Release verification and updates
 
 Versions, URLs, sizes and SHA-256 digests live in
-`server/browser-bundle-release.ts`; engine pins are shared with
-`server/browser-engine-release.ts`. Every cached download is rechecked.
+`desktop/server/browser-bundle-release.ts`; engine pins are shared with
+`desktop/server/browser-engine-release.ts`. Every cached download is rechecked.
 Preparation inventories the entire vendor tree, including licenses. The
 `afterPack` gate rejects missing resources, changed bytes or wrong executable
 architectures before signing. macOS signing changes native bytes, so signed
@@ -276,7 +276,7 @@ an unprivileged user against the installed `.deb` at
 `/opt/Hezuo/resources`. This check creates its own empty home and local
 web page, checks automatic discovery, navigation, typing/clicking, the
 loopback command relay the server reads, pictures and types through
-(`server/browser-relay.ts`), screenshot delivery and two-bot cookie/storage
+(`desktop/server/browser-relay.ts`), screenshot delivery and two-bot cookie/storage
 isolation, then removes only its fixture.
 No model account or user browser profile is used. Cross-target `--check-only`
 checks layout only and is not evidence of successful browser execution.

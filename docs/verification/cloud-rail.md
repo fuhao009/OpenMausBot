@@ -7,9 +7,9 @@ buys another Cloud or adds a server of their own. With one place there is no
 rail, and the window looks as before.
 
 The rail is the window's own chrome, not a page's: this app's page `/rail` in a
-view of its own at the left edge (electron/chrome-rail.mjs), beside whichever
+view of its own at the left edge (desktop/electron/chrome-rail.mjs), beside whichever
 place's page the window shows, at every width and on every place, whatever that
-server runs. `/rail` is a small page of its own (`rail.html`, `src/rail.tsx`):
+server runs. `/rail` is a small page of its own (`desktop/rail.html`, `desktop/src/rail.tsx`):
 the rail, its sheets, the skin and the person's language, not the app. The
 page beside it moves over by the rail's width (the app's preload, at any zoom).
 The rail's sheets cover the window while open. Its circles are small and named
@@ -89,9 +89,9 @@ Nothing here needs a real Hezuo Cloud account, a payment or the Electron app.
 ## Automated fixtures
 
 ```sh
-node --test electron/cloud-list.node-test.mjs electron/cloud-account-clouds.node-test.mjs electron/cloud-rail.node-test.mjs electron/chrome-rail.node-test.mjs electron/home-window.node-test.mjs electron/place-look.node-test.mjs electron/desktop-prefs.node-test.mjs
-pnpm exec vitest run src/components/PlacesRail.test.ts src/components/ChromeRail.test.ts src/components/ChromeRailToggle.test.ts src/components/Sidebar.header.test.ts src/components/cloud-buy/AddCloudFlow.test.ts src/components/PlaceLookCard.test.ts
-pnpm exec vitest run server/workspace-banner.test.ts server/routes/workspace-banner.test.ts server/workspace-banner.e2e.test.ts src/lib/place-banner.test.ts src/components/PlacePicture.test.ts
+node --test desktop/electron/cloud-list.node-test.mjs desktop/electron/cloud-account-clouds.node-test.mjs desktop/electron/cloud-rail.node-test.mjs desktop/electron/chrome-rail.node-test.mjs desktop/electron/home-window.node-test.mjs desktop/electron/place-look.node-test.mjs desktop/electron/desktop-prefs.node-test.mjs
+pnpm exec vitest run desktop/src/components/PlacesRail.test.ts desktop/src/components/ChromeRail.test.ts desktop/src/components/ChromeRailToggle.test.ts desktop/src/components/Sidebar.header.test.ts desktop/src/components/cloud-buy/AddCloudFlow.test.ts desktop/src/components/PlaceLookCard.test.ts
+pnpm exec vitest run desktop/server/workspace-banner.test.ts desktop/server/routes/workspace-banner.test.ts desktop/server/workspace-banner.e2e.test.ts desktop/src/lib/place-banner.test.ts desktop/src/components/PlacePicture.test.ts
 ```
 
 The account tests answer as a loopback Admin, with and without `clouds`. The

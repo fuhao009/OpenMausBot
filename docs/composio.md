@@ -17,12 +17,12 @@ The desktop app validates the key before saving it. The key is encrypted using E
 
 ## Hezuo Cloud
 
-A Hezuo Cloud plan includes connected apps: there is no key to add. At every start a Cloud home's server makes sure it has its own installation on Hezuo's managed connection service, the same one the packaged desktop app registers with (`server/cloud-connected-apps.ts`, sharing `electron/managed-composio.mjs` with the app):
+A Hezuo Cloud plan includes connected apps: there is no key to add. At every start a Cloud home's server makes sure it has its own installation on Hezuo's managed connection service, the same one the packaged desktop app registers with (`desktop/server/cloud-connected-apps.ts`, sharing `desktop/electron/managed-composio.mjs` with the app):
 
 - The first start registers the installation (`POST /v1/installations`) and keeps its token in `connected-apps-installation.json` in the data folder (`/data/.hezuo`), owner-only (0600). The token is never written to `config.json`, sent to a client or logged.
 - Every later start serves that token at once and checks it with `GET /v1/me`. Only a refusal (401) registers a new installation; an outage or a rate limit keeps the token, so the Cloud's connected accounts are never stranded.
 - While the Cloud has no token (the service is down or refuses new registrations), the server keeps booting and serving, Connected apps says the service is temporarily unavailable, and it tries again after 30 seconds, then 1, 2, 5, 10 and every 30 minutes, with some jitter.
-- The file never goes into a backup or a move to another computer, and a restore keeps the Cloud's own (`server/workspace-backup-policy.ts`): its connected accounts belong to that installation.
+- The file never goes into a backup or a move to another computer, and a restore keeps the Cloud's own (`desktop/server/workspace-backup-policy.ts`): its connected accounts belong to that installation.
 - A Composio project key the owner saves under **Self-host connected apps** still wins; clearing it returns to the included service.
 
 The built image uses the default service; `OMB_COMPOSIO_BROKER_URL` names another (a staging service, or a closed port in CI). The server run from source registers only with an explicitly named service, so development and tests never create installations on the real one.

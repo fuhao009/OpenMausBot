@@ -12,10 +12,10 @@ const home = mkdtempSync(join(tmpdir(), "omb-pi-selection-"));
 process.env.HOME = home;
 process.env.USERPROFILE = home;
 process.env.OMB_DATA_DIR = join(home, "data");
-const { PiDriver } = await import("../server/drivers/pi.ts");
-const { ensureDirs } = await import("../server/config.ts");
+const { PiDriver } = await import("../desktop/server/drivers/pi.ts");
+const { ensureDirs } = await import("../desktop/server/config.ts");
 if (process.argv[3]) {
-  const { SPAWNED_PROXIES } = await import("../server/proxy-paths.ts");
+  const { SPAWNED_PROXIES } = await import("../desktop/server/proxy-paths.ts");
   const directory = join(home, "package", "drivers"); mkdirSync(directory, { recursive: true });
   const isolatedExtension = join(directory, "pi-mcp-extension.ts");
   copyFileSync(resolve(process.argv[3]), isolatedExtension);

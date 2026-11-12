@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { afterAll, expect, it } from "vitest";
 import { runControlOmb } from "../control-omb.ts";
-import { waitForExit } from "../../server/testing/cleanup.ts";
+import { waitForExit } from "../../desktop/server/testing/cleanup.ts";
 
 let child: ChildProcess | undefined;
 afterAll(() => waitForExit(child, { signal: "SIGINT", graceMs: 30_000 }));

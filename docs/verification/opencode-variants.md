@@ -9,7 +9,7 @@ prompt to a real model provider.
 Supply an absolute path to an independently verified OpenCode 1.18.31 binary:
 
 ```sh
-OMB_OPENCODE_E2E_CLI=/absolute/path/to/opencode pnpm exec vitest run server/opencode-variants.e2e.test.ts
+OMB_OPENCODE_E2E_CLI=/absolute/path/to/opencode pnpm exec vitest run desktop/server/opencode-variants.e2e.test.ts
 ```
 
 Without `OMB_OPENCODE_E2E_CLI`, Vitest reports this test as skipped. A skip does
@@ -57,7 +57,7 @@ OpenCode 2.1.4 binary (`@opencode/cli`) and a loopback stand-in for the Copilot
 API:
 
 ```sh
-OMB_OPENCODE2_E2E_CLI=/absolute/path/to/opencode pnpm exec vitest run server/opencode-copilot-efforts.e2e.test.ts
+OMB_OPENCODE2_E2E_CLI=/absolute/path/to/opencode pnpm exec vitest run desktop/server/opencode-copilot-efforts.e2e.test.ts
 ```
 
 The test imports a synthetic Copilot credential whose `apiEndpoint` is the
@@ -79,7 +79,7 @@ account lists for each model; OpenCode reads those from Copilot's `/models`.
 ## An unavailable engine returns without variant support
 
 ```sh
-pnpm exec vitest run server/model-variant-return.e2e.test.ts
+pnpm exec vitest run desktop/server/model-variant-return.e2e.test.ts
 ```
 
 This permanent, non-opt-in regression uses the shared fake-Claude launcher.

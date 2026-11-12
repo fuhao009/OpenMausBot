@@ -1,12 +1,12 @@
-// Clicking a team bot opens the person's own conversation with it (src/state/team-chats.ts), checked against a real
+// Clicking a team bot opens the person's own conversation with it (desktop/src/state/team-chats.ts), checked against a real
 // Team Cloud (T2: OMB_CLOUD_ROLE=team, members paired with the Admin's signed claims, per-conversation audiences). Runs
 // once the cloud fixture can start a Team Cloud (T2); until then it is skipped.
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { hostTimeout } from "../../server/testing/host-timeout.ts";
-import { ownChatOf, rememberOwnChat, teamOfConfig, type TeamChats } from "../../src/state/team-chats.ts";
+import { hostTimeout } from "../../desktop/server/testing/host-timeout.ts";
+import { ownChatOf, rememberOwnChat, teamOfConfig, type TeamChats } from "../../desktop/src/state/team-chats.ts";
 import { launchCloudSendFixture, type CloudSendFixture } from "./cloud-send-fixture.ts";
 import { REPO_ROOT } from "./preview-fixture.ts";
 

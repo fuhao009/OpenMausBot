@@ -30,7 +30,7 @@ try {
     `  for (const file of ${JSON.stringify([join(fixtureHome, ".omb-fake-codex-authenticated"), join(fixtureHome, ".omb-fake-codex-login-approved")])}) { if (existsSync(file)) unlinkSync(file); }`,
     '  process.stdout.write("Successfully logged out\\n");',
     "} else {",
-    `  await import(${JSON.stringify(pathToFileURL(fileURLToPath(new URL("../server/testing/fake-codex-login-cli.ts", import.meta.url))).href)});`,
+    `  await import(${JSON.stringify(pathToFileURL(fileURLToPath(new URL("../desktop/server/testing/fake-codex-login-cli.ts", import.meta.url))).href)});`,
     "}",
   ].join("\n"), { mode: 0o700 });
 

@@ -3,7 +3,7 @@
 Run the focused regression tests and the isolated HTTP workflow:
 
 ```sh
-pnpm exec vitest run server/peer-approval.test.ts server/runtime-coordinator.test.ts server/peer-approval.e2e.test.ts
+pnpm exec vitest run desktop/server/peer-approval.test.ts desktop/server/runtime-coordinator.test.ts desktop/server/peer-approval.e2e.test.ts
 ```
 
 The HTTP test uses `launchVerificationServer` and `control-omb` with disposable

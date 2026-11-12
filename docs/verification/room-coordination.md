@@ -10,7 +10,7 @@ deleted conversations and revoked routes keep their existing cancellation
 behavior. This does not remove task capacity limits.
 
 A restart (quit, update, Cloud rollout or crash) never ends a job silently.
-At the next start (the runtime's restart policy, `server/runtime/runtime.ts` `open()`, docs/runtime-contract.md §5):
+At the next start (the runtime's restart policy, `desktop/server/runtime/runtime.ts` `open()`, docs/runtime-contract.md §5):
 
 - A teammate turn the restart cut runs again once, in place: the same request
   in its own conversation and retained native session, opening with a note to
@@ -66,10 +66,10 @@ At the next start (the runtime's restart policy, `server/runtime/runtime.ts` `op
 Regression checks (all use disposable fixtures):
 
 ```sh
-pnpm exec vitest run server/runtime/ server/runtime-coordinator.test.ts server/direct-coordination.e2e.test.ts server/room-coordination.e2e.test.ts
-pnpm exec vitest run server/delta-context.e2e.test.ts -t "restart"
-pnpm exec vitest run server/full-access-workflows.e2e.test.ts server/room-recovery.e2e.test.ts
-pnpm exec vitest run server/room-roots.e2e.test.ts
+pnpm exec vitest run desktop/server/runtime/ desktop/server/runtime-coordinator.test.ts desktop/server/direct-coordination.e2e.test.ts desktop/server/room-coordination.e2e.test.ts
+pnpm exec vitest run desktop/server/delta-context.e2e.test.ts -t "restart"
+pnpm exec vitest run desktop/server/full-access-workflows.e2e.test.ts desktop/server/room-recovery.e2e.test.ts
+pnpm exec vitest run desktop/server/room-roots.e2e.test.ts
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/direct-coordination-ui.e2e.test.ts
 ```
 
@@ -82,7 +82,7 @@ teammate behind a card, two jobs sharing a busy computer, and what a teammate
 is told for the person's own job and for a routine's run:
 
 ```sh
-pnpm exec vitest run server/long-running-chief.e2e.test.ts
+pnpm exec vitest run desktop/server/long-running-chief.e2e.test.ts
 ```
 
 Gated fake-model turns prove a teammate starts before the Chief settles,
@@ -130,8 +130,8 @@ step parked that way is routed around by its run and never run a second time.
 A restart reruns a member's cut turn once in place (the room shows "Resuming
 after a restart" from the member and no interrupted line), never one that
 already acted outward, and never a goal step whose run ended with the restart.
-`server/room-roots.e2e.test.ts` proves each of these on the real server with
-the scripted engine; `server/room-coordination.e2e.test.ts` reads the same
+`desktop/server/room-roots.e2e.test.ts` proves each of these on the real server with
+the scripted engine; `desktop/server/room-coordination.e2e.test.ts` reads the same
 rows for every hand-off it checks (a refused call leaves no hand-off row; a
 restart leaves the sender's root resumed once, never rerun).
 
@@ -209,15 +209,15 @@ member at a time. Nothing hides that any more:
   message opens with "These run one at a time in this room, not in
   parallel: …" and tells the requester not to report them as under way.
 - The room payload carries `queue` (`WireGroup.queue`,
-  `server/room-queue.ts`): every waiting member of each room thread with its
+  `desktop/server/room-queue.ts`): every waiting member of each room thread with its
   place in line and whom it waits on, for jobs and for a round of
   @mentioned responders alike. The room shows "Second: Queued · waiting for
   First (2 of 3)" under the transcript and on the member's avatar; the
   sidebar row reads "First is working… · 2 queued".
 
 ```sh
-pnpm exec vitest run server/room-queue.test.ts src/lib/room-threads.test.ts src/components/GroupView.queue.test.ts
-pnpm exec vitest run server/room-queue.e2e.test.ts -t "run in turn"
+pnpm exec vitest run desktop/server/room-queue.test.ts desktop/src/lib/room-threads.test.ts desktop/src/components/GroupView.queue.test.ts
+pnpm exec vitest run desktop/server/room-queue.e2e.test.ts -t "run in turn"
 ```
 
 The e2e test launches the isolated scripted fixture, has a Lead hand three
@@ -252,7 +252,7 @@ A single job into a quiet room, a one-way notice, and every room with the
 flag off keep running in the room's thread, in turn.
 
 ```sh
-pnpm exec vitest run server/room-queue.e2e.test.ts -t "parallel room jobs"
+pnpm exec vitest run desktop/server/room-queue.e2e.test.ts -t "parallel room jobs"
 ```
 
 The e2e test turns the flag on in the isolated fixture, has a Lead send two
@@ -272,7 +272,7 @@ starts. On a Team Cloud, nothing from a member's private chat is handed into a
 room or posted in one.
 
 ```sh
-pnpm exec vitest run server/peer-roster.test.ts server/post-to-room.test.ts server/room-coordination.e2e.test.ts server/direct-coordination.e2e.test.ts server/runtime-coordinator.test.ts server/peer-allowlist.e2e.test.ts server/cloud-team-open-reach.e2e.test.ts
+pnpm exec vitest run desktop/server/peer-roster.test.ts desktop/server/post-to-room.test.ts desktop/server/room-coordination.e2e.test.ts desktop/server/direct-coordination.e2e.test.ts desktop/server/runtime-coordinator.test.ts desktop/server/peer-allowlist.e2e.test.ts desktop/server/cloud-team-open-reach.e2e.test.ts
 ```
 
 The coordination suites use `launchVerificationServer`, `control-omb`, and the
@@ -299,7 +299,7 @@ the person to add the bot; `manage_room` stays limited to rooms in the Chief's
 own department.
 
 ```sh
-pnpm exec vitest run server/host/room-access.test.ts server/room-coordination.e2e.test.ts
+pnpm exec vitest run desktop/server/host/room-access.test.ts desktop/server/room-coordination.e2e.test.ts
 ```
 
 The e2e test has a Chief in a room create three bots in its department and hand
@@ -311,13 +311,13 @@ person.
 ### Parallel threads in one room
 
 A room's threads run side by side; turns stay serial within a thread, and a
-member works one thread at a time (`server/room-member-lock.ts`): a member
+member works one thread at a time (`desktop/server/room-member-lock.ts`): a member
 asked in several threads finishes one, then takes the next, and no waiting
 thread is skipped because they all woke on the same release. Stop reaches only
 its own thread.
 
 ```sh
-pnpm exec vitest run server/room-member-lock.test.ts server/room-parallel-threads.e2e.test.ts src/lib/room-threads.test.ts
+pnpm exec vitest run desktop/server/room-member-lock.test.ts desktop/server/room-parallel-threads.e2e.test.ts desktop/src/lib/room-threads.test.ts
 ```
 
 The e2e holds every fake-Claude reply behind a gate file and asserts each
@@ -327,13 +327,13 @@ check with the fake engine, not a UI or live-model check.
 ### Broader coordination checks
 
 ```sh
-pnpm exec vitest run server/runtime-coordinator.test.ts server/room-coordination.e2e.test.ts src/components/GroupView.test.ts src/lib/room-activity.test.ts --maxWorkers=2
-pnpm exec vitest run server/group-goal-run.e2e.test.ts server/group-goal-wait-cap.e2e.test.ts server/drivers/agents-proxy.test.ts --maxWorkers=2
-pnpm exec vitest run server/room-recovery.e2e.test.ts server/testing/room-handoff-agent.test.ts
-pnpm exec vitest run server/direct-coordination.e2e.test.ts --maxWorkers=1
-pnpm exec vitest run server/turn-dispatch-guard.test.ts
-pnpm exec vitest run server/comms.test.ts server/thread-aware-bots.e2e.test.ts server/routine-delegation.e2e.test.ts server/independent-threads-api.test.ts server/peer-allowlist.e2e.test.ts server/steer-queue.test.ts
-pnpm exec vitest run server/runtime-paths.e2e.test.ts server/notification-routing.e2e.test.ts server/post-to-room.test.ts
+pnpm exec vitest run desktop/server/runtime-coordinator.test.ts desktop/server/room-coordination.e2e.test.ts desktop/src/components/GroupView.test.ts desktop/src/lib/room-activity.test.ts --maxWorkers=2
+pnpm exec vitest run desktop/server/group-goal-run.e2e.test.ts desktop/server/group-goal-wait-cap.e2e.test.ts desktop/server/drivers/agents-proxy.test.ts --maxWorkers=2
+pnpm exec vitest run desktop/server/room-recovery.e2e.test.ts desktop/server/testing/room-handoff-agent.test.ts
+pnpm exec vitest run desktop/server/direct-coordination.e2e.test.ts --maxWorkers=1
+pnpm exec vitest run desktop/server/turn-dispatch-guard.test.ts
+pnpm exec vitest run desktop/server/comms.test.ts desktop/server/thread-aware-bots.e2e.test.ts desktop/server/routine-delegation.e2e.test.ts desktop/server/independent-threads-api.test.ts desktop/server/peer-allowlist.e2e.test.ts desktop/server/steer-queue.test.ts
+pnpm exec vitest run desktop/server/runtime-paths.e2e.test.ts desktop/server/notification-routing.e2e.test.ts desktop/server/post-to-room.test.ts
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/direct-coordination-ui.e2e.test.ts
 ```
 
@@ -358,7 +358,7 @@ composer and clicks the existing handoff receipt into the exact recipient task,
 with ordinary tool chips hidden. Screenshots and JSON are retained beside the
 fixture's printed server log; all fixture processes and temporary data are closed.
 A consultation (`coordinate_bots` with `consult: true`) is covered by
-`server/comms.test.ts` and `server/runtime-paths.e2e.test.ts`:
+`desktop/server/comms.test.ts` and `desktop/server/runtime-paths.e2e.test.ts`:
 there is no inline wait; the asker finishes its turn with a receipt and the
 teammate's answer resumes it, in a work thread of the asker's conversation
 (docs/runtime-contract.md §9).
@@ -434,7 +434,7 @@ already started when the person stopped the conversation above it: that process
 is left alone and reports its result. A restart runs each teammate turn it
 cut again once, in place and told to check what it already did, and tells its
 requester (see the top of this page).
-Limits (docs/runtime-contract.md §6; `DEFAULT_LIMITS` in `server/runtime/types.ts`
+Limits (docs/runtime-contract.md §6; `DEFAULT_LIMITS` in `desktop/server/runtime/types.ts`
 and the coordinator's overrides): depth 4; per root, 24 requests, 48 executions
 and 48 wakes since its last durable progress; a queued assignment that never
 started within 24 hours expires; four hours without durable progress fails the

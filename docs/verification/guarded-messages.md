@@ -24,7 +24,7 @@ Every guarded send's user line is stored with `relayed: true`: an external
 interface relayed it, and nobody typed it in one of this workspace's clients.
 A Live call running on that thread never reads such a line, or the bot's
 answer to it, back to the caller as something they typed
-(`server/live-call.e2e.test.ts` sends one during a call).
+(`desktop/server/live-call.e2e.test.ts` sends one during a call).
 
 `capabilities.guardedFullAccess: 1` additionally accepts
 `expectedApprovalMode: "full"` for a task that **already has** Full access.
@@ -35,7 +35,7 @@ to return the original accepted action before rechecking admission conditions.
 Run the permanent isolated HTTP checks:
 
 ```sh
-pnpm exec vitest run server/guarded-messages-api.test.ts
+pnpm exec vitest run desktop/server/guarded-messages-api.test.ts
 ```
 
 Each case launches the prescribed `control-omb` verification server in a fresh
@@ -111,8 +111,8 @@ tools.
 Run the isolated request/continuation checks:
 
 ```sh
-pnpm exec vitest run server/guarded-requests.test.ts server/guarded-messages-api.test.ts server/direct-coordination.e2e.test.ts server/team-setup.e2e.test.ts server/turn-dispatch-guard.test.ts server/request-auth.test.ts
-pnpm exec tsc -p tsconfig.server.json --noEmit
+pnpm exec vitest run desktop/server/guarded-requests.test.ts desktop/server/guarded-messages-api.test.ts desktop/server/direct-coordination.e2e.test.ts desktop/server/team-setup.e2e.test.ts desktop/server/turn-dispatch-guard.test.ts desktop/server/request-auth.test.ts
+pnpm exec tsc -p desktop/tsconfig.server.json --noEmit
 ```
 
 These checks include immutable Stop targets, the null-provider-ID setup race,
@@ -150,7 +150,7 @@ shared task.
 Run the operator-policy and Full/Ask workflow checks:
 
 ```sh
-pnpm exec vitest run server/enterprise.test.ts server/hosted-access.test.ts server/full-access-workflows.e2e.test.ts server/store.test.ts
+pnpm exec vitest run desktop/server/enterprise.test.ts desktop/server/hosted-access.test.ts desktop/server/full-access-workflows.e2e.test.ts desktop/server/store.test.ts
 ```
 
 The hosted-access tests exercise the real hosted authorization route with an

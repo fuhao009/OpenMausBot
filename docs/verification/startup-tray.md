@@ -3,7 +3,7 @@
 Run the lifecycle regressions and disposable Electron fixture:
 
 ```sh
-node --test electron/startup-tray.node-test.mjs electron/single-instance.node-test.mjs electron/server-supervisor.node-test.mjs
+node --test desktop/electron/startup-tray.node-test.mjs desktop/electron/single-instance.node-test.mjs desktop/electron/server-supervisor.node-test.mjs
 node scripts/verify-startup-tray.mjs
 ```
 

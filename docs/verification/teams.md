@@ -11,12 +11,12 @@ or moving its last bot does not remove the team.
 Run the isolated lifecycle checks:
 
 ```sh
-pnpm exec vitest run server/team-lifecycle.e2e.test.ts server/section-context.test.ts server/store.test.ts src/lib/team-map.test.ts --maxWorkers=2
+pnpm exec vitest run desktop/server/team-lifecycle.e2e.test.ts desktop/server/section-context.test.ts desktop/server/store.test.ts desktop/src/lib/team-map.test.ts --maxWorkers=2
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/team-lifecycle-ui.e2e.test.ts scripts/testing/team-template-ui.e2e.test.ts --maxWorkers=1
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/team-canvas-ui.e2e.test.ts --maxWorkers=1
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/team-computers-ui.e2e.test.ts --maxWorkers=1
 pnpm exec vitest run scripts/testing/team-computers-fixture.test.ts
-pnpm exec vitest run server/index.test.ts -t "creates team computers|shares one team computer" --maxWorkers=1
+pnpm exec vitest run desktop/server/index.test.ts -t "creates team computers|shares one team computer" --maxWorkers=1
 ```
 
 The server test uses `launchVerificationServer`, sends a sample conversation,
@@ -78,7 +78,7 @@ The **Add → Boat computer** entry explains provider charges and cannot create 
 machine while this credential-free fixture is disconnected. Opening and
 cancelling it leaves the server's computer inventory unchanged.
 
-The focused `server/index.test.ts` cases run the real server against a local
+The focused `desktop/server/index.test.ts` cases run the real server against a local
 HTTP Boat stand-in, with a disposable fake token and no paid account or container
 engine. They verify explicit cost acknowledgement, invalid/foreign-origin
 request denial, read-only inventory, durable failed-create records, same-id

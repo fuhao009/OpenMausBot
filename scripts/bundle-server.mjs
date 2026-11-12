@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { serverLocalePlugin } from "./server-locale-plugin.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const server = join(root, "server");
+const server = join(root, "desktop", "server");
 
 // yaml's Node export is CommonJS with dynamic requires that cannot run once
 // inlined into ESM; its browser export is the same parser without them.
@@ -41,7 +41,7 @@ const ENTRY_POINTS = [
   // the container image's entry point
   "server-launcher.ts",
   // Imported directly by the packaged smoke probes. An explicit root sibling,
-  // because tsc may emit its own copy under dist-server/server/.
+  // because tsc may emit its own copy under dist-server/desktop/server/.
   "proxy-paths.ts",
   "local-computer.ts",
   "local-computer-proxy.ts",
@@ -57,7 +57,7 @@ const ENTRY_POINTS = [
   "drivers/agents-proxy.ts",
   "drivers/dweb-proxy.ts",
   "drivers/phone-proxy.ts",
-  // the bot box (server/bot-box): the in-box bridge, the probe the self-check runs inside a box, and the check by hand
+  // the bot box (desktop/server/bot-box): the in-box bridge, the probe the self-check runs inside a box, and the check by hand
   "bot-box/box-bridge.ts",
   "bot-box/box-probe.ts",
   "bot-box/box-check.ts",
@@ -99,7 +99,7 @@ await build({
 // `hezuo serve --tunnel` spawns the connector guardian as its own
 // process, so it must exist as a file beside the server.
 await build({
-  entryPoints: [join(root, "electron", "managed-companion-guardian-main.mjs")],
+  entryPoints: [join(root, "desktop", "electron", "managed-companion-guardian-main.mjs")],
   bundle: true,
   platform: "node",
   target: "node20",
@@ -144,7 +144,7 @@ if (existsSync(join(root, "enterprise", "server", "index.ts"))) {
 // Copied, not bundled: esbuild would inline index.js into it.
 copyFileSync(join(root, "scripts", "desktop-server-entry.mjs"), join(root, "dist-server", "desktop-entry.mjs"));
 
-// The model catalog snapshot (server/model-catalog/catalog.ts) is read from
+// The model catalog snapshot (desktop/server/model-catalog/catalog.ts) is read from
 // disk, not inlined: 1.5 MB of JSON has no place in index.js. The bundle looks
 // for it under model-catalog/ beside itself. Its MIT notice is inside the file.
 const catalogSnapshot = join(root, "dist-server", "model-catalog", "models-dev.snapshot.json");
@@ -163,10 +163,10 @@ await build({ entryPoints: [piMcpExtSrc], outfile: piMcpExtDest, bundle: true,
 // Desktop resources live outside app.asar, so its package.json cannot mark
 // these .js bundles as ESM. Do not inherit a user's CommonJS package scope.
 // The version rides along: an image ships dist-server without the root
-// package.json, and the server reports this one (server/environment.ts).
+// package.json, and the server reports this one (desktop/server/environment.ts).
 const { version } = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 writeFileSync(join(root, "dist-server", "package.json"), `${JSON.stringify({ type: "module", version })}\n`);
 
-// tsc copies the language packs server/server-lines.ts imports (13 MB) beside its own output. The bundles above carry
+// tsc copies the language packs desktop/server/server-lines.ts imports (13 MB) beside its own output. The bundles above carry
 // the server's keys, so nothing reads the copies.
-rmSync(join(root, "dist-server", "src", "locales"), { recursive: true, force: true });
+rmSync(join(root, "dist-server", "desktop", "src", "locales"), { recursive: true, force: true });

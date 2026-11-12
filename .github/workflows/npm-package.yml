@@ -8,10 +8,10 @@ on:
     tags: ["v*"]
   pull_request:
     paths:
-      - server/cli.ts
-      - server/tunnel.ts
-      - server/tailscale.ts
-      - server/pair-cli.ts
+      - desktop/server/cli.ts
+      - desktop/server/tunnel.ts
+      - desktop/server/tailscale.ts
+      - desktop/server/pair-cli.ts
       - scripts/build-npm-package.mjs
       - scripts/bundle-server.mjs
       - .github/workflows/npm-package.yml

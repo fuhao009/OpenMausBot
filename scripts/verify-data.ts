@@ -6,9 +6,9 @@ import { closeSync, mkdirSync, openSync, readFileSync, writeFileSync } from "nod
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { closeBrowserSession } from "../server/browser-engine.ts";
-import { waitForExit } from "../server/testing/cleanup.ts";
-import { DATA_ROUTES, DATA_TOOL_NAMES, type DataSheet } from "../shared/data-surface.ts";
+import { closeBrowserSession } from "../desktop/server/browser-engine.ts";
+import { waitForExit } from "../desktop/server/testing/cleanup.ts";
+import { DATA_ROUTES, DATA_TOOL_NAMES, type DataSheet } from "../packages/shared/data-surface.ts";
 import { launchVerificationServer, runControlOmb, verificationServerEnvironment } from "./control-omb.ts";
 import { agentBrowser, ensureUiBrowser, sessionEnv, type UiHandle } from "./testing/control-omb-ui.ts";
 import { mountPreview, parkUntilSignal, type MountedPreview } from "./testing/preview-fixture.ts";
@@ -45,7 +45,7 @@ async function api(method: string, path: string, body?: unknown, headers: Record
 
 async function startServer() {
   const log = openSync(logPath, "a", 0o600);
-  server = spawn(process.execPath, ["--experimental-strip-types", join(root, "server/index.ts")], {
+  server = spawn(process.execPath, ["--experimental-strip-types", join(root, "desktop/server/index.ts")], {
     cwd: root,
     env: { ...verificationServerEnvironment({}, dataDir, Number(new URL(url).port)), OMB_TEST_INTERNAL_CAPABILITY_KEY: capabilityKey },
     stdio: ["ignore", log, log],

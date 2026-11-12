@@ -1,11 +1,11 @@
 // Real conversation and task controls, connected only to the disposable server.
 import { createRoot } from "react-dom/client";
-import { ChatView } from "../../src/components/ChatView";
-import { DesktopCapabilitiesProvider } from "../../src/components/DesktopCapabilities";
-import { StoreProvider, useStore } from "../../src/state/store";
-import { setAnalyticsEnabled } from "../../src/lib/analytics";
-import { applySkin } from "../../src/lib/skins";
-import "../../src/styles.css";
+import { ChatView } from "../../desktop/src/components/ChatView";
+import { DesktopCapabilitiesProvider } from "../../desktop/src/components/DesktopCapabilities";
+import { StoreProvider, useStore } from "../../desktop/src/state/store";
+import { setAnalyticsEnabled } from "../../desktop/src/lib/analytics";
+import { applySkin } from "../../desktop/src/lib/skins";
+import "../../desktop/src/styles.css";
 
 function Fixture() {
   const { state } = useStore();

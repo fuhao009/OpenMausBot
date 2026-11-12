@@ -3,8 +3,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
-import { resolveAgentBrowserBinary } from "../../server/browser-engine.ts";
-import { waitForExit } from "../../server/testing/cleanup.ts";
+import { resolveAgentBrowserBinary } from "../../desktop/server/browser-engine.ts";
+import { waitForExit } from "../../desktop/server/testing/cleanup.ts";
 import { runControlOmb } from "../control-omb.ts";
 import { agentBrowser, sessionEnv, UI_TOOLS_DIR, type UiHandle } from "./control-omb-ui.ts";
 

@@ -25,7 +25,7 @@ are removed when the engine is disposed; the user's MCP settings are untouched.
 ## Automated checks
 
 ```sh
-pnpm exec vitest run server/drivers/acp/cline.test.ts server/drivers/acp/acp.test.ts server/config.test.ts
+pnpm exec vitest run desktop/server/drivers/acp/cline.test.ts desktop/server/drivers/acp/acp.test.ts desktop/server/config.test.ts
 ```
 
 These contract tests use a fake CLI and disposable homes. They cover engine
@@ -48,7 +48,7 @@ write its marker, and all three must emit canonical approval requests.
 Unexpected execution requests are denied. Metadata-only evidence is written
 under `.omb-scratch/verify-evidence/`; temporary homes are removed.
 
-The product workflow is also covered by `server/cline-engine.e2e.test.ts`: a
+The product workflow is also covered by `desktop/server/cline-engine.e2e.test.ts`: a
 Chief discovers Cline through `list_team_setup`, a Cline specialist is created,
 and its turn settles through the normal harness. That workflow uses fake
 provider CLIs; only the optional native recipe above executes Cline itself.

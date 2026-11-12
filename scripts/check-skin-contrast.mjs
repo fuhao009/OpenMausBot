@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Measures every text/surface pair of the skins in src/styles.css, parsed from
+// Measures every text/surface pair of the skins in desktop/src/styles.css, parsed from
 // the CSS itself. Run it after touching a palette:
 //
 //   pnpm check:contrast
@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const css = readFileSync(join(root, "src/styles.css"), "utf8");
+const css = readFileSync(join(root, "desktop/src/styles.css"), "utf8");
 
 function declarations(body) {
   const tokens = {};

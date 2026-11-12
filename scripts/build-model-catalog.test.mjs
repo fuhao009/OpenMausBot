@@ -32,7 +32,7 @@ describe("model catalog snapshot", () => {
   it("is checked out with LF on every platform", () => {
     // Windows CI checks text out as CRLF unless .gitattributes says otherwise,
     // and the snapshot and its licence text are compared byte for byte.
-    const paths = ["server/model-catalog/models-dev.snapshot.json", "third_party/models-dev/LICENSE", "third_party/opencode/LICENSE"];
+    const paths = ["desktop/server/model-catalog/models-dev.snapshot.json", "third_party/models-dev/LICENSE", "third_party/opencode/LICENSE"];
     const attrs = execFileSync("git", ["check-attr", "eol", "--", ...paths], { cwd: root, encoding: "utf8" });
     expect(attrs.trim().split(/\r?\n/)).toEqual(paths.map((path) => `${path}: eol: lf`));
   });

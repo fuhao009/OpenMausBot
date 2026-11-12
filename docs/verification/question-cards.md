@@ -9,11 +9,11 @@ an answer from either place, by tap or in the person's own words, reaches the bo
 ## Server, end to end
 
 ```sh
-pnpm exec vitest run server/question-cards.e2e.test.ts
+pnpm exec vitest run desktop/server/question-cards.e2e.test.ts
 ```
 
 It starts a Team Cloud on the two-server fixture (`scripts/testing/cloud-send-fixture.ts`) with the scripted fake engine
-(`server/testing/room-handoff-agent.ts`): Cleo asks Scout, her Chief, whose chat is her inbox, to have Ledger fix
+(`desktop/server/testing/room-handoff-agent.ts`): Cleo asks Scout, her Chief, whose chat is her inbox, to have Ledger fix
 something, and Scout hands it on with `coordinate_bots`. Both bots are on "Ask me first", so the questions are the
 person's. Expected:
 
@@ -32,7 +32,7 @@ person's. Expected:
 ## Who answers: Just do it and Ask me first
 
 ```sh
-pnpm exec vitest run server/question-routing.e2e.test.ts
+pnpm exec vitest run desktop/server/question-routing.e2e.test.ts
 ```
 
 The same Team Cloud with Fuchs, Dachs and Otter on their default Full access ("Just do it"), then on "Ask me first".
@@ -52,7 +52,7 @@ Expected:
 ## Replies and follow-ups from the bot that handed the work on
 
 ```sh
-pnpm exec vitest run server/teammate-follow-ups.e2e.test.ts
+pnpm exec vitest run desktop/server/teammate-follow-ups.e2e.test.ts
 ```
 
 One server of the person's own (no Team Cloud, so no inbox copies) with the scripted fake engine: Clive, a Chief of
@@ -76,16 +76,16 @@ Staff, hands Mira work. Expected:
   answer on the card, and Mira gets a new turn with it.
 
 Unit tests for the relay's rules (which thread, which sender, sign-ins, work handed out this turn, an engine that cannot
-take a message mid-turn) are in `server/host/question-routing.test.ts`.
+take a message mid-turn) are in `desktop/server/host/question-routing.test.ts`.
 
-The fake clock: `server/runtime-coordinator.test.ts` keeps a question waiting past 30 minutes and three days on the
+The fake clock: `desktop/server/runtime-coordinator.test.ts` keeps a question waiting past 30 minutes and three days on the
 server's own limits. Relay rules, the Full-access answer for an ask tool, and sign-in settling are in
-`server/host/question-routing.test.ts` and `server/host/sign-in-settle.test.ts`.
+`desktop/server/host/question-routing.test.ts` and `desktop/server/host/sign-in-settle.test.ts`.
 
-Unit tests: `server/host/ask-cards.test.ts` (the card a parked question becomes, its stopped and expired states, the
-chip that stays out of the inbox, typed answers), `server/runtime/envelope.test.ts` (the ask line with and without a
-card tool), `src/components/QuestionCard.test.ts`, `src/components/QuestionCard.answer.test.ts` and
-`src/components/AskCard.test.ts` (the card family, its buttons and settled lines).
+Unit tests: `desktop/server/host/ask-cards.test.ts` (the card a parked question becomes, its stopped and expired states, the
+chip that stays out of the inbox, typed answers), `desktop/server/runtime/envelope.test.ts` (the ask line with and without a
+card tool), `desktop/src/components/QuestionCard.test.ts`, `desktop/src/components/QuestionCard.answer.test.ts` and
+`desktop/src/components/AskCard.test.ts` (the card family, its buttons and settled lines).
 
 ## The cards, side by side
 
@@ -94,12 +94,12 @@ pnpm exec vite --port 5287
 ```
 
 `http://127.0.0.1:5287/question-cards-preview.html` mounts the real chat, inbox card and inbox panel over a fixed store
-(`src/question-cards-preview.tsx`): `?state=question|approval|open|answered`, `surface=chat|inbox|panel`,
+(`desktop/src/question-cards-preview.tsx`): `?state=question|approval|open|answered`, `surface=chat|inbox|panel`,
 `skin=midnight|daylight`, `mode=simple|advanced`, `lang=de`; `state=others` shows the key, sign-in, connection and
 first-run cards that share the card's shell.
 
 The before-and-after screenshots were removed because they showed real example data. To see each screen, run the
-command above and open `question-cards-preview.html` in a 1338×870 window with these settings (for Phone, narrow the
+command above and open `desktop/question-cards-preview.html` in a 1338×870 window with these settings (for Phone, narrow the
 window to a phone's width):
 
 | Screen | Settings |

@@ -3,17 +3,17 @@
 Run against disposable servers and repository-owned fake engines only:
 
 ```sh
-pnpm exec vitest run server/external-runtime.test.ts server/external-runtime.e2e.test.ts server/external-runtime-busy.e2e.test.ts server/external-runtime-timeout.e2e.test.ts
-pnpm exec vitest run server/runtime-paths.e2e.test.ts -t "external runtime"
-pnpm exec vitest run server/comms.test.ts server/routine-delegation.e2e.test.ts server/peer-allowlist.e2e.test.ts server/drivers/agents-proxy.test.ts
-pnpm exec vitest run server/workspace-backup-policy.test.ts server/workspace-backup.test.ts
+pnpm exec vitest run desktop/server/external-runtime.test.ts desktop/server/external-runtime.e2e.test.ts desktop/server/external-runtime-busy.e2e.test.ts desktop/server/external-runtime-timeout.e2e.test.ts
+pnpm exec vitest run desktop/server/runtime-paths.e2e.test.ts -t "external runtime"
+pnpm exec vitest run desktop/server/comms.test.ts desktop/server/routine-delegation.e2e.test.ts desktop/server/peer-allowlist.e2e.test.ts desktop/server/drivers/agents-proxy.test.ts
+pnpm exec vitest run desktop/server/workspace-backup-policy.test.ts desktop/server/workspace-backup.test.ts
 ```
 
 An external runtime is a bot's engine the server did not spawn (a Hermes
 gateway, a Slack bot, an OpenClaw session) holding a standing agents
 capability from `external-runtimes.json` for one pinned thread
 (docs/self-hosting.md, "A bot that also runs outside the server"). It drives
-the bundled MCP stdio bridge, `server/drivers/agents-proxy.ts`, with
+the bundled MCP stdio bridge, `desktop/server/drivers/agents-proxy.ts`, with
 `OMB_EXTERNAL_RUNTIME=1`. The bridge offers the one tool surface every turn
 gets (docs/runtime-contract.md §9): `coordinate_bots` (work, or a question
 with `consult: true`, or a one-way notice with `reply: "none"`) and the

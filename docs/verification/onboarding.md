@@ -47,7 +47,7 @@ Stop the launcher with Ctrl-C; it owns and removes only its disposable home.
 The rules behind it run offline:
 
 ```sh
-pnpm exec vitest run src/components/onboarding/WelcomeFlow.test.ts src/components/onboarding/ChiefIntro.test.ts src/components/onboarding/ConnectAi.test.ts src/components/HelperIntro.test.ts src/lib/default-bot.test.ts server/routes/helper-followup.test.ts electron/system-name.test.mjs src/components/CardHint.test.ts
+pnpm exec vitest run desktop/src/components/onboarding/WelcomeFlow.test.ts desktop/src/components/onboarding/ChiefIntro.test.ts desktop/src/components/onboarding/ConnectAi.test.ts desktop/src/components/HelperIntro.test.ts desktop/src/lib/default-bot.test.ts desktop/server/routes/helper-followup.test.ts desktop/electron/system-name.test.mjs desktop/src/components/CardHint.test.ts
 ```
 
 They cover when the Chief step shows, its 300 ms input guard, the Cloud Pro
@@ -58,7 +58,7 @@ profile name's guards, and the Advanced intro and spotlights kept as they were.
 ## Providers connected after first launch
 
 ```sh
-pnpm exec vitest run server/onboarding-model-default.e2e.test.ts server/default-model-selection.test.ts src/components/NewBotDialog.test.ts
+pnpm exec vitest run desktop/server/onboarding-model-default.e2e.test.ts desktop/server/default-model-selection.test.ts desktop/src/components/NewBotDialog.test.ts
 ```
 
 The server tests launch only disposable homes and repository-owned fake engines.
@@ -79,16 +79,16 @@ What each first-run surface depends on, and how it was checked:
 
 | Who opens the app | What they get | Checked by |
 |---|---|---|
-| Desktop app, own server (full bridge, `remoteClient` present) | The two-screen first run, decided without a new request | `src/components/onboarding/WelcomeGate.test.ts`, `src/components/onboarding/WelcomeFlow.test.ts` |
-| Hosted workspace opened inside the desktop app (reduced bridge, no `remoteClient`) | Treated like a browser: the server is asked | `src/components/onboarding/WelcomeGate.test.ts` |
-| Packaged desktop with the organization bridge | An optional "Using Hezuo at work?" row under Other ways in Connect an AI; a signed-in Company engine counts as ready | `src/components/onboarding/beats/OrganisationRow.test.ts`, `src/components/onboarding/ConnectAi.test.ts` (fake bridge) |
-| Browser, admin of a hosted workspace | The first screen only, with the shared-workspace line, then the chat | `src/components/onboarding/WelcomeGate.test.ts`, `src/components/onboarding/WelcomeFlow.test.ts`, `src/lib/onboarding.test.ts` |
-| Browser, hosted member (no admin scope) | No welcome flow; one dismissible note kept in browser storage; no first-conversation spotlights | `src/components/onboarding/WelcomeGate.test.ts`, `src/components/onboarding/FirstConversationTour.test.ts` |
-| Browser, client-scope session on a server that is not hosted | Nothing new: the flow does not open itself (it could not be saved); Settings replay and spotlights as before | `src/components/onboarding/WelcomeGate.test.ts`, `src/lib/onboarding.test.ts` |
+| Desktop app, own server (full bridge, `remoteClient` present) | The two-screen first run, decided without a new request | `desktop/src/components/onboarding/WelcomeGate.test.ts`, `desktop/src/components/onboarding/WelcomeFlow.test.ts` |
+| Hosted workspace opened inside the desktop app (reduced bridge, no `remoteClient`) | Treated like a browser: the server is asked | `desktop/src/components/onboarding/WelcomeGate.test.ts` |
+| Packaged desktop with the organization bridge | An optional "Using Hezuo at work?" row under Other ways in Connect an AI; a signed-in Company engine counts as ready | `desktop/src/components/onboarding/beats/OrganisationRow.test.ts`, `desktop/src/components/onboarding/ConnectAi.test.ts` (fake bridge) |
+| Browser, admin of a hosted workspace | The first screen only, with the shared-workspace line, then the chat | `desktop/src/components/onboarding/WelcomeGate.test.ts`, `desktop/src/components/onboarding/WelcomeFlow.test.ts`, `desktop/src/lib/onboarding.test.ts` |
+| Browser, hosted member (no admin scope) | No welcome flow; one dismissible note kept in browser storage; no first-conversation spotlights | `desktop/src/components/onboarding/WelcomeGate.test.ts`, `desktop/src/components/onboarding/FirstConversationTour.test.ts` |
+| Browser, client-scope session on a server that is not hosted | Nothing new: the flow does not open itself (it could not be saved); Settings replay and spotlights as before | `desktop/src/components/onboarding/WelcomeGate.test.ts`, `desktop/src/lib/onboarding.test.ts` |
 
 `GET /api/auth/session` adds `hosted: true` for a session on a hosted
-workspace and is otherwise unchanged (`server/hosted-access.test.ts`,
-`server/email-signin.test.ts`).
+workspace and is otherwise unchanged (`desktop/server/hosted-access.test.ts`,
+`desktop/server/email-signin.test.ts`).
 
 On a fresh `ui launch` fixture, the recipe above still passed end to end
 through the new session check. In the same fixture browser, a client-scope
@@ -134,8 +134,8 @@ the setup card in short beside Routines. Steps finished there are written to
 the fixture's onboarding record; the record can be cleared with
 `PUT /api/config` (`{"onboarding":{"hintsSeen":[]}}`). The real move and the
 desktop's preload bridge are not exercised here; they are covered by
-`server/one-home.e2e.test.ts` and
-`src/components/cloud-welcome/CloudWelcome.test.ts`.
+`desktop/server/one-home.e2e.test.ts` and
+`desktop/src/components/cloud-welcome/CloudWelcome.test.ts`.
 
 ## Bring what you already use (Oct 16 2026)
 
@@ -145,7 +145,7 @@ one button: in Settings → Import, and offered by Hezuo's first messages as a
 Desktop app only.
 
 ```sh
-pnpm exec vitest run server/setup-import.test.ts server/imported-skills.test.ts server/toml-lite.test.ts server/routes/setup-import.test.ts server/setup-import.e2e.test.ts src/components/ImportSettings.test.ts src/components/HelperIntro.test.ts src/lib/setup-import.test.ts
+pnpm exec vitest run desktop/server/setup-import.test.ts desktop/server/imported-skills.test.ts desktop/server/toml-lite.test.ts desktop/server/routes/setup-import.test.ts desktop/server/setup-import.e2e.test.ts desktop/src/components/ImportSettings.test.ts desktop/src/components/HelperIntro.test.ts desktop/src/lib/setup-import.test.ts
 ```
 
 Every test builds its own temporary home; none reads the real `~/.claude`,
@@ -161,44 +161,44 @@ get the skills in their turn's index, task folder links and `/name`, that a
 Claude turn with "Also use my Claude Code skills" on sees a Claude Code skill
 once, and that a bot can switch one off for itself. The rows, working, failed
 and with their result, are covered in Settings by
-`src/components/ImportSettings.test.ts`; the chip by
-`src/components/HelperIntro.test.ts`. Not covered here: the packaged Electron
+`desktop/src/components/ImportSettings.test.ts`; the chip by
+`desktop/src/components/HelperIntro.test.ts`. Not covered here: the packaged Electron
 window itself.
 
 ## Two screens, then the chat (Oct 27 2026)
 
 ```sh
-pnpm exec vitest run src/lib/onboarding.test.ts src/lib/welcome-draft.test.ts src/lib/default-bot.test.ts src/lib/corner-popup.test.ts src/components/onboarding src/components/HelperIntro.test.ts src/components/AppNotices.test.ts src/components/HezuoWelcome.gate.test.ts
+pnpm exec vitest run desktop/src/lib/onboarding.test.ts desktop/src/lib/welcome-draft.test.ts desktop/src/lib/default-bot.test.ts desktop/src/lib/corner-popup.test.ts desktop/src/components/onboarding desktop/src/components/HelperIntro.test.ts desktop/src/components/AppNotices.test.ts desktop/src/components/HezuoWelcome.gate.test.ts
 ```
 
-- `src/components/onboarding/WelcomeFlow.test.ts` renders the flow in
+- `desktop/src/components/onboarding/WelcomeFlow.test.ts` renders the flow in
   happy-dom: two screens with an AI working (Next, then Create, landing in the
   Chief's chat with its first messages staged); with none, the first screen
   holding Connect an AI, Next held until one connects and Later moving on;
   Escape and Enter; a reload on the second screen; a hosted admin's one screen;
   a replay saving nothing about a first chat.
-- `src/components/onboarding/ChiefIntro.test.ts` covers Create (Hezuo made the
+- `desktop/src/components/onboarding/ChiefIntro.test.ts` covers Create (Hezuo made the
   Chief only where there is none, an existing Chief never replaced), Choose with
   its radio list and Confirm (a bot whose AI cannot lead held back), Escape
   leaving only the list, and the choice finishing in a window that runs no
   animation frames.
-- `src/components/onboarding/ConnectAi.test.ts` covers the recommended sign-in,
+- `desktop/src/components/onboarding/ConnectAi.test.ts` covers the recommended sign-in,
   Other ways and the failed check.
-- `src/components/HelperIntro.test.ts` covers Hezuo's first messages: the
+- `desktop/src/components/HelperIntro.test.ts` covers Hezuo's first messages: the
   three bubbles, the look around, chips for only what is missing, and the
   staged arrival.
-- `src/lib/corner-popup.test.ts` and `src/components/AppNotices.test.ts` keep
+- `desktop/src/lib/corner-popup.test.ts` and `desktop/src/components/AppNotices.test.ts` keep
   every corner notice out of the first conversation until a reply;
-  `src/components/onboarding/FirstConversationTour.test.ts` keeps its
-  spotlights off; `src/components/HezuoWelcome.gate.test.ts` keeps Hezuo's
+  `desktop/src/components/onboarding/FirstConversationTour.test.ts` keeps its
+  spotlights off; `desktop/src/components/HezuoWelcome.gate.test.ts` keeps Hezuo's
   first-launch card for older installs only.
-- `src/components/onboarding/GuidedTour.test.ts` and
-  `src/components/onboarding/WelcomeGate.test.ts` check the app tour never
+- `desktop/src/components/onboarding/GuidedTour.test.ts` and
+  `desktop/src/components/onboarding/WelcomeGate.test.ts` check the app tour never
   starts by itself, also after a reload.
 
 `verify-onboarding-ui.ts` passed end to end on a fresh `ui launch` fixture (Oct
 27 2026). That fixture's fake engine always reports a signed-in account, so the
 no-AI first screen, the Chief screen with bots to choose and narrow windows were
-checked in `onboarding-preview.html` (`?ai=0`, `?screen=chief&bots=3`,
+checked in `desktop/onboarding-preview.html` (`?ai=0`, `?screen=chief&bots=3`,
 `?w=840&h=620`) in Midnight and Daylight. Before and after screenshots are in
 `evidence/onboarding/`.

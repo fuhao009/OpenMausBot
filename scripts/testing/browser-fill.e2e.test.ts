@@ -10,15 +10,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { agentBrowserIntegration, closeBrowserSession, prepareBrowserSessionState, resolveAgentBrowserBinary, setBrowserViewport } from "../../server/browser-engine.ts";
-import { BrowserLive } from "../../server/browser-live.ts";
-import { BROWSER_VIEWPORT, type PageSize } from "../../server/browser-page-size.ts";
-import { relay, RelayPorts, relayTarget } from "../../server/browser-relay.ts";
-import { BrowserRuntime, browserRuntimeEnv, type BrowserSpawnSpec } from "../../server/browser-runtime.ts";
-import { openGate, type EgressGate } from "../../server/browser/egress/gate.ts";
-import { refusalFor } from "../../server/browser/egress/policy.ts";
-import { SseRecorder } from "../../server/browser/viewers/testing/v1-session.ts";
-import { removeTempDir } from "../../server/testing/cleanup.ts";
+import { agentBrowserIntegration, closeBrowserSession, prepareBrowserSessionState, resolveAgentBrowserBinary, setBrowserViewport } from "../../desktop/server/browser-engine.ts";
+import { BrowserLive } from "../../desktop/server/browser-live.ts";
+import { BROWSER_VIEWPORT, type PageSize } from "../../desktop/server/browser-page-size.ts";
+import { relay, RelayPorts, relayTarget } from "../../desktop/server/browser-relay.ts";
+import { BrowserRuntime, browserRuntimeEnv, type BrowserSpawnSpec } from "../../desktop/server/browser-runtime.ts";
+import { openGate, type EgressGate } from "../../desktop/server/browser/egress/gate.ts";
+import { refusalFor } from "../../desktop/server/browser/egress/policy.ts";
+import { SseRecorder } from "../../desktop/server/browser/viewers/testing/v1-session.ts";
+import { removeTempDir } from "../../desktop/server/testing/cleanup.ts";
 import { ensureUiBrowser, UI_TOOLS_DIR } from "./control-omb-ui.ts";
 
 const forced = process.env.OMB_UI_E2E === "1";

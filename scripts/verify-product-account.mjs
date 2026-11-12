@@ -6,14 +6,14 @@
 //   node scripts/verify-product-account.mjs --keep     (keep the disposable profile)
 //
 // Real here means:
-//   * cloudflare/control-plane (this checkout) bundled with esbuild and run by
+//   * gateway/control-plane (this checkout) bundled with esbuild and run by
 //     the Miniflare its own Wrangler pins, over TLS on 127.0.0.1, with a D1
 //     database built from this checkout's migrations, the Worker's real EMAIL
 //     binding (a disposable mailbox), and a real loopback upstream reached
 //     through the Worker's own egress hook. Account sign-in, operator
 //     enable/grant, model tokens, billing and the ledger are the production
 //     Worker code; nothing fakes a status or injects a capability over HTTP.
-//   * the desktop app itself: electron/main.mjs, its product auth gate, the
+//   * the desktop app itself: desktop/electron/main.mjs, its product auth gate, the
 //     real account and workspace windows, its own server child, the product AI
 //     provider, and a real stdio MCP server that writes one file.
 //   * no personal key, engine CLI, Cloud account or operator secret is used.

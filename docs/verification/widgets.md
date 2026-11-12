@@ -12,7 +12,7 @@ To see widgets with a real bot, paste the prompts in
 Run the launcher-managed fake-engine fixture:
 
 ```sh
-pnpm exec vitest run server/chat-widgets.e2e.test.ts
+pnpm exec vitest run desktop/server/chat-widgets.e2e.test.ts
 ```
 
 The test starts a disposable server and obtains a real turn capability from
@@ -41,7 +41,7 @@ FAKE_CLAUDE_SLOW_FINISH_GATE=/tmp/widget-gate \
 
 Send Pepper a message so a turn is open, read that turn's `OMB_COMMS_TOKEN`
 from `fake-claude-dump.json` in the printed data directory, and post two of
-the samples in `shared/widget-samples.ts` to `/api/internal/options-card` as
+the samples in `packages/shared/widget-samples.ts` to `/api/internal/options-card` as
 `{"tool":"show_widget","widget":…}` with that bearer token. Create the gate
 file to let the turn finish, then:
 

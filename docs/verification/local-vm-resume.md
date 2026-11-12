@@ -3,7 +3,7 @@
 Run the focused lifecycle checks in disposable homes:
 
 ```sh
-pnpm exec vitest run server/container-computer.test.ts server/local-vm-browser-profiles.test.ts server/local-vm-stop-reason.test.ts server/computer-idle.test.ts server/group-local-vm.e2e.test.ts server/routes/desktop-viewer.test.ts src/components/LocalComputerSection.test.ts src/components/ComputerPanel.test.ts src/components/ComputerPanel.i18n.test.ts
+pnpm exec vitest run desktop/server/container-computer.test.ts desktop/server/local-vm-browser-profiles.test.ts desktop/server/local-vm-stop-reason.test.ts desktop/server/computer-idle.test.ts desktop/server/group-local-vm.e2e.test.ts desktop/server/routes/desktop-viewer.test.ts desktop/src/components/LocalComputerSection.test.ts desktop/src/components/ComputerPanel.test.ts desktop/src/components/ComputerPanel.i18n.test.ts
 node --experimental-strip-types scripts/verify-local-vm-resume.ts
 ```
 

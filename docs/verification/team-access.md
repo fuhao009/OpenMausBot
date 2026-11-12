@@ -20,8 +20,8 @@ words naming that setting.
 Run these checks against disposable fixtures only:
 
 ```sh
-pnpm exec vitest run server/peer-roster.test.ts server/peer-roster-owners.test.ts server/chief-of-staff.test.ts server/runtime-coordinator.test.ts server/bot-overview.test.ts src/components/bot-settings/PermissionsSection.test.ts --maxWorkers=2
-pnpm exec vitest run server/peer-allowlist.e2e.test.ts server/room-coordination.e2e.test.ts server/direct-coordination.e2e.test.ts server/cloud-team-open-reach.e2e.test.ts --maxWorkers=2
+pnpm exec vitest run desktop/server/peer-roster.test.ts desktop/server/peer-roster-owners.test.ts desktop/server/chief-of-staff.test.ts desktop/server/runtime-coordinator.test.ts desktop/server/bot-overview.test.ts desktop/src/components/bot-settings/PermissionsSection.test.ts --maxWorkers=2
+pnpm exec vitest run desktop/server/peer-allowlist.e2e.test.ts desktop/server/room-coordination.e2e.test.ts desktop/server/direct-coordination.e2e.test.ts desktop/server/cloud-team-open-reach.e2e.test.ts --maxWorkers=2
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/team-access-ui.e2e.test.ts --maxWorkers=1
 ```
 
@@ -45,5 +45,5 @@ department authority through an unpaired loopback request, even with a forged
 Origin header; a paired owner or packaged desktop is required.
 
 These fixtures use scripted providers, not live model judgment. Nested
-coordination is covered in `server/direct-coordination.e2e.test.ts`; a grant
+coordination is covered in `desktop/server/direct-coordination.e2e.test.ts`; a grant
 does not lift the job runtime's depth limit (docs/runtime-contract.md §6).

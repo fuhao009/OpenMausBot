@@ -6,8 +6,8 @@ const generatedPaths = [
   "dist-native",
   "dist-server",
   "release",
-  "electron/resources/speech-helper",
-  "electron/resources/Hezuo Speech.app",
+  "desktop/electron/resources/speech-helper",
+  "desktop/electron/resources/Hezuo Speech.app",
 ];
 
 await Promise.all(

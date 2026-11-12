@@ -10,7 +10,7 @@ indicator; desktop browsers report zero insets.
 
 ```sh
 pnpm exec vitest run scripts/testing/web-app-assets.test.ts
-pnpm exec vitest run server/index.test.ts -t 'serves packaged UI'
+pnpm exec vitest run desktop/server/index.test.ts -t 'serves packaged UI'
 pnpm exec vite build
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/web-app-ui.e2e.test.ts
 ```

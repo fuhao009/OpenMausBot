@@ -1,8 +1,8 @@
 import { createRoot } from "react-dom/client";
-import { ChatMarkdown } from "../../src/components/ChatMarkdown";
-import { applySkin } from "../../src/lib/skins";
-import { setAnalyticsEnabled } from "../../src/lib/analytics";
-import "../../src/styles.css";
+import { ChatMarkdown } from "../../desktop/src/components/ChatMarkdown";
+import { applySkin } from "../../desktop/src/lib/skins";
+import { setAnalyticsEnabled } from "../../desktop/src/lib/analytics";
+import "../../desktop/src/styles.css";
 
 setAnalyticsEnabled(false);
 applySkin(new URLSearchParams(location.search).get("skin") === "atelier" ? "atelier" : "midnight");

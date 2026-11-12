@@ -137,7 +137,7 @@ for that turn. It flows down every hop, not just the first: when Ada, working
 for Clive, hands part of it to Bea, Bea's work runs at Clive's level too
 ("Approve for me — delegated by Ada, from Clive, a Chief of Staff on Approve
 for me"), in threads and rooms alike. Each hand-off looks up its chain to the
-nearest Chief conversation (`server/host/delegated-level.ts`). The level is
+nearest Chief conversation (`desktop/server/host/delegated-level.ts`). The level is
 computed once when the assignment is written and recorded on it
 (docs/runtime-contract.md §3); the turn runs with exactly that level.
 
@@ -298,7 +298,7 @@ The level set follows the provider-boundary approach in
 Supervised, Auto-accept edits, Auto, and Full access, each a provider mode
 rather than an app rule, with a remembered approval that belongs to the
 provider's session. Its default is Full access, and so is Hezuo's
-(`DEFAULT_APPROVAL_MODE` in `shared/approval-mode.ts`).
+(`DEFAULT_APPROVAL_MODE` in `packages/shared/approval-mode.ts`).
 
 ## Verification for contributors
 

@@ -45,7 +45,7 @@ on there lasts until that page reloads. In a browser, switch it off on each serv
 ## Allowed values
 
 Properties are counts, `true` or `false`, or words from fixed lists in the app's code
-(`src/lib/analytics-allowlist.ts`). A value that is not on its list is sent as `other`.
+(`desktop/src/lib/analytics-allowlist.ts`). A value that is not on its list is sent as `other`.
 
 | List | Values |
 | --- | --- |

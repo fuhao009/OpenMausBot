@@ -79,7 +79,7 @@ In scope:
    `Copy CSV`, or a label containing `rows`. Deleting `parsedTable`, `tableCells`,
    `isTableSeparator`, and `SQLResultTableView` is required, and it is not
    the test. The preview UI test below fails if that branch is put back.
-   `swift test` does not compile `ios/App`.
+   `swift test` does not compile `mobile/ios/App`.
 
    ```text
    | Alpha | Beta |

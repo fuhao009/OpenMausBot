@@ -47,8 +47,8 @@ function fakeGitHub(polls: Array<{ runs: Run[]; jobs?: Record<number, Job[]> }>,
   let clock = 0;
   const state = () => polls[Math.min(poll, polls.length - 1)]!;
   const commits: Record<string, Commit> = setup.commits ?? {
-    [SHA]: { tree: TREE, parents: [PARENT], files: ["server/index.ts"] },
-    [PARENT]: { tree: PARENT_TREE, parents: [OTHER], files: ["src/App.tsx"] },
+    [SHA]: { tree: TREE, parents: [PARENT], files: ["desktop/server/index.ts"] },
+    [PARENT]: { tree: PARENT_TREE, parents: [OTHER], files: ["desktop/src/App.tsx"] },
   };
   const api = {
     async runsForCommit(sha: string) { return state().runs.filter((run) => run.head_sha === sha); },
@@ -80,7 +80,7 @@ const LANE = ["branch release-ci/v0.1.94 @sha", "dispatch release-ci/v0.1.94", "
 const versionBump = {
   commits: {
     [SHA]: { tree: TREE, parents: [PARENT], files: ["package.json"] },
-    [PARENT]: { tree: PARENT_TREE, parents: [OTHER], files: ["server/index.ts"] },
+    [PARENT]: { tree: PARENT_TREE, parents: [OTHER], files: ["desktop/server/index.ts"] },
   },
   files: { [`${PARENT}:package.json`]: pkg("0.1.93"), [`${SHA}:package.json`]: pkg("0.1.94") },
 };
@@ -347,7 +347,7 @@ describe("a version-only bump reuses its parent's CI", () => {
     ["a dependency changed with the version", { [`${SHA}:package.json`]: pkg("0.1.94", { dependencies: { zod: "4" } }) }, ["package.json"]],
     ["a script changed with the version", { [`${SHA}:package.json`]: pkg("0.1.94").replace("vitest run", "vitest run --bail") }, ["package.json"]],
     ["the version did not change", { [`${SHA}:package.json`]: pkg("0.1.93") }, ["package.json"]],
-    ["a code file changed too", {}, ["package.json", "server/index.ts"]],
+    ["a code file changed too", {}, ["package.json", "desktop/server/index.ts"]],
     ["the lockfile changed too", {}, ["package.json", "pnpm-lock.yaml"]],
   ])("does not reuse the parent when %s", async (_, files, changed) => {
     const { calls, options } = fakeGitHub([

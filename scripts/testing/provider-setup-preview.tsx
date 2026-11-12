@@ -1,9 +1,9 @@
 // Real store and setup card; the launcher supplies only synthetic provider statuses.
 import { createRoot } from "react-dom/client";
-import { StoreProvider, useStore } from "../../src/state/store";
-import { EngineCard, engineReady } from "../../src/components/EngineLibrary";
-import { EngineSetup } from "../../src/components/EngineSetup";
-import "../../src/styles.css";
+import { StoreProvider, useStore } from "../../desktop/src/state/store";
+import { EngineCard, engineReady } from "../../desktop/src/components/EngineLibrary";
+import { EngineSetup } from "../../desktop/src/components/EngineSetup";
+import "../../desktop/src/styles.css";
 
 function Preview() {
   const { state } = useStore();

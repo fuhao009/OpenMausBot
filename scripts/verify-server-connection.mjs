@@ -13,7 +13,7 @@ const fixtureFlag = "--omb-server-connection-fixture";
 
 if (process.versions.electron && process.argv.includes(fixtureFlag)) {
   const { app, BrowserWindow, ipcMain, Menu, session } = await import("electron");
-  const { parseHostedWorkspaceLink, withEnvironment, withActive, withoutEnvironment, workspaceSummary, workspaceMenuTemplate } = createRequire(import.meta.url)("../electron/environments.cjs");
+  const { parseHostedWorkspaceLink, withEnvironment, withActive, withoutEnvironment, workspaceSummary, workspaceMenuTemplate } = createRequire(import.meta.url)("../desktop/electron/environments.cjs");
   const [url, output, serverUrl] = process.argv.slice(process.argv.indexOf(fixtureFlag) + 1);
   app.setPath("userData", join(output, "user-data"));
   app.setPath("sessionData", join(output, "user-data"));
@@ -35,7 +35,7 @@ if (process.versions.electron && process.argv.includes(fixtureFlag)) {
   ipcMain.handle("sharing:revoke", () => { shared = { ...shared, enabled: false, connected: false }; return shared; });
   ipcMain.handle("update:get-state", () => ({ status: "idle" }));
   ipcMain.handle("companion:state", () => ({ running: false, enabled: false, devices: [], bind: null, publicUrl: null }));
-  ipcMain.handle("desktop:capabilities", () => createRequire(import.meta.url)("../electron/capabilities.cjs").desktopCapabilities({ platform: process.platform }));
+  ipcMain.handle("desktop:capabilities", () => createRequire(import.meta.url)("../desktop/electron/capabilities.cjs").desktopCapabilities({ platform: process.platform }));
   const chooseWorkspace = (id) => { calls.push({ kind: "switch", id }); saved = withActive(saved, id); };
   ipcMain.handle("environments:state", () => ({ ...saved, localOrigin: new URL(url).origin, remote: false }));
   ipcMain.handle("environments:switch", (_event, id) => chooseWorkspace(id));
@@ -80,7 +80,7 @@ if (process.versions.electron && process.argv.includes(fixtureFlag)) {
       const win = new BrowserWindow({
         show: false, width: 720, height: 650,
         webPreferences: {
-          preload: join(root, "electron/preload.cjs"), contextIsolation: true,
+          preload: join(root, "desktop/electron/preload.cjs"), contextIsolation: true,
           sandbox: true, nodeIntegration: false,
           additionalArguments: [`--omb-local-origin=${local ? new URL(url).origin : "https://remote-fixture.invalid"}`],
         },
@@ -266,7 +266,7 @@ if (process.versions.electron && process.argv.includes(fixtureFlag)) {
     const opened = await fetch(`${serverUrl}/api/auth/pairing`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ label: "Electron fixture", scopes: ["client"] }) }).then(response => response.json());
     const paired = await session.defaultSession.fetch(`${serverUrl}/api/auth/pair`, { method: "POST", credentials: "include", headers: { "content-type": "application/json", origin: serverUrl }, body: JSON.stringify({ code: opened.code, cookie: true }) });
     assert.equal(paired.status, 200);
-    const { createComputerSharing } = await import("../electron/computer-sharing.mjs");
+    const { createComputerSharing } = await import("../desktop/electron/computer-sharing.mjs");
     const { randomUUID } = await import("node:crypto");
     const nativeEnv = { id: "cookie-fixture", name: "Cookie fixture", origin: serverUrl };
     const sharing = createComputerSharing({ file: join(output, "native-profile", "sharing.json"), fetch: (...args) => session.defaultSession.fetch(...args), environments: () => [nativeEnv], enabled: async () => true, cuaConnection: async () => null });
@@ -279,7 +279,7 @@ if (process.versions.electron && process.argv.includes(fixtureFlag)) {
       sharing.revoke(nativeEnv);
       assert.equal(sharing.state(nativeEnv.id).enabled, false);
     } finally { sharing.close(); }
-    const receipt = { passed: true, renderer: ["RemoteComputerSection", "ConnectedWorkspacesSettings", "DesktopWorkspaceSwitcher"], preload: "electron/preload.cjs", calls,
+    const receipt = { passed: true, renderer: ["RemoteComputerSection", "ConnectedWorkspacesSettings", "DesktopWorkspaceSwitcher"], preload: "desktop/electron/preload.cjs", calls,
       checks: ["full custom HTTPS link unchanged", "pending submit disabled", "cancel reset", "rejection and retry", "companion six-digit routing", "390px overflow", "remote-safe bridge", "native connect menu item requests Settings", "hosted URL validation", "optional name", "pairing code excluded from saved list", "switch local/cloud", "cancel/confirm forget", "real app Settings deep link", "native Settings event and search reset", "feature-off hides sharing controls and stale deep link", "explicit opt-in enables fixture sharing", "sharing off by default", "read-only folder selection", "cancel/save sharing", "immediate revoke", "post-pair access deep link", "no sharing bridge in remote renderer"],
       nativeConnector: "Real HttpOnly pairing cookie → session.defaultSession.fetch → real fixture registration → revoke",
       limitation: "UI IPC replaces native dialogs, workspace persistence and navigation. Native sharing authentication tested against isolated HTTP server; no public DNS/TLS or live screen control tested." };
@@ -299,7 +299,7 @@ if (process.versions.electron && process.argv.includes(fixtureFlag)) {
   const output = mkdtempSync(join(tmpdir(), "omb-server-connection-"));
   for (const dir of ["home", "user-data"]) mkdirSync(join(output, dir));
   const ui = await createServer({
-    configFile: false, root, resolve: { alias: { "@": join(root, "src") } },
+    configFile: false, root, resolve: { alias: { "@": join(root, "desktop", "src") } },
     server: { host: "127.0.0.1", port: 0, proxy: { "/api": { target: fixture.info.url } } },
     plugins: [react(), tailwindcss(), {
       name: "server-connection-fixture",

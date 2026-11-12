@@ -18,10 +18,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { gzipSync } from "node:zlib";
-import { MODEL_CATALOG_SCHEMA, catalogStats, containsBrace, packCatalog, trimModelsDevCatalog, unpackCatalog } from "../server/model-catalog/trim.ts";
+import { MODEL_CATALOG_SCHEMA, catalogStats, containsBrace, packCatalog, trimModelsDevCatalog, unpackCatalog } from "../desktop/server/model-catalog/trim.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-export const SNAPSHOT_PATH = join(root, "server", "model-catalog", "models-dev.snapshot.json");
+export const SNAPSHOT_PATH = join(root, "desktop", "server", "model-catalog", "models-dev.snapshot.json");
 export const LICENSE_PATH = join(root, "third_party", "models-dev", "LICENSE");
 export const MODELS_DEV_API = "https://models.dev/api.json";
 export const MODELS_DEV_REPOSITORY = "https://github.com/anomalyco/models.dev";

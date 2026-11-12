@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const ROOT = fileURLToPath(new URL("../..", import.meta.url));
-const WORKER_PROJECT = join(ROOT, "cloudflare", "control-plane");
+const WORKER_PROJECT = join(ROOT, "gateway", "control-plane");
 
 function requireFrom(base, specifier) {
   return createRequire(join(base, "package.json")).resolve(specifier);
@@ -25,7 +25,7 @@ export function electronBinary(environment = process.env) {
   }
   if (environment.OMB_VERIFY_ELECTRON) candidates.push(environment.OMB_VERIFY_ELECTRON);
   try {
-    const manifest = requireFrom(ROOT, "electron/package.json");
+    const manifest = requireFrom(ROOT, "desktop/electron/package.json");
     const directory = dirname(manifest);
     const relative = readFileSync(join(directory, "path.txt"), "utf8").trim();
     if (relative) candidates.push(join(directory, "dist", relative));

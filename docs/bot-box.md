@@ -3,7 +3,7 @@
 On a Hezuo Cloud home every bot turn runs in a box: the engine (Claude Code, Codex, Grok, OpenCode, the ACP agents),
 every shell command it runs, the MCP servers it starts and Hezuo's own helper proxies all live inside one
 unprivileged [bubblewrap](https://github.com/containers/bubblewrap) sandbox for that process's lifetime. The server,
-its database, its settings, other bots' folders and other turns' processes are not in it. Code: `server/bot-box/`.
+its database, its settings, other bots' folders and other turns' processes are not in it. Code: `desktop/server/bot-box/`.
 
 ## What a boxed process sees
 
@@ -17,18 +17,18 @@ its database, its settings, other bots' folders and other turns' processes are n
 | private `/tmp`, `/var/tmp`, `/run`, `/dev`, `/proc` | Its own PID namespace: other turns' processes do not exist for it |
 | a network namespace with loopback only | Two loopback ports are bridged to unix sockets from outside (below); nothing else on the machine's loopback is reachable, and there is no route out |
 
-The environment is an allow-list (`server/bot-box/env.ts`): the engine's own settings and keys, the harness capability
+The environment is an allow-list (`desktop/server/bot-box/env.ts`): the engine's own settings and keys, the harness capability
 tokens and a few names a shell expects. Every `OMB_CLOUD_*` setting, the server's own placement (`OMB_DATA_DIR`,
 `OMB_PORT`) and the workspace credentials are refused whatever a driver passed.
 
 ## The two gates
 
-- **Egress** (`server/bot-box/egress-gate.ts`): an HTTP proxy (`CONNECT`, and absolute URLs for plain http) at
+- **Egress** (`desktop/server/bot-box/egress-gate.ts`): an HTTP proxy (`CONNECT`, and absolute URLs for plain http) at
   `127.0.0.1:3128` inside the box, bridged to the server's gate. `HTTPS_PROXY` and `HTTP_PROXY` point there. The gate
   resolves names itself and connects only to public addresses: this machine, the local network, link-local, the cloud
   metadata service and Fly's private network are refused by address, so neither a name nor a redirect gets around it.
-  It is the engines' twin of the browser's SOCKS gate (`server/browser/egress/`), with the same address policy.
-- **Harness** (`server/bot-box/harness-gate.ts`): the server's own port inside the box reaches only `/api/internal/`
+  It is the engines' twin of the browser's SOCKS gate (`desktop/server/browser/egress/`), with the same address policy.
+- **Harness** (`desktop/server/bot-box/harness-gate.ts`): the server's own port inside the box reaches only `/api/internal/`
   routes, which every helper calls with a per-turn capability bearer. Every other route is answered `403` by the gate
   itself, so the server is never asked.
 
@@ -37,7 +37,7 @@ neither bridge.
 
 ## When it is on
 
-`server/bot-box/detect.ts`: on by default on a Cloud home (`OMB_CLOUD_ROLE=home` or `team`), off everywhere else
+`desktop/server/bot-box/detect.ts`: on by default on a Cloud home (`OMB_CLOUD_ROLE=home` or `team`), off everywhere else
 unless `OMB_BOT_BOX=1`; `OMB_BOT_BOX=0` turns it off. It is never on without a working unprivileged bubblewrap: if the
 kernel refuses user namespaces or the image has no `bwrap`, the box reports `off` with the reason, and the Admin shows
 it. The cloud-home image installs `bubblewrap` and `socat` (the in-box bridges; without socat a bundled Node bridge does
@@ -49,7 +49,7 @@ Cost on Fly (measured, T0 build notes): about 5 ms and 3 MB per box, plus one so
 
 At boot, and by hand with `node dist-server/bot-box/box-check.js`, the server runs `box-probe.ts` inside a real box
 over a fixture laid out like a data folder, with a canary process and a fixture server, and counts what a hostile bot
-could and could not do (`server/bot-box/self-check.ts`). The Admin reads the result in the signed health report and at
+could and could not do (`desktop/server/bot-box/self-check.ts`). The Admin reads the result in the signed health report and at
 `GET /api/cloud/box`: `{ box: "bwrap" | "off", checks: "23/23", failed: [], boxed, refused }`. Running the check with a
 mutation (`--mutate=bind-data,share-pid,share-net,env-all,tmp-shared`) removes one protection and must fail exactly the
 checks it guards.
@@ -66,14 +66,14 @@ checks it guards.
 
 ## The credential broker
 
-Keys stay in the server process; boxes get tokens (`server/bot-box/broker.ts`). When a bot spawn is boxed, each provider
+Keys stay in the server process; boxes get tokens (`desktop/server/bot-box/broker.ts`). When a bot spawn is boxed, each provider
 key in its environment (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `OPENAI_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`)
 is replaced by a per-process token (`omb_t0_…`, random, bound to the bot and the conversation, 24 h at most, revoked
 when the process exits), and the provider's base URL (`ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, `GOOGLE_GEMINI_BASE_URL`)
 points at `http://127.0.0.1:18080/b/<token>/<provider>` inside the box, bridged to the broker's unix socket. The broker
 drops whatever credential header the client sent, adds the real key, and forwards to the provider's fixed upstream
 (the base URL the server had, or the provider's default); the box cannot choose the upstream. A URL MCP server's
-headers ride the same way (`server/bot-box/broker-mcp.ts`): the turn's server list carries
+headers ride the same way (`desktop/server/bot-box/broker-mcp.ts`): the turn's server list carries
 `http://127.0.0.1:18080/b/<token>/mcp-<name>` with no headers, and that token is kept for the conversation's later
 turns while the servers are the same, so a long-lived engine process keeps its MCP sessions. A URL server the engine
 reports as failed when it started gets the conversation a new token on its next turn, so the engine starts again and
@@ -81,7 +81,7 @@ reconnects; the chat says the server didn't connect and that it connects again o
 itself goes to the upstream exactly as it was given (a server at `/mcp` is reached at `/mcp`, never `/mcp/`, which a
 Cloudflare Worker answers with 404), anything below it below that address, with the client's query beside the
 upstream's own. MCP Settings → **Test** reaches a URL server the same way where turns are boxed
-(`server/bot-box/broker-probe.ts`): a grant made like a turn's, through the broker's socket, revoked when the test
+(`desktop/server/bot-box/broker-probe.ts`): a grant made like a turn's, through the broker's socket, revoked when the test
 ends. A server that answers directly but not through the broker fails the test with "Your bots can't reach this
 server", never "Connected", and says the fault is ours. Connected apps (Composio,
 HighLevel) were already behind the harness (`/api/internal/connectors/*` with a per-turn bearer) and stay there.

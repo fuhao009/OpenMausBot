@@ -38,7 +38,7 @@ endpoints; requests use the configured `OMB_ADMIN_URL`, not the tenant origin.
    An unavailable service denies access and closes streams without treating
    an outage as permanent membership removal.
 
-The wire contract is defined in `server/hosted-contract.ts`, independently of
+The wire contract is defined in `desktop/server/hosted-contract.ts`, independently of
 application release numbers. Both consume and check use `contractVersion: 1`
 in requests and successful replies. The **legacy-v1** transition supports
 omitted versions only as the existing v1 payload, so either side can be
@@ -111,7 +111,7 @@ service.
 ```sh
 pnpm typecheck
 pnpm lint
-pnpm exec vitest run server/hosted-access.test.ts enterprise/server/workspace-access.test.ts server/email-signin.test.ts server/sessions.test.ts server/request-auth.test.ts server/enterprise.test.ts server/browser-live.test.ts server/fleet.test.ts server/fleet-cli.test.ts server/fleet-agent.test.ts server/fleet-cli-filesystem.test.ts src/components/WorkspacesSection.test.ts
+pnpm exec vitest run desktop/server/hosted-access.test.ts enterprise/server/workspace-access.test.ts desktop/server/email-signin.test.ts desktop/server/sessions.test.ts desktop/server/request-auth.test.ts desktop/server/enterprise.test.ts desktop/server/browser-live.test.ts desktop/server/fleet.test.ts desktop/server/fleet-cli.test.ts desktop/server/fleet-agent.test.ts desktop/server/fleet-cli-filesystem.test.ts desktop/src/components/WorkspacesSection.test.ts
 pnpm test:packaged-server
 ```
 

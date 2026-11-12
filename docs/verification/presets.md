@@ -9,7 +9,7 @@ behaviour is described in [../presets.md](../presets.md).
 ## HTTP round trip
 
 ```sh
-pnpm exec vitest run server/presets.e2e.test.ts --silent=false
+pnpm exec vitest run desktop/server/presets.e2e.test.ts --silent=false
 ```
 
 This launches and cleans its own fake-engine fixture through
@@ -57,10 +57,10 @@ The printed JSON line names the fixture's data directory and server log.
 ## Units
 
 ```sh
-pnpm exec vitest run server/presets.test.ts server/routes/bot-presets.test.ts server/package-import.test.ts server/package-export.test.ts shared/package-format.test.ts
+pnpm exec vitest run desktop/server/presets.test.ts desktop/server/routes/bot-presets.test.ts desktop/server/package-import.test.ts desktop/server/package-export.test.ts packages/shared/package-format.test.ts
 ```
 
-- `server/presets.test.ts` imports into a real store, skill store and memory
+- `desktop/server/presets.test.ts` imports into a real store, skill store and memory
   in a throwaway home: team and library files store their presets (once per
   identical file), a failure after the presets were stored removes them, an
   organization library is added once and keeps its provenance, organization
@@ -72,13 +72,13 @@ pnpm exec vitest run server/presets.test.ts server/routes/bot-presets.test.ts se
   stored `SKILL.md`, `via: "preset"`); the defaults preset keeps only the
   allowlist; a team file's preset never pushes out a team skill of the same
   name; the preset file round-trips.
-- `server/routes/bot-presets.test.ts` drives the two routes through the
+- `desktop/server/routes/bot-presets.test.ts` drives the two routes through the
   route table.
 
 ## Renderer
 
 ```sh
-pnpm exec vitest run src/lib/bot-presets.test.ts src/components/SharePresetDialog.test.ts src/lib/team-import.test.ts src/lib/team-share.test.ts src/components/ShareTeamDialog.test.ts src/components/NewBotDialog.test.ts src/lib/create-configured-bot.test.ts
+pnpm exec vitest run desktop/src/lib/bot-presets.test.ts desktop/src/components/SharePresetDialog.test.ts desktop/src/lib/team-import.test.ts desktop/src/lib/team-share.test.ts desktop/src/components/ShareTeamDialog.test.ts desktop/src/components/NewBotDialog.test.ts desktop/src/lib/create-configured-bot.test.ts
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/presets-ui.e2e.test.ts --silent=false
 ```
 
@@ -103,13 +103,13 @@ renderer smoke job next to the Share team recipe.
 
 On macOS (arm64) against disposable fixtures only: `pnpm typecheck`,
 `pnpm lint`, `pnpm i18n:check`, every command above (including the
-headless-renderer run with `OMB_UI_E2E=1`), `server/team-share.e2e.test.ts`,
-`server/team-package-skills.e2e.test.ts`, `server/bot-package.test.ts`,
-`server/index.test.ts`, `server/request-auth.test.ts`,
-`server/new-bot-defaults.test.ts`, `server/new-bot-defaults.e2e.test.ts`,
-`server/bot-setup.e2e.test.ts`, `src/state/bot-creation.test.ts`,
-`server/org-library.test.ts`, `server/org-library.e2e.test.ts`,
-`src/lib/org-library.test.ts` and the Share team, organization library and
+headless-renderer run with `OMB_UI_E2E=1`), `desktop/server/team-share.e2e.test.ts`,
+`desktop/server/team-package-skills.e2e.test.ts`, `desktop/server/bot-package.test.ts`,
+`desktop/server/index.test.ts`, `desktop/server/request-auth.test.ts`,
+`desktop/server/new-bot-defaults.test.ts`, `desktop/server/new-bot-defaults.e2e.test.ts`,
+`desktop/server/bot-setup.e2e.test.ts`, `desktop/src/state/bot-creation.test.ts`,
+`desktop/server/org-library.test.ts`, `desktop/server/org-library.e2e.test.ts`,
+`desktop/src/lib/org-library.test.ts` and the Share team, organization library and
 New bot headless-renderer recipes passed; the presets
 headless recipe passed six runs in a row after its sidebar clicks learned to
 wait for a closing panel.
@@ -130,15 +130,15 @@ library add skipping its presets; `state.json` leaving an install's
 
 ## 2026-09-24: review fixes (PR #1773)
 
-`server/org-library.test.ts` now wires the preset store into both the
-importer and the organization library, as `server/index.ts` does, so its
+`desktop/server/org-library.test.ts` now wires the preset store into both the
+importer and the organization library, as `desktop/server/index.ts` does, so its
 existing re-add and lost-`state.json` tests run with presets. Added: a
 removed team is added again although a bot was made from its preset (one
 preset row, same id); a presets package whose `state.json` became
 unreadable is adopted from its preset rows (Add stays a no-op, its skills
 stay offered), and its withdrawal hides the preset and switches off the
 skill on the bot made from it but not a same-named skill of the person's
-own; an adopted team gets its `presets` back. `server/presets.test.ts`
+own; an adopted team gets its `presets` back. `desktop/server/presets.test.ts`
 covers an organization install's rows refreshed in place across releases.
 Mutation-checked (each broken, the named test seen failing, restored): a
 preset-made bot blocking re-add; preset rows blocking re-add (the old
@@ -159,7 +159,7 @@ state in memory) instead of a separate read of `org-library/state.json`, and
 an organization preset's skills get the skill-state stamp (§3.2) marked
 `via: "preset"`, which the library never counts toward the install.
 
-Added or changed: `server/org-library.test.ts` drives `GET /api/bot-presets`
+Added or changed: `desktop/server/org-library.test.ts` drives `GET /api/bot-presets`
 through the route module wired to `installStatuses()` while the file on disk
 disagrees both ways (a rebuild not yet written says "removed", an Add not yet
 written says "installed", the file deleted, then signed out); the preset-made
@@ -167,24 +167,24 @@ bot's stamp is checked against the release's `SKILL.md` and the written one,
 and the team is still marked removed and added again (`201`) around it; a
 presets package whose index is lost while the catalog moved on to a newer
 release comes back at the release that was added, not from the preset-made
-bot's stamped skill; the withdrawal test now reads the library's statuses. `server/presets.test.ts`
+bot's stamped skill; the withdrawal test now reads the library's statuses. `desktop/server/presets.test.ts`
 checks the stamp against the skill stored in `presets.json`, and that a file
-preset's skill has none. `server/presets.e2e.test.ts` writes a withdrawn
+preset's skill has none. `desktop/server/presets.e2e.test.ts` writes a withdrawn
 `state.json` under the running app and sees New bot unchanged.
 
 Run on macOS (arm64) against disposable fixtures only: `pnpm typecheck`,
-`pnpm lint`, `pnpm i18n:check`, `server/presets.test.ts`,
-`server/org-library.test.ts`, `server/org-library.e2e.test.ts`,
-`server/routes/bot-presets.test.ts`, `server/package-import.test.ts`,
-`server/package-export.test.ts`, `server/presets.e2e.test.ts`,
-`server/team-share.e2e.test.ts`, `scripts/testing/verification-docs.test.ts`
+`pnpm lint`, `pnpm i18n:check`, `desktop/server/presets.test.ts`,
+`desktop/server/org-library.test.ts`, `desktop/server/org-library.e2e.test.ts`,
+`desktop/server/routes/bot-presets.test.ts`, `desktop/server/package-import.test.ts`,
+`desktop/server/package-export.test.ts`, `desktop/server/presets.e2e.test.ts`,
+`desktop/server/team-share.e2e.test.ts`, `scripts/testing/verification-docs.test.ts`
 and the presets headless-renderer recipe (`OMB_UI_E2E=1`).
 Mutation-checked (each broken, the named test seen failing, restored):
 `installStatuses()` reading the file instead of memory; no stamp, a wrong
 `w` hash, and no `via` marker; preset-made bots' stamps counted toward the
 install (a presets package whose index was lost comes back at the catalog's
 newer release instead of the one added); withdrawal reaching preset skills by neither stamp nor
-source (either one alone still switches them off, by design); `server/index.ts`
+source (either one alone still switches them off, by design); `desktop/server/index.ts`
 wired to an empty status map (the HTTP withdrawal test fails) or back to the
 file (the HTTP file-write check fails).
 

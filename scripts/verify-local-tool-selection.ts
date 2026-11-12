@@ -10,8 +10,8 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import type { ToolScope } from "../shared/tool-scope.ts";
-import type { EngineInstance, RuntimeEvent } from "../server/contracts.ts";
+import type { ToolScope } from "../packages/shared/tool-scope.ts";
+import type { EngineInstance, RuntimeEvent } from "../desktop/server/contracts.ts";
 
 const [engine, cliArgument, providerArgument, model] = process.argv.slice(2);
 assert(engine === "pi" || engine === "grok", "Choose pi or grok");
@@ -26,7 +26,7 @@ for (const name of Object.keys(process.env)) {
   if (!["PATH", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "LANG", "LC_ALL", "TZ", "TMPDIR"].includes(name)) delete process.env[name];
 }
 process.env.HOME = home; process.env.USERPROFILE = home; process.env.OMB_DATA_DIR = join(home, "data");
-const { ensureDirs } = await import("../server/config.ts"); ensureDirs();
+const { ensureDirs } = await import("../desktop/server/config.ts"); ensureDirs();
 const artifact = join(home, "draft.txt"), blocked = join(home, "blocked.txt"), receipt = join(home, "mail-calls.txt");
 type Payload = { tools?: Array<{ function: { name: string } }>; stream?: boolean; max_tokens?: number; messages: unknown[] };
 type Capture = { scenario: string; names: string[]; schemaBytes: number; auxiliary: boolean; usage?: unknown; called: string[] };
@@ -96,13 +96,13 @@ try {
       models: [{ id: model, name: "Owned local model", reasoning: false, input: ["text"], contextWindow: 8192, maxTokens: 768,
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }] } } }));
     writeFileSync(join(directory, "settings.json"), JSON.stringify({ defaultProvider: "fixture", defaultModel: model, defaultThinkingLevel: "off" }));
-    const { PiDriver } = await import("../server/drivers/pi.ts");
+    const { PiDriver } = await import("../desktop/server/drivers/pi.ts");
     instance = await PiDriver.create({ instanceId: "local-test", displayName: "Local Pi fixture", enabled: true,
       config: { cli, fullAuto: false }, environment: { HOME: home, USERPROFILE: home } });
   } else {
     mkdirSync(join(home, ".grok")); writeFileSync(join(home, ".grok/config.toml"), "[cli]\nauto_update=false\n");
-    const { localHost } = await import("../server/drivers/local-inject.ts"); localHost("lmstudio")!.baseUrl = baseUrl;
-    const { GrokAgentDriver } = await import("../server/drivers/acp/grok.ts");
+    const { localHost } = await import("../desktop/server/drivers/local-inject.ts"); localHost("lmstudio")!.baseUrl = baseUrl;
+    const { GrokAgentDriver } = await import("../desktop/server/drivers/acp/grok.ts");
     instance = await GrokAgentDriver.create({ instanceId: "local-test", displayName: "Local Grok fixture", enabled: true,
       config: { cli: `${cli} --no-auto-update`, fullAuto: false }, environment: { HOME: home, USERPROFILE: home, GROK_HOME: join(home, ".grok") } });
   }

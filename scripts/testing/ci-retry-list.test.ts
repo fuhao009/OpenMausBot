@@ -40,12 +40,12 @@ describe("the known-flaky list", () => {
   });
 
   it("matches a test by its file and its full name, nothing looser", () => {
-    const file = { filepath: join(ROOT, "server", "boat-included.test.ts") };
+    const file = { filepath: join(ROOT, "desktop", "server", "boat-included.test.ts") };
     const suite = { name: "waking a sleeping computer", suite: file, filepath: undefined as unknown as string };
     delete (suite as { filepath?: string }).filepath;
     const task = (name: string, parent: object = suite) => ({ name, file, suite: parent as never });
     const listed = testIdentity(ROOT, task("forgets a server error once a later resume is accepted"));
-    expect(listed).toEqual({ file: "server/boat-included.test.ts", test: "waking a sleeping computer > forgets a server error once a later resume is accepted" });
+    expect(listed).toEqual({ file: "desktop/server/boat-included.test.ts", test: "waking a sleeping computer > forgets a server error once a later resume is accepted" });
     expect(findRetryEntry(list, listed)?.owner).toBeTruthy();
     expect(findRetryEntry(list, testIdentity(ROOT, task("reports the last server error, not a bare timeout, when the wait runs out on it")))).toBeUndefined();
     // the same title outside its describe block is another test
@@ -58,13 +58,13 @@ describe("the job summary", () => {
     const entry = list[0]!;
     const log = [
       JSON.stringify({ file: entry.file, test: entry.test, retries: 1, state: "pass", platform: "win32" }),
-      JSON.stringify({ file: "server/x.test.ts", test: "a > b", retries: 2, state: "fail", platform: "linux" }),
+      JSON.stringify({ file: "desktop/server/x.test.ts", test: "a > b", retries: 2, state: "fail", platform: "linux" }),
       "not json",
     ].join("\n");
     const { markdown, annotations } = retrySummary(log, list);
     expect(markdown).toContain("### Flaky tests that needed a retry");
     expect(markdown).toContain(`| \`${entry.file}\` > ${entry.test.replace(/\|/g, "\\|")} | 1 | passed on a retry | ${entry.owner} |`);
-    expect(markdown).toContain("| `server/x.test.ts` > a > b | 2 | failed every attempt | unlisted |");
+    expect(markdown).toContain("| `desktop/server/x.test.ts` > a > b | 2 | failed every attempt | unlisted |");
     expect(annotations).toHaveLength(2);
     expect(annotations[0]).toMatch(new RegExp(`^::warning file=${entry.file.replace(/[.]/g, "\\.")},title=Flaky test retried::`));
   });

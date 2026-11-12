@@ -124,7 +124,7 @@ There are three deliberately separate trust surfaces:
 | Hosted gateway | `127.0.0.1:8812` | Guardian-owned route to one exact sidecar generation |
 
 The desktop app owns the sidecar lifecycle through
-`electron/companion.mjs`. The renderer only receives narrow IPC operations; it
+`desktop/electron/companion.mjs`. The renderer only receives narrow IPC operations; it
 does not fetch the control port directly. Every control route needs a token
 the app makes for each sidecar launch and hands over Electron's private port,
 so a page served from `127.0.0.1:8811` itself, as a bot's browser could open
@@ -136,7 +136,7 @@ prints its pairing page link with that token.
 SQLite does not move onto the phone. It is an implementation detail behind the
 harness API:
 
-- `server/message-db.ts` and `server/store.ts` persist and page transcripts.
+- `desktop/server/message-db.ts` and `desktop/server/store.ts` persist and page transcripts.
 - The phone asks for `GET /api/bots?messages=50` and
   `GET /api/threads/:threadId/messages?before=…&limit=50`.
 - SQLite ordering and cursors are therefore tested at the server boundary,
@@ -183,7 +183,7 @@ Manual entry remains available as a fallback.
 The URL is still `http`, but the path is encrypted and authenticated by
 WireGuard inside the tailnet. Use the MagicDNS name rather than the
 `100.64.0.0/10` address: App Transport Security exceptions are domain-based,
-and `ios/project.yml` narrowly allows insecure HTTP for `ts.net` subdomains.
+and `mobile/ios/project.yml` narrowly allows insecure HTTP for `ts.net` subdomains.
 
 Tailscale is optional. The direct path does not use an Hezuo-operated
 relay or create a cloud copy of local transcript data.
@@ -311,7 +311,7 @@ phone. Development servers deliberately have no recipient key and fail closed
 instead of advertising an unusable secure-entry route.
 
 The device-facing socket rejects browser `Origin` headers before reading a
-token. Its route policy in `companion/src/routes.ts` is default-deny: a new
+token. Its route policy in `desktop/companion/src/routes.ts` is default-deny: a new
 harness route remains unreachable until it is deliberately added.
 
 Allowed in the first release:
@@ -403,7 +403,7 @@ skip the remaining gap.
 
 The phone registers the apps it allows with `PUT /api/phones/self`. Behind the sidecar it is identified by the companion header; on a Cloud home it uses its own session. It long-polls `GET /api/phones/self/jobs` (20 s), leases a job with `POST /api/phones/self/jobs/:id/lease`, and answers with `POST /api/phones/self/jobs/:id/result`, sending `{ ok: true, result }` or `{ ok: false, error, code }`. Results over 256 KB are refused as `too_large`. The SSE frame `{ kind: "device.job", phone, id }` tells an open app to poll now.
 
-Bots see these apps as `PHONE_*` tools through the `device` MCP kind. Reads run silently and writes show up as activity rows. A send opens a sheet on the phone and goes only when the person taps Send there; Hezuo adds no card of its own. A turn that came from the phone does phone things on the phone; a turn at the computer works the usual way and changes the phone only when the person names it. Only the owner's phone is reachable, so team Clouds never expose it. The contract fixture `server/testing/fixtures/phone-jobs.json` is what the phone apps copy into their own test fixtures.
+Bots see these apps as `PHONE_*` tools through the `device` MCP kind. Reads run silently and writes show up as activity rows. A send opens a sheet on the phone and goes only when the person taps Send there; Hezuo adds no card of its own. A turn that came from the phone does phone things on the phone; a turn at the computer works the usual way and changes the phone only when the person names it. Only the owner's phone is reachable, so team Clouds never expose it. The contract fixture `desktop/server/testing/fixtures/phone-jobs.json` is what the phone apps copy into their own test fixtures.
 
 ## A bot's MCP servers
 
@@ -417,13 +417,13 @@ Like the bot's overview it needs the admin scope, so a Team Cloud member's sessi
 ## Source layout
 
 ```text
-companion/
-  src/routes.ts       device-facing allowlist
-  src/devices.ts      pairing and token registry
-  src/proxy.ts        HTTP/SSE forwarding and scrubbing
-  src/origin.ts       private per-launch hosted origin listener
-  src/control.ts      loopback-only control plane
-  src/mdns.ts         Bonjour advertisement
+desktop/companion/
+  desktop/src/routes.ts       device-facing allowlist
+  desktop/src/devices.ts      pairing and token registry
+  desktop/src/proxy.ts        HTTP/SSE forwarding and scrubbing
+  desktop/src/origin.ts       private per-launch hosted origin listener
+  desktop/src/control.ts      loopback-only control plane
+  desktop/src/mdns.ts         Bonjour advertisement
 ```
 
 ## Verification contract

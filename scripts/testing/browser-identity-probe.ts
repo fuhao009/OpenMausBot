@@ -2,7 +2,7 @@
 // a cross-site frame (localhost against 127.0.0.1, so Chrome puts it in a process of its own), plus the request headers.
 import { createServer, type IncomingMessage, type Server } from "node:http";
 
-import { HIGH_ENTROPY_HINTS } from "../../server/browser/chrome/identity.ts";
+import { HIGH_ENTROPY_HINTS } from "../../desktop/server/browser/chrome/identity.ts";
 
 export interface ReportedIdentity {
   ua: string;

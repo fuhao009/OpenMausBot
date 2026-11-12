@@ -22,7 +22,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const LOCALES_DIR = join(dirname(SCRIPT_PATH), "..", "src", "locales");
+const LOCALES_DIR = join(dirname(SCRIPT_PATH), "..", "desktop", "src", "locales");
 const SOURCE_FILE = "en.json";
 const SOURCE_HASH_FILE = "source-hashes.json";
 const LOCALE_CODE = /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/;
@@ -543,7 +543,7 @@ export function main(argv = process.argv.slice(2)) {
   // --check reports the stale state rather than blessing an old translation.
   writeJsonAtomically(outFile, merged);
   writeJsonAtomically(join(LOCALES_DIR, SOURCE_HASH_FILE), state);
-  console.error(`wrote ${outFile}; review every changed string and register new locale "${code}" in src/locales/index.ts`);
+  console.error(`wrote ${outFile}; review every changed string and register new locale "${code}" in desktop/src/locales/index.ts`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === SCRIPT_PATH) {

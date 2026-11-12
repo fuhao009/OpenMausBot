@@ -191,7 +191,7 @@ describe("CI concurrency", () => {
     for (const step of [steps[tests]!, steps[report]!]) {
       expect(step.env?.OMB_VITEST_RETRY_LOG).toBe("${{ runner.temp }}/vitest-retries.jsonl");
     }
-    expect(readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8")).toContain('runner: "./scripts/testing/ci-retry-runner.ts"');
+    expect(readFileSync(new URL("../desktop/vite.config.ts", import.meta.url), "utf8")).toContain('runner: "./scripts/testing/ci-retry-runner.ts"');
   });
 
   it.each(requiredRuntimeJobs)("fails closed for every required %s outcome when selected", (job) => {
@@ -290,8 +290,8 @@ describe("CI concurrency", () => {
     const smoke = parse(readFileSync(new URL("../.github/workflows/shared-terminal-smoke.yml", import.meta.url), "utf8"));
     expect(smoke.on).toEqual({ workflow_dispatch: null });
     const commands = smoke.jobs.windows.steps.map((step: { run?: string }) => step.run);
-    expect(commands).toContain("node --test electron/shared-computer-access.node-test.mjs");
-    expect(commands).toContain("pnpm exec vitest run server/shared-computers.e2e.test.ts");
+    expect(commands).toContain("node --test desktop/electron/shared-computer-access.node-test.mjs");
+    expect(commands).toContain("pnpm exec vitest run desktop/server/shared-computers.e2e.test.ts");
   });
 });
 

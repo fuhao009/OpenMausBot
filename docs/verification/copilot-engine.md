@@ -1,8 +1,8 @@
 # GitHub Copilot engine
 
 ```sh
-pnpm exec vitest run server/drivers/acp/copilot.test.ts server/drivers/acp/custom-model-catalog.test.ts
-pnpm exec vitest run server/copilot-engine.e2e.test.ts src/components/CopilotModelPicker.test.ts
+pnpm exec vitest run desktop/server/drivers/acp/copilot.test.ts desktop/server/drivers/acp/custom-model-catalog.test.ts
+pnpm exec vitest run desktop/server/copilot-engine.e2e.test.ts desktop/src/components/CopilotModelPicker.test.ts
 ```
 
 The driver tests run `copilotAgent` against the repository's `fake-acp-cli.ts`.
@@ -49,7 +49,7 @@ ACP → Claude round trip needs no approval reset at Ask, Auto or Full.
 
 On Windows, catalog discovery used to fail on every refresh: the discovery
 child was given 500 ms to stop, but taskkill takes longer, so the cleanup
-threw and the catalog was dropped. `server/drivers/acp/custom-model-catalog.test.ts` fails without
+threw and the catalog was dropped. `desktop/server/drivers/acp/custom-model-catalog.test.ts` fails without
 the longer Windows stop timeout.
 
 These checks do not establish acceptance by GitHub. A manual check against an

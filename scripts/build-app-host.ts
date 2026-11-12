@@ -1,4 +1,4 @@
-// Bundles the phones' app host page into the committed shared/app-frame/app-host.html. Its first line holds
+// Bundles the phones' app host page into the committed packages/shared/app-frame/app-host.html. Its first line holds
 // the sha256 of everything after it, which the phone tests compare with their fixture's.
 //
 //   node --experimental-strip-types scripts/build-app-host.ts           write it
@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
-const FRAME_DIR = fileURLToPath(new URL("../shared/app-frame/", import.meta.url));
+const FRAME_DIR = fileURLToPath(new URL("../packages/shared/app-frame/", import.meta.url));
 export const APP_HOST_HTML = `${FRAME_DIR}app-host.html`;
 
 /** No CSP of its own: a srcdoc frame inherits its parent's policy, and the app's own meta is the one that limits it. */
@@ -59,12 +59,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     let current = "";
     try { current = readFileSync(APP_HOST_HTML, "utf8"); } catch { /* missing is stale */ }
     if (current !== html) {
-      console.error("shared/app-frame/app-host.html is stale: run node --experimental-strip-types scripts/build-app-host.ts");
+      console.error("packages/shared/app-frame/app-host.html is stale: run node --experimental-strip-types scripts/build-app-host.ts");
       process.exit(1);
     }
     console.log(`app-host.html is current (sha256 ${appHostHashOf(html)})`);
   } else {
     writeFileSync(APP_HOST_HTML, html);
-    console.log(`wrote shared/app-frame/app-host.html (${html.length} bytes, sha256 ${appHostHashOf(html)})`);
+    console.log(`wrote packages/shared/app-frame/app-host.html (${html.length} bytes, sha256 ${appHostHashOf(html)})`);
   }
 }

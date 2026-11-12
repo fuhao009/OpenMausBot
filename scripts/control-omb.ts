@@ -8,19 +8,19 @@ import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 
-import { EXIT, HeadlessError } from "../server/headless/args.ts";
-import { runHeadlessCommand } from "../server/headless/main.ts";
+import { EXIT, HeadlessError } from "../desktop/server/headless/args.ts";
+import { runHeadlessCommand } from "../desktop/server/headless/main.ts";
 import type { handleToolCall, request } from "./mcp-server.ts";
 import { launchUi, runControlOmbUi } from "./testing/control-omb-ui.ts";
-import { removeTempDir, waitForExit } from "../server/testing/cleanup.ts";
-import { hostTimeout } from "../server/testing/host-timeout.ts";
-import { freePortBlock } from "../server/testing/ports.ts";
+import { removeTempDir, waitForExit } from "../desktop/server/testing/cleanup.ts";
+import { hostTimeout } from "../desktop/server/testing/host-timeout.ts";
+import { freePortBlock } from "../desktop/server/testing/ports.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 /** Outside the bot name pool, so no suite can plan a bot that collides with the
  * starter. */
 export const FIXTURE_STARTER_BOT_NAME = "Fixture Starter";
-const FAKE_CLI = join(ROOT, "server", "testing", "fake-claude-cli.ts");
+const FAKE_CLI = join(ROOT, "desktop", "server", "testing", "fake-claude-cli.ts");
 
 export class ControlOmbError extends HeadlessError {
   constructor(message: string, hint?: string) {
@@ -172,7 +172,7 @@ export function verificationServerEnvironment(parentEnv: NodeJS.ProcessEnv, data
   if (parentEnv.OMB_TEST_ORG_LIBRARY_KEY) childEnv.OMB_TEST_ORG_LIBRARY_KEY = parentEnv.OMB_TEST_ORG_LIBRARY_KEY;
   // One log line per browser call and preview frame.
   if (parentEnv.OMB_BROWSER_TIMING === "1") childEnv.OMB_BROWSER_TIMING = "1";
-  // Warm summaries' minutes as seconds (server/warm-summary.ts), and the switch that turns them off.
+  // Warm summaries' minutes as seconds (desktop/server/warm-summary.ts), and the switch that turns them off.
   for (const key of ["OMB_WARM_SUMMARY_TIME_SCALE", "OMB_WARM_SUMMARY"]) if (parentEnv[key]) childEnv[key] = parentEnv[key];
   // A loopback fake only: the key never reaches a real provider.
   const liveUrl = parentEnv.OMB_OPENAI_LIVE_URL?.trim() ?? "";
@@ -180,16 +180,16 @@ export function verificationServerEnvironment(parentEnv: NodeJS.ProcessEnv, data
     childEnv.OMB_OPENAI_LIVE_URL = liveUrl;
     if (parentEnv.OMB_OPENAI_LIVE_KEY) childEnv.OMB_OPENAI_LIVE_KEY = parentEnv.OMB_OPENAI_LIVE_KEY;
   }
-  // A loopback stand-in for Postiz Cloud only (server/testing/fake-postiz.ts): no test signs in to the real one.
+  // A loopback stand-in for Postiz Cloud only (desktop/server/testing/fake-postiz.ts): no test signs in to the real one.
   const postizUrl = parentEnv.OMB_POSTIZ_CLOUD_URL?.trim() ?? "";
   if (/^http:\/\/127\.0\.0\.1:\d{1,5}$/.test(postizUrl)) childEnv.OMB_POSTIZ_CLOUD_URL = postizUrl;
-  // A loopback connected-apps service only (server/testing/broker-fake.ts): its token never reaches the real one.
+  // A loopback connected-apps service only (desktop/server/testing/broker-fake.ts): its token never reaches the real one.
   const brokerUrl = parentEnv.OMB_COMPOSIO_BROKER_URL?.trim() ?? "";
   if (/^http:\/\/127\.0\.0\.1:\d{1,5}$/.test(brokerUrl) && parentEnv.OMB_COMPOSIO_BROKER_TOKEN) {
     childEnv.OMB_COMPOSIO_BROKER_URL = brokerUrl;
     childEnv.OMB_COMPOSIO_BROKER_TOKEN = parentEnv.OMB_COMPOSIO_BROKER_TOKEN;
   }
-  // Research against loopback stubs only (server/x-research.e2e.test.ts): the relay token crosses only with its stub,
+  // Research against loopback stubs only (desktop/server/x-research.e2e.test.ts): the relay token crosses only with its stub,
   // and a treg stand-in replaces treg.to, so no test reaches a real relay or treg.
   const xUrl = parentEnv.OMB_CLOUD_X_URL?.trim() ?? "";
   if (/^http:\/\/127\.0\.0\.1:\d{1,5}(?:\/[A-Za-z0-9_-]+)*$/.test(xUrl)) {
@@ -240,14 +240,14 @@ export function verificationServerEnvironment(parentEnv: NodeJS.ProcessEnv, data
 
 /** The fixture hooks its environment asks for, then the server. */
 export function verificationServerArgs(childEnv: NodeJS.ProcessEnv): string[] {
-  const hook = (file: string) => ["--import", pathToFileURL(join(ROOT, "server", "testing", file)).href];
+  const hook = (file: string) => ["--import", pathToFileURL(join(ROOT, "desktop", "server", "testing", file)).href];
   return [
     "--experimental-strip-types",
     ...(childEnv.OMB_TEST_FAIL_AUDIO_APPEND_ONCE === "1" ? hook("fail-audio-append-once.mjs") : []),
     ...(childEnv.OMB_TEST_DESKTOP_OWNER_TOKEN || childEnv.OMB_TEST_DESKTOP_CUA_CONNECTION ? hook("desktop-parent.mjs") : []),
     ...(childEnv.OMB_TEST_APPROVAL_CLOCK === "1" ? hook("approval-clock-hooks.mjs") : []),
     ...(childEnv.OMB_TEST_STALL_CLOCK === "1" ? hook("stall-clock-hooks.mjs") : []),
-    join(ROOT, "server", "index.ts"),
+    join(ROOT, "desktop", "server", "index.ts"),
   ];
 }
 
@@ -301,22 +301,22 @@ export async function launchVerificationServer(
     features: { smartSetupChoices: false },
     instances: {
       ...(extraProviders.includes("codex") ? { codex: {
-        driver: "codex", displayName: "Verification Codex", config: { cli: fileURLToPath(new URL("../server/testing/fake-codex-app-server.ts", import.meta.url)) },
+        driver: "codex", displayName: "Verification Codex", config: { cli: fileURLToPath(new URL("../desktop/server/testing/fake-codex-app-server.ts", import.meta.url)) },
       } } : {}),
       ...(extraProviders.includes("cline") ? { cline: {
         driver: "clineAgent", displayName: "Verification Cline",
-        config: { cli: fileURLToPath(new URL("../server/testing/fake-acp-cli.ts", import.meta.url)) },
+        config: { cli: fileURLToPath(new URL("../desktop/server/testing/fake-acp-cli.ts", import.meta.url)) },
         environment: { CLINE_PROVIDER: "openai-compatible", CLINE_MODEL: "fixture-model", CLINE_API_KEY: "fixture-only",
           FAKE_ACP_DUMP: join(dataDir, "cline-launch.json") },
       } } : {}),
       ...(extraProviders.includes("copilot") ? { githubCopilot: {
         driver: "copilotAgent", displayName: "Verification Copilot",
-        config: { cli: fileURLToPath(new URL("../server/testing/fake-acp-cli.ts", import.meta.url)) },
+        config: { cli: fileURLToPath(new URL("../desktop/server/testing/fake-acp-cli.ts", import.meta.url)) },
         environment: { FAKE_ACP_MODELS: "auto,claude-haiku-4.5,gpt-5.6-luna", FAKE_ACP_DUMP: join(dataDir, "copilot-launch.json") },
       } } : {}),
       ...(extraProviders.includes("customAcp") ? { myAgent: {
         driver: "customAcp", displayName: "Verification custom ACP",
-        config: { cli: fileURLToPath(new URL("../server/testing/fake-acp-cli.ts", import.meta.url)) },
+        config: { cli: fileURLToPath(new URL("../desktop/server/testing/fake-acp-cli.ts", import.meta.url)) },
         environment: { FAKE_ACP_MODELS: "fixture-fast,fixture-deep", FAKE_ACP_DUMP: join(dataDir, "custom-acp-launch.json") },
       } } : {}),
       claude: {
@@ -331,8 +331,8 @@ export async function launchVerificationServer(
   const log = openSync(logPath, "a", 0o600);
   const childEnv = verificationServerEnvironment(parentEnv, dataDir, port);
   childEnv.OMB_EXECUTION_CLAUDE_CLI = FAKE_CLI;
-  childEnv.OMB_EXECUTION_CODEX_CLI = fileURLToPath(new URL("../server/testing/fake-codex-app-server.ts", import.meta.url));
-  childEnv.OMB_EXECUTION_OMP_CLI = fileURLToPath(new URL("../server/testing/fake-acp-cli.ts", import.meta.url));
+  childEnv.OMB_EXECUTION_CODEX_CLI = fileURLToPath(new URL("../desktop/server/testing/fake-codex-app-server.ts", import.meta.url));
+  childEnv.OMB_EXECUTION_OMP_CLI = fileURLToPath(new URL("../desktop/server/testing/fake-acp-cli.ts", import.meta.url));
   // Opt-in live Local VM fixture: keep the temporary home and fake engine,
   // granting only the explicitly selected machine connection and static UI.
   if (localVm) Object.assign(childEnv, {

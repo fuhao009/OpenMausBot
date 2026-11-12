@@ -88,8 +88,8 @@ hot replacement; the final screenshots were taken after a full reload.
 Final local checks: typecheck, renderer build, lint (existing warnings), the skin
 contrast check, 27 focused tests, 8 broker tests and packaged-server smoke passed.
 The full Vitest run completed with 3,827 passed, 2 failed, 107 skipped and 1 todo.
-Both failures were Windows `symlinkSync` EPERM in `server/message-file.test.ts`
-and `server/turn-images.test.ts`; the same tests failed on unmodified `9c681f44`.
+Both failures were Windows `symlinkSync` EPERM in `desktop/server/message-file.test.ts`
+and `desktop/server/turn-images.test.ts`; the same tests failed on unmodified `9c681f44`.
 The separate Electron suite had 138 passed, 2 failed and 6 skipped. Both AppImage
 installer failures require the missing POSIX `mv` command and also reproduced
 on unmodified `9c681f44`. These checks therefore do not claim a fully green
@@ -101,7 +101,7 @@ foreground tint, background tint and underline; a color change is reflected in
 plain text and Markdown. All 70 bot-color/skin combinations were checked with
 the CSS sRGB mixing ratios: the lowest text contrast was 6.24:1. Dark/light
 screenshots and the settled channel transcript were refreshed for this version.
-The server/Electron full-suite results above are from the preceding revision;
+The desktop/server/Electron full-suite results above are from the preceding revision;
 that full suite was not repeated for this renderer-only color follow-up.
 
 ### Multiple-bot color isolation
@@ -182,7 +182,7 @@ The channel settled. Evidence: [wait](evidence/mentions/bot-reply-wait.json),
 [dark screenshot](evidence/mentions/bot-reply-dark.png) and
 [light screenshot](evidence/mentions/bot-reply-light.png).
 All 792 renderer tests (102 files), typecheck, renderer build and targeted
-oxlint passed. The full server/Electron suite was not repeated for these
+oxlint passed. The full desktop/server/Electron suite was not repeated for these
 renderer and fixture changes.
 
 The fixture verifies browser renderer behavior and fake-engine message handling.

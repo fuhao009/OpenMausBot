@@ -1,8 +1,8 @@
 // Node-side account operations for the fixture, through the app's own
 // control-plane client: real OTP sign-in against the fixture Worker, then the
-// same operator endpoints scripts/account-ai-admin.mjs calls. The bearer stays
+// same operator endpoints gateway/scripts/account-ai-admin.mjs calls. The bearer stays
 // in this process; nothing here writes it anywhere.
-import { createControlPlaneClient } from "../../electron/control-plane-client.mjs";
+import { createControlPlaneClient } from "../../desktop/electron/control-plane-client.mjs";
 
 /** A verified account session over the real OTP flow (the Worker writes the
  * code to its own mailbox). */

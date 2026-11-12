@@ -3,23 +3,23 @@ import { describe, expect, it } from "vitest";
 import { tightenRoutes, tightenSizes } from "../tighten-ratchets.mjs";
 
 const SIZES = `const LINES: Record<string, number> = {
-  "server/index.ts": 16200,
-  "src/a.tsx": 1300,
-  "src/b.ts": 1100,
-  "src/gone.ts": 1200,
+  "desktop/server/index.ts": 16200,
+  "desktop/src/a.tsx": 1300,
+  "desktop/src/b.ts": 1100,
+  "desktop/src/gone.ts": 1200,
 };
 `;
 
 describe("tighten-ratchets", () => {
   it("lowers a shrunk file's number, keeps a grown one, and drops files gone or under 1,000 lines", () => {
-    const counts: Record<string, number | null> = { "server/index.ts": 16150, "src/a.tsx": 1310, "src/b.ts": 900, "src/gone.ts": null };
+    const counts: Record<string, number | null> = { "desktop/server/index.ts": 16150, "desktop/src/a.tsx": 1310, "desktop/src/b.ts": 900, "desktop/src/gone.ts": null };
     const { text, changes } = tightenSizes(SIZES, (file: string) => counts[file] ?? null);
     expect(text).toBe(`const LINES: Record<string, number> = {
-  "server/index.ts": 16150,
-  "src/a.tsx": 1300,
+  "desktop/server/index.ts": 16150,
+  "desktop/src/a.tsx": 1300,
 };
 `);
-    expect(changes).toEqual(["server/index.ts: 16200 → 16150", "src/b.ts: removed (900 lines)", "src/gone.ts: removed (gone)"]);
+    expect(changes).toEqual(["desktop/server/index.ts: 16200 → 16150", "desktop/src/b.ts: removed (900 lines)", "desktop/src/gone.ts: removed (gone)"]);
   });
 
   it("lowers a route needle's number, whichever quotes it is written in, and never raises one", () => {

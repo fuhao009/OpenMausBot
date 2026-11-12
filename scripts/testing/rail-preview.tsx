@@ -1,16 +1,16 @@
 import { createRoot } from "react-dom/client";
-import type { CloudSwatch } from "../../electron/cloud-list.mjs";
-import type { AddCloudView, RailPlace, RailState } from "../../electron/cloud-rail.mjs";
-import type { PlaceLook } from "../../electron/place-look.mjs";
-import App from "../../src/App";
-import { ChromeRail } from "../../src/components/ChromeRail";
-import { setAnalyticsEnabled, setEmailGateDone } from "../../src/lib/analytics";
-import { setAdvancedMode } from "../../src/lib/interface-mode";
-import { NOTICES } from "../../src/lib/notices";
-import { setSidebarDensity, SIDEBAR_WIDTH_KEY, SIMPLE_SIDEBAR_WIDTH_KEY } from "../../src/lib/sidebar-preferences";
-import { markSimpleModePromptSeen } from "../../src/lib/simple-mode-prompt";
-import { applySkin, type SkinId } from "../../src/lib/skins";
-import "../../src/styles.css";
+import type { CloudSwatch } from "../../desktop/electron/cloud-list.mjs";
+import type { AddCloudView, RailPlace, RailState } from "../../desktop/electron/cloud-rail.mjs";
+import type { PlaceLook } from "../../desktop/electron/place-look.mjs";
+import App from "../../desktop/src/App";
+import { ChromeRail } from "../../desktop/src/components/ChromeRail";
+import { setAnalyticsEnabled, setEmailGateDone } from "../../desktop/src/lib/analytics";
+import { setAdvancedMode } from "../../desktop/src/lib/interface-mode";
+import { NOTICES } from "../../desktop/src/lib/notices";
+import { setSidebarDensity, SIDEBAR_WIDTH_KEY, SIMPLE_SIDEBAR_WIDTH_KEY } from "../../desktop/src/lib/sidebar-preferences";
+import { markSimpleModePromptSeen } from "../../desktop/src/lib/simple-mode-prompt";
+import { applySkin, type SkinId } from "../../desktop/src/lib/skins";
+import "../../desktop/src/styles.css";
 
 // Served only by scripts/verify-cloud-rail.ts: the real app, as a Cloud's page in the desktop window sees it, with the
 // desktop bridge a hosted Cloud's page gets (its rail and add-a-Cloud sheet answered here). ?skin= picks the skin,
@@ -206,7 +206,7 @@ if (params.has("railpage")) {
 
   createRoot(document.getElementById("root")!).render(<App />);
 
-  // The macOS window's traffic lights, drawn where the system draws them (electron/window-chrome.mjs), so the picture
+  // The macOS window's traffic lights, drawn where the system draws them (desktop/electron/window-chrome.mjs), so the picture
   // shows what sits beside them.
   if (!windows) {
     const lights = document.createElement("div");

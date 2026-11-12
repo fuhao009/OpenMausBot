@@ -10,9 +10,9 @@ const dataDir = process.env.OMB_DATA_DIR;
 if (!dataDir || !dataDir.includes("hezuo-bench-")) throw new Error("bench-desktop-seed runs only on a bench fixture folder");
 const [bots = 150, threads = 300, messages = 2000] = process.argv.slice(2).map(Number);
 
-const { Store } = await import("../../server/store.ts");
-const { ATTACHMENTS_DIR } = await import("../../server/attachments.ts");
-type Message = import("../../server/store.ts").Message;
+const { Store } = await import("../../desktop/server/store.ts");
+const { ATTACHMENTS_DIR } = await import("../../desktop/server/attachments.ts");
+type Message = import("../../desktop/server/store.ts").Message;
 
 const store = new Store(() => ({ instanceId: "claude", model: "claude-sonnet-5" }));
 const SECTIONS = ["Sales", "Support", "Engineering", "Research", "Operations", "Marketing", "Finance", "People"];
@@ -24,7 +24,7 @@ const id = (prefix: string) => `${prefix}-${(serial += 1).toString(36).padStart(
 
 mkdirSync(ATTACHMENTS_DIR, { recursive: true, mode: 0o700 });
 const image = join(ATTACHMENTS_DIR, "bench-image.png");
-copyFileSync(fileURLToPath(new URL("../../public/app-icon-192.png", import.meta.url)), image);
+copyFileSync(fileURLToPath(new URL("../../desktop/public/app-icon-192.png", import.meta.url)), image);
 
 const CODE = Array.from({ length: 18 }, (_, i) => `  const value${i} = await load("item-${i}", { retries: ${i % 3}, timeoutMs: ${(i + 1) * 250} });`).join("\n");
 const TABLE = ["| Region | Q1 | Q2 | Q3 | Change |", "|---|---:|---:|---:|---|",

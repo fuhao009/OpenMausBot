@@ -27,24 +27,24 @@ const target = (hit: string) => hit.slice(hit.indexOf(": ") + 2);
 const helpVerbs = new Set([...HELP.matchAll(/^ {2}([a-z][\w-]*)(?= |$)/gm)].map((match) => match[1]!).filter((verb) => verb !== "node"));
 helpVerbs.add("help");
 
-// Routes are registered in server/index.ts and in the modules under
-// server/routes; tests there quote paths without registering them.
-const ROUTES_DIR = join(ROOT, "server", "routes");
+// Routes are registered in desktop/server/index.ts and in the modules under
+// desktop/server/routes; tests there quote paths without registering them.
+const ROUTES_DIR = join(ROOT, "desktop", "server", "routes");
 // Including subfolders and the factories that live beside their feature.
 const routeModules = readdirSync(ROUTES_DIR, { recursive: true, encoding: "utf8" })
   .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts")).sort()
   .map((name) => join(ROUTES_DIR, name));
-const featureRouteModules = ["data/routes.ts", "workspace-backup-http.ts", "cloud-move-http.ts"].map((name) => join(ROOT, "server", name));
-const serverSource = [join(ROOT, "server", "index.ts"), ...routeModules, ...featureRouteModules]
+const featureRouteModules = ["data/routes.ts", "workspace-backup-http.ts", "cloud-move-http.ts"].map((name) => join(ROOT, "desktop", "server", name));
+const serverSource = [join(ROOT, "desktop", "server", "index.ts"), ...routeModules, ...featureRouteModules]
   .map((file) => readFileSync(file, "utf8")).join("\n");
-const hooksSource = readFileSync(join(ROOT, "server", "webhook-ingress.ts"), "utf8");
+const hooksSource = readFileSync(join(ROOT, "desktop", "server", "webhook-ingress.ts"), "utf8");
 const hostedSource = readFileSync(join(ROOT, "enterprise", "server", "workspace-access.ts"), "utf8");
 // Only constants named in the public handler's accepted-path guard are routes.
 // Outbound post("/api/handoff/...") calls belong to the identity service, not us.
 const hostedConstants = new Map([...hostedSource.matchAll(/const ([A-Z_]+) = "(\/api\/[^"\n]+)";/g)].map(match => [match[1]!, match[2]!]));
 const hostedPublicRoutes = new Set((hostedSource.match(/!\[([^\]]+)\]\.includes\(path\)/)?.[1] ?? "")
   .split(",").map(name => hostedConstants.get(name.trim())).filter((path): path is string => path !== undefined));
-// server/index.ts matches routes two ways: `path === "/api/x"` and
+// desktop/server/index.ts matches routes two ways: `path === "/api/x"` and
 // `path.match(/^\/api\/x\/(a|b)$/)`. Collect the regex form too.
 const routePatterns = [...serverSource.matchAll(/\/(\^\\\/api\\\/(?:\[(?:[^\]\\]|\\.)*\]|[^/\\\n[]|\\.)*)\/[a-z]*/g)].map((match) => new RegExp(match[1]!));
 const PLACEHOLDER = /^(ID|:[\w-]+|<[^>]+>|\{[^}]+\})$/;

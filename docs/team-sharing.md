@@ -160,17 +160,17 @@ Hezuo reads `https://x.ai/bot/<id>` (redirects must stay on x.ai, 20 s,
 2 MB) through `POST /api/team-library/grok`; the Cursor routes are
 `GET /api/team-library/cursor`, `POST /api/team-library/cursor/sign-in` and
 `POST /api/team-library/cursor/sign-out`. All are admin scope. Hezuo never
-opens `grokbot://` links. The mapping lives in `shared/grok-import.ts`, the
-Cursor session in `server/cursor-session.ts`.
+opens `grokbot://` links. The mapping lives in `packages/shared/grok-import.ts`, the
+Cursor session in `desktop/server/cursor-session.ts`.
 
 ## The file format
 
-`hezuo.package` version 2, defined in `shared/package-format.ts`, the one
+`hezuo.package` version 2, defined in `packages/shared/package-format.ts`, the one
 module the app, the import preview and Admin all validate with. It still
 reads version 1 files (JSON and the BotMRR Markdown playbook). Older apps
 refuse version 2 files with their existing "not supported" message; Admin can
 produce a version 1 download for them. A file is at most 4 MB. Example files
-and their expected hashes live in `shared/package-fixtures/`.
+and their expected hashes live in `packages/shared/package-fixtures/`.
 
 The HTTP route is `POST /api/teams/export` with
 `{"format":"package","version":2,"team":"Sales desk"}` (admin scope). Optional

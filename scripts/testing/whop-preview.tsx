@@ -1,9 +1,9 @@
 import { createRoot } from "react-dom/client";
-import { PluginsPanel } from "../../src/components/PluginsPanel";
-import { StoreProvider } from "../../src/state/store";
-import { setAnalyticsEnabled } from "../../src/lib/analytics";
-import { applySkin, readSkin } from "../../src/lib/skins";
-import "../../src/styles.css";
+import { PluginsPanel } from "../../desktop/src/components/PluginsPanel";
+import { StoreProvider } from "../../desktop/src/state/store";
+import { setAnalyticsEnabled } from "../../desktop/src/lib/analytics";
+import { applySkin, readSkin } from "../../desktop/src/lib/skins";
+import "../../desktop/src/styles.css";
 
 setAnalyticsEnabled(false);
 applySkin(readSkin());

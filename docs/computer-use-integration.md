@@ -15,7 +15,7 @@ Electron main process
 │     platform permission boundary               │ unix socket (private)
 ├── WebContentsView pool (embedded browser, persist: partitions per bot)
 │     driven via webContents.debugger (CDP) — zero-install browser use
-└── server/ harness (drivers spawn agent CLIs with --mcp-config)
+└── desktop/server/ harness (drivers spawn agent CLIs with --mcp-config)
       ├── computer-proxy-local.ts  ──▶ forwards MCP tool calls to driver socket
       └── computer-proxy.ts (existing) ──▶ remote/cloud Boat computer
 ```
@@ -62,7 +62,7 @@ GNOME/Wayland additionally requires WinRects v8 plus the exact Cua health-report
 
 ### The rules (from `cua/libs/cua-driver/rust/Skills/cua-driver/EMBEDDING.md` — read it end to end)
 
-1. **Spawn from the Electron main process, never from the server/gateway
+1. **Spawn from the Electron main process, never from the desktop/server/gateway
    layer.** macOS TCC attributes a spawned child to its "responsible process".
    Spawned from Electron main → the grant is Hezuo's, users see ONE
    prompt named Hezuo, and the bundled driver inherits it. Spawned from
@@ -71,7 +71,7 @@ GNOME/Wayland additionally requires WinRects v8 plus the exact Cua health-report
    Electron main for the driver socket path over IPC, not spawn the driver.
 2. Use `EmbeddedCuaDriverHost` from `@trycua/cua-driver`
    (`libs/cua-driver/typescript/src/embedded.ts`, Electron helpers in
-   `src/electron.ts`: `requestMacOSPermissions`, `hasRequiredMacOSPermissions`,
+   `desktop/src/electron.ts`: `requestMacOSPermissions`, `hasRequiredMacOSPermissions`,
    `openMacOSScreenRecordingSettings`). Working reference:
    `typescript/test/electron-main-fixture.mjs`.
 3. Env: `CUA_DRIVER_EMBEDDED=1` (exact value) + `CUA_DRIVER_HOST_BUNDLE_ID`.
@@ -121,14 +121,14 @@ So the harness just adds one entry to a bot's `--mcp-config`:
 ```
 
 Electron main keeps that descriptor in `<userData>/cua-connection.json` (see
-`electron/cua.mjs`), but no server reads it from there: the app hands it to the
+`desktop/electron/cua.mjs`), but no server reads it from there: the app hands it to the
 one server it launched over that child's private utility-process port
-(`electron/local-computer-grant.mjs` → `server/desktop-computer.ts`), and sends
+(`desktop/electron/local-computer-grant.mjs` → `desktop/server/desktop-computer.ts`), and sends
 it again on every change. Only that server injects the block, so a second
 Hezuo server on the same computer (a copy run from source, a demo) never
 finds this computer. Before a bot's first action on the person's own computer
 in a request, unless the person picked this computer as the place, the person
-is asked once in plain words (`server/your-computer-consent.ts`), at every
+is asked once in plain words (`desktop/server/your-computer-consent.ts`), at every
 approval level. The driver's own non-idempotent-action safety and
 the `ax → ax_fg → cgevent → cgevent_fg → cgevent_hid` delivery ladder
 (background pid-addressed input first — does not steal the user's cursor) are
@@ -150,7 +150,7 @@ one TCC identity, one binary to sign/notarize, and one behavior contract.
 
 [Saved steps](superpowers/specs/2026-10-27-saved-steps-design.md) repeats a
 bot's earlier run on this computer by re-issuing the driver's own recorded tool
-calls through the same gated bridge (`server/local-computer-proxy.ts`), each
+calls through the same gated bridge (`desktop/server/local-computer-proxy.ts`), each
 target looked up fresh by app, window title and accessibility label, never by
 pixel: it adds no input route, binary or permission identity beside cua-driver.
 It replays only at Full access where the person picked this computer as the

@@ -30,12 +30,12 @@ person sends the same words again (design:
 Unit and route checks:
 
 ```sh
-pnpm exec vitest run server/saved-steps server/routes/saved-steps.test.ts server/routes/computer-journal.test.ts server/local-computer-proxy.test.ts server/local-computer.test.ts server/delta-context.test.ts src/components/SavedStepsChip.test.ts src/components/SavedStepsRow.test.ts server/testing/fake-cua-driver.test.ts
+pnpm exec vitest run desktop/server/saved-steps desktop/server/routes/saved-steps.test.ts desktop/server/routes/computer-journal.test.ts desktop/server/local-computer-proxy.test.ts desktop/server/local-computer.test.ts desktop/server/delta-context.test.ts desktop/src/components/SavedStepsChip.test.ts desktop/src/components/SavedStepsRow.test.ts desktop/server/testing/fake-cua-driver.test.ts
 ```
 
 The fixture runs on macOS. A Linux server never mounts this computer from this
 record, and Windows was not tried. The driver is
-`server/testing/fake-cua-driver.ts`: TextEdit's one window in cua-driver
+`desktop/server/testing/fake-cua-driver.ts`: TextEdit's one window in cua-driver
 0.28.2's answer shapes, whose element tokens (`s<snapshot>-e<index>`) go stale
 at the next `get_window_state` and whose document reports what it holds as its
 `value`. `FAKE_CUA_STATE` keeps the snapshot count and the document's text
@@ -45,7 +45,7 @@ wait while `FAKE_CUA_HOLD` exists.
 
 The server reads this computer's driver record only from the desktop app,
 over its parent port. `OMB_TEST_DESKTOP_CUA_CONNECTION` makes the launcher
-start the server with `server/testing/desktop-parent.mjs`, which hands it the
+start the server with `desktop/server/testing/desktop-parent.mjs`, which hands it the
 record the way the app does.
 
 ```sh
@@ -97,7 +97,7 @@ with `pnpm control:omb wait --bot $BOT_ID --task $T1 --timeout 300 --url $URL`
    `stat -f %Lp "$DATA/bots/$BOT_ID/saved-steps.json"` prints `600`.
 2. **Replay.** Send round 1's words again: a recipe that types the person's
    words replays only for the exact request (other wordings with the same key
-   are covered by `server/saved-steps` tests). `prompts.jsonl` still has 1
+   are covered by `desktop/server/saved-steps` tests). `prompts.jsonl` still has 1
    line. `cua-calls.jsonl` gains `list_apps`,
    `list_windows {"pid":4242,"on_screen_only":false}`,
    `get_window_state {"pid":4242,"window_id":7,"include_screenshot":false}`,
@@ -181,7 +181,7 @@ prompt, which was read from `prompts.jsonl`. The same recipe passed on
 2026-10-28 before the merge, at loads near 5 and 40. Not run again after the
 review fixes of the same day (the reply's wording, the approval rows without
 typed text, the fake driver's document text); their tests are in
-`server/saved-steps` and `server/testing/fake-cua-driver.test.ts`.
+`desktop/server/saved-steps` and `desktop/server/testing/fake-cua-driver.test.ts`.
 
 ## Limits
 
@@ -200,7 +200,7 @@ names the driver's tools bare (`list_apps`); Claude Code names them
 
 The chips and the Settings switch are proven by their component tests; this
 fixture reads the wire fields and the server's switch. These are proven by
-`server/saved-steps` tests only, not here: Ask, Auto and Edits approval levels
+`desktop/server/saved-steps` tests only, not here: Ask, Auto and Edits approval levels
 never replay; a declined step stops with no AI; a control-gate refusal (the
 person took control, the computer is busy) keeps the steps and hands over to
 the AI; the cases that never save (an answered in-turn question, a

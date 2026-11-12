@@ -36,7 +36,7 @@ real `BrowserRuntime` and then through the real server and a scripted turn:
 5. Killing Chrome: a preview frame starts nothing; the bot's next call starts
    it again at 1280x720, and the bot is told its pages are gone. (A frame or
    read that races a dying Chrome and starts it is noted the same way:
-   `server/browser-steps.test.ts`.)
+   `desktop/server/browser-steps.test.ts`.)
 6. `GET /api/threads/ID/evidence`, the screenshot under
    `/api/threads/ID/evidence/GENERATION/step-NNNNNN.jpg` and
    `GET /api/threads/ID/evidence.tar` answer for the conversation, and

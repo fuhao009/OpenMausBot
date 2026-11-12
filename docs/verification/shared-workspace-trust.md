@@ -14,7 +14,7 @@ description is in [self-hosting](../self-hosting.md#loopback-trust-owner-or-serv
   `OMB_LOOPBACK_TRUST=owner|service` overrides (anything else means
   `service`); the desktop app always keeps `owner` behind its per-launch
   capability. Under `service` a session-less loopback request may use only
-  `SERVICE_ALLOW` (`server/request-auth.ts`): health, who-am-I, edition,
+  `SERVICE_ALLOW` (`desktop/server/request-auth.ts`): health, who-am-I, edition,
   brand, the bot list, thread messages, attachments, new threads, the guarded
   send, the exact request fence and its stop, withdrawing a queued line,
   `POST /api/threads/:id/respond` (decline only), and the bots' capability
@@ -61,17 +61,17 @@ description is in [self-hosting](../self-hosting.md#loopback-trust-owner-or-serv
 ## Driving it
 
 ```sh
-pnpm exec vitest run server/request-auth.test.ts server/decision-log.test.ts \
-  server/card-answerers.e2e.test.ts server/cli-service-trust.e2e.test.ts \
-  server/hosted-access.test.ts server/decision-log-wiring.test.ts server/hosted-models-api.test.ts \
-  src/components/PeopleSection.test.ts src/components/ServerPairingCard.test.ts src/lib/session.test.ts
+pnpm exec vitest run desktop/server/request-auth.test.ts desktop/server/decision-log.test.ts \
+  desktop/server/card-answerers.e2e.test.ts desktop/server/cli-service-trust.e2e.test.ts \
+  desktop/server/hosted-access.test.ts desktop/server/decision-log-wiring.test.ts desktop/server/hosted-models-api.test.ts \
+  desktop/src/components/PeopleSection.test.ts desktop/src/components/ServerPairingCard.test.ts desktop/src/lib/session.test.ts
 ```
 
-- `server/request-auth.test.ts` runs the worker's calls and a list of admin
+- `desktop/server/request-auth.test.ts` runs the worker's calls and a list of admin
   calls through the resolver under each trust level, sessions under
   `service`, the desktop capability overriding `service`, the serving CLI's
   secret opening the pairing route and nothing else, and the start-up choice.
-- `server/hosted-access.test.ts` ("treats a session-less local caller as a
+- `desktop/server/hosted-access.test.ts` ("treats a session-less local caller as a
   service by default") boots a portal-membership workspace with shared Full
   access and no override: the start-up log line, the worker's whole path over
   loopback (health, bot list, a Full-access thread, a guarded send, its
@@ -80,7 +80,7 @@ pnpm exec vitest run server/request-auth.test.ts server/decision-log.test.ts \
   with nothing changed afterwards; then an admin portal session saves the
   retention window and reads `membership`. The other cases in that file keep
   `OMB_LOOPBACK_TRUST=owner` because they set fixtures up over loopback.
-- `server/card-answerers.e2e.test.ts` boots a server with one admin and two
+- `desktop/server/card-answerers.e2e.test.ts` boots a server with one admin and two
   members on the sign-in list and the fake ACP engine asking permission every
   turn: another member is refused on both respond routes, the requester
   approves, the thread's opener declines someone else's request, a thread a
@@ -91,7 +91,7 @@ pnpm exec vitest run server/request-auth.test.ts server/decision-log.test.ts \
   cannot approve (or use the bot-scoped route or always-allow) but can
   decline, while a Slack-shaped guarded request stays answerable by any
   member. Each answer's decision row and card name who answered.
-- `server/cli-service-trust.e2e.test.ts` runs the real `hezuo serve`
+- `desktop/server/cli-service-trust.e2e.test.ts` runs the real `hezuo serve`
   with `OMB_LOOPBACK_TRUST=service`: it prints a pairing code and keeps
   running, the pairing route refuses every other local caller, and later
   `pair` and `sessions` commands exit with the explanation.
@@ -114,11 +114,11 @@ pnpm exec vitest run server/request-auth.test.ts server/decision-log.test.ts \
 
 On a disposable worktree rebased onto Hezuo main `0bb37982`:
 `pnpm typecheck`, `pnpm lint`, `pnpm i18n:check`, `pnpm test:packaged-server`,
-and the files above plus `server/index.test.ts`,
-`server/chat-followups-restart.test.ts`, `server/steer-e2e.test.ts`,
-`server/routines-startup.test.ts`, `server/enterprise.test.ts`,
-`server/store.test.ts`, `server/cli-lifecycle.test.ts`,
-`server/cli-pair.test.ts`, `server/cli.test.ts` and
+and the files above plus `desktop/server/index.test.ts`,
+`desktop/server/chat-followups-restart.test.ts`, `desktop/server/steer-e2e.test.ts`,
+`desktop/server/routines-startup.test.ts`, `desktop/server/enterprise.test.ts`,
+`desktop/server/store.test.ts`, `desktop/server/cli-lifecycle.test.ts`,
+`desktop/server/cli-pair.test.ts`, `desktop/server/cli.test.ts` and
 `scripts/testing/verification-docs.test.ts` passed on macOS. Mutation checks,
 each restored afterwards, turned a named test red: the resolver ignoring
 `service`; a hosted workspace defaulting to `owner`; the server gate not

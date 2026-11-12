@@ -50,16 +50,16 @@ it would recognize that way is always listed and answers "call it directly".
 The switch is necessary, not sufficient. A call made through `use_tool`
 reaches Hezuo and the engine under the name `use_tool`, so a turn is
 bridged only where nothing decides by a tool's own name. The decision is one
-function, `agentsToolBridgeRefusal` in `server/agents-bridge-switch.ts`, and
+function, `agentsToolBridgeRefusal` in `desktop/server/agents-bridge-switch.ts`, and
 its default is no bridge.
 
 **Bots.** A bot with a [tool selection](tool-selection.md) is never bridged.
 Its selection is matched against the name in the call, so it keeps the whole
 catalog, as before. This holds even if the selection is saved while a turn is
 being set up: wherever a selection is mounted in front of the agents tools,
-they are started unbridged (`server/mcp-gate-config.ts`,
-`server/drivers/chat-mcp-tools.ts`), and the gate judges a `use_tool` call by
-the tool it names as well (`server/mcp-gate.ts`).
+they are started unbridged (`desktop/server/mcp-gate-config.ts`,
+`desktop/server/drivers/chat-mcp-tools.ts`), and the gate judges a `use_tool` call by
+the tool it names as well (`desktop/server/mcp-gate.ts`).
 
 **Engines.** Only engines on which Hezuo pre-approves all of its own
 tools, so that no approval is ever asked for, remembered or refused by one
@@ -68,10 +68,10 @@ name can be read by Hezuo too:
 
 | Engine | Bridged | Why |
 |---|---|---|
-| Claude Code | Yes, with the exceptions below | The agents server is pre-allowed as a whole (`--allowedTools mcp__agents`, `server/drivers/claude.ts:1673`), and the settings the CLI reads for the turn are checked. |
-| API models: OpenAI-compatible, Cerebras, Greenference, Grok API, Groq, Meta, MiniMax, Mistral | Yes | The chat runtime never asks for the agents server (`server/drivers/chat-mcp-tools.ts:371`) and reads no configuration of the person's about a tool. |
+| Claude Code | Yes, with the exceptions below | The agents server is pre-allowed as a whole (`--allowedTools mcp__agents`, `desktop/server/drivers/claude.ts:1673`), and the settings the CLI reads for the turn are checked. |
+| API models: OpenAI-compatible, Cerebras, Greenference, Grok API, Groq, Meta, MiniMax, Mistral | Yes | The chat runtime never asks for the agents server (`desktop/server/drivers/chat-mcp-tools.ts:371`) and reads no configuration of the person's about a tool. |
 | Codex, including the ChatGPT plan | No | Codex reads a layered configuration of its own: `config.toml` under `CODEX_HOME` or `~/.codex`, a Company engine's own home under Hezuo's data, a trusted project's `.codex/config.toml`, `/etc/codex/config.toml` and `/etc/codex/managed_config.toml`; and it has `PreToolUse` and `PermissionRequest` hooks of its own. Any of these can take a rule about a tool by name, and this version does not examine them. |
-| Pi | No | pi is launched with `-e` for Hezuo's extension and nothing that keeps the person's own extensions out (`server/drivers/pi.ts`, `PI_ARGS`), in the person's home. Pi loads the extensions it finds there, and an extension's `tool_call` handler can block a call by the name it sees, as Hezuo's own does (`server/drivers/pi-mcp-extension.ts`). This version does not examine them. |
+| Pi | No | pi is launched with `-e` for Hezuo's extension and nothing that keeps the person's own extensions out (`desktop/server/drivers/pi.ts`, `PI_ARGS`), in the person's home. Pi loads the extensions it finds there, and an extension's `tool_call` handler can block a call by the name it sees, as Hezuo's own does (`desktop/server/drivers/pi-mcp-extension.ts`). This version does not examine them. |
 | ACP agents: Grok, Kimi, Droid, Cursor, Antigravity, OpenCode, Qwen, Hermes, Cline, Gemini, custom | No | They keep their own permissions. "Always allow this session" hands the agent its own remembered approval ([approval levels](approval-levels.md)); given once for a harmless `use_tool` call it would cover every hidden tool. A reviewer would also lose the read-only marks the hidden reads carry, and Grok has native tools named `use_tool` and `search_tool`. |
 | Muse Code, and any engine not named above | No | Not shown to qualify. |
 
@@ -87,7 +87,7 @@ Claude Code is not bridged when any of these holds:
   (`OMB_CLAUDE_INHERIT_USER_CONFIG=1`, or **Also use my Claude Code MCP
   servers**).
 - An entry of the engine's `tools` or `disallowedTools`, which go to the CLI as
-  written (`server/drivers/claude.ts:1580-1583`), names the agents server or
+  written (`desktop/server/drivers/claude.ts:1580-1583`), names the agents server or
   has a wildcard in a tool's name.
 - A Claude settings file the CLI will read for the turn names the agents
   server, in its raw text or in any string value or key of what it parses to
@@ -130,7 +130,7 @@ CLI splits a tool list: `Bash(git *)` and `Read(./src/**)` have none,
 configuration text.
 
 The files read are the ones the CLI reads. A bot's turn is launched with
-`--setting-sources project` (`server/drivers/claude.ts:1620`), so that is
+`--setting-sources project` (`desktop/server/drivers/claude.ts:1620`), so that is
 `.claude/settings.json` and `.claude/settings.local.json` in the folder the
 turn runs in (the person's home folder when the turn has none of its own).
 The machine's managed policy always applies:
@@ -195,11 +195,11 @@ names instead.
 ## Checking a change
 
 ```sh
-pnpm exec vitest run server/drivers/agents-bridge.test.ts server/drivers/agents-bridge-wire.test.ts server/drivers/agents-bridge-chat.test.ts server/drivers/agents-proxy.test.ts server/agents-bridge-switch.test.ts server/agents-bridge-names.test.ts server/agents-bridge-gates.test.ts server/agents-bridge.e2e.test.ts
+pnpm exec vitest run desktop/server/drivers/agents-bridge.test.ts desktop/server/drivers/agents-bridge-wire.test.ts desktop/server/drivers/agents-bridge-chat.test.ts desktop/server/drivers/agents-proxy.test.ts desktop/server/agents-bridge-switch.test.ts desktop/server/agents-bridge-names.test.ts desktop/server/agents-bridge-gates.test.ts desktop/server/agents-bridge.e2e.test.ts
 ```
 
 The bridged list is pinned byte for byte, like the catalog itself. After any
-change to a catalog tool, run `server/drivers/agents-catalog-wire.test.ts` and
-`server/drivers/agents-bridge-wire.test.ts` once with
+change to a catalog tool, run `desktop/server/drivers/agents-catalog-wire.test.ts` and
+`desktop/server/drivers/agents-bridge-wire.test.ts` once with
 `UPDATE_AGENTS_CATALOG_GOLDENS=1`, review the golden diff, and move each file's
 `BUDGET_BASELINE` by hand.

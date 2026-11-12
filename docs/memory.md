@@ -70,7 +70,7 @@ can only go red when the lines that never move fill the budget by themselves
 saved, and the bot asks you to trim `MEMORY.md`.
 
 Both limits are `MEMORY_MAX_LINES` and `MEMORY_MAX_BYTES` in
-`server/workspace.ts`; the panel, the loader, and the bot's prompt all read the
+`desktop/server/workspace.ts`; the panel, the loader, and the bot's prompt all read the
 same two constants.
 
 Two more things load with it:
@@ -304,7 +304,7 @@ app") is `memory_update` with `action: "prefer"` and the preference as one line
 of at most 300 characters. It goes once into the About me of the person whose
 own words began the work, as a learned line, and every bot reads it there, so
 no bot has to be told it and nothing fans out to each bot
-(`server/host/person-preference.ts`). On a Team Cloud that is the person the
+(`desktop/server/host/person-preference.ts`). On a Team Cloud that is the person the
 turn acts for: their own chat, a group chat line of theirs, or work handed on
 from it, and nobody's once another person's words joined. Elsewhere it is the
 one person, when their own message began the work. A routine, a webhook, an

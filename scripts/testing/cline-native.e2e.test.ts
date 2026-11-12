@@ -6,11 +6,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
-import { ClineAgentDriver } from "../../server/drivers/acp/cline.ts";
-import { execCli } from "../../server/procs.ts";
-import { recordEvents } from "../../server/testing/events.ts";
-import { removeTempDir } from "../../server/testing/cleanup.ts";
-import type { ProviderInstance } from "../../server/contracts.ts";
+import { ClineAgentDriver } from "../../desktop/server/drivers/acp/cline.ts";
+import { execCli } from "../../desktop/server/procs.ts";
+import { recordEvents } from "../../desktop/server/testing/events.ts";
+import { removeTempDir } from "../../desktop/server/testing/cleanup.ts";
+import type { ProviderInstance } from "../../desktop/server/contracts.ts";
 
 const cli = process.env.OMB_CLINE_NATIVE_PATH;
 (cli ? it : it.skip)("runs the native Cline CLI with its saved custom model and provider", async () => {
@@ -58,7 +58,7 @@ const cli = process.env.OMB_CLINE_NATIVE_PATH;
     const { turnId } = await instance.adapter.sendTurn({ threadId: "native-fixture", cwd: home,
       text: "Read the fixture notes, then say Native Cline fixture completed.", model: "cline-default", approvalMode: "ask",
       integrations: { custom: { fixture: { command: process.execPath,
-        args: ["--experimental-strip-types", fileURLToPath(new URL("../../server/testing/fake-mcp-server.ts", import.meta.url))], env: { FAKE_MCP_CALL_FILE: callFile } } } } });
+        args: ["--experimental-strip-types", fileURLToPath(new URL("../../desktop/server/testing/fake-mcp-server.ts", import.meta.url))], env: { FAKE_MCP_CALL_FILE: callFile } } } } });
     expect(await recorder.until((event) => event.type === "turn.completed" && event.turnId === turnId, 40_000)).toMatchObject({ ok: true });
     expect(recorder.events.some((event) => event.type === "content.delta" && event.delta.includes("Native Cline fixture completed"))).toBe(true);
     expect(requests).toHaveLength(2);

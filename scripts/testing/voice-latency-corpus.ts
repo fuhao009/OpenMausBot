@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { toUtterances } from "../../server/tts/speech-text.ts";
+import { toUtterances } from "../../desktop/server/tts/speech-text.ts";
 
 export const CORPUS_VERSION = 1;
 export const GAP_THRESHOLD_MS = 200;
@@ -375,7 +375,7 @@ function main(): void {
     corpusFixtureId: corpusSha,
     corpusPath: "scripts/testing/fixtures/voice-latency/corpus.json",
     generator: "scripts/testing/voice-latency-corpus.ts",
-    splitter: { entry: "server/tts/speech-text.ts#toUtterances", minChars: 12, maxChars: 320 },
+    splitter: { entry: "desktop/server/tts/speech-text.ts#toUtterances", minChars: 12, maxChars: 320 },
     cadence: CADENCE,
     gapThresholdMs: GAP_THRESHOLD_MS,
     synthesis: SYNTHESIS,

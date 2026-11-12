@@ -1,8 +1,8 @@
 # Custom ACP model and thinking choices
 
 ```sh
-pnpm exec vitest run server/custom-acp-models.e2e.test.ts
-pnpm exec vitest run src/components/CustomAcpModelPicker.test.ts src/components/ModelPicker.test.ts src/components/ModelPicker.interaction.test.ts src/components/ModelPicker.simple.test.ts
+pnpm exec vitest run desktop/server/custom-acp-models.e2e.test.ts
+pnpm exec vitest run desktop/src/components/CustomAcpModelPicker.test.ts desktop/src/components/ModelPicker.test.ts desktop/src/components/ModelPicker.interaction.test.ts desktop/src/components/ModelPicker.simple.test.ts
 ```
 
 The end-to-end test uses `launchVerificationServer` from the shared control

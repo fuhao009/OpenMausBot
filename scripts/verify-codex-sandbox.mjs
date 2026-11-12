@@ -9,9 +9,9 @@ const root = mkdtempSync(join(tmpdir(), "omb-native-sandbox-"));
 process.env.OMB_DATA_DIR = join(root, "omb");
 mkdirSync(join(root, "omb", "native"), { recursive: true });
 console.log(`Evidence: ${root}`);
-const { CodexDriver } = await import("../server/drivers/codex.ts");
-const { recordEvents } = await import("../server/testing/events.ts");
-const { flushNativeLogs } = await import("../server/drivers/native.ts");
+const { CodexDriver } = await import("../desktop/server/drivers/codex.ts");
+const { recordEvents } = await import("../desktop/server/testing/events.ts");
+const { flushNativeLogs } = await import("../desktop/server/drivers/native.ts");
 const captures = [];
 const server = createServer(async (req, res) => {
   if (req.method !== "POST") {

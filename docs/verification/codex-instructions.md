@@ -49,7 +49,7 @@ permission profiles and older-server fallback.
 ## Checks
 
 ```sh
-pnpm exec vitest run server/drivers/codex.test.ts server/drivers/codex-instructions.test.ts
+pnpm exec vitest run desktop/server/drivers/codex.test.ts desktop/server/drivers/codex-instructions.test.ts
 pnpm typecheck
 pnpm test
 node --experimental-strip-types scripts/verify-codex-instructions.mjs

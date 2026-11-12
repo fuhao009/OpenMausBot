@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { LocalComputerSection } from "../../src/components/LocalComputerSection";
-import { ComputerPanel } from "../../src/components/ComputerPanel";
-import { BotSettingsDialog } from "../../src/components/BotSettingsDialog";
-import { RemoteDesktopPanel } from "../../src/components/remote-desktop-panel";
-import { StoreProvider, useStore, type Bot } from "../../src/state/store";
-import { rememberComputerPanelOpen } from "../../src/lib/computer-panel-focus";
-import { applySkin, readSkin } from "../../src/lib/skins";
-import { publishLiveFrame } from "../../src/lib/live-events";
-import { CLOUD_COMPUTER_BUSY_ERROR } from "../../shared/computer-contention";
-import "../../src/styles.css";
+import { LocalComputerSection } from "../../desktop/src/components/LocalComputerSection";
+import { ComputerPanel } from "../../desktop/src/components/ComputerPanel";
+import { BotSettingsDialog } from "../../desktop/src/components/BotSettingsDialog";
+import { RemoteDesktopPanel } from "../../desktop/src/components/remote-desktop-panel";
+import { StoreProvider, useStore, type Bot } from "../../desktop/src/state/store";
+import { rememberComputerPanelOpen } from "../../desktop/src/lib/computer-panel-focus";
+import { applySkin, readSkin } from "../../desktop/src/lib/skins";
+import { publishLiveFrame } from "../../desktop/src/lib/live-events";
+import { CLOUD_COMPUTER_BUSY_ERROR } from "../../packages/shared/computer-contention";
+import "../../desktop/src/styles.css";
 
 function frame(label: string, color: string) {
   const canvas = document.createElement("canvas");

@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { removeTempDir, waitForExit } from "../../server/testing/cleanup.ts";
-import { freePortBlock } from "../../server/testing/ports.ts";
+import { removeTempDir, waitForExit } from "../../desktop/server/testing/cleanup.ts";
+import { freePortBlock } from "../../desktop/server/testing/ports.ts";
 import type { Scenario, Step } from "../types.ts";
 import { buildScriptedPlan } from "../providers/mock/scripted-plan.ts";
 import { BaseWorld, type WorldContext } from "./base-world.ts";
@@ -41,13 +41,13 @@ export class LocalVmWorld extends BaseWorld {
       instances: {
         claude: {
           driver: "claudeAgent",
-          config: { cli: join(ROOT, "server", "testing", "fake-claude-cli.ts") },
+          config: { cli: join(ROOT, "desktop", "server", "testing", "fake-claude-cli.ts") },
           environment: { FAKE_CLAUDE_ROOM_PLAN: this.planPath, FAKE_CLAUDE_DUMP: this.dumpFile },
         },
       },
     }));
     const port = await freePortBlock([0, 1]);
-    const hooks = pathToFileURL(join(ROOT, "server", "testing", "group-local-vm-hooks.mjs")).href;
+    const hooks = pathToFileURL(join(ROOT, "desktop", "server", "testing", "group-local-vm-hooks.mjs")).href;
     const env: NodeJS.ProcessEnv = {
       PATH: dirname(process.execPath),
       HOME: this.fixtureHome,
@@ -64,7 +64,7 @@ export class LocalVmWorld extends BaseWorld {
       OMB_TEST_VM_STATE: this.stateFile,
       ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
     };
-    const child = this.child = spawn(process.execPath, ["--import", hooks, join(ROOT, "server", "index.ts")], {
+    const child = this.child = spawn(process.execPath, ["--import", hooks, join(ROOT, "desktop", "server", "index.ts")], {
       cwd: ROOT,
       env,
       stdio: ["ignore", "pipe", "pipe"],

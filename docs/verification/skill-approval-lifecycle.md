@@ -31,8 +31,8 @@ data are cleaned up after the run; the evidence remains.
 ## Ordering regressions
 
 ```sh
-pnpm exec vitest run src/state/store.test.ts src/components/ChatView.controls.test.ts src/components/ApprovalCard.test.ts server/skills.test.ts server/independent-task-store.test.ts
-pnpm exec vitest run server/index.test.ts -t 'only enables the exact learned-skill'
+pnpm exec vitest run desktop/src/state/store.test.ts desktop/src/components/ChatView.controls.test.ts desktop/src/components/ApprovalCard.test.ts desktop/server/skills.test.ts desktop/server/independent-task-store.test.ts
+pnpm exec vitest run desktop/server/index.test.ts -t 'only enables the exact learned-skill'
 pnpm typecheck
 pnpm lint
 ```
@@ -47,6 +47,6 @@ composer until its replacement arrives, full-snapshot-first ordering, replay
 of intervening events, rejection of old buffered approval patches, and no
 rollback from duplicate responses or navigation to another thread.
 
-This proves the reported lifecycle with real server/renderer state and a
+This proves the reported lifecycle with real desktop/server/renderer state and a
 synthetic skill. It does not prove provider-specific tool behavior or recover
 a bot that the user has already deleted.

@@ -275,7 +275,7 @@ pnpm install
 
 # choose where data lives and start the server
 OMB_DATA_DIR="$HOME/.hezuo" OMB_PORT=8799 \
-  node --experimental-strip-types server/index.ts
+  node --experimental-strip-types desktop/server/index.ts
 ```
 
 For something durable, let the CLI write the service for you:
@@ -872,7 +872,7 @@ on port 8810, so do not expose it from a public server. It ships only in a
 git checkout: neither the npm package nor the Docker image contains it.
 
 ```sh
-node --experimental-strip-types companion/src/index.ts
+node --experimental-strip-types desktop/companion/src/index.ts
 ```
 
 ## Usage and costs
@@ -1125,7 +1125,7 @@ The figure is every cost in the usage ledger. Claude reports its own cost
 (real on your keys, an equivalent on personal subscriptions). Codex, the
 OpenAI-compatible/OpenRouter engine, Grok, MiniMax and the ACP engines report
 tokens but no price, so the server books an **estimate** from a built-in list
-of vendor list prices (`server/model-prices.ts`, each entry with its source
+of vendor list prices (`desktop/server/model-prices.ts`, each entry with its source
 and the date it was read) and marks the row `costSource: "estimated"`. A model
 that is not in the list is unpriced and not counted; Usage says how many
 turns that was. Estimates use each vendor's standard short-context rate, so
@@ -1179,7 +1179,7 @@ bot, thread and token (replace the port with your server's actual address):
 ```sh
 OMB_HARNESS_URL=http://127.0.0.1:8799 OMB_BOT_ID=$BOT_ID OMB_THREAD_ID=$THREAD_ID \
   OMB_COMMS_TOKEN=$TOKEN OMB_EXTERNAL_RUNTIME=1 \
-  node --experimental-strip-types server/drivers/agents-proxy.ts
+  node --experimental-strip-types desktop/server/drivers/agents-proxy.ts
 ```
 
 Scope is deliberately narrow: the token is an *agents* capability for that

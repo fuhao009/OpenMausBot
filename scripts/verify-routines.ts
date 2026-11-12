@@ -6,7 +6,7 @@ import { createInterface } from "node:readline";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { launchVerificationServer, runControlOmb } from "./control-omb.ts";
 import { fixtureApi, mountPreview, parkUntilSignal, type MountedPreview } from "./testing/preview-fixture.ts";
-import { waitForExit } from "../server/testing/cleanup.ts";
+import { waitForExit } from "../desktop/server/testing/cleanup.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const fixture = await launchVerificationServer();
@@ -41,13 +41,13 @@ try {
     'const bot = at < 0 ? null : JSON.parse(readFileSync(process.argv[at + 1], "utf8")).mcpServers?.agents?.env?.OMB_BOT_ID;',
     `process.env.FAKE_CLAUDE_MODE = bot === ${JSON.stringify(miso.id)} ? "exit-early" : existsSync(${JSON.stringify(gate)}) ? "happy" : "slow";`,
     `process.env.FAKE_CLAUDE_SLOW_FINISH_GATE = ${JSON.stringify(gate)};`,
-    `await import(${JSON.stringify(pathToFileURL(join(root, "server/testing/fake-claude-cli.ts")).href)});`,
+    `await import(${JSON.stringify(pathToFileURL(join(root, "desktop/server/testing/fake-claude-cli.ts")).href)});`,
   ].join("\n"), { mode: 0o700 });
   await api("PATCH", "/api/instances/claude", { cli: wrapper });
   await control(["send", "--bot", pepper.id, "--text", "Please schedule a recurring inbox check."]);
   await until(() => existsSync(fixture.fixtureDumpPath));
   const captured = JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8")).mcpConfig.mcpServers.agents;
-  const proxy = spawn(process.execPath, ["--experimental-strip-types", join(root, "server/drivers/agents-proxy.ts")], {
+  const proxy = spawn(process.execPath, ["--experimental-strip-types", join(root, "desktop/server/drivers/agents-proxy.ts")], {
     env: { HOME: fixture.info.dataDir, USERPROFILE: fixture.info.dataDir, PATH: dirname(process.execPath), ...captured.env },
     stdio: ["pipe", "pipe", "pipe"],
   });

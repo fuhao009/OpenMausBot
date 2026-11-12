@@ -6,7 +6,7 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { runControlOmb } from "./control-omb.ts";
-import { TOUR_STEPS } from "../src/lib/guided-tour.ts";
+import { TOUR_STEPS } from "../desktop/src/lib/guided-tour.ts";
 
 const handle = process.argv[2];
 if (!handle) throw new Error("Usage: node --experimental-strip-types scripts/verify-onboarding-ui.ts /path/to/fixture/ui.json");

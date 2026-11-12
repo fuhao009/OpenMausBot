@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { WelcomeFlow } from "../../src/components/onboarding/WelcomeFlow";
-import { SettingsModal } from "../../src/components/SettingsModal";
-import { DesktopCapabilitiesProvider } from "../../src/components/DesktopCapabilities";
-import { StoreProvider, useStore } from "../../src/state/store";
-import { applySkin } from "../../src/lib/skins";
-import "../../src/styles.css";
+import { WelcomeFlow } from "../../desktop/src/components/onboarding/WelcomeFlow";
+import { SettingsModal } from "../../desktop/src/components/SettingsModal";
+import { DesktopCapabilitiesProvider } from "../../desktop/src/components/DesktopCapabilities";
+import { StoreProvider, useStore } from "../../desktop/src/state/store";
+import { applySkin } from "../../desktop/src/lib/skins";
+import "../../desktop/src/styles.css";
 
 function Preview() {
   const { state, dispatch, refreshInstances } = useStore();

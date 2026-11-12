@@ -12,7 +12,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
 import { inflateSync } from "node:zlib";
-import { browserBundlePaths, browserBundleSpec } from "../server/browser-bundle-release.ts";
+import { browserBundlePaths, browserBundleSpec } from "../desktop/server/browser-bundle-release.ts";
 import { executableTarget } from "./prepare-cloudflared.mjs";
 import { WINDOWS_VENDOR_VERSION, verifyVendorCandidate, verifyVendorPatch } from "./build-windows-browser-vendor.mjs";
 
@@ -266,7 +266,7 @@ const interrupt = () => { for (const proc of children) proc.kill("SIGTERM"); };
 process.once("SIGINT", interrupt);
 process.once("SIGTERM", interrupt);
 try {
-  const { browserEngineStatus, agentBrowserIntegration, prepareBrowserSessionState, closeBrowserSession: closeSession } = await import("../server/browser-engine.ts");
+  const { browserEngineStatus, agentBrowserIntegration, prepareBrowserSessionState, closeBrowserSession: closeSession } = await import("../desktop/server/browser-engine.ts");
   closeBrowserSession = closeSession;
   const status = browserEngineStatus({ dataDir: env.OMB_DATA_DIR, env });
   assert.equal(status.kind, "ready", `Fresh-home runtime did not discover the bundle: ${JSON.stringify(status)}`);
@@ -290,8 +290,8 @@ try {
   const url = `http://127.0.0.1:${server.address().port}/`;
   // The bundled Chrome browses through the egress gate, as every bot browser does; desktop rules let it reach this
   // local page, like a dev server.
-  const { openGate } = await import("../server/browser/egress/gate.ts");
-  const { refusalFor } = await import("../server/browser/egress/policy.ts");
+  const { openGate } = await import("../desktop/server/browser/egress/gate.ts");
+  const { refusalFor } = await import("../desktop/server/browser/egress/policy.ts");
   const rules = { host: "desktop", ownPort: () => false, botPort: async () => false, localNetwork: true, allowed: () => false };
   gate = await openGate({ decide: (target, addresses) => refusalFor(target, addresses, rules) });
   for (const name of ["alpha", "beta"]) {
@@ -321,7 +321,7 @@ try {
   // The harness reads, sizes and pictures a bot's browser over the engine's own
   // loopback relay: page health, step evidence, preview frames and login typing.
   phase = "relay contract";
-  const { RelayPorts, relay } = await import("../server/browser-relay.ts");
+  const { RelayPorts, relay } = await import("../desktop/server/browser-relay.ts");
   const relayTarget = { session: alpha.integration.env.AGENT_BROWSER_SESSION, binaryPath: alpha.integration.command, env: { ...env, ...alpha.integration.env } };
   const relayPort = await new RelayPorts().port(relayTarget);
   assert(relayPort, "The engine wrote no .stream file naming its relay, or the relay did not name this session");

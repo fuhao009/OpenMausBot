@@ -97,7 +97,7 @@ kept.
 A delimiter cell, after trimming, matches `^:?-+:?$`. Alignment is `trailing`
 when the cell ends with `:` and does not start with one, `center` when it
 does both, and `leading` otherwise. One hyphen is enough, matching GFM and
-`DELIMITER_CELL` in `src/lib/markdown-tables.ts`. The old card required
+`DELIMITER_CELL` in `desktop/src/lib/markdown-tables.ts`. The old card required
 three hyphens; that stricter check goes away with the card. A short delimiter
 is padded and a long one is trimmed to the header width even when a cell
 contains `\|` or a code span. Desktop's repair skips those paragraphs because
@@ -150,7 +150,7 @@ A task row shows the ordered number, when it has one, as its own text
 use that format. The checkbox image and the words are one element, not a
 button, with children ignored. Its label is `completed` or `not completed`,
 then `, ` and the rendered inline text when that text is non-empty. The
-catalog keys live in `ios/App/Localizable.xcstrings`: English `completed` /
+catalog keys live in `mobile/ios/App/Localizable.xcstrings`: English `completed` /
 `not completed`, Brazilian Portuguese `concluído` / `não concluído`. The
 image is not a separate VoiceOver element, and no child label contains
 `[x]` or `[ ]`. The caret uses the same `tail` the bullet row already takes.
@@ -163,7 +163,7 @@ not grow a second splitter.
 Delete `parsedTable`, `tableCells`, `isTableSeparator`, and the
 `SQLResultTableView` branch in `TextBubble`. `customCard` stays true only
 for `parsedDiff`, so a diff is still the git card and a table is a normal
-bubble. Delete `ios/App/Cards/SQLResultTableView.swift`. Nothing else in the
+bubble. Delete `mobile/ios/App/Cards/SQLResultTableView.swift`. Nothing else in the
 iOS target references it.
 
 User messages still take the `mine` branch and `Text`, not `MarkdownText`.
@@ -215,15 +215,15 @@ still true.
 
 | What changes | Where | Kind | Response |
 |---|---|---|---|
-| `Markdown.blocks`, new `MarkdownTable` / `.table` / `.task` | `ios/Sources/CompanionCore/Markdown.swift` | Behavior of every bot bubble and Markdown preview | Implement here, including list-indent memory and the unconsumed table terminator. |
+| `Markdown.blocks`, new `MarkdownTable` / `.table` / `.task` | `mobile/ios/Sources/CompanionCore/Markdown.swift` | Behavior of every bot bubble and Markdown preview | Implement here, including list-indent memory and the unconsumed table terminator. |
 | Exhaustive switches | `MarkdownText.view(for:tail:)`, `MarkdownTests.text` | Compile break if a case is missing | Add both cases. The task case passes `tail`. |
-| `TextBubble.parsedTable`, `tableCells`, `isTableSeparator` | `ios/App/ChatView.swift` | Whole-message tables change from the SQL card to a bubble table | Delete them. Diff card stays. Pass `message-<id>-scroll` into `MarkdownText`. |
-| `MessageRow` | `ios/App/ChatView.swift` | Preview queries need a container | `accessibilityElement(children: .contain)` and identifier `message-<id>`. Children stay separate. Copy and Select Text stay on `attachedContent.text`. |
-| `SQLResultTableView` | `ios/App/Cards/SQLResultTableView.swift` | Dead after the branch goes | Delete the file. The `Copy CSV` catalog entry may remain unused. |
-| Task words | `ios/App/Localizable.xcstrings` | New strings | English `completed` / `not completed`. Portuguese `concluído` / `não concluído`. |
+| `TextBubble.parsedTable`, `tableCells`, `isTableSeparator` | `mobile/ios/App/ChatView.swift` | Whole-message tables change from the SQL card to a bubble table | Delete them. Diff card stays. Pass `message-<id>-scroll` into `MarkdownText`. |
+| `MessageRow` | `mobile/ios/App/ChatView.swift` | Preview queries need a container | `accessibilityElement(children: .contain)` and identifier `message-<id>`. Children stay separate. Copy and Select Text stay on `attachedContent.text`. |
+| `SQLResultTableView` | `mobile/ios/App/Cards/SQLResultTableView.swift` | Dead after the branch goes | Delete the file. The `Copy CSV` catalog entry may remain unused. |
+| Task words | `mobile/ios/App/Localizable.xcstrings` | New strings | English `completed` / `not completed`. Portuguese `concluído` / `não concluído`. |
 | `MarkdownText` callers | `StreamingBubble`, `FilePreviewView` | They show tables through the same view | Pass no scroll identifier. No second splitter. |
 | `Walkie.speakable` | `Walkie.swift`, read by `WalkieView` and `WalkieController` | Spoken tables and tasks | Speak `Markdown.blocks`. Do not change the length caps. |
-| Preview fixture | `ios/App/ThreadPreview.json` only | UI fixture | Parent chain in the requirements. Do not edit `ImagePreview.json` or `ThreadPreviewPages.json`. |
+| Preview fixture | `mobile/ios/App/ThreadPreview.json` only | UI fixture | Parent chain in the requirements. Do not edit `ImagePreview.json` or `ThreadPreviewPages.json`. |
 | UI assertions | `ThreadNavigationUITests` | CI already runs this class | Add the acceptance 14 checks here, not in a new class. |
 | Android comments | `Transcript.kt`, `TranscriptTest.kt`, `ExecutionFeedbackTest.kt`, `TableReadingOrderTest.kt`, `TranscriptCardViews.kt` | Comments will name a deleted file | Describe Android's own card and point at #1707. No Kotlin behavior change. Do not edit `Markdown.kt`. |
 
@@ -231,11 +231,11 @@ Not affected:
 
 - User-message `Text` in `TextBubble`. It never calls `Markdown.blocks`. The new identifier still wraps that row.
 - `parsedDiff` / `GitPRDiffCardView`. A message that is only a diff still takes that card.
-- Desktop `src/lib/markdown-tables.ts` and `ChatMarkdown.tsx`. No shared code.
-- Server, sidecar, and fixtures under `ios/Tests/CompanionCoreTests/Fixtures`. The wire payload does not change.
+- Desktop `desktop/src/lib/markdown-tables.ts` and `ChatMarkdown.tsx`. No shared code.
+- Server, sidecar, and fixtures under `mobile/ios/Tests/CompanionCoreTests/Fixtures`. The wire payload does not change.
 - Widgets and roster previews. They show a short plain line.
 - Message search snippets and the held-send preview. They stay raw source.
-- `android/.../Markdown.kt`. It does not cite the deleted Swift file.
+- `mobile/android/.../Markdown.kt`. It does not cite the deleted Swift file.
 
 The means check: `Markdown.blocks` is consumed by `MarkdownText` and by `Walkie.speakable`. The scroll identifier is consumed only by the first table inside `MarkdownText`. The message identifier is consumed by the preview UI test.
 
@@ -288,7 +288,7 @@ the CI iPad destination as well as the phone.
 
 ## Verification
 
-From `ios/`:
+From `mobile/ios/`:
 
 ```sh
 swift test

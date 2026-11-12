@@ -8,23 +8,23 @@ MCP and OAuth endpoints; Postiz is AGPL-3.0 and none of its code is copied.
 
 - **Sign in with Postiz** (the default) uses Postiz Cloud's
   `/mcp-oauth-dynamic` endpoint with dynamic client registration and PKCE,
-  through the existing MCP sign-in (`server/mcp-oauth.ts`): the loopback
+  through the existing MCP sign-in (`desktop/server/mcp-oauth.ts`): the loopback
   callback on the desktop, the Cloud's own https address on a Cloud.
 - **Use an API key instead** sends the organisation key as a bearer token to
   `<address>/mcp`, Postiz Cloud unless the person enters their own Postiz
   server. The key is checked (MCP `initialize` and `tools/list`) before it is
   saved, saved like other app keys (the desktop's encrypted store, the server's
   config on a Cloud), and sent only to the entry at the address it was saved
-  for (`server/postiz/connection.ts`).
+  for (`desktop/server/postiz/connection.ts`).
 
 ## Isolated checks
 
 ```sh
-pnpm exec vitest run server/postiz.e2e.test.ts server/postiz/service.test.ts server/postiz/connection.test.ts src/components/PostizCard.test.ts src/components/PluginsPanel.navigation.test.ts src/lib/app-catalog.test.ts src/lib/ready-bots.test.ts
+pnpm exec vitest run desktop/server/postiz.e2e.test.ts desktop/server/postiz/service.test.ts desktop/server/postiz/connection.test.ts desktop/src/components/PostizCard.test.ts desktop/src/components/PluginsPanel.navigation.test.ts desktop/src/lib/app-catalog.test.ts desktop/src/lib/ready-bots.test.ts
 ```
 
-`server/postiz.e2e.test.ts` runs a disposable fake-engine server beside two
-stand-in Postiz backends (`server/testing/fake-postiz.ts`, Postiz Cloud and a
+`desktop/server/postiz.e2e.test.ts` runs a disposable fake-engine server beside two
+stand-in Postiz backends (`desktop/server/testing/fake-postiz.ts`, Postiz Cloud and a
 person's own Postiz) and proves, for both ways of connecting:
 
 - the sign-in registers a client, follows Postiz's consent back to the loopback

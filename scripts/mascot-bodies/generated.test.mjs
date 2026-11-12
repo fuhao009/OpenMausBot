@@ -8,7 +8,7 @@ import { maskFromPolylines } from "./raster.ts";
 import { applyFit, boundsOf, fitTransform, flatten } from "./geometry.ts";
 import { fieldFromMask } from "./sdf.ts";
 import { buildClouds, report } from "./solve.ts";
-import { MASCOT_BODIES, MASCOT_BODY_IDS } from "../../shared/mascot-bodies.ts";
+import { MASCOT_BODIES, MASCOT_BODY_IDS } from "../../packages/shared/mascot-bodies.ts";
 
 // fileURLToPath, not `.pathname`: on Windows the latter yields "/C:/…" with a
 // leading slash, which is not a usable cwd — spawnSync then fails ENOENT.
@@ -16,7 +16,7 @@ const root = fileURLToPath(new URL("../../", import.meta.url));
 
 // Guards the TypeScript catalog the desktop and web apps use. The generator writes
 // the native catalogs only when given their paths (`--swift`, `--kotlin`).
-const TS_PATH = "../../shared/mascot-bodies.ts";
+const TS_PATH = "../../packages/shared/mascot-bodies.ts";
 
 // Normalised to LF: a clone whose git config disagrees with .gitattributes must
 // fail over generated content, not line endings.
@@ -57,7 +57,7 @@ describe("generated catalogs", () => {
       throw new Error(
         `Running \`pnpm gen:bodies\` failed while checking the catalogs for drift. ` +
           `The working tree may now hold a partially-written or reverted file — run ` +
-          `\`git status\` / \`git diff -- shared/mascot-bodies.ts\` ` +
+          `\`git status\` / \`git diff -- packages/shared/mascot-bodies.ts\` ` +
           `before trusting either file. Original error:\n${err.stderr?.toString() ?? err.message}`
       );
     }
@@ -71,7 +71,7 @@ describe("generated catalogs", () => {
     write(TS_PATH, before.ts);
 
     const drifts = [
-      describeDrift("shared/mascot-bodies.ts", before.ts, after.ts),
+      describeDrift("packages/shared/mascot-bodies.ts", before.ts, after.ts),
     ].filter(Boolean);
 
     if (drifts.length > 0) {

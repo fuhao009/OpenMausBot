@@ -10,7 +10,7 @@ Each instance shows its driver's mark. An OpenAI-compatible server shows the
 mark of whoever runs it, read from the host in its address: `api.deepseek.com`
 shows DeepSeek, `<resource>.openai.azure.com` Microsoft Azure,
 `dashscope-intl.aliyuncs.com` Qwen, `openrouter.ai` OpenRouter, and so on
-(the list is `SERVER_HOSTS` in `server/provider-icon.ts`). A server without a
+(the list is `SERVER_HOSTS` in `desktop/server/provider-icon.ts`). A server without a
 mark of its own, such as Groq, Together, Ollama or LM Studio, keeps the default.
 
 An icon stored on the instance still wins: add

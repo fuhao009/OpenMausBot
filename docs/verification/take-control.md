@@ -3,8 +3,8 @@
 Run the focused checks in disposable homes:
 
 ```sh
-pnpm exec vitest run src/components/ComputerPanel.takeover.test.ts src/components/computer-takeover.test.ts src/components/ComputerPanel.simple.test.ts
-pnpm exec vitest run server/computer-take-control.e2e.test.ts server/boat-desktop-link.test.ts server/container-computer.test.ts server/vps-computer.test.ts server/routes/desktop-viewer.test.ts
+pnpm exec vitest run desktop/src/components/ComputerPanel.takeover.test.ts desktop/src/components/computer-takeover.test.ts desktop/src/components/ComputerPanel.simple.test.ts
+pnpm exec vitest run desktop/server/computer-take-control.e2e.test.ts desktop/server/boat-desktop-link.test.ts desktop/server/container-computer.test.ts desktop/server/vps-computer.test.ts desktop/server/routes/desktop-viewer.test.ts
 ```
 
 The panel checks mount the real `ComputerPanel` with its real control requests;

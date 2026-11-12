@@ -7,7 +7,7 @@ code checks it on a timer, and no model runs until it fires. See the
 ## Automated checks
 
 ```sh
-pnpm exec vitest run server/wait-probes.test.ts server/waits.test.ts server/wait-host.test.ts server/routes/waits.test.ts server/drivers/agents-wait-tools.test.ts server/bot-moves.test.ts server/move-freeze.test.ts server/waits.e2e.test.ts src/components/ApprovalCard.test.ts
+pnpm exec vitest run desktop/server/wait-probes.test.ts desktop/server/waits.test.ts desktop/server/wait-host.test.ts desktop/server/routes/waits.test.ts desktop/server/drivers/agents-wait-tools.test.ts desktop/server/bot-moves.test.ts desktop/server/move-freeze.test.ts desktop/server/waits.e2e.test.ts desktop/src/components/ApprovalCard.test.ts
 ```
 
 ## In a fixture

@@ -11,14 +11,14 @@ import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { launchVerificationServer, runControlOmb } from "./control-omb.ts";
 import { mountPreview, type MountedPreview } from "./testing/preview-fixture.ts";
-import { activityPage } from "../electron/lending-activity-window.mjs";
-import { createLendingIndicator } from "../electron/lending-indicator.mjs";
+import { activityPage } from "../desktop/electron/lending-activity-window.mjs";
+import { createLendingIndicator } from "../desktop/electron/lending-indicator.mjs";
 
 const at = process.argv.indexOf("--shots");
 const shots = resolve(at === -1 ? "" : process.argv[at + 1] ?? "");
 if (at === -1) throw new Error("--shots <dir> is required");
 const CHROME = process.env.OMB_CDP_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const ICON = `data:image/png;base64,${readFileSync(new URL("../electron/resources/app-icon.png", import.meta.url)).toString("base64")}`;
+const ICON = `data:image/png;base64,${readFileSync(new URL("../desktop/electron/resources/app-icon.png", import.meta.url)).toString("base64")}`;
 
 /** One page of a headless Chrome over the DevTools protocol: navigate, wait for a selector, photograph. */
 async function openChrome(profile: string) {

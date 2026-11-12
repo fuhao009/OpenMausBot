@@ -4,9 +4,9 @@
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { resolveAgentBrowserBinary } from "../../server/browser-engine.ts";
-import { hostTimeout } from "../../server/testing/host-timeout.ts";
-import { freePortBlock } from "../../server/testing/ports.ts";
+import { resolveAgentBrowserBinary } from "../../desktop/server/browser-engine.ts";
+import { hostTimeout } from "../../desktop/server/testing/host-timeout.ts";
+import { freePortBlock } from "../../desktop/server/testing/ports.ts";
 import { launchCloudSendFixture, type CloudSendFixture } from "./cloud-send-fixture.ts";
 import { ensureUiBrowser, UI_TOOLS_DIR } from "./control-omb-ui.ts";
 import { launchHomeWorld, shotsDir, welcomed, type HomeWorld } from "./one-workspace-fixture.ts";

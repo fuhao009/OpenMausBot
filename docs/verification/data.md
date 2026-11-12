@@ -55,7 +55,7 @@ switch between **Chart** and **Table** without mounting the rest of history.
 
 ```sh
 node --experimental-strip-types scripts/verify-data.ts --check
-pnpm exec vitest run server/data/data.e2e.test.ts scripts/testing/verification-docs.test.ts
+pnpm exec vitest run desktop/server/data/data.e2e.test.ts scripts/testing/verification-docs.test.ts
 ```
 
 The asserted browser run uses the same pinned agent-browser and Chrome as

@@ -20,9 +20,9 @@ import {
   ensureChrome,
   installAgentBrowserBinary,
   resolveAgentBrowserBinary,
-} from "../../server/browser-engine.ts";
+} from "../../desktop/server/browser-engine.ts";
 import { fixtureApi, mountPreview, type MountedPreview } from "./preview-fixture.ts";
-import { credentialStoreFlags } from "../../server/browser/egress/gate.ts";
+import { credentialStoreFlags } from "../../desktop/server/browser/egress/gate.ts";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 /** Gitignored, persistent: the binary and its Chrome download once per checkout. */

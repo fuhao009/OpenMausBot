@@ -37,14 +37,14 @@ No personal provider account, real credentials, or user workspace is used.
 ## Regression checks
 
 ```sh
-pnpm exec vitest run src/components/AttachmentGallery.test.ts src/components/AttachmentPreview.test.ts src/components/ToolActivity.test.ts src/components/SettingsPrimitives.test.ts src/components/ShortcutHint.test.ts server/message-file.test.ts scripts/testing/verification-docs.test.ts
-pnpm exec vitest run server/tool-summary.test.ts server/control-omb.test.ts server/drivers/claude.test.ts server/drivers/codex.test.ts server/drivers/pi.test.ts server/drivers/acp/acp.test.ts
+pnpm exec vitest run desktop/src/components/AttachmentGallery.test.ts desktop/src/components/AttachmentPreview.test.ts desktop/src/components/ToolActivity.test.ts desktop/src/components/SettingsPrimitives.test.ts desktop/src/components/ShortcutHint.test.ts desktop/server/message-file.test.ts scripts/testing/verification-docs.test.ts
+pnpm exec vitest run desktop/server/tool-summary.test.ts desktop/server/control-omb.test.ts desktop/server/drivers/claude.test.ts desktop/server/drivers/codex.test.ts desktop/server/drivers/pi.test.ts desktop/server/drivers/acp/acp.test.ts
 pnpm typecheck
 pnpm lint
 pnpm check:contrast
 ```
 
-The server/driver fixtures cover bounded/redacted previews, structured JSON inside
+The desktop/server/driver fixtures cover bounded/redacted previews, structured JSON inside
 text, binary omission, renderer HTTP hydration and SQLite persistence. Compact
 model-facing control transcripts deliberately omit the new display-only fields.
 Attachment tests cover existing file authorization, MIME checks, a 25 MB cap

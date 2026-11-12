@@ -54,11 +54,11 @@ Three things silently produce a broken app if wrong. Check all three:
 
 ```powershell
 Test-Path release\win-unpacked\resources\server\index.js   # harness server
-Test-Path release\win-unpacked\resources\ui\index.html     # built UI
+Test-Path release\win-unpacked\resources\ui\desktop/index.html     # built UI
 Get-Content release\win-unpacked\resources\app-update.yml  # feed config
 ```
 
-- Missing `server/index.js` → `utilityProcess.fork` fails → the 🐭 "Couldn't start
+- Missing `desktop/server/index.js` → `utilityProcess.fork` fails → the 🐭 "Couldn't start
   the bot server" page.
 - Missing `ui/index.html` → server has nothing to serve → black window.
 - `app-update.yml` must point at `milind-soni/OpenMausBot` and, while the
@@ -71,7 +71,7 @@ Then smoke-test the installer itself. Run it, and confirm:
 2. The chat window renders (not the error page). Server logs land in
    `%APPDATA%\OpenMausBot\logs\server.log`.
 3. The model picker lists at least one provider — this exercises the `.cmd`-shim
-   resolution in `server/procs.ts`, which only ever runs for real on Windows.
+   resolution in `desktop/server/procs.ts`, which only ever runs for real on Windows.
 4. No update popup appears on launch. Background check failures are silent by
    design; a popup here means that regressed.
 

@@ -10,7 +10,7 @@ release
 *.dmg
 *.zip
 *.log
-electron/resources/cloudflared*
+desktop/electron/resources/cloudflared*
 .omb-scratch
 .env
 **/.env

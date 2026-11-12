@@ -79,7 +79,7 @@ revoked there. Do not share the token or commit it to a repository.
 
 ## From the installed desktop app
 
-Release builds bundle `server/mcp-server.js` and can run it with Electron's embedded Node runtime, so users do
+Release builds bundle `desktop/server/mcp-server.js` and can run it with Electron's embedded Node runtime, so users do
 not need Node.js or pnpm installed.
 
 macOS example:

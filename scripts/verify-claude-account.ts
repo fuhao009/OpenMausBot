@@ -33,7 +33,7 @@ try {
     '  process.stdout.write(JSON.stringify({ loggedIn, authMethod: loggedIn ? "claude.ai" : "none", ...(loggedIn ? { email: "ada@example.test", orgName: "Offline fixture" } : {}) }));',
     '  process.exitCode = loggedIn ? 0 : 1;',
     '} else {',
-    `  await import(${JSON.stringify(pathToFileURL(fileURLToPath(new URL("../server/testing/fake-claude-cli.ts", import.meta.url))).href)});`,
+    `  await import(${JSON.stringify(pathToFileURL(fileURLToPath(new URL("../desktop/server/testing/fake-claude-cli.ts", import.meta.url))).href)});`,
     '}',
   ].join("\n"), { mode: 0o700 });
   const configPath = join(home, "config.json");

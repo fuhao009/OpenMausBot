@@ -26,7 +26,7 @@ afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
 
-function fixture(source = "src/page.ts") {
+function fixture(source = "desktop/src/page.ts") {
   const directory = mkdtempSync(join(tmpdir(), "omb-ci-scope-"));
   temporaryDirectories.push(directory);
   const git = (...args: string[]) => execFileSync("git", args, { cwd: directory, encoding: "utf8" }).trim();
@@ -105,53 +105,53 @@ describe("CI path scope", () => {
   });
 
   it("runs the build, the Linux shards and the renderer smoke for a renderer change", () => {
-    expect(selectCiScope(["src/App.tsx", "public/icon.svg", "cloud-buy-preview.html", "src/locales/en.json", "docs/guide.md"]))
+    expect(selectCiScope(["desktop/src/App.tsx", "desktop/public/icon.svg", "desktop/cloud-buy-preview.html", "desktop/src/locales/en.json", "docs/guide.md"]))
       .toEqual({ areas: ["docs", "web"], checks: ["build", "docs-tests", "linux-tests", "ui-smoke"] });
   });
 
   it("runs the locale tests alone for translations, their tests and their hashes", () => {
-    expect(selectCiScope(["src/locales/de.json", "src/locales/source-hashes.json", "src/locales/words.test.ts"]))
+    expect(selectCiScope(["desktop/src/locales/de.json", "desktop/src/locales/source-hashes.json", "desktop/src/locales/words.test.ts"]))
       .toEqual({ areas: ["locales"], checks: ["build", "locale-tests"] });
-    expect(selectCiScope(["src/locales/index.ts"]).areas).toEqual(["web"]);
+    expect(selectCiScope(["desktop/src/locales/index.ts"]).areas).toEqual(["web"]);
   });
 
   it.each([
-    ["server/index.ts"], ["shared/types.ts"], ["companion/src/index.ts"], ["enterprise/license.ts"], ["evals/runners/run-evals.ts"],
-    ["skills/pdf/SKILL.md"], ["cloudflare/composio-broker/src/index.ts"], ["Dockerfile"], ["deploy/podman/run.sh"],
+    ["desktop/server/index.ts"], ["packages/shared/types.ts"], ["desktop/companion/src/index.ts"], ["enterprise/license.ts"], ["evals/runners/run-evals.ts"],
+    ["skills/pdf/SKILL.md"], ["gateway/composio-broker/src/index.ts"], ["Dockerfile"], ["deploy/podman/run.sh"],
     ...SRC_OUTSIDE_RENDERER.map((file) => [file]),
   ])("runs every check that runs the server for %j", (file) => {
     expect(selectCiScope([file])).toEqual({ areas: ["server"], checks: checks("server") });
   });
 
-  it.each([["electron/cua.mjs"], ["electron/shared-computer-access.mjs"], ["electron/capabilities.cjs"], ["electron/screen-status.mjs"]])(
+  it.each([["desktop/electron/cua.mjs"], ["desktop/electron/shared-computer-access.mjs"], ["desktop/electron/capabilities.cjs"], ["desktop/electron/screen-status.mjs"]])(
     "runs the Windows computer-control smokes too for %j, which they start as the installed app does", (file) => {
       expect(selectCiScope([file])).toEqual({ areas: ["windows-computer-control"], checks: checks("server", "windows-computer-control") });
       expect(selectCiScope([file]).checks).toContain("windows-cua");
     });
 
-  it.each([["electron/main.mjs"], ["build/icon.icns"], ["electron-builder.yml"], ["index.html"], ["rail.html"]])("runs the server's checks for the desktop's %j", (file) => {
+  it.each([["desktop/electron/main.mjs"], ["desktop/build/icon.icns"], ["electron-builder.yml"], ["desktop/index.html"], ["desktop/rail.html"]])("runs the server's checks for the desktop's %j", (file) => {
     expect(selectCiScope([file])).toEqual({ areas: ["desktop"], checks: checks("server") });
   });
 
   it("runs only the control-plane job for the control plane", () => {
-    expect(selectCiScope(["cloudflare/control-plane/src/index.ts"])).toEqual({ areas: ["control-plane"], checks: ["control-plane"] });
+    expect(selectCiScope(["gateway/control-plane/src/index.ts"])).toEqual({ areas: ["control-plane"], checks: ["control-plane"] });
   });
 
   it("selects every area's checks for a change across areas", () => {
-    expect(selectCiScope(["src/App.tsx", "src/locales/de.json", "cloudflare/control-plane/src/index.ts"]))
+    expect(selectCiScope(["desktop/src/App.tsx", "desktop/src/locales/de.json", "gateway/control-plane/src/index.ts"]))
       .toEqual({ areas: ["control-plane", "locales", "web"], checks: ["build", "control-plane", "linux-tests", "locale-tests", "ui-smoke"] });
   });
 
   it("keeps filenames containing newlines as one path that can affect anything", () => {
-    expect(selectCiScope(["src/first.md\nsecond.md"])).toEqual(FULL_SCOPE);
+    expect(selectCiScope(["desktop/src/first.md\nsecond.md"])).toEqual(FULL_SCOPE);
     expect(selectCiScope(["first\nsecond.md"])).toEqual(FULL_SCOPE);
   });
 
   it.each([
     [], [""], ["docs/../server/file.md"], ["./src/App.tsx"],
     [".github/workflows/ci.yml"], ["scripts/ci-scope.mjs"], ["scripts/testing/host-e2e.ts"], [".gitattributes"],
-    ["package.json"], ["pnpm-lock.yaml"], ["pnpm-workspace.yaml"], ["tsconfig.json"], ["vite.config.ts"], [".oxlintrc.json"],
-    ["third_party/browser/agent-browser-windows-stdio.patch"], ["scripts/testing/ci-retry-runner.ts"], ["unknown/file"], ["src/App.tsx", "package.json"],
+    ["package.json"], ["pnpm-lock.yaml"], ["pnpm-workspace.yaml"], ["desktop/tsconfig.json"], ["desktop/vite.config.ts"], [".oxlintrc.json"],
+    ["third_party/browser/agent-browser-windows-stdio.patch"], ["scripts/testing/ci-retry-runner.ts"], ["unknown/file"], ["desktop/src/App.tsx", "package.json"],
   ])("runs everything for %j", (...files) => {
     expect(selectCiScope(files)).toEqual(FULL_SCOPE);
   });
@@ -165,23 +165,23 @@ describe("CI path scope", () => {
 
 describe("CI outputs", () => {
   it("runs a renderer change's tests on Linux only", () => {
-    const out = ciOutputs(selectCiScope(["src/App.tsx"]), PR);
+    const out = ciOutputs(selectCiScope(["desktop/src/App.tsx"]), PR);
     expect(out).toEqual({ build: true, jobs: ["vitest", "ui-smoke"], vitest_os: PR, packaged_server_os: PR, vitest_matrix: vitestMatrix(["ubuntu-latest"]) });
   });
 
   it("runs a server change's tests on Linux and Windows, and its other checks", () => {
-    expect(ciOutputs(selectCiScope(["server/index.ts"]), PR)).toEqual({ build: true, jobs: SERVER_JOBS, vitest_os: PR, packaged_server_os: PR, vitest_matrix: vitestMatrix(PR) });
+    expect(ciOutputs(selectCiScope(["desktop/server/index.ts"]), PR)).toEqual({ build: true, jobs: SERVER_JOBS, vitest_os: PR, packaged_server_os: PR, vitest_matrix: vitestMatrix(PR) });
   });
 
   it("runs the locale tests in their own shards, with the Electron node tests, when no full Linux run covers them", () => {
-    const out = ciOutputs(selectCiScope(["src/locales/de.json"]), PR);
+    const out = ciOutputs(selectCiScope(["desktop/src/locales/de.json"]), PR);
     expect(out.jobs).toEqual(["vitest"]);
-    expect(VITEST_SUBSETS["locale-tests"].files).toEqual(expect.arrayContaining(["src/", "scripts/generate-locale.test.mjs", "scripts/testing/key-readback.e2e.test.ts"]));
+    expect(VITEST_SUBSETS["locale-tests"].files).toEqual(expect.arrayContaining(["desktop/src/", "scripts/generate-locale.test.mjs", "scripts/testing/key-readback.e2e.test.ts"]));
     expect(out.vitest_matrix.include).toEqual([1, 2].map((shard) => ({
       os: "ubuntu-latest", part: `locale tests ${shard}/2`, shard, shards: 2,
       files: VITEST_SUBSETS["locale-tests"].files.join(" "), e2e: "all", node_tests: shard === 1,
     })));
-    expect(ciOutputs(selectCiScope(["src/locales/de.json", "src/App.tsx"]), PR).vitest_matrix).toEqual(vitestMatrix(["ubuntu-latest"]));
+    expect(ciOutputs(selectCiScope(["desktop/src/locales/de.json", "desktop/src/App.tsx"]), PR).vitest_matrix).toEqual(vitestMatrix(["ubuntu-latest"]));
   });
 
   it("runs the docs tests in one job for docs, and skips the build", () => {
@@ -190,7 +190,7 @@ describe("CI outputs", () => {
     expect(out.vitest_matrix.include).toEqual([{
       os: "ubuntu-latest", part: "docs tests", shard: 1, shards: 1, files: VITEST_SUBSETS["docs-tests"].files.join(" "), e2e: "all", node_tests: false,
     }]);
-    expect(ciOutputs(selectCiScope(["docs/analytics.md", "src/locales/de.json"]), PR).vitest_matrix.include.map((entry: { part: string }) => entry.part))
+    expect(ciOutputs(selectCiScope(["docs/analytics.md", "desktop/src/locales/de.json"]), PR).vitest_matrix.include.map((entry: { part: string }) => entry.part))
       .toEqual(["locale tests 1/2", "locale tests 2/2", "docs tests"]);
   });
 
@@ -246,7 +246,7 @@ describe("the Linux work in the static job, on a Boat VM", () => {
   const linuxShards = vitestMatrix(LINUX).include;
 
   it("runs a server change's Linux shards, behavior evals and packaged server there, and no Linux job", () => {
-    const out = moveLinuxIntoStatic(ciOutputs(selectCiScope(["server/index.ts"]), LINUX));
+    const out = moveLinuxIntoStatic(ciOutputs(selectCiScope(["desktop/server/index.ts"]), LINUX));
     expect(out.jobs).toEqual(SERVER_JOBS.filter((job) => !["vitest", "behavior-evals", "packaged-server"].includes(job)));
     expect(out.linux_lanes).toEqual({ vitest: linuxShards, evals: true, packaged_server: true });
     expect(out.vitest_matrix).toEqual(vitestMatrix(LINUX));
@@ -272,8 +272,8 @@ describe("the Linux work in the static job, on a Boat VM", () => {
   });
 
   it("does it only when the static job is told it runs on Boat", () => {
-    const { directory, git, base } = fixture("src/App.tsx");
-    writeFileSync(join(directory, "src/App.tsx"), "changed\n");
+    const { directory, git, base } = fixture("desktop/src/App.tsx");
+    writeFileSync(join(directory, "desktop/src/App.tsx"), "changed\n");
     git("commit", "--quiet", "-am", "renderer");
     const eventPath = join(directory, "event.json");
     const outputPath = join(directory, "output.txt");
@@ -283,7 +283,7 @@ describe("the Linux work in the static job, on a Boat VM", () => {
       env: { ...process.env, GITHUB_EVENT_NAME: "pull_request", GITHUB_EVENT_PATH: eventPath, GITHUB_OUTPUT: outputPath, OMB_CI_LINUX_IN_STATIC: "true" },
     });
     expect(result.status, result.stderr).toBe(0);
-    expect(outputs(readFileSync(outputPath, "utf8"))).toEqual(moveLinuxIntoStatic(ciOutputs(selectCiScope(["src/App.tsx"]), LINUX)));
+    expect(outputs(readFileSync(outputPath, "utf8"))).toEqual(moveLinuxIntoStatic(ciOutputs(selectCiScope(["desktop/src/App.tsx"]), LINUX)));
     expect(result.stdout).toContain("this job runs 8 Linux vitest lane(s)");
   });
 });
@@ -295,23 +295,23 @@ describe("Windows on a pull request", () => {
   it("runs for the windows label whatever changed", () => {
     expect(WINDOWS_LABEL).toBe("windows");
     expect(reason(["docs/guide.md"], [], ["bug", "windows"])).toBe('the "windows" label');
-    expect(reason(["server/index.ts"], [], ["Windows-ish"])).toBeNull();
+    expect(reason(["desktop/server/index.ts"], [], ["Windows-ish"])).toBeNull();
   });
 
   it.each([
-    "electron/main.mjs", "build/installer.nsh", "electron-builder.yml", "hezuo.ps1", "scripts/build-cua-win.mjs",
-    "scripts/smoke-cua-win-embedded.mjs", "server/win32-paths.ts", "server/shell/windows.ts", "server/foo.win32.test.ts",
-    ".github/workflows/package-win.yml", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".gitattributes", "vite.config.ts",
+    "desktop/electron/main.mjs", "desktop/build/installer.nsh", "electron-builder.yml", "hezuo.ps1", "scripts/build-cua-win.mjs",
+    "scripts/smoke-cua-win-embedded.mjs", "desktop/server/win32-paths.ts", "desktop/server/shell/windows.ts", "desktop/server/foo.win32.test.ts",
+    ".github/workflows/package-win.yml", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".gitattributes", "desktop/vite.config.ts",
     "third_party/browser/agent-browser-windows-stdio.patch", ".github/workflows/ci.yml", "scripts/ci-scope.mjs",
-    "scripts/testing/host-e2e.ts", "scripts/testing/vitest-shard-weights.json", "server/testing/host-timeout.ts",
+    "scripts/testing/host-e2e.ts", "scripts/testing/vitest-shard-weights.json", "desktop/server/testing/host-timeout.ts",
     "scripts/prepare-cloudflared.mjs", "scripts/after-pack.mjs", ...Object.keys(HOST_E2E),
   ])("runs for %s", (file) => {
-    expect(reason(["src/App.tsx", file])).toBe(file);
+    expect(reason(["desktop/src/App.tsx", file])).toBe(file);
   });
 
   it.each([
-    "server/index.ts", "src/components/WindowFrame.tsx", "server/darwin.ts", "server/twin.ts", "scripts/verify-sidebar.ts",
-    "scripts/testing/rail-preview.tsx", "scripts/control-omb.ts", ".github/workflows/boat.yml", "tsconfig.json", "server/delta-context.e2e.test.ts",
+    "desktop/server/index.ts", "desktop/src/components/WindowFrame.tsx", "desktop/server/darwin.ts", "desktop/server/twin.ts", "scripts/verify-sidebar.ts",
+    "scripts/testing/rail-preview.tsx", "scripts/control-omb.ts", ".github/workflows/boat.yml", "desktop/tsconfig.json", "desktop/server/delta-context.e2e.test.ts",
   ])("waits for main for %s alone", (file) => {
     expect(reason([file])).toBeNull();
   });
@@ -320,11 +320,11 @@ describe("Windows on a pull request", () => {
     ['+  if (process.platform === "win32") return;'], ["-  // Windows keeps a running process's folder"], ["+  const shell = \"powershell.exe\";"],
     ["+  join(env.USERPROFILE, x)"], ["+  spawn(cmd, args, { windowsHide: true })"], ["+  path.win32.join(a, b)"], ["+    runs-on: windows-latest"],
   ])("runs for a changed line %j", (line) => {
-    expect(reason(["server/index.ts"], ["diff --git a/server/index.ts b/server/index.ts", line])).toBe(`the changed line ${JSON.stringify(line)}`);
+    expect(reason(["desktop/server/index.ts"], ["diff --git a/server/index.ts b/server/index.ts", line])).toBe(`the changed line ${JSON.stringify(line)}`);
   });
 
   it("reads only added and removed lines, not file headers or a window", () => {
-    expect(reason(["server/index.ts"], [
+    expect(reason(["desktop/server/index.ts"], [
       "--- a/server/Windows.ts", "+++ b/server/Windows.ts", "@@ -1 +1 @@ Windows", " Windows context", "+const frame = window.open(url);",
       "-  new BrowserWindow()", "+// two windows side by side",
     ])).toBeNull();
@@ -332,8 +332,8 @@ describe("Windows on a pull request", () => {
 
   it("reads the lines only when no label or path decided, and runs Windows when they cannot be read", () => {
     const unread = () => { throw new Error("diff too large"); };
-    expect(windowsReason({ files: ["electron/main.mjs"], lines: unread })).toBe("electron/main.mjs");
-    expect(windowsReason({ files: ["server/index.ts"], lines: unread })).toBe("a change whose lines could not be read (diff too large)");
+    expect(windowsReason({ files: ["desktop/electron/main.mjs"], lines: unread })).toBe("desktop/electron/main.mjs");
+    expect(windowsReason({ files: ["desktop/server/index.ts"], lines: unread })).toBe("a change whose lines could not be read (diff too large)");
   });
 });
 
@@ -352,7 +352,7 @@ function codeFiles(directory: string): string[] {
 }
 
 function resolveImport(from: string, specifier: string) {
-  const base = (specifier.startsWith("@/") ? join(ROOT, "src", specifier.slice(2)) : specifier.startsWith(".") ? resolve(dirname(from), specifier) : null)
+  const base = (specifier.startsWith("@/") ? join(ROOT, "desktop", "src", specifier.slice(2)) : specifier.startsWith(".") ? resolve(dirname(from), specifier) : null)
     ?.replace(/\?.*$/, "");
   if (!base) return null;
   const candidates = [base, base.replace(/\.js$/, ".ts"), ...["ts", "tsx", "mjs", "cjs", "js"].map((extension) => `${base}.${extension}`),
@@ -386,15 +386,15 @@ function importClosure(entries: string[]) {
 describe("the repository's import graph", () => {
   it("lists every renderer file the server, Electron, the companion, evals, the workers or the macOS frame smoke load", () => {
     const frameSmoke = readFileSync(join(ROOT, "scripts/smoke-app-frames.mjs"), "utf8");
-    expect(frameSmoke).toContain('resolveDir: join(ROOT, "src/components/app")');
+    expect(frameSmoke).toContain('resolveDir: join(ROOT, "desktop/src/components/app")');
     expect(frameSmoke).toContain("from \\\"./app-frame-host.ts\\\"");
     const runtime = ["server", "shared", "electron", "companion", "enterprise", "evals", "cloudflare"]
       .flatMap((directory) => codeFiles(join(ROOT, directory)))
       .filter((file) => !TEST_FILE.test(relative(ROOT, file).split("\\").join("/")));
     expect(runtime.length).toBeGreaterThan(500);
     // The language packs the server reads its lines from stay locale changes (SRC_OUTSIDE_RENDERER says why).
-    const loaded = importClosure([...runtime, join(ROOT, "src/components/app/app-frame-host.ts")])
-      .filter((file) => file.startsWith("src/") && !/^src\/locales\/[^/]+\.json$/.test(file));
+    const loaded = importClosure([...runtime, join(ROOT, "desktop/src/components/app/app-frame-host.ts")])
+      .filter((file) => file.startsWith("desktop/src/") && !/^src\/locales\/[^/]+\.json$/.test(file));
     expect(loaded.sort()).toEqual([...SRC_OUTSIDE_RENDERER].sort());
   });
 
@@ -455,8 +455,8 @@ describe("CI scope CLI", () => {
   });
 
   it("ignores base-only server changes after the pull request diverges", () => {
-    const { directory, git, base: common } = fixture("server/original.ts");
-    writeFileSync(join(directory, "server/original.ts"), "base-only change\n");
+    const { directory, git, base: common } = fixture("desktop/server/original.ts");
+    writeFileSync(join(directory, "desktop/server/original.ts"), "base-only change\n");
     git("commit", "--quiet", "-am", "base change");
     const base = git("rev-parse", "HEAD");
     git("checkout", "--quiet", "--detach", common);
@@ -472,7 +472,7 @@ describe("CI scope CLI", () => {
   });
 
   it.each(["delete", "rename"])("retains the original source path on %s", (change) => {
-    const source = "server/original.ts";
+    const source = "desktop/server/original.ts";
     const { directory, git, base } = fixture(source);
     if (change === "delete") git("rm", "--", source);
     else git("mv", "--", source, "docs/renamed.md");
@@ -486,7 +486,7 @@ describe("CI scope CLI", () => {
   });
 
   it("runs a renderer pull request's tests on Linux, and a translation pull request's locale tests", () => {
-    for (const [source, jobs, oses] of [["src/App.tsx", ["vitest", "ui-smoke"], ["ubuntu-latest"]], ["src/locales/de.json", ["vitest"], []]] as const) {
+    for (const [source, jobs, oses] of [["desktop/src/App.tsx", ["vitest", "ui-smoke"], ["ubuntu-latest"]], ["desktop/src/locales/de.json", ["vitest"], []]] as const) {
       const { directory, git, base } = fixture(source);
       writeFileSync(join(directory, source), "changed\n");
       git("commit", "--quiet", "-am", "change");
@@ -502,7 +502,7 @@ describe("CI scope CLI", () => {
   });
 
   it("reads filenames with spaces without turning source into docs", () => {
-    const source = "src/first second.md";
+    const source = "desktop/src/first second.md";
     const { directory, git, base } = fixture(source);
     writeFileSync(join(directory, source), "changed\n");
     git("commit", "--quiet", "-am", "change");
@@ -562,14 +562,14 @@ describe("version-only package.json", () => {
     expect(selectPushScope(["docs/ci.md", "README.md"], show)).toEqual({ runtime: false });
     expect(selectPushScope(["package.json", "pnpm-lock.yaml"], show)).toEqual({ runtime: true });
     expect(selectPushScope(["package.json", "docs/ci.md"], show)).toEqual({ runtime: true });
-    expect(selectPushScope(["server/index.ts"], show)).toEqual({ runtime: true });
+    expect(selectPushScope(["desktop/server/index.ts"], show)).toEqual({ runtime: true });
     expect(selectPushScope(["package.json"], () => pkg("0.1.100"))).toEqual({ runtime: true });
     expect(selectPushScope(["package.json"], () => { throw new Error("missing"); })).toEqual({ runtime: true });
   });
 
   it("never narrows a push the way it narrows a pull request", () => {
     const show = () => pkg("0.1.100");
-    for (const file of ["apps/docs/content/index.mdx", "src/locales/de.json", "src/App.tsx", "cloudflare/control-plane/src/index.ts", "server/index.ts"]) {
+    for (const file of ["apps/docs/content/index.mdx", "desktop/src/locales/de.json", "desktop/src/App.tsx", "gateway/control-plane/src/index.ts", "desktop/server/index.ts"]) {
       expect(selectPushScope([file], show), file).toEqual({ runtime: true });
     }
     expect(selectPushScope([], show)).toEqual({ runtime: true });
@@ -610,7 +610,7 @@ async function runPush(directory: string, payload: unknown, env: Record<string, 
 
 describe("CI scope CLI on a push to main", () => {
   function pushFixture(change: (directory: string) => void) {
-    const { directory, git } = fixture("server/index.ts");
+    const { directory, git } = fixture("desktop/server/index.ts");
     writeFileSync(join(directory, "package.json"), pkg("0.1.100"));
     git("add", "--", "package.json");
     git("commit", "--quiet", "-m", "package");
@@ -622,7 +622,7 @@ describe("CI scope CLI on a push to main", () => {
   }
   const bump = (directory: string) => writeFileSync(join(directory, "package.json"), pkg("0.1.101"));
   const docs = (directory: string) => writeFileSync(join(directory, "docs/guide.md"), "guide\n");
-  const code = (directory: string) => writeFileSync(join(directory, "server/index.ts"), "changed\n");
+  const code = (directory: string) => writeFileSync(join(directory, "desktop/server/index.ts"), "changed\n");
   const green = [{ event: "push", status: "completed", conclusion: "success" }];
   const runsOf = (sha: string) => `GET /repos/o/r/actions/workflows/ci.yml/runs?head_sha=${sha}&per_page=100 Bearer t`;
   const github = (api: { url: string }) => ({ GITHUB_API_URL: api.url, GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r" });
@@ -725,7 +725,7 @@ describe("CI scope CLI on a push to main", () => {
 });
 
 describe("CI scope CLI on a pull request's Windows jobs", () => {
-  function serverChange(content: string, file = "server/paths.ts") {
+  function serverChange(content: string, file = "desktop/server/paths.ts") {
     const { directory, git, base } = fixture(file);
     writeFileSync(join(directory, file), content);
     git("commit", "--quiet", "-am", "change");
@@ -778,7 +778,7 @@ describe("CI scope CLI on a pull request's Windows jobs", () => {
   });
 
   it("runs the Windows jobs for the desktop app", async () => {
-    const { directory, payload } = serverChange("app\n", "electron/main.mjs");
+    const { directory, payload } = serverChange("app\n", "desktop/electron/main.mjs");
     expect((await runPullRequest(directory, payload)).output).toEqual(serverJobs(PR));
   });
 
@@ -809,14 +809,14 @@ describe("CI scope CLI on a pull request's Windows jobs", () => {
   });
 
   it("asks GitHub for no labels when the change selects no Windows job", async () => {
-    const { directory, git, base } = fixture("src/App.tsx");
-    writeFileSync(join(directory, "src/App.tsx"), "if (navigator.platform === \"win32\") {}\n");
+    const { directory, git, base } = fixture("desktop/src/App.tsx");
+    writeFileSync(join(directory, "desktop/src/App.tsx"), "if (navigator.platform === \"win32\") {}\n");
     git("commit", "--quiet", "-am", "renderer");
     const api = await fakeLabelsApi(["windows"]);
     try {
       const payload = { pull_request: { number: 7, base: { sha: base }, head: { sha: git("rev-parse", "HEAD") } } };
       const { output } = await runPullRequest(directory, payload, api.env);
-      expect(output).toEqual(ciOutputs(selectCiScope(["src/App.tsx"]), LINUX));
+      expect(output).toEqual(ciOutputs(selectCiScope(["desktop/src/App.tsx"]), LINUX));
       expect(api.requests).toEqual([]);
     } finally {
       await api.close();

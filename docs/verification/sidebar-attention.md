@@ -19,9 +19,9 @@ below it.
 runs the leg (`scripts/testing/sidebar-attention-ui-smoke.cjs`) against a
 disposable fake-engine server: one bot whose settled reply is never read is
 exactly the unread state the cross-bot attention list collects
-(`src/components/SidebarBotActivity.tsx`). The leg mounts the real Sidebar
+(`desktop/src/components/SidebarBotActivity.tsx`). The leg mounts the real Sidebar
 through `scripts/testing/sidebar-attention-preview.tsx` open and as the
-column of avatars — seeded through `src/lib/sidebar-preferences.ts`
+column of avatars — seeded through `desktop/src/lib/sidebar-preferences.ts`
 before the first render — opens the menu by its accessible name, and
 measures it with `getBoundingClientRect`:
 

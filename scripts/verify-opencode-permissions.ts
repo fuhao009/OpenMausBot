@@ -53,9 +53,9 @@ writeFileSync(join(workspace, "opencode.json"), JSON.stringify({
   provider: { fixture: { npm: "@ai-sdk/openai-compatible", name: "Offline fixture", options: { baseURL: `http://127.0.0.1:${port}/v1`, apiKey: "fixture-only" }, models: { fixture: { name: "Fixture", limit: {context:32000,output:1000} } } } },
   model: "fixture/fixture", permission: { external_directory: "ask" },
 }));
-const { ensureDirs, NATIVE_DIR } = await import("../server/config.ts");
-const { createOpenCodeDriver } = await import("../server/drivers/acp/opencode-go.ts");
-const { recordEvents } = await import("../server/testing/events.ts");
+const { ensureDirs, NATIVE_DIR } = await import("../desktop/server/config.ts");
+const { createOpenCodeDriver } = await import("../desktop/server/drivers/acp/opencode-go.ts");
+const { recordEvents } = await import("../desktop/server/testing/events.ts");
 ensureDirs();
 const instance = await createOpenCodeDriver(async () => ({ default:"fixture/fixture", options:[{id:"fixture/fixture",label:"Fixture"}] })).create({
   instanceId:"permission-fixture", displayName:"Fixture", enabled:true,

@@ -58,10 +58,10 @@ writeFileSync(botSettings, JSON.stringify({
   model: 123,
   hooks: { Stop: [{ hooks: [{ type: "command", command: `${JSON.stringify(process.execPath)} -e "require('fs').writeFileSync('bot-hook-ran', 'ran')"` }] }] },
 }));
-const { ensureDirs } = await import("../server/config.ts");
+const { ensureDirs } = await import("../desktop/server/config.ts");
 ensureDirs();
-const { ClaudeDriver } = await import("../server/drivers/claude.ts");
-const { recordEvents } = await import("../server/testing/events.ts");
+const { ClaudeDriver } = await import("../desktop/server/drivers/claude.ts");
+const { recordEvents } = await import("../desktop/server/testing/events.ts");
 const provider = await ClaudeDriver.create({ instanceId: "fixture", displayName: "Offline Claude", enabled: true, environment: {}, config: { cli, configDir: account, permissionMode: "acceptEdits", tools: [] } });
 const recorder = recordEvents(provider.adapter);
 try {

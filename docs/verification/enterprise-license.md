@@ -3,7 +3,7 @@
 ## Sub-features
 
 - Find the bundled enterprise layer in every shipped layout: a checkout
-  (`enterprise/` beside `server/`), the npm package (`<package>/enterprise/`
+  (`enterprise/` beside `desktop/server/`), the npm package (`<package>/enterprise/`
   beside `dist-server/`), and the Docker image and packaged desktop, which
   carry `dist-server/` alone (`dist-server/enterprise/`). `OMB_ENTERPRISE_DIR`,
   when set, is the only place looked at.
@@ -18,20 +18,20 @@
 ## Driving it
 
 ```sh
-pnpm exec vitest run server/enterprise.test.ts enterprise/server/register.test.ts
-pnpm exec vitest run --no-file-parallelism server/license-expiry-api.test.ts server/hosted-access.test.ts
+pnpm exec vitest run desktop/server/enterprise.test.ts enterprise/server/register.test.ts
+pnpm exec vitest run --no-file-parallelism desktop/server/license-expiry-api.test.ts desktop/server/hosted-access.test.ts
 pnpm test:packaged-server
 ```
 
-`server/enterprise.test.ts` builds each layout in a temporary directory and
+`desktop/server/enterprise.test.ts` builds each layout in a temporary directory and
 checks which copy wins, the warning window, the grace period and the moment it
 ends. `enterprise/server/register.test.ts` issues keys with a throwaway signing
 pair and checks the layer accepts a key that lapsed less than 7 days ago and
-refuses it after. `server/license-expiry-api.test.ts` boots the `control-omb`
+refuses it after. `desktop/server/license-expiry-api.test.ts` boots the `control-omb`
 fixture with a stand-in layer whose key expires in 12 days, expired 2 days
 ago, or expires in 90 days, and reads `/api/edition`, the server log, and
 `/api/config` as an admin and as a chat-only device.
-`server/hosted-access.test.ts` checks a hosted server withdraws readiness the
+`desktop/server/hosted-access.test.ts` checks a hosted server withdraws readiness the
 moment its grace period ends. The packaged-server smoke copies `dist-server/`
 out of the repository, boots it with a key that is not genuine, and fails if
 `/api/edition` says no layer exists; the Docker workflow makes the same check
@@ -45,4 +45,4 @@ against the built image.
 - The cloud Admin's own license check (`verifyLicenseKey` called directly) has
   no grace period; only the OMB server's `register()` path does.
 - The Settings banner is proven from fixtures in
-  `src/components/LicenseExpiryBanner.test.ts`, not driven headlessly.
+  `desktop/src/components/LicenseExpiryBanner.test.ts`, not driven headlessly.

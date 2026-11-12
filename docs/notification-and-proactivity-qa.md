@@ -32,14 +32,14 @@ alone cannot provide closed-app delivery.
 
 | Contract | Test |
 |---|---|
-| Per-agent off means quiet; empty completions stay quiet; summaries are bounded | `server/notify.test.ts` |
-| Browser click returns the exact bot/task target | `src/lib/notify.test.ts` |
-| Store navigation selects the bot and switches the task | `src/state/store.test.ts` |
-| Opening a conversation reads only its own feed entries, live in every open app | `server/notification-read.e2e.test.ts` |
-| Routine failure receipt and callback occur once | `server/routines.test.ts` |
-| Real failed routine emits one `routine-failed` notification and no duplicate `done` | `server/notification-wiring.test.ts` |
-| iOS target parsing and detached-task decision | `ios/Tests/CompanionCoreTests/DecodingTests.swift` |
-| Paired-device route policy remains default-deny | `companion/test/routes.test.ts` |
+| Per-agent off means quiet; empty completions stay quiet; summaries are bounded | `desktop/server/notify.test.ts` |
+| Browser click returns the exact bot/task target | `desktop/src/lib/notify.test.ts` |
+| Store navigation selects the bot and switches the task | `desktop/src/state/store.test.ts` |
+| Opening a conversation reads only its own feed entries, live in every open app | `desktop/server/notification-read.e2e.test.ts` |
+| Routine failure receipt and callback occur once | `desktop/server/routines.test.ts` |
+| Real failed routine emits one `routine-failed` notification and no duplicate `done` | `desktop/server/notification-wiring.test.ts` |
+| iOS target parsing and detached-task decision | `mobile/ios/Tests/CompanionCoreTests/DecodingTests.swift` |
+| Paired-device route policy remains default-deny | `desktop/companion/test/routes.test.ts` |
 
 ## Manual release pass
 

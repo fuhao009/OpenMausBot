@@ -3,12 +3,12 @@
 Run the real-server fixture in an isolated home, with a local Boat API stub:
 
 ```sh
-pnpm exec vitest run server/index.test.ts -t 'shares one team computer|dispatches the conversation.s pinned computer|blocks bot-scoped Boat lifecycle'
-pnpm exec vitest run server/index.test.ts -t 'queues computer waiters in arrival order'
-pnpm exec vitest run server/index.test.ts -t 'parks the turn at the wait ceiling|routes a goal run around a member parked'
-pnpm exec vitest run server/runtime-roots.e2e.test.ts server/room-roots.e2e.test.ts
-pnpm exec vitest run server/turn-resources.test.ts server/group-local-vm.e2e.test.ts server/shared-computers.e2e.test.ts
-pnpm exec vitest run server/managed-desktop-cleanup.test.ts
+pnpm exec vitest run desktop/server/index.test.ts -t 'shares one team computer|dispatches the conversation.s pinned computer|blocks bot-scoped Boat lifecycle'
+pnpm exec vitest run desktop/server/index.test.ts -t 'queues computer waiters in arrival order'
+pnpm exec vitest run desktop/server/index.test.ts -t 'parks the turn at the wait ceiling|routes a goal run around a member parked'
+pnpm exec vitest run desktop/server/runtime-roots.e2e.test.ts desktop/server/room-roots.e2e.test.ts
+pnpm exec vitest run desktop/server/turn-resources.test.ts desktop/server/group-local-vm.e2e.test.ts desktop/server/shared-computers.e2e.test.ts
+pnpm exec vitest run desktop/server/managed-desktop-cleanup.test.ts
 ```
 
 The shared-team-computer case proves:
@@ -49,8 +49,8 @@ The park-and-resume cases prove:
 - A goal run routes around a member parked at the ceiling: the parked step is
   a root that ended with its park, never queued to continue, so freeing the
   seat runs it no second time; the lead finishes the goal with the park as
-  reassignment data. (`server/room-roots.e2e.test.ts` proves the room cases
-  against the scripted engine; `server/runtime-roots.e2e.test.ts` the direct
+  reassignment data. (`desktop/server/room-roots.e2e.test.ts` proves the room cases
+  against the scripted engine; `desktop/server/runtime-roots.e2e.test.ts` the direct
   ones.)
 - Nothing waits outside the runtime: the card-resume lanes and the room
   re-run queue are gone. A parked root waits through the runtime's admission

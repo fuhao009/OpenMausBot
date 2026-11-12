@@ -134,13 +134,13 @@ async function main() {
       claude: {
         driver: "claudeAgent",
         displayName: "Fixture engine",
-        config: { cli: join(ROOT, "server", "testing", "fake-claude-cli.ts") },
+        config: { cli: join(ROOT, "desktop", "server", "testing", "fake-claude-cli.ts") },
       },
     },
   }));
 
   console.log(`harness on ${HARNESS_PORT}, companion on ${COMPANION_PORT}`);
-  const harness = start("harness", [join(ROOT, "server", "index.ts")], {
+  const harness = start("harness", [join(ROOT, "desktop", "server", "index.ts")], {
     HOME: home,
     USERPROFILE: home,
     OMB_PORT: String(HARNESS_PORT),
@@ -151,7 +151,7 @@ async function main() {
 
   // Client-facing fixtures go through the sidecar, which scrubs, rewrites SSE
   // frames and refuses device routes; the harness directly only for setup.
-  const sidecar = start("companion", [join(ROOT, "companion", "src", "index.ts")], {
+  const sidecar = start("companion", [join(ROOT, "desktop", "companion", "src", "index.ts")], {
     HOME: home,
     USERPROFILE: home,
     OMB_PORT: String(HARNESS_PORT),

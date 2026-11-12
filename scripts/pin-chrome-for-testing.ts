@@ -1,4 +1,4 @@
-// Measures the size and SHA-256 of Chrome for Testing downloads for server/browser/chrome/install.ts. It downloads each
+// Measures the size and SHA-256 of Chrome for Testing downloads for desktop/server/browser/chrome/install.ts. It downloads each
 // archive in full (about 200 MB per platform) through the installer's own downloader.
 // Usage: node --experimental-strip-types scripts/pin-chrome-for-testing.ts [--version V] [--keep DIR] mac-arm64 [win64 …]
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-import { CHROME_FOR_TESTING_VERSION, chromeForTestingUrl, downloadArchive } from "../server/browser/chrome/install.ts";
+import { CHROME_FOR_TESTING_VERSION, chromeForTestingUrl, downloadArchive } from "../desktop/server/browser/chrome/install.ts";
 
 const NODE_TARGETS: Record<string, string> = { "mac-arm64": "darwin-arm64", "mac-x64": "darwin-x64", win64: "win32-x64", linux64: "linux-x64", "linux-arm64": "linux-arm64" };
 const { values, positionals } = parseArgs({

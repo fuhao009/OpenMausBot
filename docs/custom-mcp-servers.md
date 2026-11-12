@@ -239,7 +239,7 @@ number (`notes-2`), so nothing here is overwritten. An `enabled` in the paste
 is ignored.
 
 The desktop app's first-run tour does the same for you in its **Bring what you
-already use** step (`server/setup-import.ts`). On the computer running
+already use** step (`desktop/server/setup-import.ts`). On the computer running
 Hezuo, and only for the desktop app's own window there, it reads the
 `mcpServers` of Claude Code (only the top-level key of `~/.claude.json`),
 Claude Desktop, Cursor (`~/.cursor/mcp.json`) and Gemini CLI
@@ -257,7 +257,7 @@ are not resolved: add the token as a header when you test the server.
 
 The step also brings in the person's own skills (`~/.claude/skills`,
 `~/.codex/skills`). Each one is copied once, read-only except on Windows, into
-`<data>/imported-skills` (`server/imported-skills.ts`), and every bot uses
+`<data>/imported-skills` (`desktop/server/imported-skills.ts`), and every bot uses
 that copy on every engine that works with files: the bot the tour sets up,
 and any bot made later with New bot, the API, a template, a Chief
 of Staff team or a package. Each turn lists them after the bot's own skills,

@@ -3,14 +3,14 @@
 A person reacts to a message from the chat's action row. A 👍 or 👎 on a bot's
 message is their reply to it and reaches that bot at once; ❤️ 😂 🎉 👀 never
 start a turn and reach the bot with the person's next message. The rule lives
-in `server/reactions.ts`, the route in `server/routes/reactions.ts`, and the
+in `desktop/server/reactions.ts`, the route in `desktop/server/routes/reactions.ts`, and the
 reply itself goes the way a late answer to a question card goes
-(`server/person-replies.ts`).
+(`desktop/server/person-replies.ts`).
 
 ## Server
 
 ```sh
-pnpm exec vitest run server/reactions.e2e.test.ts
+pnpm exec vitest run desktop/server/reactions.e2e.test.ts
 ```
 
 The first test starts the launcher-managed fixture with scripted fake-engine
@@ -48,7 +48,7 @@ Evidence is written beside the fixture's server log as
 On a workspace several people share, each person reacts as their own key:
 
 ```sh
-pnpm exec vitest run server/bot-visibility.e2e.test.ts -t "reaction their own"
+pnpm exec vitest run desktop/server/bot-visibility.e2e.test.ts -t "reaction their own"
 ```
 
 Ada's and Bob's 👍 sit side by side with their names, Ada's 👎 replaces only
@@ -105,7 +105,7 @@ entries.
 The components themselves:
 
 ```sh
-pnpm exec vitest run src/components/Reactions.test.ts src/components/Reactions.shared.test.ts src/lib/activity-runs.test.ts
+pnpm exec vitest run desktop/src/components/Reactions.test.ts desktop/src/components/Reactions.shared.test.ts desktop/src/lib/activity-runs.test.ts
 ```
 
 These mount the real components: the **Add reaction** button opens a toolbar

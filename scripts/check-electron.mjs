@@ -4,7 +4,7 @@ import { readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const electronDirectory = fileURLToPath(new URL("../electron/", import.meta.url));
+const electronDirectory = fileURLToPath(new URL("../desktop/electron/", import.meta.url));
 const require = createRequire(import.meta.url);
 const electronExecutable = require("electron");
 const modules = readdirSync(electronDirectory, { withFileTypes: true })

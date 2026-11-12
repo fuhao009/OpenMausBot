@@ -27,8 +27,8 @@ import { gzipSync } from "node:zlib";
 import { runControlOmb, verificationServerArgs, verificationServerEnvironment } from "./control-omb.ts";
 import { installedChrome } from "./testing/control-omb-ui.ts";
 import { FRAMES_START, FRAMES_STOP, launchChrome, switchExpression, TRANSCRIPT_BOX, type Chrome, type Page } from "./testing/bench-desktop-page.ts";
-import { removeTempDir, waitForExit } from "../server/testing/cleanup.ts";
-import { freePortBlock } from "../server/testing/ports.ts";
+import { removeTempDir, waitForExit } from "../desktop/server/testing/cleanup.ts";
+import { freePortBlock } from "../desktop/server/testing/ports.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PHASES = ["bundle", "server", "start", "screens", "idle", "stream", "big", "routines"] as const;
@@ -94,7 +94,7 @@ function newDataDir(): string {
   writeFileSync(join(dir, "config.json"), JSON.stringify({
     features: { smartSetupChoices: false },
     language: "en",
-    instances: { claude: { driver: "claudeAgent", displayName: "Bench fixture", config: { cli: join(ROOT, "server", "testing", "fake-claude-cli.ts") } } },
+    instances: { claude: { driver: "claudeAgent", displayName: "Bench fixture", config: { cli: join(ROOT, "desktop", "server", "testing", "fake-claude-cli.ts") } } },
   }, null, 2));
   return dir;
 }
@@ -199,7 +199,7 @@ async function serveDist(dir: string, target: string): Promise<{ url: string; cl
       return;
     }
     const file = normalize(join(dir, path));
-    const chosen = file.startsWith(dir) && existsSync(file) && statSync(file).isFile() ? file : join(dir, "index.html");
+    const chosen = file.startsWith(dir) && existsSync(file) && statSync(file).isFile() ? file : join(dir, "desktop/index.html");
     res.writeHead(200, { "content-type": CONTENT_TYPES[extname(chosen)] ?? "application/octet-stream" });
     createReadStream(chosen).pipe(res);
   });
@@ -244,7 +244,7 @@ async function buildUi(outDir: string, profiling: boolean) {
   const assets: Array<{ fileName: string; bytes: number }> = [];
   const started = performance.now();
   await build({
-    configFile: join(ROOT, "vite.config.ts"), root: ROOT, logLevel: "warn", mode: "production",
+    configFile: join(ROOT, "desktop/vite.config.ts"), root: ROOT, logLevel: "warn", mode: "production",
     build: { outDir, emptyOutDir: true, reportCompressedSize: false, chunkSizeWarningLimit: 100_000 },
     ...(profiling ? { resolve: { alias: [{ find: /^react-dom\/client$/, replacement: "react-dom/profiling" }] }, esbuild: { keepNames: true } } : {}),
     plugins: [{
@@ -321,7 +321,7 @@ async function bundleServer(): Promise<string> {
   const { serverLocalePlugin } = await import("./server-locale-plugin.mjs");
   const outdir = join(work, "dist-server");
   await build({
-    entryPoints: [join(ROOT, "server", "index.ts")], bundle: true, platform: "node", target: "node20", format: "esm", outdir, logLevel: "warning", minifyWhitespace: true, minifySyntax: true, lineLimit: 500,
+    entryPoints: [join(ROOT, "desktop", "server", "index.ts")], bundle: true, platform: "node", target: "node20", format: "esm", outdir, logLevel: "warning", minifyWhitespace: true, minifySyntax: true, lineLimit: 500,
     plugins: [{ name: "yaml-esm", setup(builder) { builder.onResolve({ filter: /^yaml$/ }, () => ({ path: join(ROOT, "node_modules", "yaml", "browser", "index.js") })); } }, serverLocalePlugin],
     banner: { js: 'import { createRequire as __ombCreateRequire } from "node:module";\nconst require = __ombCreateRequire(import.meta.url);' },
   });

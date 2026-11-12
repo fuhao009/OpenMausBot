@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cloudRequestSignature as homeSignature } from "../../server/cloud-home.ts";
+import { cloudRequestSignature as homeSignature } from "../../desktop/server/cloud-home.ts";
 import { cloudRequestSignature, summarizeHealth } from "../src/home-health.ts";
 import { checkEnrollCode, checkEnrollResponse, checkHomeEnv, checkJob, checkTransferUrl, JOB_TYPES, REQUIRED_HOME_ENV } from "../src/protocol.ts";
 

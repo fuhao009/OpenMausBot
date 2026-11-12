@@ -4,8 +4,8 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { launchVerificationServer } from "./control-omb.ts";
 import { fixtureApi, mountPreview, type MountedPreview } from "./testing/preview-fixture.ts";
-import { startFakeOAuth } from "../server/testing/fake-oauth-server.ts";
-import { startFakeHttpMcp } from "../server/testing/fake-http-mcp-server.ts";
+import { startFakeOAuth } from "../desktop/server/testing/fake-oauth-server.ts";
+import { startFakeHttpMcp } from "../desktop/server/testing/fake-http-mcp-server.ts";
 
 // Node cannot import the app's table (it pulls in a PNG), so the official addresses are named here too.
 const OFFICIAL = { whop: "https://mcp.whop.com/mcp", agentcard: "https://mcp.agentcard.sh/mcp" };

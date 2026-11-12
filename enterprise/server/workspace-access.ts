@@ -2,10 +2,10 @@
 // the local email allow-list remains an independent, narrowing check.
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { hostedWorkspaceConfiguration, type WorkspaceAccess, type WorkspaceAccessOptions } from "../../server/enterprise.ts";
-import { isAllowedOrigin, isLoopbackHost, isProxied, parseCookies, requestSource, serializeSessionCookie } from "../../server/request-auth.ts";
-import { cookieMaxAgeSeconds, type Scope, type SessionRecord } from "../../server/sessions.ts";
-import { HOSTED_CONTRACT_ERROR, HOSTED_CONTRACT_VERSION, hostedContractCompatible } from "../../server/hosted-contract.ts";
+import { hostedWorkspaceConfiguration, type WorkspaceAccess, type WorkspaceAccessOptions } from "../../desktop/server/enterprise.ts";
+import { isAllowedOrigin, isLoopbackHost, isProxied, parseCookies, requestSource, serializeSessionCookie } from "../../desktop/server/request-auth.ts";
+import { cookieMaxAgeSeconds, type Scope, type SessionRecord } from "../../desktop/server/sessions.ts";
+import { HOSTED_CONTRACT_ERROR, HOSTED_CONTRACT_VERSION, hostedContractCompatible } from "../../desktop/server/hosted-contract.ts";
 
 const START = "/api/auth/hosted/start";
 const CALLBACK = "/api/auth/hosted/callback";

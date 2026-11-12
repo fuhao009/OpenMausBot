@@ -6,8 +6,8 @@
 //   node --experimental-strip-types scripts/gen-widget-prompts.ts
 import { writeFileSync } from "node:fs";
 
-import { WIDGET_SAMPLES } from "../shared/widget-samples.ts";
-import { parseWidgetInput } from "../shared/widget.ts";
+import { WIDGET_SAMPLES } from "../packages/shared/widget-samples.ts";
+import { parseWidgetInput } from "../packages/shared/widget.ts";
 
 const ASK: Array<[title: string, prompt: string, expect: string]> = [
   ["Book a call", "Help me book a call.", "Without being told to, the bot shows a form: a date picker, a time picker, a length to choose and an optional note. Nothing has to be typed except the note."],
@@ -41,7 +41,7 @@ ASK.forEach(([title, prompt, expect], index) => {
 lines.push(
   "## Show a known-good widget",
   "",
-  "Each prompt hands the bot a finished tree from `shared/widget-samples.ts`, so what appears does not depend on the bot's own design. Use these to check a renderer.",
+  "Each prompt hands the bot a finished tree from `packages/shared/widget-samples.ts`, so what appears does not depend on the bot's own design. Use these to check a renderer.",
   "",
 );
 Object.entries(WIDGET_SAMPLES).forEach(([name, input], index) => {

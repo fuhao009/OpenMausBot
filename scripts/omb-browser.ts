@@ -9,12 +9,12 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
-import { CdpBrowser } from "../server/browser/cdp/browser.ts";
-import { tracingTransport, type SentCommand } from "../server/browser/cdp/transport.ts";
-import { calibrateIdentity, type CalibratedIdentity } from "../server/browser/chrome/calibrate.ts";
-import { SERVER_SCREEN, type HostKind, type ScreenSpec } from "../server/browser/chrome/flags.ts";
-import { sandboxDisabled } from "../server/browser/chrome/host-setup.ts";
-import { launchChrome } from "../server/browser/chrome/launch.ts";
+import { CdpBrowser } from "../desktop/server/browser/cdp/browser.ts";
+import { tracingTransport, type SentCommand } from "../desktop/server/browser/cdp/transport.ts";
+import { calibrateIdentity, type CalibratedIdentity } from "../desktop/server/browser/chrome/calibrate.ts";
+import { SERVER_SCREEN, type HostKind, type ScreenSpec } from "../desktop/server/browser/chrome/flags.ts";
+import { sandboxDisabled } from "../desktop/server/browser/chrome/host-setup.ts";
+import { launchChrome } from "../desktop/server/browser/chrome/launch.ts";
 
 const USAGE = `usage:
   node --experimental-strip-types scripts/omb-browser.ts bot-tests --chrome PATH [--screen 1512x982@2:30] [--host desktop|server|container] [--out DIR] [--label NAME]

@@ -4,8 +4,8 @@
 // the build before signing.
 import { open, readFile, rm, stat } from "node:fs/promises";
 import path from "node:path";
-import { normalizeProductCa, productCaBindsOrigin } from "../electron/product-ca.mjs";
-import { validateProductOrigin } from "../electron/product-service.mjs";
+import { normalizeProductCa, productCaBindsOrigin } from "../desktop/electron/product-ca.mjs";
+import { validateProductOrigin } from "../desktop/electron/product-service.mjs";
 
 export const PRODUCT_NAME = "Hezuo";
 export const PRODUCT_APP_ID = "com.hezuo.product";
@@ -188,7 +188,7 @@ export async function verifyProductApp({ appDir, resourcesDir, removeFeed = fals
   if (!(await exists(asarFile))) throw new Error(`product_app_missing_asar: ${asarFile}`);
   const metadata = await readAsarPackageJson(asarFile);
   if (metadata.ombProductManaged !== true) throw new Error(`product_app_not_managed: ${appDir}`);
-  if (metadata.main !== "electron/main.mjs") throw new Error(`product_app_unexpected_main: ${String(metadata.main)}`);
+  if (metadata.main !== "desktop/electron/main.mjs") throw new Error(`product_app_unexpected_main: ${String(metadata.main)}`);
   if (typeof metadata.productName === "string" && metadata.productName !== PRODUCT_NAME) {
     throw new Error(`product_app_product_name: ${metadata.productName}`);
   }

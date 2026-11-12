@@ -59,7 +59,7 @@ app.whenReady().then(async () => {
   while (ports.size < 4) ports.add(await freePort());
   const [harnessPort, webhookPort, phonePort, controlPort] = [...ports];
   writeFileSync(join(home, "config.json"), JSON.stringify({ instances: {
-    claude: { driver: "claudeAgent", config: { cli: join(root, "server/testing/fake-claude-cli.ts") } },
+    claude: { driver: "claudeAgent", config: { cli: join(root, "desktop/server/testing/fake-claude-cli.ts") } },
   } }));
   const env = {
     HOME: home, USERPROFILE: home, OMB_DATA_DIR: home, PATH: "",

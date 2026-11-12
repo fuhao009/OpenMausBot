@@ -36,8 +36,8 @@ Capture the returned channel ID from `new-channel`. The wait result must be
 ## Chief room management
 
 ```sh
-pnpm exec vitest run server/chief-rooms.e2e.test.ts
-pnpm exec vitest run server/index.test.ts -t 'Chief room|team-goal lead|credential-card ownership'
+pnpm exec vitest run desktop/server/chief-rooms.e2e.test.ts
+pnpm exec vitest run desktop/server/index.test.ts -t 'Chief room|team-goal lead|credential-card ownership'
 ```
 
 The end-to-end test launches the isolated control fixture, creates disposable

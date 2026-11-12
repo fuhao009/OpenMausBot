@@ -6,7 +6,7 @@ RUN npm install -g pnpm@10.33.0
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/docs/package.json ./apps/docs/package.json
-COPY cloudflare/control-plane/package.json ./cloudflare/control-plane/package.json
+COPY gateway/control-plane/package.json ./gateway/control-plane/package.json
 RUN pnpm install --frozen-lockfile
 COPY . .
 # The native modules the bundle cannot hold (DuckDB, resvg, 1Password), staged for the runtime stage.
@@ -40,5 +40,5 @@ ENV HOME=/data \
     OMB_WEBHOOK_PORT=8800 \
     NODE_ENV=production
 USER hezuo
-# Starts dist-server/index.js again when it asks to (server/restart.ts).
+# Starts dist-server/index.js again when it asks to (desktop/server/restart.ts).
 CMD ["node", "dist-server/server-launcher.js"]

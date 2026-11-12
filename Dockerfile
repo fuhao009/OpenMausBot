@@ -39,7 +39,7 @@ ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 # every workspace member's manifest must exist before install resolves the lockfile
 COPY apps/docs/package.json ./apps/docs/package.json
-COPY cloudflare/control-plane/package.json ./cloudflare/control-plane/package.json
+COPY gateway/control-plane/package.json ./gateway/control-plane/package.json
 # package.json's `prepare` runs during install. The script itself is written to
 # no-op without a .git (it exits 0 here), but node still has to be able to LOAD
 # it, and .dockerignore keeps .git out — so copy it in before install or the
@@ -48,7 +48,7 @@ COPY scripts/install-git-hooks.mjs ./scripts/install-git-hooks.mjs
 RUN pnpm install --frozen-lockfile
 COPY . .
 # The Cloud home runs these as root, so nobody else may write them.
-# The Data engine's native modules (server/data/engine.ts), staged like the
+# The Data engine's native modules (desktop/server/data/engine.ts), staged like the
 # desktop app's extraResources; the runtime stages copy this tree.
 RUN node scripts/prepare-duckdb.mjs && chmod -R go-w dist-native/duckdb
 RUN pnpm build:server && pnpm exec vite build && chmod -R go-w dist dist-server skills
@@ -70,7 +70,7 @@ RUN apt-get update \
   && useradd --create-home --home-dir /data --shell /bin/bash hezuo
 # The bots' browser (docs/plans/browser-engine.md): the pinned agent-browser
 # and a Chrome for Testing with its libraries, so a server bot can browse.
-# Pin here and in server/browser-engine-release.ts together.
+# Pin here and in desktop/server/browser-engine-release.ts together.
 ARG AGENT_BROWSER_VERSION=0.37.0
 # `agent-browser install` fetches Chrome for Testing's last-known-good Stable;
 # the publish job passes that version so a Chrome release rebuilds this layer.
@@ -103,7 +103,7 @@ WORKDIR /app
 
 FROM runtime AS cloud-home
 # Tools bots reach for in their shell on a My Cloud: Python, pdftotext and
-# unzip (about 28 MB unpacked), and the bot box (server/bot-box): bubblewrap
+# unzip (about 28 MB unpacked), and the bot box (desktop/server/bot-box): bubblewrap
 # runs every bot turn in its own namespaces, socat bridges a box's loopback
 # ports to the server's gates. Their own layer, so the Chrome layers beneath
 # stay cached. pnpm, so a bot's shell can install what its project asks for.
@@ -117,7 +117,7 @@ RUN apt-get update \
 # more often.
 COPY --from=edge /caddy /usr/local/bin/caddy
 # Grok Build, the grok.com subscription engine: xAI's own installer, pinned to
-# the version the Grok driver is verified against (server/drivers/acp/grok.ts).
+# the version the Grok driver is verified against (desktop/server/drivers/acp/grok.ts).
 # People sign it in from the app with a device code; its login lands in
 # ~/.grok on the volume. Only the binary goes to /usr/local/bin, on every
 # user's PATH and out of the volume; the installer's PATH links and shell
@@ -152,7 +152,7 @@ COPY deploy/fly/Caddyfile /app/cloud/Caddyfile
 COPY --from=build /src/dist-native/duckdb/linux-x64 ./duckdb
 COPY --from=build /src/dist-server ./dist-server
 COPY --from=build /src/dist ./dist
-# The bundled skills (server/skill-library.ts reads ./skills from /app).
+# The bundled skills (desktop/server/skill-library.ts reads ./skills from /app).
 COPY --from=build /src/skills ./skills
 RUN export HOME=/tmp/omb-build-home \
  && chmod go-w /app/cloud /app/cloud/Caddyfile \
@@ -170,7 +170,7 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
   CMD curl -sf http://127.0.0.1:8080/api/health | grep -q hezuo || exit 1
 # Starts as root: hands a fresh volume to `hezuo`, runs the server and the edge
 # as `hezuo`, and hands the server its secrets over a pipe, never an
-# environment `hezuo` could read (server/cloud-home-start.ts). It runs only
+# environment `hezuo` could read (desktop/server/cloud-home-start.ts). It runs only
 # root's code from the image, never anything on the volume.
 USER root
 CMD ["node", "/app/dist-server/cloud-home-start.js"]
@@ -190,6 +190,6 @@ USER hezuo
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -sf http://127.0.0.1:8799/api/health | grep -q hezuo || exit 1
 # The launcher runs dist-server/index.js and starts it again when it asks to
-# (a copied workspace committing, server/restart.ts), so the container, and a
+# (a copied workspace committing, desktop/server/restart.ts), so the container, and a
 # Caddy sharing its network, stays up through that restart.
 CMD ["node", "dist-server/server-launcher.js"]

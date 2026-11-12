@@ -26,7 +26,7 @@ engine is available. The isolated fixture should expose `claude`.
 Run the offline API fixture and driver regressions:
 
 ```sh
-pnpm exec vitest run server/claude-account-api.test.ts server/claude-accounts.test.ts server/drivers/claude-accounts.test.ts
+pnpm exec vitest run desktop/server/claude-account-api.test.ts desktop/server/claude-accounts.test.ts desktop/server/drivers/claude-accounts.test.ts
 ```
 
 The API fixture launches its own disposable server and synthetic CLI. It checks
@@ -45,14 +45,14 @@ prove real OAuth login or native Windows execution.
 
 ## Gotchas
 
-- Doctor proves server/engine readiness, not authentication against a real
+- Doctor proves desktop/server/engine readiness, not authentication against a real
   provider.
 - Model-picker rendering is Electron UI and remains outside this first map.
 
 ## Groq API setup
 
 ```sh
-pnpm exec vitest run server/drivers/groq.test.ts server/provider-key-check.test.ts server/config.test.ts server/openai-tools.e2e.test.ts src/components/keys/key-catalog.test.ts src/components/keys/KeyRow.test.ts src/state/store.test.ts
+pnpm exec vitest run desktop/server/drivers/groq.test.ts desktop/server/provider-key-check.test.ts desktop/server/config.test.ts desktop/server/openai-tools.e2e.test.ts desktop/src/components/keys/key-catalog.test.ts desktop/src/components/keys/KeyRow.test.ts desktop/src/state/store.test.ts
 ```
 
 These fixtures use disposable data and local HTTP providers. They check the
@@ -70,7 +70,7 @@ this recipe.
 ## Greenference API setup
 
 ```sh
-pnpm exec vitest run server/drivers/greenference.test.ts server/provider-key-check.test.ts server/credential-request.test.ts src/components/keys/key-catalog.test.ts
+pnpm exec vitest run desktop/server/drivers/greenference.test.ts desktop/server/provider-key-check.test.ts desktop/server/credential-request.test.ts desktop/src/components/keys/key-catalog.test.ts
 ```
 
 These use a local stand-in for `https://llm.eu.greenference.com/v1`. They check
@@ -87,7 +87,7 @@ chat without a key answers 401. A real chat turn needs a real key.
 ## Meta Muse: Model API and Muse Code
 
 ```sh
-pnpm exec vitest run server/drivers/meta.test.ts server/drivers/muse-code.test.ts server/provider-key-check.test.ts server/config.test.ts server/openai-tools.e2e.test.ts src/components/keys/key-catalog.test.ts src/components/keys/KeyRow.test.ts src/state/store.test.ts
+pnpm exec vitest run desktop/server/drivers/meta.test.ts desktop/server/drivers/muse-code.test.ts desktop/server/provider-key-check.test.ts desktop/server/config.test.ts desktop/server/openai-tools.e2e.test.ts desktop/src/components/keys/key-catalog.test.ts desktop/src/components/keys/KeyRow.test.ts desktop/src/state/store.test.ts
 ```
 
 The Meta Model API fixtures use a local HTTP provider: preset endpoint,
@@ -99,7 +99,7 @@ with `muse login`. It spends that account's Muse usage, so it runs only when
 asked:
 
 ```sh
-OMB_LIVE_MUSE=1 pnpm exec vitest run server/drivers/muse-code.live.test.ts
+OMB_LIVE_MUSE=1 pnpm exec vitest run desktop/server/drivers/muse-code.live.test.ts
 ```
 
 It lists the account's models (Muse Wonder 1.0), answers on Muse Wonder, runs

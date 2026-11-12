@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BaseSequencer, type TestSequencerConstructor, type TestSpecification, type Vitest } from "vitest/node";
-import viteConfig from "../../vite.config.ts";
+import viteConfig from "../../desktop/vite.config.ts";
 import { VITEST_SHARDS } from "../ci-scope.mjs";
 import { DurationSequencer, SHARD_WEIGHTS_FILE, loadPlatformShardWeights, loadShardWeights, planShards, weightKey } from "./duration-sequencer.ts";
 import { isPortableE2e } from "./host-e2e.ts";
@@ -79,16 +79,16 @@ describe("vitest shard balance", () => {
   });
 
   it("keys Windows and POSIX paths the same way", () => {
-    expect(weightKey("/repo", "/repo/server/a.e2e.test.ts", path.posix)).toBe("server/a.e2e.test.ts");
-    expect(weightKey("D:/a/repo", "D:/a/repo/server/a.e2e.test.ts", path.win32)).toBe("server/a.e2e.test.ts");
-    expect(weightKey("D:\\a\\repo", "d:/a/repo/server/drivers/b.test.ts", path.win32)).toBe("server/drivers/b.test.ts");
+    expect(weightKey("/repo", "/repo/server/a.e2e.test.ts", path.posix)).toBe("desktop/server/a.e2e.test.ts");
+    expect(weightKey("D:/a/repo", "D:/a/repo/server/a.e2e.test.ts", path.win32)).toBe("desktop/server/a.e2e.test.ts");
+    expect(weightKey("D:\\a\\repo", "d:/a/repo/server/drivers/b.test.ts", path.win32)).toBe("desktop/server/drivers/b.test.ts");
     expect(weightKey("D:/a/repo", "C:/elsewhere/c.test.ts", path.win32)).toBeNull();
     expect(weightKey("/repo", "/other/c.test.ts", path.posix)).toBeNull();
   });
 
   it("charges a new e2e file the median e2e time and any other new file one second", () => {
-    const weights = { "server/a.e2e.test.ts": 10, "server/b.e2e.test.ts": 20, "server/c.e2e.test.ts": 90, "server/d.test.ts": 50 };
-    const { loads } = planShards([...Object.keys(weights), "server/new.e2e.test.ts", "server/new.test.ts"], weights, 1);
+    const weights = { "desktop/server/a.e2e.test.ts": 10, "desktop/server/b.e2e.test.ts": 20, "desktop/server/c.e2e.test.ts": 90, "desktop/server/d.test.ts": 50 };
+    const { loads } = planShards([...Object.keys(weights), "desktop/server/new.e2e.test.ts", "desktop/server/new.test.ts"], weights, 1);
     expect(loads).toEqual([10 + 20 + 90 + 50 + 20 + 1]);
   });
 
@@ -127,8 +127,8 @@ describe("vitest shard balance", () => {
     expect(lines[1]).toMatch(/^::warning title=duration-sequencer::Only 0 of \d+ weighted test files were found/);
 
     lines.length = 0;
-    vi.stubEnv("OMB_VITEST_SUBSET", "src/ scripts/generate-locale.test.mjs");
-    await new DurationSequencer(context(1, 2, (line) => lines.push(line))).shard(specs(FILES.filter((file) => file.startsWith("src/"))));
+    vi.stubEnv("OMB_VITEST_SUBSET", "desktop/src/ scripts/generate-locale.test.mjs");
+    await new DurationSequencer(context(1, 2, (line) => lines.push(line))).shard(specs(FILES.filter((file) => file.startsWith("desktop/src/"))));
     expect(lines).toEqual([expect.stringMatching(/^duration-sequencer: shard 1\/2 runs \d+ of \d+ files/)]);
   });
 });
@@ -136,39 +136,39 @@ describe("vitest shard balance", () => {
 describe("update-shard-weights", () => {
   it("reads each file's time from a CI log, colour codes and skipped files included", () => {
     const log = [
-      "vitest (windows-latest, shard 4/4)\tUNKNOWN STEP\t2026-10-05T22:52:23.1Z  ✓ server/drivers/acp/acp.test.ts (150 tests) 41750ms",
-      "2026-10-06T10:06:39.1Z  ^[[32m✓^[[39m server/a.e2e.test.ts ^[[2m(^[[22m39 tests | ^[[33m1 skipped^[[39m^[[2m)^[[22m^[[33m 316800^[[2mms^[[22m^[[39m",
+      "vitest (windows-latest, shard 4/4)\tUNKNOWN STEP\t2026-10-05T22:52:23.1Z  ✓ desktop/server/drivers/acp/acp.test.ts (150 tests) 41750ms",
+      "2026-10-06T10:06:39.1Z  ^[[32m✓^[[39m desktop/server/a.e2e.test.ts ^[[2m(^[[22m39 tests | ^[[33m1 skipped^[[39m^[[2m)^[[22m^[[33m 316800^[[2mms^[[22m^[[39m",
       "2026-10-06T10:03:21.1Z  ↓ scripts/testing/cloud-preview.e2e.test.ts (1 test | 1 skipped)",
-      "2026-10-06T10:03:22.1Z    ❯ server/b.test.ts:12:3",
-      "2026-10-06T10:03:23.1Z  × server/c.test.ts (3 tests | 1 failed) 9000ms",
+      "2026-10-06T10:03:22.1Z    ❯ desktop/server/b.test.ts:12:3",
+      "2026-10-06T10:03:23.1Z  × desktop/server/c.test.ts (3 tests | 1 failed) 9000ms",
     ].join("\n");
     expect(Object.fromEntries(parseVitestLog(log))).toEqual({
-      "server/drivers/acp/acp.test.ts": 41.75,
-      "server/a.e2e.test.ts": 316.8,
+      "desktop/server/drivers/acp/acp.test.ts": 41.75,
+      "desktop/server/a.e2e.test.ts": 316.8,
       "scripts/testing/cloud-preview.e2e.test.ts": 0,
-      "server/c.test.ts": 9,
+      "desktop/server/c.test.ts": 9,
     });
   });
 
   it("rebuilds the platforms a run sampled and keeps the others", () => {
-    const sample = [new Map([["server/slow.test.ts", 9]])];
-    const existing = { linux: { "server/old.test.ts": 7 }, darwin: { "server/mac.test.ts": 8 }, "server/flat.test.ts": 5 };
+    const sample = [new Map([["desktop/server/slow.test.ts", 9]])];
+    const existing = { linux: { "desktop/server/old.test.ts": 7 }, darwin: { "desktop/server/mac.test.ts": 8 }, "desktop/server/flat.test.ts": 5 };
     expect(mergePlatformWeights(existing, { linux: sample, win32: sample, darwin: [] }, () => true)).toEqual({
-      darwin: { "server/mac.test.ts": 8 },
-      linux: { "server/slow.test.ts": 9 },
-      win32: { "server/slow.test.ts": 9 },
+      darwin: { "desktop/server/mac.test.ts": 8 },
+      linux: { "desktop/server/slow.test.ts": 9 },
+      win32: { "desktop/server/slow.test.ts": 9 },
     });
   });
 
   it("keeps each slow or e2e file's median, and drops light and deleted files", () => {
     const runs = [
-      new Map([["server/slow.test.ts", 9], ["server/light.test.ts", 2], ["server/skipped.e2e.test.ts", 0], ["server/gone.test.ts", 60]]),
-      new Map([["server/slow.test.ts", 30], ["server/light.test.ts", 3]]),
-      new Map([["server/slow.test.ts", 12.4], ["server/light.test.ts", 1]]),
+      new Map([["desktop/server/slow.test.ts", 9], ["desktop/server/light.test.ts", 2], ["desktop/server/skipped.e2e.test.ts", 0], ["desktop/server/gone.test.ts", 60]]),
+      new Map([["desktop/server/slow.test.ts", 30], ["desktop/server/light.test.ts", 3]]),
+      new Map([["desktop/server/slow.test.ts", 12.4], ["desktop/server/light.test.ts", 1]]),
     ];
-    expect(buildWeights(runs, (file: string) => file !== "server/gone.test.ts")).toEqual({
-      "server/skipped.e2e.test.ts": 1,
-      "server/slow.test.ts": 12,
+    expect(buildWeights(runs, (file: string) => file !== "desktop/server/gone.test.ts")).toEqual({
+      "desktop/server/skipped.e2e.test.ts": 1,
+      "desktop/server/slow.test.ts": 12,
     });
   });
 });

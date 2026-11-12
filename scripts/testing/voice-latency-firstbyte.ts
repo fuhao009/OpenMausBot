@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // First-byte proof row for the voice-latency record protocol: measures the
-// synthesis leg alone — the real synthesize() in server/tts/elevenlabs.ts
+// synthesis leg alone — the real synthesize() in desktop/server/tts/elevenlabs.ts
 // against the committed stub — and writes the 319-char unpunctuated reply's
 // first-byte timing. Modeled numbers only: no live engine call, no engine key.
 import { execFileSync } from "node:child_process";
@@ -8,8 +8,8 @@ import { cpus } from "node:os";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { toUtterances } from "../../server/tts/speech-text.ts";
-import { synthesize } from "../../server/tts/elevenlabs.ts";
+import { toUtterances } from "../../desktop/server/tts/speech-text.ts";
+import { synthesize } from "../../desktop/server/tts/elevenlabs.ts";
 import {
   corpusFixtureId,
   CORPUS_PATH,

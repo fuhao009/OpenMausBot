@@ -7,11 +7,11 @@ and a level for each person added. Admins and the bot's owner always edit. The c
 ## Driving it
 
 ```sh
-pnpm exec vitest run server/cloud-team-bot-access.e2e.test.ts server/bot-access.test.ts server/host/access-requests.test.ts \
-  server/bot-visibility.test.ts src/components/bot-access src/state/team-chats.test.ts src/components/SettingsModal.groups.test.ts
+pnpm exec vitest run desktop/server/cloud-team-bot-access.e2e.test.ts desktop/server/bot-access.test.ts desktop/server/host/access-requests.test.ts \
+  desktop/server/bot-visibility.test.ts desktop/src/components/bot-access desktop/src/state/team-chats.test.ts desktop/src/components/SettingsModal.groups.test.ts
 ```
 
-- `server/cloud-team-bot-access.e2e.test.ts` starts a real Team Cloud (`OMB_CLOUD_ROLE=team`) with the Owner (Olive),
+- `desktop/server/cloud-team-bot-access.e2e.test.ts` starts a real Team Cloud (`OMB_CLOUD_ROLE=team`) with the Owner (Olive),
   an Admin (Ada) and four Users paired with the Admin's signed claims, and the synthetic Claude CLI. Payroll is shared
   with Bob to view, Cara to chat and Dan to edit; Eve is not added. As each of them it tries every route a member
   reaches: the bot list (each copy's `yourAccess`, the sharing only on an editor's), its chat, export, a room with it,
@@ -27,18 +27,18 @@ pnpm exec vitest run server/cloud-team-bot-access.e2e.test.ts server/bot-access.
   owner 409; Bob's ask puts one card in Dan's inbox (the owner's, not an admin's), asking again adds none, Bob can't
   answer it, Not now leaves him at Can view, a new ask and Allow give him Can chat, a conversation of his own and a
   line in his inbox; and an Allow from someone who can no longer edit the bot is refused.
-- `server/bot-access.test.ts` covers the level rules: the mapping from visibility and back, a member's level (owner,
+- `desktop/server/bot-access.test.ts` covers the level rules: the mapping from visibility and back, a member's level (owner,
   damaged sharing, `@domain` entries), each copy of a bot, what each route needs, each level's bot fields, a card that
   changes the bot, a relayed message, and who may be added.
-- `server/host/access-requests.test.ts`: the admins decide when the owner is gone, one admin's Allow settles every
+- `desktop/server/host/access-requests.test.ts`: the admins decide when the owner is gone, one admin's Allow settles every
   copy, the owner alone decides while on the team, Not now gives nothing.
-- `src/components/bot-access/AccessOverview.dom.test.ts`: Settings → Bot access lists each team bot (no one's own
+- `desktop/src/components/bot-access/AccessOverview.dom.test.ts`: Settings → Bot access lists each team bot (no one's own
   Hezuo) with its owner, a plain summary and a stack of faces (+N past four); a row opens the Share dialog; the search
   takes a bot's name or owner; By person lists each User, and opening one gives their bots at the same level menus, with
   Remove only for their own access; the empty states; "Ask Cara to chat" asks and says so, "Ask an admin to chat" when
-  nobody on the team owns the bot. `src/components/SettingsModal.groups.test.ts` and
-  `src/components/SettingsModal.simple.test.ts` show the page to a team's admins only, as its own page in both modes.
-- `src/components/bot-access/ShareBotDialog.dom.test.ts` drives the dialog: the owner first, each level on a real menu
+  nobody on the team owns the bot. `desktop/src/components/SettingsModal.groups.test.ts` and
+  `desktop/src/components/SettingsModal.simple.test.ts` show the page to a team's admins only, as its own page in both modes.
+- `desktop/src/components/bot-access/ShareBotDialog.dom.test.ts` drives the dialog: the owner first, each level on a real menu
   with its check, nothing below what everyone gets, a change sent at once with Undo putting it back, adding a teammate
   from the keyboard, removing one, general access and its level, Make owner behind a confirmation and only for whoever
   may hand the bot on, the read-only view of someone who can't edit, keys staying inside it over Settings, and no button

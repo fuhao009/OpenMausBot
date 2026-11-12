@@ -3,7 +3,7 @@
 The first-party Whop card uses the existing MCP registry and OAuth flow. It
 connects to `https://mcp.whop.com/mcp`, with browser sign-in and no pasted API
 key or Composio dependency. The bundled logo is attributed in
-`src/assets/whop/README.md`.
+`desktop/src/assets/whop/README.md`.
 
 ## Isolated browser verification
 
@@ -47,7 +47,7 @@ S256, refresh tokens and the `admin` scope.
 ## Regression checks
 
 ```sh
-pnpm exec vitest run src/lib/hosted-mcp-apps.test.ts src/components/PluginsPanel.navigation.test.ts src/components/PluginsPanel.i18n.test.ts src/components/McpServersPanel.test.ts src/components/McpServersPanel.embedded.test.ts src/components/McpServersPanel.hosted.test.ts src/lib/mcp-sign-in.test.ts server/mcp-oauth.test.ts server/mcp-oauth-discovery.test.ts server/mcp-oauth-store.test.ts server/mcp-probe.test.ts server/mcp-selection.e2e.test.ts server/mcp-remote-proxy.test.ts server/mcp-gate-config.test.ts server/drivers/pi-mcp-extension.test.ts scripts/testing/verification-docs.test.ts
+pnpm exec vitest run desktop/src/lib/hosted-mcp-apps.test.ts desktop/src/components/PluginsPanel.navigation.test.ts desktop/src/components/PluginsPanel.i18n.test.ts desktop/src/components/McpServersPanel.test.ts desktop/src/components/McpServersPanel.embedded.test.ts desktop/src/components/McpServersPanel.hosted.test.ts desktop/src/lib/mcp-sign-in.test.ts desktop/server/mcp-oauth.test.ts desktop/server/mcp-oauth-discovery.test.ts desktop/server/mcp-oauth-store.test.ts desktop/server/mcp-probe.test.ts desktop/server/mcp-selection.e2e.test.ts desktop/server/mcp-remote-proxy.test.ts desktop/server/mcp-gate-config.test.ts desktop/server/drivers/pi-mcp-extension.test.ts scripts/testing/verification-docs.test.ts
 pnpm typecheck
 pnpm lint
 pnpm i18n:check

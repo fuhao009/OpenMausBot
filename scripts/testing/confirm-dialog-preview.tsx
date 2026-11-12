@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ConfirmDialog } from "../../src/components/ConfirmDialog";
-import "../../src/styles.css";
+import { ConfirmDialog } from "../../desktop/src/components/ConfirmDialog";
+import "../../desktop/src/styles.css";
 
 function Preview() {
   const [open, setOpen] = useState(false);

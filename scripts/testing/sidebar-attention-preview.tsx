@@ -2,11 +2,11 @@
 // ?density= before the first render, since Sidebar reads its density from
 // localStorage once, at mount.
 import { createRoot } from "react-dom/client";
-import { saveSidebarDensity } from "../../src/lib/sidebar-preferences";
-import { Sidebar } from "../../src/components/Sidebar";
-import { StoreProvider } from "../../src/state/store";
-import { applySkin, readSkin } from "../../src/lib/skins";
-import "../../src/styles.css";
+import { saveSidebarDensity } from "../../desktop/src/lib/sidebar-preferences";
+import { Sidebar } from "../../desktop/src/components/Sidebar";
+import { StoreProvider } from "../../desktop/src/state/store";
+import { applySkin, readSkin } from "../../desktop/src/lib/skins";
+import "../../desktop/src/styles.css";
 
 const density = new URLSearchParams(window.location.search).get("density");
 if (density === "comfortable" || density === "icons") {

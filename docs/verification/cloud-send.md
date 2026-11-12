@@ -7,20 +7,20 @@ while it goes.
 ## Two real servers
 
 ```sh
-pnpm exec vitest run server/cloud-send.e2e.test.ts server/cloud-send-move.e2e.test.ts server/cloud-send-kinds.e2e.test.ts server/cloud-send-store.e2e.test.ts server/cloud-send.test.ts
-pnpm exec vitest run server/cloud-send-kinds.test.ts server/cloud-send-memory.test.ts server/cloud-send-files.test.ts server/cloud-send-attachments.test.ts server/cloud-send-settings.test.ts
-node --test electron/cloud-send.node-test.mjs electron/cloud-send-move.node-test.mjs electron/cloud-send-check.node-test.mjs electron/cloud-send-kinds.node-test.mjs
+pnpm exec vitest run desktop/server/cloud-send.e2e.test.ts desktop/server/cloud-send-move.e2e.test.ts desktop/server/cloud-send-kinds.e2e.test.ts desktop/server/cloud-send-store.e2e.test.ts desktop/server/cloud-send.test.ts
+pnpm exec vitest run desktop/server/cloud-send-kinds.test.ts desktop/server/cloud-send-memory.test.ts desktop/server/cloud-send-files.test.ts desktop/server/cloud-send-attachments.test.ts desktop/server/cloud-send-settings.test.ts
+node --test desktop/electron/cloud-send.node-test.mjs desktop/electron/cloud-send-move.node-test.mjs desktop/electron/cloud-send-check.node-test.mjs desktop/electron/cloud-send-kinds.node-test.mjs
 ```
 
 `scripts/testing/cloud-send-fixture.ts` starts this computer's server as the
 desktop app starts it (its private utility-process port over Node's IPC) and a
 Cloud home paired the way the Admin pairs it, with main's own wiring
-(`electron/one-home-main.mjs`, which installs `electron/cloud-send-main.mjs`)
+(`desktop/electron/one-home-main.mjs`, which installs `desktop/electron/cloud-send-main.mjs`)
 between them through a fake `ipcMain`. Temp homes, a synthetic Claude CLI and a
 fake 1Password SDK; no network. `fx.olderSend` sends as an older desktop's Send
 everything did, so a test can start from what such a send left on My Cloud.
 
-`server/cloud-send.e2e.test.ts` checks:
+`desktop/server/cloud-send.e2e.test.ts` checks:
 
 - when My Cloud's 1Password refuses this computer's token, everything else
   arrives and My Cloud's notice says *1Password* and why, never a login's site;
@@ -33,7 +33,7 @@ everything did, so a test can start from what such a send left on My Cloud.
   and the path from each server's own leaf, which is what its bot reads, must
   match row for row, summaries included.
 
-`server/cloud-send-move.e2e.test.ts` runs the move as main runs it (`move`, then
+`desktop/server/cloud-send-move.e2e.test.ts` runs the move as main runs it (`move`, then
 `move({ final: true })`, then `check`): a 1,599-row conversation with 22
 context summaries, a 610-message room and a conversation both sides added to
 pass the path check; MCP servers with their keys and header tokens, an MCP
@@ -44,7 +44,7 @@ session counts as someone using My Cloud; a moved conversation may use a lent
 Mac and feeds its bot's memory on My Cloud; and a move run again changes
 nothing there.
 
-`server/cloud-send-kinds.e2e.test.ts` runs what only a move carries, then the
+`desktop/server/cloud-send-kinds.e2e.test.ts` runs what only a move carries, then the
 check, then the move again: a routine naming this computer's folder, with a
 finished run, arrives switched off under its id, as the owner's, naming My
 Cloud's folder; a scheduled call arrives unscheduled; a webhook arrives off
@@ -58,38 +58,38 @@ models reach the bot; a conversation's project, model, approval and snooze and a
 room conversation's time limit reach it too. A reply over 1 MB arrives whole,
 imported, Claude Code and library skills arrive, and a model on the home network
 stays here. `check()` is ok, and a move run again changes nothing.
-`server/cloud-send-rooms.e2e.test.ts` runs the move over every shape of room: one
+`desktop/server/cloud-send-rooms.e2e.test.ts` runs the move over every shape of room: one
 with history arrives; one nobody wrote in yet (as a team setup or a package
 makes it, with a bot that lives only there) arrives as its thread with no rows;
 one whose bots were all deleted here is never made there and the check leaves it
 out with its conversation; one an older send carried and the person then removed
 on My Cloud stays removed and the check leaves it out. `check()` is ok, and a
 move run again changes nothing. A check that finds something missing logs the
-rooms and conversations by id (`electron/one-home.mjs` `missingOf`).
-`server/cloud-send-store.e2e.test.ts` fills My Cloud's attachment store: the
+rooms and conversations by id (`desktop/electron/one-home.mjs` `missingOf`).
+`desktop/server/cloud-send-store.e2e.test.ts` fills My Cloud's attachment store: the
 attachment is refused in plain words, its chat still goes, no partial file is
 left, and the check names the attachment.
 
-`server/cloud-send-chats.test.ts` covers the row cursor (pages, a deleted row
+`desktop/server/cloud-send-chats.test.ts` covers the row cursor (pages, a deleted row
 starting a conversation over, each page's own leaf, a page never ending between
 a row and a row above it that was stored after it) and My Cloud's side (pages
 of one conversation continuing one another, summaries kept, a removed
 conversation or room never coming back, a busy one waiting, a room made under
-the sender's ids). `electron/cloud-send.node-test.mjs` covers main's paging (a
+the sender's ids). `desktop/electron/cloud-send.node-test.mjs` covers main's paging (a
 page's `sent` as it goes, a conversation's later pages waiting once one is not
-taken) and a send that goes on once My Cloud is back after being away. `server/login-handoff.test.ts` and
-`electron/cloud-send.node-test.mjs` cover the
+taken) and a send that goes on once My Cloud is back after being away. `desktop/server/login-handoff.test.ts` and
+`desktop/electron/cloud-send.node-test.mjs` cover the
 rest of the reasons a person reads: a pass that stops as a whole, logins this
 computer's server did not hand over, and a 1Password token 1Password already
 refused here.
 
-My Cloud's welcome (`src/components/cloud-welcome/CloudWelcome.test.ts`): while
+My Cloud's welcome (`desktop/src/components/cloud-welcome/CloudWelcome.test.ts`): while
 the move runs, or once it has gone, **Bring your stuff** is done by itself, so
 the welcome goes straight on to the AI with nothing to press; back on that step
 it says so in one line, with a fresh start only behind **More**. Before anything
 has come, it offers a fresh start. The move never shows as a strip over the page
-(`src/components/CloudSendStrip.test.ts`): it lives in the account area at the
-bottom of the sidebar (`src/components/AccountMove.test.ts`). On its way, the
+(`desktop/src/components/CloudSendStrip.test.ts`): it lives in the account area at the
+bottom of the sidebar (`desktop/src/components/AccountMove.test.ts`). On its way, the
 account line says "Moving to My Cloud…" and so does one row in the account
 menu, with the progress in its tooltip; after a day of failing the line says "My
 Cloud move needs you" and ends with Try again, the avatar gets a red dot, and the
@@ -118,12 +118,12 @@ pairing route. Print each failed item's error, never a value.
 ## The move to My Cloud, by itself
 
 ```sh
-pnpm exec vitest run server/one-home.e2e.test.ts server/one-home-retry.e2e.test.ts server/one-home-trial-key.e2e.test.ts
-pnpm exec vitest run server/move-freeze.test.ts server/cloud-send-arrived.test.ts server/cloud-held-keys.test.ts
-node --test electron/one-home.node-test.mjs
+pnpm exec vitest run desktop/server/one-home.e2e.test.ts desktop/server/one-home-retry.e2e.test.ts desktop/server/one-home-trial-key.e2e.test.ts
+pnpm exec vitest run desktop/server/move-freeze.test.ts desktop/server/cloud-send-arrived.test.ts desktop/server/cloud-held-keys.test.ts
+node --test desktop/electron/one-home.node-test.mjs
 ```
 
-The same two servers, with main's move wiring (`electron/one-home-main.mjs`)
+The same two servers, with main's move wiring (`desktop/electron/one-home-main.mjs`)
 and a fake Hezuo Cloud sign-in whose word the test sets (`fx.account`). The
 fixture can kill and start again either server on its own data (`fx.relaunch`),
 and can fail any request main sends My Cloud (`fx.intercept`). The e2e checks:
@@ -146,8 +146,8 @@ and can fail any request main sends My Cloud (`fx.intercept`). The e2e checks:
 ## Why a move hasn't finished: the report to the Admin
 
 ```sh
-node --test electron/move-status.node-test.mjs electron/one-home.node-test.mjs electron/one-home-keep.node-test.mjs electron/one-home-main.node-test.mjs
-node --test --test-name-pattern="where its move stands" electron/cloud-account.node-test.mjs
+node --test desktop/electron/move-status.node-test.mjs desktop/electron/one-home.node-test.mjs desktop/electron/one-home-keep.node-test.mjs desktop/electron/one-home-main.node-test.mjs
+node --test --test-name-pattern="where its move stands" desktop/electron/cloud-account.node-test.mjs
 ```
 
 The real move (`createOneHome`, and `installOneHome` as main wires it) over

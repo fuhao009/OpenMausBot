@@ -12,8 +12,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { launchVerificationServer, verificationServerArgs, verificationServerEnvironment, type VerificationServer } from "../control-omb.ts";
-import { waitForExit } from "../../server/testing/cleanup.ts";
-import { hostTimeout } from "../../server/testing/host-timeout.ts";
+import { waitForExit } from "../../desktop/server/testing/cleanup.ts";
+import { hostTimeout } from "../../desktop/server/testing/host-timeout.ts";
 
 const view = vi.hoisted(() => ({ config: {} as Record<string, unknown> }));
 vi.mock("@/state/store", async (original) => {

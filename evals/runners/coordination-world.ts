@@ -5,8 +5,8 @@ import type { Scenario, Step } from "../types.ts";
 import { buildScriptedPlan } from "../providers/mock/scripted-plan.ts";
 import { BaseWorld, type WorldContext } from "./base-world.ts";
 import { waitUntil } from "./api.ts";
-import { installLibrarySkill } from "../../server/skill-library.ts";
-import { readHandoffs as readRuntimeHandoffs } from "../../server/testing/handoff-rows.ts";
+import { installLibrarySkill } from "../../desktop/server/skill-library.ts";
+import { readHandoffs as readRuntimeHandoffs } from "../../desktop/server/testing/handoff-rows.ts";
 
 /** The coordination world: the real server plus the scripted engine, with room
  * scripting. Ordinary chat, coordinate_bots handoffs and routines run end to

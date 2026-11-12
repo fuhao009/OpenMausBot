@@ -413,13 +413,13 @@ jobs:
       - name: Delete the enterprise folder
         run: rm -rf enterprise
       - run: pnpm typecheck
-      - run: pnpm exec vitest run server/enterprise.test.ts server/brand.test.ts
+      - run: pnpm exec vitest run desktop/server/enterprise.test.ts desktop/server/brand.test.ts
       - name: The server boots and reports the open-source edition
         run: |
           mkdir -p /tmp/omb-foss/home
           HOME=/tmp/omb-foss/home OMB_DATA_DIR=/tmp/omb-foss/data OMB_PORT=18797 OMB_WEBHOOK_PORT=18796 \
             OMB_BROWSER_CONNECTION=/tmp/omb-foss/browser-connection.json OMB_LICENSE_KEY=omb1.not.real \
-            node --experimental-strip-types server/index.ts > /tmp/omb-foss/server.log 2>&1 &
+            node --experimental-strip-types desktop/server/index.ts > /tmp/omb-foss/server.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:18797/api/health >/dev/null && break; sleep 1; done
           curl -sf http://127.0.0.1:18797/api/edition | tee /tmp/omb-foss/edition.json; echo
           grep -q '"edition":"oss"' /tmp/omb-foss/edition.json
@@ -495,7 +495,7 @@ jobs:
           # command a developer runs by hand. The token is created in the
           # Cloudflare dashboard with Workers Scripts:Edit on the broker
           # account; store it as the CLOUDFLARE_API_TOKEN repo secret.
-          command: deploy --config cloudflare/composio-broker/wrangler.jsonc
+          command: deploy --config gateway/composio-broker/wrangler.jsonc
 
   ui-smoke:
     needs: static
@@ -700,7 +700,7 @@ jobs:
           OMB_CDP_E2E: "1"
         shell: bash
         run: |
-          run=(pnpm exec vitest run server/browser/cdp/s4- server/browser/checklist.e2e server/browser/passkey-wall.e2e server/browser/viewers/viewers.e2e server/browser/viewers/stream-v2.e2e --reporter=verbose --silent=false --reporter=github-actions)
+          run=(pnpm exec vitest run desktop/server/browser/cdp/s4- desktop/server/browser/checklist.e2e desktop/server/browser/passkey-wall.e2e desktop/server/browser/viewers/viewers.e2e desktop/server/browser/viewers/stream-v2.e2e --reporter=verbose --silent=false --reporter=github-actions)
           if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run -a "${run[@]}"; else "${run[@]}"; fi
       - name: The runner's Google Chrome did not change during the run
         if: ${{ !cancelled() && runner.os == 'macOS' }}
@@ -719,4 +719,4 @@ jobs:
           docker run --rm --init --shm-size=512m --user hezuo -e CI=true \
             -e OMB_CDP_CHROME=/opt/hezuo-browser/chrome -e OMB_CDP_HOST=container -e OMB_BROWSER_SANDBOX=0 \
             -v "$PWD:/src" -w /src omb-runtime:s4 \
-            node node_modules/vitest/vitest.mjs run server/browser/cdp/s4- server/browser/checklist.e2e server/browser/passkey-wall.e2e server/browser/viewers/viewers.e2e server/browser/viewers/stream-v2.e2e --reporter=verbose --silent=false
+            node node_modules/vitest/vitest.mjs run desktop/server/browser/cdp/s4- desktop/server/browser/checklist.e2e desktop/server/browser/passkey-wall.e2e desktop/server/browser/viewers/viewers.e2e desktop/server/browser/viewers/stream-v2.e2e --reporter=verbose --silent=false

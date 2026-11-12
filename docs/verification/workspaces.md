@@ -12,7 +12,7 @@
 ## Driving it
 
 ```sh
-pnpm exec vitest run server/fleet-agent.test.ts server/fleet-cli.test.ts server/fleet-cli-filesystem.test.ts server/fleet.test.ts src/components/WorkspacesSection.test.ts server/request-auth.test.ts
+pnpm exec vitest run desktop/server/fleet-agent.test.ts desktop/server/fleet-cli.test.ts desktop/server/fleet-cli-filesystem.test.ts desktop/server/fleet.test.ts desktop/src/components/WorkspacesSection.test.ts desktop/server/request-auth.test.ts
 ```
 
 The agent test boots the real agent on a temporary socket over a recording

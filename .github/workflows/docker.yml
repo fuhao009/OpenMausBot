@@ -11,8 +11,8 @@ on:
       - Dockerfile
       - .dockerignore
       - deploy/**
-      - server/**
-      - src/**
+      - desktop/server/**
+      - desktop/src/**
       - enterprise/**
       - scripts/bundle-server.mjs
       - package.json
@@ -51,7 +51,7 @@ jobs:
           docker logs omb | tail -5
       - name: Prove the image finds its enterprise layer
         # The image ships dist-server/ alone, so the bundled layer sits inside
-        # the server root (server/enterprise.ts looks there after the sibling
+        # the server root (desktop/server/enterprise.ts looks there after the sibling
         # folder). A key that is not genuine proves the layer loaded and
         # checked it; a missing layer would report "no enterprise layer exists"
         # and a licensed self-hoster would silently run the open-source edition.
@@ -81,7 +81,7 @@ jobs:
           timeout 15 docker exec omb agent-browser --session ci-browser set viewport 1280 720
           test "$(timeout 15 docker exec omb agent-browser --session ci-browser eval "innerWidth+'x'+innerHeight")" = '"1280x720"'
           # The harness reads and pictures a bot's browser over the engine's
-          # loopback relay (server/browser-relay.ts); the daemon writes the file.
+          # loopback relay (desktop/server/browser-relay.ts); the daemon writes the file.
           port=$(timeout 15 docker exec omb agent-browser --session ci-browser stream status --json | jq -r .data.port)
           answer=$(docker exec omb curl -sf -X POST -H 'content-type: application/json' -H "origin: http://127.0.0.1:$port" \
             --data '{"action":"screenshot","path":"/tmp/relay.jpg","format":"jpeg","quality":70}' "http://127.0.0.1:$port/api/command")

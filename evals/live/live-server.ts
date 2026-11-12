@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { verificationServerEnvironment } from "../../scripts/control-omb.ts";
-import { removeTempDir, waitForExit } from "../../server/testing/cleanup.ts";
-import { freePortBlock } from "../../server/testing/ports.ts";
+import { removeTempDir, waitForExit } from "../../desktop/server/testing/cleanup.ts";
+import { freePortBlock } from "../../desktop/server/testing/ports.ts";
 import type { LiveInstance } from "./types.ts";
 
 /** Boots the REAL harness server for the live tier: no fake engine. The one
@@ -61,7 +61,7 @@ export async function spawnLiveServer(
     if (value !== undefined) childEnv[name] = value;
   }
   const log = openSync(logPath, "a", 0o600);
-  const child = spawn(process.execPath, ["--experimental-strip-types", join(ROOT, "server", "index.ts")], {
+  const child = spawn(process.execPath, ["--experimental-strip-types", join(ROOT, "desktop", "server", "index.ts")], {
     cwd: ROOT,
     env: childEnv,
     stdio: ["ignore", log, log],

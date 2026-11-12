@@ -1,6 +1,6 @@
 // Two real servers for Send to My Cloud: this computer's, started as the desktop app starts it (its private
 // utility-process port emulated over Node's IPC, the owner's capability delivered through it), and the person's Cloud
-// home, paired the way the Admin pairs it. Main's own wiring (electron/one-home-main.mjs, which installs
+// home, paired the way the Admin pairs it. Main's own wiring (desktop/electron/one-home-main.mjs, which installs
 // cloud-send-main.mjs) sits between them with a fake ipcMain and a fake Hezuo Cloud sign-in. Either server can be
 // killed and started again on its own data, as an app that quits or crashes is. Disposable homes, a synthetic Claude CLI
 // and a fake 1Password SDK; no network.
@@ -10,18 +10,18 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, writeFile
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createLoginHandoffClient, type ConnectionAsk } from "../../electron/cloud-logins.mjs";
-import { createCloudSend, type CloudMoveCheck, type CloudSendOutcome, type CloudSendSnapshot } from "../../electron/cloud-send.mjs";
-import { openOwnerSession } from "../../electron/cloud-send-main.mjs";
-import { BACKGROUND_HEADERS } from "../../electron/cloud-power.mjs";
-import { installOneHome } from "../../electron/one-home-main.mjs";
-import type { OneHomeView } from "../../electron/one-home.mjs";
-import { cloudPairingSignature, cloudRequestSignature } from "../../server/cloud-home.ts";
-import type { TeamMember } from "../../server/cloud-team.ts";
-import { removeTempDir, waitForExit } from "../../server/testing/cleanup.ts";
-import { freePortBlock } from "../../server/testing/ports.ts";
+import { createLoginHandoffClient, type ConnectionAsk } from "../../desktop/electron/cloud-logins.mjs";
+import { createCloudSend, type CloudMoveCheck, type CloudSendOutcome, type CloudSendSnapshot } from "../../desktop/electron/cloud-send.mjs";
+import { openOwnerSession } from "../../desktop/electron/cloud-send-main.mjs";
+import { BACKGROUND_HEADERS } from "../../desktop/electron/cloud-power.mjs";
+import { installOneHome } from "../../desktop/electron/one-home-main.mjs";
+import type { OneHomeView } from "../../desktop/electron/one-home.mjs";
+import { cloudPairingSignature, cloudRequestSignature } from "../../desktop/server/cloud-home.ts";
+import type { TeamMember } from "../../desktop/server/cloud-team.ts";
+import { removeTempDir, waitForExit } from "../../desktop/server/testing/cleanup.ts";
+import { freePortBlock } from "../../desktop/server/testing/ports.ts";
 
-const SERVER_DIR = fileURLToPath(new URL("../../server/", import.meta.url));
+const SERVER_DIR = fileURLToPath(new URL("../../desktop/server/", import.meta.url));
 export const CLOUD_HOST = "omb-t-5e6d7c8b9a0f.fly.dev";
 const EDGE = { host: CLOUD_HOST, "x-forwarded-for": "203.0.113.9", "x-forwarded-proto": "https", origin: `https://${CLOUD_HOST}` };
 const parse = (text: string) => { try { return JSON.parse(text); } catch { return null; } };
@@ -203,7 +203,7 @@ await import(${JSON.stringify(pathToFileURL(join(SERVER_DIR, "testing", "fake-cl
     } }));
     const offline = `data:text/javascript,${encodeURIComponent('const real = globalThis.fetch; const admin = process.env.FIXTURE_ADMIN_STAND_IN; globalThis.fetch = async (url, init) => admin && String(url).startsWith("https://cloud.example.test/") ? real(admin + String(url).slice(26), init) : String(url).startsWith("http://127.0.0.1:") ? real(url, init) : new Response("offline fixture", { status: 503 });')}`;
     const child = spawn(process.execPath, ["--import", offline, ...extra, join(SERVER_DIR, "index.ts")], {
-      cwd: join(SERVER_DIR, ".."),
+      cwd: join(SERVER_DIR, "..", ".."),
       env: { PATH: process.env.PATH, ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}), HOME: home, USERPROFILE: home, OMB_DATA_DIR: dataDir,
         OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(port + 1), OMB_DUCKDB_DIR: fakeOnePassword(join(home, "native"), acceptedToken), ...env, ...own },
       stdio: ["ignore", "pipe", "pipe", ...(ipc ? ["ipc" as const] : [])],
@@ -273,7 +273,7 @@ await import(${JSON.stringify(pathToFileURL(join(SERVER_DIR, "testing", "fake-cl
     const teamBase = `http://127.0.0.1:${teamPort}`;
     // Windows' child.kill("SIGTERM") ends a process at once, without Node's signal handlers, so the server never closes
     // its session registry and its next start drops every member's session, as after a crash. There the team server is
-    // asked to stop over IPC and runs its own SIGTERM shutdown (as server/acp-shutdown.e2e.test.ts does).
+    // asked to stop over IPC and runs its own SIGTERM shutdown (as desktop/server/acp-shutdown.e2e.test.ts does).
     const stopOverIpc = process.platform === "win32";
     const stopOnMessage = `data:text/javascript,${encodeURIComponent('process.on("message", (message) => { if (message === "stop") process.emit("SIGTERM"); }); process.channel?.unref();')}`;
     const startTeam = (more: NodeJS.ProcessEnv = {}) => start("team", { OMB_CLOUD_ROLE: "team", OMB_CLOUD_TEAM_ID: team.id, OMB_CLOUD_TEAM_NAME: team.name,

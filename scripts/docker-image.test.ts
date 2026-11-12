@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { cloudHomeConfiguration } from "../server/cloud-home.ts";
-import { cloudHomeChildEnvironments } from "../server/cloud-home-start.ts";
+import { cloudHomeConfiguration } from "../desktop/server/cloud-home.ts";
+import { cloudHomeChildEnvironments } from "../desktop/server/cloud-home-start.ts";
 
 // The published images: the self-hosted server (the default target) and the
 // Cloud home. A pull downloads every layer whose digest changed, and a layer's

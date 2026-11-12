@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { launchVerificationServer } from "./control-omb.ts";
-import { createExecutionService } from "../server/execution-service.ts";
-import type { ExecutionTask } from "../shared/execution-connectors.ts";
+import { createExecutionService } from "../desktop/server/execution-service.ts";
+import type { ExecutionTask } from "../packages/shared/execution-connectors.ts";
 
 // Fixed repository fakes only. Never accepts a URL, executable, home or credential from the caller.
 const root = await mkdtemp(join(tmpdir(), "omb-execution-smoke-"));
@@ -15,7 +15,7 @@ const callsFile = join(root, "bot-calls.json");
 await writeFile(callsFile, "[]");
 const fixture = await launchVerificationServer({ FAKE_CLAUDE_TOOL_CALLS_FILE: callsFile });
 const token = randomBytes(32).toString("hex");
-const cli = { claude: fileURLToPath(new URL("../server/testing/fake-claude-cli.ts", import.meta.url)), codex: fileURLToPath(new URL("../server/testing/fake-codex-app-server.ts", import.meta.url)), omp: fileURLToPath(new URL("../server/testing/fake-acp-cli.ts", import.meta.url)) };
+const cli = { claude: fileURLToPath(new URL("../desktop/server/testing/fake-claude-cli.ts", import.meta.url)), codex: fileURLToPath(new URL("../desktop/server/testing/fake-codex-app-server.ts", import.meta.url)), omp: fileURLToPath(new URL("../desktop/server/testing/fake-acp-cli.ts", import.meta.url)) };
 const service = createExecutionService({ root, token, account: "fixture-account", localAvailable: true, ownsBot: () => true, cli, environment: { HOME: root, USERPROFILE: root, CODEX_HOME: join(root, "codex"), CLAUDE_CONFIG_DIR: join(root, "claude"), PATH: dirname(process.execPath), FAKE_CODEX_MODE: "approval", FAKE_CODEX_DUMP: join(root, "codex-decision.json"), FAKE_CODEX_DUMP_TURNS_ONLY: "1", FAKE_ACP_MODE: "permission", FAKE_ACP_PERMISSION_ANSWER: join(root, "acp-decision.txt") } });
 const listening = Promise.withResolvers<void>();
 service.server.listen(0, "127.0.0.1", listening.resolve);

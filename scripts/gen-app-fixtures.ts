@@ -7,14 +7,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { AppDocument, AppPayload } from "../shared/app.ts";
-import { mcpAppFallbackText } from "../shared/app.ts";
-import { mcpAppNetwork } from "../shared/app-frame/csp.ts";
-import { APP_HELPER_SOURCE } from "../shared/app-frame/helper.ts";
-import { APP_SAMPLES, MCP_APP_SAMPLES } from "../shared/app-samples.ts";
-import { AppDocs } from "../server/app-docs.ts";
-import { appDocument, createAppCard, setAppContext } from "../server/chat-apps.ts";
-import type { Message } from "../server/store.ts";
+import type { AppDocument, AppPayload } from "../packages/shared/app.ts";
+import { mcpAppFallbackText } from "../packages/shared/app.ts";
+import { mcpAppNetwork } from "../packages/shared/app-frame/csp.ts";
+import { APP_HELPER_SOURCE } from "../packages/shared/app-frame/helper.ts";
+import { APP_SAMPLES, MCP_APP_SAMPLES } from "../packages/shared/app-samples.ts";
+import { AppDocs } from "../desktop/server/app-docs.ts";
+import { appDocument, createAppCard, setAppContext } from "../desktop/server/chat-apps.ts";
+import type { Message } from "../desktop/server/store.ts";
 import { APP_HOST_HTML, appHostHashOf } from "./build-app-host.ts";
 
 export interface AppFixtures {
@@ -117,7 +117,7 @@ export function buildAppFixtures(): AppFixtures {
 
 export function writeAppFixtures(root: string): string[] {
   const fixtures = buildAppFixtures();
-  const dir = join(root, "ios/Tests/CompanionCoreTests/Fixtures");
+  const dir = join(root, "mobile/ios/Tests/CompanionCoreTests/Fixtures");
   mkdirSync(dir, { recursive: true });
   const written = [
     [join(dir, "app-messages.json"), { messages: fixtures.messages, hasMore: false }],
@@ -125,7 +125,7 @@ export function writeAppFixtures(root: string): string[] {
     [join(dir, "app-expectations.json"), fixtures.expectations],
   ] as const;
   for (const [file, value] of written) writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
-  const hosts = [join(root, "ios/App/Resources/app-host.html"), join(root, "android/app/src/main/assets/app/app-host.html")];
+  const hosts = [join(root, "mobile/ios/App/Resources/app-host.html"), join(root, "mobile/android/app/src/main/assets/app/app-host.html")];
   for (const target of hosts) {
     mkdirSync(dirname(target), { recursive: true });
     copyFileSync(APP_HOST_HTML, target);

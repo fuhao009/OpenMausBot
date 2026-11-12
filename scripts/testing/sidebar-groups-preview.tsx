@@ -1,10 +1,10 @@
 import { createRoot } from "react-dom/client";
-import App from "../../src/App";
-import { setAnalyticsEnabled, setEmailGateDone } from "../../src/lib/analytics";
-import { setAdvancedMode } from "../../src/lib/interface-mode";
-import { markSimpleModePromptSeen } from "../../src/lib/simple-mode-prompt";
-import { applySkin, type SkinId } from "../../src/lib/skins";
-import "../../src/styles.css";
+import App from "../../desktop/src/App";
+import { setAnalyticsEnabled, setEmailGateDone } from "../../desktop/src/lib/analytics";
+import { setAdvancedMode } from "../../desktop/src/lib/interface-mode";
+import { markSimpleModePromptSeen } from "../../desktop/src/lib/simple-mode-prompt";
+import { applySkin, type SkinId } from "../../desktop/src/lib/skins";
+import "../../desktop/src/styles.css";
 
 // Served only by scripts/verify-sidebar-groups.ts: the real app against its disposable fixture. ?mode=simple is Simple
 // mode, ?skin= the skin.

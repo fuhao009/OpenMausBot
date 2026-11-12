@@ -70,8 +70,8 @@ must hold no computer server. The task in `GET /api/bots?messages=0` carries
 
 ### Last exercised
 
-Not yet exercised against a live fixture. Covered by `server/surface.test.ts`
-and the `pins where a conversation works` case in `server/index.test.ts`.
+Not yet exercised against a live fixture. Covered by `desktop/server/surface.test.ts`
+and the `pins where a conversation works` case in `desktop/server/index.test.ts`.
 
 ## Surface gating: Works on = Off
 
@@ -131,7 +131,7 @@ Cancellation receipts survive restart. Importing a workspace backup pauses all
 of its queued work for review, even when restoring to the original directory.
 
 ```sh
-pnpm exec vitest run server/chat-followups.test.ts server/chat-followups-restart.test.ts server/workspace-backup.test.ts
+pnpm exec vitest run desktop/server/chat-followups.test.ts desktop/server/chat-followups-restart.test.ts desktop/server/workspace-backup.test.ts
 ```
 
 The restart test launches an isolated real server with the fake engine, accepts
@@ -151,10 +151,10 @@ Every hand-off between bots is an assignment on the job runtime
 routine run, a webhook run, a goal run, a Cloud guest's turn or a standing
 external runtime. There is no mailbox: a queued assignment is bounded by
 the runtime's queue clock (§6, 24 hours, `failed(expired)` and reported), its
-windows restart at boot, and nothing outside `server/runtime/` holds hand-off
+windows restart at boot, and nothing outside `desktop/server/runtime/` holds hand-off
 state. The ledger the mailbox kept (`delegations.json`,
 `delegation-receipts.json`) is imported once at boot and renamed `*.migrated`
-(`server/runtime/import-legacy.ts`). A routine run waiting on teammates is
+(`desktop/server/runtime/import-legacy.ts`). A routine run waiting on teammates is
 `waiting` while the runtime has outstanding assignments for its thread; the
 run's resume is a routine turn; a restart reruns a cut teammate turn once (§5)
 and keeps the run waiting instead of failing it. `assignment_status` reads an
@@ -162,10 +162,10 @@ assignment's status, outcome and result, or everything a conversation still
 waits on; it is read-only and refuses an id handed out in the same turn.
 
 ```sh
-pnpm exec vitest run server/runtime-paths.e2e.test.ts server/runtime-coordinator.test.ts server/runtime/import-legacy.test.ts
-pnpm exec vitest run server/independent-threads-api.test.ts -t "holds coordinated work behind a peer's approval"
-pnpm exec vitest run server/independent-threads-api.test.ts -t "unanswered|what became of each teammate approval"
-pnpm exec vitest run server/comms.test.ts server/thread-capacity-api.test.ts -t "free slot"
+pnpm exec vitest run desktop/server/runtime-paths.e2e.test.ts desktop/server/runtime-coordinator.test.ts desktop/server/runtime/import-legacy.test.ts
+pnpm exec vitest run desktop/server/independent-threads-api.test.ts -t "holds coordinated work behind a peer's approval"
+pnpm exec vitest run desktop/server/independent-threads-api.test.ts -t "unanswered|what became of each teammate approval"
+pnpm exec vitest run desktop/server/comms.test.ts desktop/server/thread-capacity-api.test.ts -t "free slot"
 ```
 
 The approval fixtures use the isolated launcher and per-model fake-engine
@@ -179,21 +179,21 @@ returns to the Chief without another user prompt. The approval cases follow a
 teammate's cards through the broker's own course: the Chief's chip says
 denied, or that nobody answered and the step did not run, never "got your
 approval". The fixture fires the broker's fifteen-minute deadline through a
-marker file (`server/testing/approval-clock-hooks.mjs`, loaded only when
+marker file (`desktop/server/testing/approval-clock-hooks.mjs`, loaded only when
 `OMB_TEST_APPROVAL_CLOCK=1` reaches the isolated launcher). The result a
 Chief's coordination, a routine run's hand-off and a room's coordinator each
 read then leads with the action that did not run; a failed teammate turn
 carries it after its failure, and an action the model asked again and was
 allowed is not named. Exact control commands, waits, transcripts and the
 server log path are retained in the fixture's `.log.json` evidence, without
-capability tokens. The runtime's own suite (`server/runtime/*.test.ts`) covers
+capability tokens. The runtime's own suite (`desktop/server/runtime/*.test.ts`) covers
 the queue clock, restart reconciliation and the invariants. These tests do not
 claim real-provider performance.
 
 ### Independent tasks
 
 ```sh
-pnpm exec vitest run server/independent-threads-api.test.ts
+pnpm exec vitest run desktop/server/independent-threads-api.test.ts
 ```
 
 This test launches a fresh `control-omb` fixture for each case, wraps only its
@@ -220,7 +220,7 @@ optional folders, and group-history navigation checks.
 ## CLI Stop regression
 
 ```sh
-pnpm exec vitest run server/kill-tree.test.ts server/engine-install.test.ts server/cli-stop.e2e.test.ts
+pnpm exec vitest run desktop/server/kill-tree.test.ts desktop/server/engine-install.test.ts desktop/server/cli-stop.e2e.test.ts
 ```
 
 The Stop fixture wraps only the isolated launcher's fake Claude CLI with an
@@ -238,7 +238,7 @@ POSIX group escalation and the
 new server cases are skipped on Windows; its existing `taskkill /T /F` path
 remains covered by the cross-platform child-tree test when run on Windows.
 Windows event-order regressions also run on every host in
-`server/kill-tree-windows.test.ts`: successful `taskkill` alone is not proof
+`desktop/server/kill-tree-windows.test.ts`: successful `taskkill` alone is not proof
 that Node observed the child's exit. Both orders (exit before or after the
 command callback) must settle without waiting for inherited pipes to close;
 an unobserved exit still times out as uncertain. The native Antigravity
@@ -251,7 +251,7 @@ this POSIX group-based cancellation.
 ## The person's message during a long tool call
 
 ```sh
-pnpm exec vitest run server/person-first.e2e.test.ts server/host/person-first.test.ts
+pnpm exec vitest run desktop/server/person-first.e2e.test.ts desktop/server/host/person-first.test.ts
 ```
 
 A message from the person in their own chat never waits behind a long tool
@@ -265,7 +265,7 @@ row, and the next turn must lead with their words and the note naming the
 stopped step, so the bot's reply answers them. A message from a room, a
 routine, a teammate or an app never stops a turn this way, and neither does
 one sent while the turn waits on the person or a computer
-(`server/host/person-first.test.ts`).
+(`desktop/server/host/person-first.test.ts`).
 
 ### Last exercised
 

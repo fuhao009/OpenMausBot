@@ -50,7 +50,7 @@ and the account selected in OMB; never request the user's keys or tokens.
 ## ACP internal-error recovery
 
 ```sh
-pnpm exec vitest run server/drivers/acp/acp.test.ts server/acp-recovery.e2e.test.ts server/resume-recovery.test.ts server/delta-context.test.ts server/incidents.e2e.test.ts server/room-coordination.e2e.test.ts
+pnpm exec vitest run desktop/server/drivers/acp/acp.test.ts desktop/server/acp-recovery.e2e.test.ts desktop/server/resume-recovery.test.ts desktop/server/delta-context.test.ts desktop/server/incidents.e2e.test.ts desktop/server/room-coordination.e2e.test.ts
 ```
 
 The ACP transport fixture injects an internal RPC error, including one after
@@ -104,13 +104,13 @@ fake Claude, Codex, Grok and Antigravity providers. Assertions cover:
 
 For a UI-only rerun use `--ui-only` instead of `--ui`. Screenshots are written
 to `.omb-scratch/verify-evidence/provider-fixes/`. The fixture exits and removes
-its own disposable server/browser data; the screenshots remain.
+its own disposable desktop/server/browser data; the screenshots remain.
 
 ## Regression checks
 
 ```sh
-pnpm exec vitest run server/drivers/acp/acp.test.ts server/drivers/claude.test.ts server/drivers/claude-auth.test.ts server/drivers/codex.test.ts server/drivers/retry.test.ts server/store.test.ts src/components/ChatView.controls.test.ts
-node --test electron/approval-trusted-mode.node-test.mjs
+pnpm exec vitest run desktop/server/drivers/acp/acp.test.ts desktop/server/drivers/claude.test.ts desktop/server/drivers/claude-auth.test.ts desktop/server/drivers/codex.test.ts desktop/server/drivers/retry.test.ts desktop/server/store.test.ts desktop/src/components/ChatView.controls.test.ts
+node --test desktop/electron/approval-trusted-mode.node-test.mjs
 pnpm typecheck
 pnpm lint
 ```

@@ -72,7 +72,7 @@
 
 ### 変えないもの
 
-- `ios/Sources/CompanionCore/AttentionInbox.swift` と `android/.../ui/AttentionInbox.kt` の attention 順位
+- `mobile/ios/Sources/CompanionCore/AttentionInbox.swift` と `mobile/android/.../ui/AttentionInbox.kt` の attention 順位
 - フォルダの保存順（モバイル）。デスクトップのフォルダは、今日どおり「見えているスレッドの最先頭」に付いて動く。順序が変わるので、ピンや直近の更新を含むフォルダが上に来る。
 - ルーチン内部実行（`routineRunId`）は一覧から除外したまま
 - bot-to-bot DM はタスク配列を持たない
@@ -83,17 +83,17 @@
 
 | 対象 | 変更 |
 |---|---|
-| `shared/wire.ts` `WireTask` / `GroupTask` | `pinned?: true`、`updatedAt?: number` |
-| `server/store.ts` `TaskRecord`（`WireTask` を extends）、`GroupTaskRecord` | 同じフィールド。作成・追記・起動時の埋め |
-| `server/message-db.ts` | スレッドごとの `MAX(at)` |
-| `server/index.ts` タスク PATCH | `pinned` の許可と検証 |
-| `src/state/store.tsx` `Task` / `GroupTask` | 同じフィールド。メッセージ受信で `updatedAt` を進める |
-| `src/components/SidebarThreadRow.tsx` | 順序と比較、メニュー |
-| `src/components/Sidebar.tsx` | 検索とグループ一覧も同じ順 |
+| `packages/shared/wire.ts` `WireTask` / `GroupTask` | `pinned?: true`、`updatedAt?: number` |
+| `desktop/server/store.ts` `TaskRecord`（`WireTask` を extends）、`GroupTaskRecord` | 同じフィールド。作成・追記・起動時の埋め |
+| `desktop/server/message-db.ts` | スレッドごとの `MAX(at)` |
+| `desktop/server/index.ts` タスク PATCH | `pinned` の許可と検証 |
+| `desktop/src/state/store.tsx` `Task` / `GroupTask` | 同じフィールド。メッセージ受信で `updatedAt` を進める |
+| `desktop/src/components/SidebarThreadRow.tsx` | 順序と比較、メニュー |
+| `desktop/src/components/Sidebar.tsx` | 検索とグループ一覧も同じ順 |
 | iOS `Models.swift` `BotTask`、`ThreadNavigation.swift`、`BotThreadRow.swift`、`TaskManagerView.swift`、`Client.swift` | デコード、順序、ピン操作 |
 | Android `Models.kt` `BotTask`、`ThreadNavigation.kt`、`BotThreadRow.kt`、`TaskSheet.kt`、`Client.kt` | 同じ |
 
-`TaskRecord` は `WireTask` を継承し、`toWireTask` は私有キーを除いた残りを返す（`server/store.ts` の `TaskWireProjectionIsExact`）。新しい公開フィールドは `WireTask` に足せばワイヤへ乗る。私有キーには入れない。
+`TaskRecord` は `WireTask` を継承し、`toWireTask` は私有キーを除いた残りを返す（`desktop/server/store.ts` の `TaskWireProjectionIsExact`）。新しい公開フィールドは `WireTask` に足せばワイヤへ乗る。私有キーには入れない。
 
 ### 影響箇所
 
@@ -134,7 +134,7 @@
 
 ## テスト
 
-- `src/components/SidebarThreadRow.test.ts`: ピン、更新順、同時刻の安定、6 件が更新順、ピンと attention は 6 件の外でも残る、閉じたピンは残る。
+- `desktop/src/components/SidebarThreadRow.test.ts`: ピン、更新順、同時刻の安定、6 件が更新順、ピンと attention は 6 件の外でも残る、閉じたピンは残る。
 - `server` のタスク API テスト: `pinned: true` が再読込後に残る、`false` でキーが消える、boolean 以外は 400、`updatedAt` を PATCH しても 400、メッセージ追記でワイヤの `updatedAt` が進む、メッセージの無いタスクは `createdAt`。
 - iOS `ThreadNavigationTests`、Android `ThreadNavigationTest`: 同じ順序契約。
 - 変異: ピン比較を外すとピンのテストが落ちる。`updatedAt` の比較を外すと更新順のテストが落ちる。6 件を配列順のままに戻すと「古い行を更新したら入る」テストが落ちる。

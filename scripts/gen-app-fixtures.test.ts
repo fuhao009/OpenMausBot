@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { BOT_HTML_CSP } from "../shared/app-frame/csp.ts";
-import { CSP_META_PREFIX } from "../shared/app-frame/document.ts";
-import { APP_SAMPLES, MCP_APP_SAMPLES } from "../shared/app-samples.ts";
+import { BOT_HTML_CSP } from "../packages/shared/app-frame/csp.ts";
+import { CSP_META_PREFIX } from "../packages/shared/app-frame/document.ts";
+import { APP_SAMPLES, MCP_APP_SAMPLES } from "../packages/shared/app-samples.ts";
 import { APP_HOST_HTML, appHostHashOf } from "./build-app-host.ts";
 import { buildAppFixtures, writeAppFixtures } from "./gen-app-fixtures.ts";
 
@@ -43,15 +43,15 @@ describe("app fixtures", () => {
     const files = writeAppFixtures(root);
     // Relative to the checkout, with "/" on Windows too (writeAppFixtures joins with the platform's separator).
     expect(files.map((file) => relative(root, file).split(sep).join("/"))).toEqual([
-      "ios/Tests/CompanionCoreTests/Fixtures/app-messages.json",
-      "ios/Tests/CompanionCoreTests/Fixtures/app-documents.json",
-      "ios/Tests/CompanionCoreTests/Fixtures/app-expectations.json",
-      "ios/App/Resources/app-host.html",
-      "android/app/src/main/assets/app/app-host.html",
+      "mobile/ios/Tests/CompanionCoreTests/Fixtures/app-messages.json",
+      "mobile/ios/Tests/CompanionCoreTests/Fixtures/app-documents.json",
+      "mobile/ios/Tests/CompanionCoreTests/Fixtures/app-expectations.json",
+      "mobile/ios/App/Resources/app-host.html",
+      "mobile/android/app/src/main/assets/app/app-host.html",
     ]);
     const host = readFileSync(APP_HOST_HTML, "utf8");
-    expect(readFileSync(join(root, "ios/App/Resources/app-host.html"), "utf8")).toBe(host);
-    expect(readFileSync(join(root, "android/app/src/main/assets/app/app-host.html"), "utf8")).toBe(host);
+    expect(readFileSync(join(root, "mobile/ios/App/Resources/app-host.html"), "utf8")).toBe(host);
+    expect(readFileSync(join(root, "mobile/android/app/src/main/assets/app/app-host.html"), "utf8")).toBe(host);
     expect(JSON.parse(readFileSync(files[0]!, "utf8"))).toMatchObject({ hasMore: false, messages: expect.any(Array) });
   });
 });

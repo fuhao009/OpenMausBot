@@ -10,8 +10,8 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 
-import { resolveAgentBrowserBinary } from "../../server/browser-engine.ts";
-import { removeTempDir, waitForExit } from "../../server/testing/cleanup.ts";
+import { resolveAgentBrowserBinary } from "../../desktop/server/browser-engine.ts";
+import { removeTempDir, waitForExit } from "../../desktop/server/testing/cleanup.ts";
 import { runControlOmb } from "../control-omb.ts";
 import { UI_TOOLS_DIR } from "./control-omb-ui.ts";
 import { fixtureApi } from "./preview-fixture.ts";

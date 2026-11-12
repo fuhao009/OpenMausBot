@@ -3,10 +3,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { expect, it } from "vitest";
 import { launchVerificationServer, runControlOmb, type VerificationServer } from "../control-omb.ts";
-import { waitForExit } from "../../server/testing/cleanup.ts";
+import { waitForExit } from "../../desktop/server/testing/cleanup.ts";
 import { ensureUiBrowser } from "./control-omb-ui.ts";
 import { fixtureApi, mountPreview, type MountedPreview } from "./preview-fixture.ts";
-import { NOTICES } from "../../src/lib/notices.ts";
+import { NOTICES } from "../../desktop/src/lib/notices.ts";
 
 const enabled = process.env.OMB_UI_E2E === "1";
 if (!enabled) console.log("skipping mobile code-block UI: set OMB_UI_E2E=1 for isolated browser qualification");

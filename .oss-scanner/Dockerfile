@@ -9,7 +9,7 @@
 #
 # Try it like the scanner does:
 #   docker build -f .oss-scanner/Dockerfile -t omb-scan .
-#   docker run --rm --network none omb-scan pnpm exec vitest run server/request-auth.test.ts
+#   docker run --rm --network none omb-scan pnpm exec vitest run desktop/server/request-auth.test.ts
 
 # Same Node line as the root Dockerfile and CI (package.json engines: node >=24).
 FROM node:24-bookworm-slim
@@ -50,9 +50,9 @@ ENV COREPACK_ENABLE_NETWORK=0
 # Cheap smoke run of core security suites, so a broken image shows in the
 # build log. A failing test does not fail the build.
 RUN timeout 600 pnpm exec vitest run \
-      server/request-auth.test.ts \
-      server/browser/egress/gate.test.ts \
-      server/browser/egress/policy.test.ts \
+      desktop/server/request-auth.test.ts \
+      desktop/server/browser/egress/gate.test.ts \
+      desktop/server/browser/egress/policy.test.ts \
   || echo "WARNING: smoke tests reported failures"
 
 CMD ["bash"]

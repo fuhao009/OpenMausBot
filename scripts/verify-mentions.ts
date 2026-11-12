@@ -2,7 +2,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { removeTempDir } from "../server/testing/cleanup.ts";
+import { removeTempDir } from "../desktop/server/testing/cleanup.ts";
 import { launchVerificationServer, runControlOmb } from "./control-omb.ts";
 import { mountPreview, parkUntilSignal, type MountedPreview } from "./testing/preview-fixture.ts";
 

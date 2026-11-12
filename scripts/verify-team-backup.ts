@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { launchVerificationServer, runControlOmb } from "./control-omb.ts";
 import { request } from "./mcp-server.ts";
-import { parseTeamBackup } from "../shared/team-backup.ts";
+import { parseTeamBackup } from "../packages/shared/team-backup.ts";
 
 export async function verifyTeamBackup(report: (event: unknown) => void = () => {}) {
   const fixture = await launchVerificationServer();

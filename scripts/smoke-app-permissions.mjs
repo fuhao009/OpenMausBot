@@ -9,8 +9,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { appPermissionHandlers } from "../electron/app-permissions.mjs";
-import screenPreview from "../electron/screen-preview.cjs";
+import { appPermissionHandlers } from "../desktop/electron/app-permissions.mjs";
+import screenPreview from "../desktop/electron/screen-preview.cjs";
 
 // Chromium can write cache files after app.quit. The Node parent owns cleanup
 // so the disposable profile is removed only after the Electron child exits.

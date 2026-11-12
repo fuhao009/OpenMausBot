@@ -63,7 +63,7 @@ belong to the fixture's disposable workspace.
 
 ## What is real and what is substituted
 
-The fixture uses real Electron, the production `electron/preload.cjs`, the
+The fixture uses real Electron, the production `desktop/electron/preload.cjs`, the
 `CompanyBackupSettings` renderer, and the native `company-backups.mjs` transfer
 module. It mounts the standalone backup panel, not the entire Settings shell.
 Export, encrypted archive download, local upload, validated preview,
@@ -138,8 +138,8 @@ retained evidence is separate from disposable workspace data.
 ## Additional regressions and limits
 
 ```sh
-node --test electron/company-backups.node-test.mjs
-pnpm exec vitest run src/components/CompanyBackupSettings.test.ts src/components/WorkspaceBackupSettings.test.ts src/components/OrganizationSettings.test.ts
+node --test desktop/electron/company-backups.node-test.mjs
+pnpm exec vitest run desktop/src/components/CompanyBackupSettings.test.ts desktop/src/components/WorkspaceBackupSettings.test.ts desktop/src/components/OrganizationSettings.test.ts
 ```
 
 The native unit fixtures additionally cover bounded responses, unsafe storage

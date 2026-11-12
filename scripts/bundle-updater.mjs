@@ -13,7 +13,7 @@ import { patchOrganizationUpdater } from "./patch-organization-updater.mjs";
 
 const require = createRequire(import.meta.url);
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const outfile = join(root, "electron/vendor/electron-updater.cjs");
+const outfile = join(root, "desktop/electron/vendor/electron-updater.cjs");
 const entryPoint = require.resolve("electron-updater");
 
 await build({

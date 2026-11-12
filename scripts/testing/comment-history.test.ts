@@ -8,8 +8,8 @@ const ROOT = new URL("../../", import.meta.url);
 const OUR_REF = /(?<![\w./-])(?:(?:PR|issue|pull request)\s+)?#\d{3,5}\b/i;
 
 function sourceFiles(): string[] {
-  const out = execFileSync("git", ["ls-files", "server", "shared", "src", "scripts", "evals", "electron", "companion", "cloudflare"], { cwd: ROOT, encoding: "utf8" });
-  return out.split("\n").filter((file) => /\.(ts|tsx|mts|mjs|cjs|js)$/.test(file) && !file.startsWith("electron/vendor/") && !file.endsWith(".d.ts") && existsSync(new URL(file, ROOT)));
+  const out = execFileSync("git", ["ls-files", "desktop", "packages/shared", "scripts", "evals", "gateway"], { cwd: ROOT, encoding: "utf8" });
+  return out.split("\n").filter((file) => /\.(ts|tsx|mts|mjs|cjs|js)$/.test(file) && !file.startsWith("desktop/electron/vendor/") && !file.endsWith(".d.ts") && existsSync(new URL(file, ROOT)));
 }
 
 function commentLines(text: string): Array<[number, string]> {

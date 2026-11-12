@@ -1,5 +1,5 @@
 /**
- * Bakes the mascot body catalog into `shared/mascot-bodies.ts`. Run with `pnpm gen:bodies`.
+ * Bakes the mascot body catalog into `packages/shared/mascot-bodies.ts`. Run with `pnpm gen:bodies`.
  *
  * Fails with a non-zero exit if any expression would clip at any body's final anchor at
  * any aim: fix the geometry, never the check.
@@ -10,7 +10,7 @@
 import { writeFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 
-import { MOUTH_STROKE } from "../src/components/cursor-face-data.ts"
+import { MOUTH_STROKE } from "../desktop/src/components/cursor-face-data.ts"
 import { BODY_DEFS, type BodyDef } from "./mascot-bodies/builders.ts"
 import { applyFit, boundsOf, fitTransform, flatten } from "./mascot-bodies/geometry.ts"
 import { maskFromPolylines } from "./mascot-bodies/raster.ts"
@@ -294,21 +294,21 @@ function emitSwift(bodies: Baked[]): string {
     .join("\n")
 
   return `// The mascot bodies a bot can wear — the phone's half of the same solve that
-// bakes \`shared/mascot-bodies.ts\`.
+// bakes \`packages/shared/mascot-bodies.ts\`.
 //
 // GENERATED FILE — do not hand-edit. Run \`pnpm gen:bodies\` to rebuild it from
 // \`scripts/gen-mascot-bodies.ts\`, which solves each face placement against the real
 // expression geometry and verifies that nothing clips. One solve, two writers: this file
-// and \`shared/mascot-bodies.ts\` come from the same solved anchors, which is what stops
+// and \`packages/shared/mascot-bodies.ts\` come from the same solved anchors, which is what stops
 // the two renderers drifting apart the way desktop's 0.74 and iOS's 0.84 already did once.
 //
 // CoreGraphics only, no SwiftUI — \`CompanionCore\` is everything the phone knows that is
-// not a view (see \`ios/Package.swift\`). The fit is numbers, not an SVG transform string:
+// not a view (see \`mobile/ios/Package.swift\`). The fit is numbers, not an SVG transform string:
 // iOS has no SVG transform parser, so it builds a \`CGAffineTransform\` from
 // \`scale\`/\`tx\`/\`ty\` directly.
 //
 // Path data is absolute \`M\`, \`C\`, \`Z\` only — the same twenty-line parser convention as
-// \`HezuoSilhouette\` in \`ios/App/HezuoAvatar.swift\`, which treats newlines as separators.
+// \`HezuoSilhouette\` in \`mobile/ios/App/HezuoAvatar.swift\`, which treats newlines as separators.
 import CoreGraphics
 
 enum HezuoBodies {
@@ -377,7 +377,7 @@ function emitKotlin(bodies: Baked[]): string {
 
 /**
  * The mascot bodies a bot can wear — the Android half of the same solve that bakes
- * \`shared/mascot-bodies.ts\` and \`ios/Sources/CompanionCore/HezuoBodies.swift\`.
+ * \`packages/shared/mascot-bodies.ts\` and \`mobile/ios/Sources/CompanionCore/HezuoBodies.swift\`.
  *
  * GENERATED FILE — do not hand-edit. Run \`pnpm gen:bodies\` to rebuild it from
  * \`scripts/gen-mascot-bodies.ts\`, which solves each face placement against the real
@@ -497,7 +497,7 @@ function main(): void {
     )
   }
 
-  const out = fileURLToPath(new URL("../shared/mascot-bodies.ts", import.meta.url))
+  const out = fileURLToPath(new URL("../packages/shared/mascot-bodies.ts", import.meta.url))
   writeFileSync(out, emit(baked))
   console.log(`wrote ${out}`)
 

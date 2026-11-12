@@ -24,7 +24,7 @@ turn plans to browse. Every other MCP server (connected apps, a bot's own
 servers, data, phone, computer and the rest) loads on demand: each turn's
 private `--settings` file sets `ENABLE_TOOL_SEARCH=true`, unless the person set
 an opt-out such as `false` or `auto:100` in the bot project's or their own
-Claude settings or the environment (`server/drivers/claude-tool-search.ts`).
+Claude settings or the environment (`desktop/server/drivers/claude-tool-search.ts`).
 This prevents the deferred-lookup dependency; it does not magically reconnect a
 crashed server or override a user's denied tool policy.
 
@@ -37,12 +37,12 @@ Sources:
 Regression checks:
 
 ```sh
-pnpm exec vitest run server/drivers/claude.test.ts server/drivers/claude-tool-search.test.ts server/drivers/agents-proxy.test.ts server/harness-mcp-proxy.test.ts
+pnpm exec vitest run desktop/server/drivers/claude.test.ts desktop/server/drivers/claude-tool-search.test.ts desktop/server/drivers/agents-proxy.test.ts desktop/server/harness-mcp-proxy.test.ts
 ```
 
 The turn boundary itself — a capability whose owning turn has been replaced
 is refused with 401 even when its request body arrives late — is covered by
-`server/index.test.ts` ("binds profile proposals to the capability's bot and
+`desktop/server/index.test.ts` ("binds profile proposals to the capability's bot and
 thread and rechecks late bodies"); every internal capability, the browser's
 included, passes through that same gate.
 
@@ -60,7 +60,7 @@ turn that made it) are counted by the harness for each turn, not by the
 proxy, which a warm engine keeps across turns.
 
 ```sh
-pnpm exec vitest run server/session-credentials.e2e.test.ts server/post-to-room.test.ts server/vps-routing.test.ts
+pnpm exec vitest run desktop/server/session-credentials.e2e.test.ts desktop/server/post-to-room.test.ts desktop/server/vps-routing.test.ts
 ```
 
 A message steered into a running Claude turn is folded in only before a
@@ -89,9 +89,9 @@ consultation on the job runtime, answered in a work thread of its own.) The CLI'
 figure; per-turn token usage adds up.
 
 ```sh
-pnpm exec vitest run server/drivers/claude.test.ts -t "could not fold"
-pnpm exec vitest run server/drivers/claude.test.ts -t "queued_turn_count|tool result did not take in|echoed as taken in|does not echo|held window|stays silent|steered continuation|whole grace"
-pnpm exec vitest run server/steer-e2e.test.ts -t "internal tool pass"
+pnpm exec vitest run desktop/server/drivers/claude.test.ts -t "could not fold"
+pnpm exec vitest run desktop/server/drivers/claude.test.ts -t "queued_turn_count|tool result did not take in|echoed as taken in|does not echo|held window|stays silent|steered continuation|whole grace"
+pnpm exec vitest run desktop/server/steer-e2e.test.ts -t "internal tool pass"
 ```
 
 For end-to-end verification, launch the isolated fixture described in
@@ -109,8 +109,8 @@ resuming the current session. A transient retry after a reset resumes the
 replacement session, not the abandoned one.
 
 ```sh
-pnpm exec vitest run server/drivers/claude.test.ts server/turn-context.test.ts server/resume-recovery.test.ts
-pnpm exec vitest run server/delta-context.e2e.test.ts -t "resets Claude's native context"
+pnpm exec vitest run desktop/server/drivers/claude.test.ts desktop/server/turn-context.test.ts desktop/server/resume-recovery.test.ts
+pnpm exec vitest run desktop/server/delta-context.e2e.test.ts -t "resets Claude's native context"
 ```
 
 The second command launches a disposable server and fake CLI through the

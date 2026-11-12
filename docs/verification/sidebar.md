@@ -17,7 +17,7 @@ The preview mounts the actual Sidebar and StoreProvider. Verify:
    remaining bots are unchanged and keyboard focus remains in the sidebar.
 
 Verified on 2026-09-05 against the isolated renderer. Static regression coverage
-in `src/components/SidebarBotListItem.test.ts` checks dialog semantics/copy,
+in `desktop/src/components/SidebarBotListItem.test.ts` checks dialog semantics/copy,
 chief labels, role badges, and working/waiting indicators. The interaction checks
 above are manual browser verification, not assertions made by those unit tests.
 This fixture covers the sidebar confirmation and bot-row result only; it does
@@ -43,9 +43,9 @@ Open only the printed `previewUrl`:
    app it also remains available with **Show threads** off; thread-pinned
    remote clients do not receive an action that targets their siblings.
 
-`src/lib/bot-read.test.ts` covers legacy state, all folders/unfiled/archived
+`desktop/src/lib/bot-read.test.ts` covers legacy state, all folders/unfiled/archived
 threads, work and approval preservation, ordered requests for 250 threads,
-partial failure/retry and new-thread arrivals. `src/components/SidebarBotRead.test.ts` mounts
+partial failure/retry and new-thread arrivals. `desktop/src/components/SidebarBotRead.test.ts` mounts
 the actual menu to check progress, duplicate-click protection, error recovery,
 Portuguese copy, hidden thread trees and a menu reopened during a read.
 Folder reads use the same request helper and retain their existing tests.
@@ -76,7 +76,7 @@ checks deletion directly from a sidebar section header:
   order and collapsed state, and its delete action retains pending/retry guards.
 
 The fixture reports its log path and keeps a snapshot and screenshot on failure.
-`src/components/SidebarSectionHeader.test.ts` separately checks that the optional
+`desktop/src/components/SidebarSectionHeader.test.ts` separately checks that the optional
 delete control coexists with the context menu and does not replace or nest inside
 the collapse button. Server safeguards still reject deletion during active work,
 with an assigned team computer, or when moving the Chief would conflict with
@@ -91,8 +91,8 @@ sole thread must still appear during search even when its normal tree is hidden.
 
 In Settings → Appearance, **Notification sounds** controls the operating
 system alert sound on this computer only; it does not disable notification
-banners or the bot's own notification setting. `src/lib/notification-preferences.test.ts`
-and `src/lib/notify.test.ts` cover persisted preferences, blocked storage, cross-window
+banners or the bot's own notification setting. `desktop/src/lib/notification-preferences.test.ts`
+and `desktop/src/lib/notify.test.ts` cover persisted preferences, blocked storage, cross-window
 reads after Settings unmounts, and the silent flag sent to the desktop bridge.
 Actual operating-system sound delivery requires a native Electron smoke test;
 the isolated browser cannot prove it.
@@ -126,9 +126,9 @@ the page's own drag events, and exits.
 7. Switch to Advanced: the same departments and order show, and rows drag the
    same way.
 
-`src/lib/sidebar-bot-drop.test.ts` covers where a drop lands,
-`src/components/Sidebar.departments.test.ts` the sidebar's wiring, and
-`src/components/SidebarSectionHeader.naming.dom.test.ts` the name field. The
+`desktop/src/lib/sidebar-bot-drop.test.ts` covers where a drop lands,
+`desktop/src/components/Sidebar.departments.test.ts` the sidebar's wiring, and
+`desktop/src/components/SidebarSectionHeader.naming.dom.test.ts` the name field. The
 headless pictures cannot prove the operating system's own drag image or a drag
 between two windows.
 
@@ -161,8 +161,8 @@ and exits.
 7. A conversation's menu in the sidebar has no Move to folder list; the bot
    panel's Conversations, which has no folders to drop on, keeps it.
 
-`src/lib/thread-folder-drop.test.ts`, `src/lib/bot-chat-drop.test.ts` and
-`src/hooks/use-long-press.dom.test.ts` cover where drops land and the long
+`desktop/src/lib/thread-folder-drop.test.ts`, `desktop/src/lib/bot-chat-drop.test.ts` and
+`desktop/src/hooks/use-long-press.dom.test.ts` cover where drops land and the long
 press. The headless pictures cannot prove the operating system's drag image,
 a drag of real files from Finder or Explorer, or a long press on a real touch
 screen.

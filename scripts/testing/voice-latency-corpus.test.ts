@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toUtterances, VOICE_FIRST_BLOCK_MAX_CHARS } from "../../server/tts/speech-text.ts";
+import { toUtterances, VOICE_FIRST_BLOCK_MAX_CHARS } from "../../desktop/server/tts/speech-text.ts";
 import {
   buildCorpus,
   CADENCE,

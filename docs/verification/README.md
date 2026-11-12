@@ -31,7 +31,7 @@ environment into that child, so a recipe can script the fake engine's mode,
 replies and tool calls without writing a wrapper CLI. Live calls add one
 exception: `OMB_OPENAI_LIVE_URL` crosses when it is a loopback
 `http://127.0.0.1:PORT` (the fake GPT-Live that
-`node --experimental-strip-types server/testing/fake-openai-live.ts` prints),
+`node --experimental-strip-types desktop/server/testing/fake-openai-live.ts` prints),
 and `OMB_OPENAI_LIVE_KEY` crosses only with it, so that key can only ever
 reach the fake.
 
@@ -61,10 +61,10 @@ an authenticated loopback execution service with repository-owned fake Claude,
 Codex and ACP CLIs. It checks local tasks, actual bot MCP dispatch, remote tasks,
 native approval/denial decisions, cancellation, stale approval rejection and
 disconnection. It never uses a personal CLI login or a production server.
-Run `pnpm exec vitest run server/execution-connectors.test.ts` for lifecycle
+Run `pnpm exec vitest run desktop/server/execution-connectors.test.ts` for lifecycle
 regressions, and `pnpm typecheck` for the shared frontend/backend contract.
 Both owner-facing and bot-internal execution connector handlers live in
-`server/routes/execution-connectors.ts`; internal dispatch retains the active
+`desktop/server/routes/execution-connectors.ts`; internal dispatch retains the active
 turn's owner attribution and limits task access to its bot.
 
 For the actual Apps surface, use the isolated connected-apps preview with this

@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { linuxDisablesGpu } from "../electron/linux-gpu.mjs";
+import { linuxDisablesGpu } from "../desktop/electron/linux-gpu.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const wayland = process.env.OMB_SMOKE_WAYLAND === "1";

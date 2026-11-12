@@ -6,14 +6,14 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import type { ToolScope } from "../shared/tool-scope.ts";
+import type { ToolScope } from "../packages/shared/tool-scope.ts";
 
 const cli = resolve(process.argv[2] ?? "grok");
 const home = mkdtempSync(join(tmpdir(), "omb-grok-selection-"));
 process.env.HOME = home; process.env.USERPROFILE = home; process.env.OMB_DATA_DIR = join(home, "data");
-const { GrokAgentDriver } = await import("../server/drivers/acp/grok.ts");
-const { localHost } = await import("../server/drivers/local-inject.ts");
-const { ensureDirs } = await import("../server/config.ts"); ensureDirs();
+const { GrokAgentDriver } = await import("../desktop/server/drivers/acp/grok.ts");
+const { localHost } = await import("../desktop/server/drivers/local-inject.ts");
+const { ensureDirs } = await import("../desktop/server/config.ts"); ensureDirs();
 const artifact = join(home, "draft.txt"), blocked = join(home, "blocked.txt"), receipt = join(home, "mail-calls.txt");
 type Payload = { stream?: boolean; tools?: Array<{ function: { name: string } }>; messages: Array<{ role: string; content?: unknown }> };
 const payloads: Payload[] = [];

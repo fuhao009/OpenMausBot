@@ -42,7 +42,7 @@ Keep its JSON output and the reported persistent log/evidence paths. The
 permanent version is:
 
 ```sh
-pnpm exec vitest run server/workspace-backup-workflow.test.ts --silent=false
+pnpm exec vitest run desktop/server/workspace-backup-workflow.test.ts --silent=false
 ```
 
 ## Additional checks
@@ -51,11 +51,11 @@ Export worker behavior and repeatable latency measurements are documented in
 [Backup responsiveness](backup-responsiveness.md).
 
 ```sh
-pnpm exec vitest run server/workspace-backup.test.ts \
-  server/workspace-backup-policy.test.ts \
-  server/workspace-backup-http.test.ts \
-  server/workspace-backup-maintenance.test.ts \
-  server/webhook-ingress.test.ts server/request-auth.test.ts
+pnpm exec vitest run desktop/server/workspace-backup.test.ts \
+  desktop/server/workspace-backup-policy.test.ts \
+  desktop/server/workspace-backup-http.test.ts \
+  desktop/server/workspace-backup-maintenance.test.ts \
+  desktop/server/webhook-ingress.test.ts desktop/server/request-auth.test.ts
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/workspace-backup-ui.e2e.test.ts
 ```
 

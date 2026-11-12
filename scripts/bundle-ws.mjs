@@ -8,7 +8,7 @@ import { dirname, join, sep } from "node:path";
 
 const require = createRequire(import.meta.url);
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const outfile = join(root, "electron/vendor/ws.cjs");
+const outfile = join(root, "desktop/electron/vendor/ws.cjs");
 const entryPoint = require.resolve("ws");
 
 await build({

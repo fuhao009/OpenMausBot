@@ -1,10 +1,10 @@
 import { createRoot } from "react-dom/client";
-import { ComputerFilesPane } from "../../src/components/ComputerFilesPane";
-import { BotEditorStore, initialState, type Bot } from "../../src/state/store";
-import { applySkin } from "../../src/lib/skins";
-import { setAnalyticsEnabled } from "../../src/lib/analytics";
-import { setLocale } from "../../src/lib/i18n";
-import "../../src/styles.css";
+import { ComputerFilesPane } from "../../desktop/src/components/ComputerFilesPane";
+import { BotEditorStore, initialState, type Bot } from "../../desktop/src/state/store";
+import { applySkin } from "../../desktop/src/lib/skins";
+import { setAnalyticsEnabled } from "../../desktop/src/lib/analytics";
+import { setLocale } from "../../desktop/src/lib/i18n";
+import "../../desktop/src/styles.css";
 
 setAnalyticsEnabled(false);
 setLocale("en");

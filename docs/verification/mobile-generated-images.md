@@ -38,7 +38,7 @@ No paired computer, live account, or user conversation was used.
   URLProtocol intercepts all traffic and only returns the PNG for the exact
   message-scoped POST, synthetic bearer, and file path. The same test fails with
   the original renderer and passes with the image row, then waits for the full-screen image canvas and closes the preview.
-- Real HTTP regressions in `server/index.test.ts` use its disposable home/server.
+- Real HTTP regressions in `desktop/server/index.test.ts` use its disposable home/server.
   They reproduce the prior 403 for an image-only attachment, prove image download,
   and reject another message/path, a path outside the private attachment directory,
   and a non-image file. The targeted run also checks existing file/image previews.
@@ -53,8 +53,8 @@ From the repository root, with Node 24, Android SDK and the repository's JDK set
 
 ```sh
 swift test --package-path ios
-android/gradlew -p android :core:test :app:testDebugUnitTest :app:assemblePreview --max-workers=2
-pnpm exec vitest run server/index.test.ts -t 'structured generated image|downloads only a file|downloads an image|streams an authorized|shared in a user|user attachment|preview'
+mobile/android/gradlew -p android :core:test :app:testDebugUnitTest :app:assemblePreview --max-workers=2
+pnpm exec vitest run desktop/server/index.test.ts -t 'structured generated image|downloads only a file|downloads an image|streams an authorized|shared in a user|user attachment|preview'
 pnpm typecheck
 pnpm test
 ```
@@ -66,18 +66,18 @@ focused real-server run passes **10 tests** (220 unrelated tests filtered out).
 Repository-wide run on 2026-09-19: **7,351 passed, 1 failed, 60 skipped,
 1 todo** across 586 Vitest files (569 passed, 1 failed, 16 skipped). The only
 failure is the existing delegate replay assertion at
-`server/delta-context.e2e.test.ts:963`, previously reproduced against pristine
+`desktop/server/delta-context.e2e.test.ts:963`, previously reproduced against pristine
 main `0c327bca` during the mobile queue investigation. It is unrelated to these
 attachment changes. `pnpm test` therefore exits nonzero before its chained
 checks; running those separately passes **9 broker tests**, **347 Electron tests
 (3 skipped)**, and the packaged-server smoke. Typecheck, lint, and locale
 validation pass. The full suite is not claimed green.
 
-Generate the Xcode project with `xcodegen generate --spec ios/project.yml`.
+Generate the Xcode project with `xcodegen generate --spec mobile/ios/project.yml`.
 Create a fresh simulator, then run:
 
 ```sh
-xcodebuild -project ios/HezuoCompanion.xcodeproj \
+xcodebuild -project mobile/ios/HezuoCompanion.xcodeproj \
   -scheme HezuoCompanion \
   -destination 'platform=iOS Simulator,id=YOUR_DISPOSABLE_SIMULATOR_ID' \
   -resultBundlePath /tmp/mobile-images.xcresult \

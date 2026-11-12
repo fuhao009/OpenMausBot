@@ -98,7 +98,7 @@ jobs:
           git switch -c "release/v$VERSION"
           node scripts/tighten-ratchets.mjs
           node scripts/generate-locale.mjs --record-hashes
-          git add package.json scripts/testing/file-size-ratchet.test.ts scripts/testing/index-route-ratchet.test.ts src/locales/source-hashes.json
+          git add package.json scripts/testing/file-size-ratchet.test.ts scripts/testing/index-route-ratchet.test.ts desktop/src/locales/source-hashes.json
           git commit -m "chore(release): bump version to $VERSION"
           git push --set-upstream origin "release/v$VERSION"
 

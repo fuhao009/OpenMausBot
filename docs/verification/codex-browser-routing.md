@@ -5,8 +5,8 @@ Codex bot processes use Hezuo's selected browser/desktop bridge. Process-local o
 ## Regression checks
 
 ```sh
-pnpm exec vitest run server/browser-runtime.test.ts server/harness-mcp-proxy.test.ts server/surface.test.ts server/drivers/codex.test.ts scripts/testing/native-search-evidence.test.ts
-pnpm exec tsc --noEmit -p tsconfig.server.json
+pnpm exec vitest run desktop/server/browser-runtime.test.ts desktop/server/harness-mcp-proxy.test.ts desktop/server/surface.test.ts desktop/server/drivers/codex.test.ts scripts/testing/native-search-evidence.test.ts
+pnpm exec tsc --noEmit -p desktop/tsconfig.server.json
 ```
 
 Check navigation errors stay errors, failed navigation is not replayed, and successful navigation returns a compact snapshot from the same authorized session. A snapshot failure must be reported as such, without claiming navigation failed. Human takeover and scope checks still apply.

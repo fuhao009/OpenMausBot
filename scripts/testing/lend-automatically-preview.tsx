@@ -1,12 +1,12 @@
 import { createRoot } from "react-dom/client";
-import App from "../../src/App";
-import { setAnalyticsEnabled, setEmailGateDone } from "../../src/lib/analytics";
-import { CLOUD_SETUP_HIDDEN, CLOUD_WELCOME_DONE } from "../../src/lib/cloud-setup";
-import { withTourFinished } from "../../src/lib/guided-tour";
-import { setAdvancedMode } from "../../src/lib/interface-mode";
-import { markSimpleModePromptSeen } from "../../src/lib/simple-mode-prompt";
-import { applySkin, type SkinId } from "../../src/lib/skins";
-import "../../src/styles.css";
+import App from "../../desktop/src/App";
+import { setAnalyticsEnabled, setEmailGateDone } from "../../desktop/src/lib/analytics";
+import { CLOUD_SETUP_HIDDEN, CLOUD_WELCOME_DONE } from "../../desktop/src/lib/cloud-setup";
+import { withTourFinished } from "../../desktop/src/lib/guided-tour";
+import { setAdvancedMode } from "../../desktop/src/lib/interface-mode";
+import { markSimpleModePromptSeen } from "../../desktop/src/lib/simple-mode-prompt";
+import { applySkin, type SkinId } from "../../desktop/src/lib/skins";
+import "../../desktop/src/styles.css";
 
 // Served only by scripts/verify-lend-automatically.ts: the real app's Settings → Hezuo Cloud, against the disposable
 // fake-engine server. ?page=local is this computer's own page, its desktop bridge's verified Cloud sign-in answered

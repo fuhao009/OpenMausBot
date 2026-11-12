@@ -9,8 +9,8 @@ and reports no connection status. Names and avatars remain editable in the
 agent's Identity section.
 
 `GET /api/bots/:id/slack-management` lives in the route module
-`server/routes/hosted-slack.ts`, registered in the route table from
-`server/index.ts`. It is a client-scoped read (`server/request-auth.ts`), so a
+`desktop/server/routes/hosted-slack.ts`, registered in the route table from
+`desktop/server/index.ts`. It is a client-scoped read (`desktop/server/request-auth.ts`), so a
 member who opens agent settings gets the same link as an admin; every other
 method on the path stays admin-only and unrouted. It returns
 `{available:true, managementUrl}` only when the agent exists and the runtime
@@ -26,8 +26,8 @@ its own visitors.
 Run these disposable fixtures:
 
 ```sh
-pnpm exec vitest run server/hosted-slack.test.ts server/routes/hosted-slack.test.ts server/request-auth.test.ts server/hosted-access.test.ts
-pnpm exec vitest run src/components/bot-settings/SlackSection.test.ts
+pnpm exec vitest run desktop/server/hosted-slack.test.ts desktop/server/routes/hosted-slack.test.ts desktop/server/request-auth.test.ts desktop/server/hosted-access.test.ts
+pnpm exec vitest run desktop/src/components/bot-settings/SlackSection.test.ts
 OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/slack-management-ui.e2e.test.ts
 pnpm typecheck
 pnpm lint
