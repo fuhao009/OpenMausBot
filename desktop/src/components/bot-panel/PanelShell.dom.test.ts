@@ -7,12 +7,12 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Bot, BotSettingsSection } from "@/state/store";
 
-const fixture = vi.hoisted(() => ({ dispatch: vi.fn(), settingsOpen: false }));
+const fixture = vi.hoisted(() => ({ dispatch: vi.fn(), settingsOpen: false, computerOpen: false, activityOpen: false }));
 vi.mock("@/state/store", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/state/store")>();
   return {
     ...original,
-    useStore: () => ({ state: { ...original.initialState, settingsOpen: fixture.settingsOpen }, dispatch: fixture.dispatch, flushBotPatches: () => Promise.resolve(null) }),
+    useStore: () => ({ state: { ...original.initialState, settingsOpen: fixture.settingsOpen, computerOpen: fixture.computerOpen, activityOpen: fixture.activityOpen }, dispatch: fixture.dispatch, flushBotPatches: () => Promise.resolve(null) }),
   };
 });
 vi.mock("@/lib/interface-mode", () => ({ useAdvancedMode: () => false, readAdvancedMode: () => false, setAdvancedMode: vi.fn() }));
@@ -28,6 +28,7 @@ const stub = (name: string) => (props: Record<string, unknown>) =>
 vi.mock("./DetailsTab", () => ({ DetailsTab: stub("details") }));
 vi.mock("./LibraryTab", () => ({ LibraryTab: stub("library") }));
 vi.mock("./ComputerTab", () => ({ ComputerTab: stub("computer") }));
+vi.mock("../lazy-screens", () => ({ ActivityPanel: stub("activity") }));
 vi.mock("./pages", () => ({
   PageBody: ({ page, editingInstructions }: { page: string; editingInstructions?: boolean }) =>
     createElement("div", { "data-stub-page": page, "data-editing-instructions": editingInstructions === true ? "true" : undefined },
@@ -78,6 +79,9 @@ const onWindowKey = (event: KeyboardEvent) => {
 
 beforeEach(() => {
   fixture.dispatch.mockReset();
+  fixture.settingsOpen = false;
+  fixture.computerOpen = false;
+  fixture.activityOpen = false;
   onClose.mockReset();
   dialogCloses.mockReset();
   window.addEventListener("keydown", onWindowKey);
@@ -164,20 +168,77 @@ describe("named links into the bot panel", () => {
 });
 
 describe("the panel's tabs", () => {
-  it("are Details, Library and Computer, opening on Details, each drawing its own tab", async () => {
+  it("are Details, Activity, Library and Computer, opening on Details, each drawing its own tab", async () => {
     render(null);
     await settle();
     expect([...host.querySelectorAll('[role="tab"]')].map((element) => [element.getAttribute("data-panel-tab"), element.textContent]))
-      .toEqual([["details", "Details"], ["library", "Library"], ["computer", "Computer"]]);
+      .toEqual([["details", "Details"], ["activity", "Activity"], ["library", "Library"], ["computer", "Computer"]]);
     expect(tab()).toBe("details");
     const strip = host.querySelector('[role="tablist"]')!.className.split(" ");
     expect(strip).toEqual(expect.arrayContaining(["sticky", "top-0", "bg-app", "gap-0.5"]));
     expect(host.querySelector('[role="tab"]')!.className.split(" ")).toEqual(expect.arrayContaining(["h-[26px]", "text-[13px]", "bg-ink/[0.07]"]));
-    for (const id of ["library", "computer", "details"]) {
+    for (const id of ["activity", "library", "computer", "details"]) {
       click(host.querySelector(`[data-panel-tab="${id}"]`));
       expect(tab()).toBe(id);
       expect(host.querySelector(`[data-stub-${id}]`), id).not.toBeNull();
     }
+  });
+
+  it("opens on Computer or Activity when the store says so, with the tour anchor on the Computer tab", async () => {
+    fixture.computerOpen = true;
+    render(null);
+    await settle();
+    expect(tab()).toBe("computer");
+    expect(host.querySelector('[data-panel-tab="computer"]')!.getAttribute("data-tour")).toBe("computer");
+    expect(host.querySelector("[data-panel-avatar]")).toBeNull();
+    flushSync(() => root.unmount());
+    root = createRoot(host);
+    fixture.computerOpen = false;
+    fixture.activityOpen = true;
+    render(null);
+    await settle();
+    expect(tab()).toBe("activity");
+  });
+
+  it("follows computerOpen and activityOpen turning on while the panel is open", async () => {
+    fixture.settingsOpen = true;
+    render(null);
+    await settle();
+    expect(tab()).toBe("details");
+    fixture.settingsOpen = false;
+    fixture.activityOpen = true;
+    render(null);
+    await settle();
+    expect(tab()).toBe("activity");
+    fixture.activityOpen = false;
+    fixture.computerOpen = true;
+    render(null);
+    await settle();
+    expect(tab()).toBe("computer");
+  });
+
+  it("sets exactly one flag when a tab is chosen, and only dispatches on a mismatch", async () => {
+    fixture.settingsOpen = true;
+    render(null);
+    await settle();
+    fixture.dispatch.mockClear();
+    click(host.querySelector('[data-panel-tab="library"]'));
+    expect(fixture.dispatch).not.toHaveBeenCalled();
+    click(host.querySelector('[data-panel-tab="computer"]'));
+    expect(fixture.dispatch.mock.calls.map(([action]) => action)).toEqual([{ type: "toggleComputer", open: true }]);
+    fixture.dispatch.mockClear();
+    click(host.querySelector('[data-panel-tab="activity"]'));
+    expect(fixture.dispatch.mock.calls.map(([action]) => action)).toEqual([{ type: "toggleActivity", open: true }]);
+    fixture.dispatch.mockClear();
+    fixture.settingsOpen = false;
+    fixture.computerOpen = true;
+    render(null);
+    click(host.querySelector('[data-panel-tab="details"]'));
+    expect(fixture.dispatch.mock.calls.map(([action]) => action)).toEqual([
+      { type: "toggleSettings", open: true },
+      { type: "toggleComputer", open: false },
+      { type: "toggleActivity", open: false },
+    ]);
   });
 });
 
@@ -227,7 +288,7 @@ describe("the chat header's pill", () => {
     document.body.append(header);
     const headerRoot = createRoot(header);
     const onToggle = vi.fn();
-    flushSync(() => headerRoot.render(createElement(ChatHeadPill, { bot: withTasks, avatar: { state: "idle" }, privacy: null, onToggle, ...props })));
+    flushSync(() => headerRoot.render(createElement(ChatHeadPill, { bot: withTasks, avatar: { state: "idle" }, privacy: null, open: fixture.settingsOpen, onToggle, ...props })));
     return { header, onToggle, done: () => { flushSync(() => headerRoot.unmount()); header.remove(); } };
   };
 

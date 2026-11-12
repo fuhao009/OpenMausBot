@@ -11,7 +11,7 @@ export function WorkspaceResizeEdge({ target, side, label, storageKey, minimum, 
     const root = target.current;
     let parent = root?.parentElement;
     while (parent && getComputedStyle(parent).display === "contents") parent = parent.parentElement;
-    const other = root?.parentElement ? [...root.parentElement.children].filter((node) => node !== root && node instanceof HTMLElement && (node.hasAttribute("data-sidebar") || node.hasAttribute("data-product-work-panel"))) : [];
+    const other = root?.parentElement ? [...root.parentElement.children].filter((node) => node !== root && node instanceof HTMLElement && (node.hasAttribute("data-sidebar") || node.hasAttribute("data-bot-panel"))) : [];
     const occupied = other.reduce((sum, node) => sum + (node instanceof HTMLElement && getComputedStyle(node).position !== "fixed" ? node.getBoundingClientRect().width : 0), 0);
     return Math.max(minimum, Math.min(maximum, (parent?.clientWidth ?? window.innerWidth) - occupied - 420));
   };

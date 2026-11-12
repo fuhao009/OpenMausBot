@@ -15,7 +15,7 @@ import { parseComputerHelp } from "@/lib/computer-control";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatView } from "@/components/ChatView";
 import { GroupView } from "@/components/GroupView";
-import { PRODUCT_MID_LAYOUT, SIDEBAR_AND_PANEL_FIT, SIDEBAR_INLINE, TWO_SIDE_PANELS_FIT, useMediaQuery } from "@/lib/use-media-query";
+import { PRODUCT_MID_LAYOUT, PRODUCT_WIDE_LAYOUT, SIDEBAR_AND_PANEL_FIT, SIDEBAR_INLINE, TWO_SIDE_PANELS_FIT, useMediaQuery } from "@/lib/use-media-query";
 import { preloadConnectedApps } from "@/lib/connected-apps";
 import {
   ActivityPanel, BotSettingsDialog, CloudAddDialog, ComputerPanel, FilesView, InspectorPanel, KeyboardShortcutsModal, LocalVmWorkspace,
@@ -54,7 +54,7 @@ import { cloudFirstRun, cloudWelcomeVisible, useCloudWelcome } from "@/lib/cloud
 import { engineReady } from "@/components/EngineLibrary";
 import { CommandPalette } from "@/components/CommandPalette";
 import { ProductAccountGate } from "@/components/ProductAccountGate";
-import { WorkPanel } from "@/components/WorkPanel";
+import { useUnifiedBotPanel } from "@/components/bot-panel/use-unified-bot-panel";
 import { isProductWorkspace } from "@/lib/product-workspace";
 import { useProductAccount } from "@/lib/use-product-account";
 import { t } from "@/lib/i18n";
@@ -94,6 +94,8 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   const sidebarAndPanelFit = useMediaQuery(SIDEBAR_AND_PANEL_FIT, true);
   const sidebarInline = useMediaQuery(SIDEBAR_INLINE, false);
   const productMid = useMediaQuery(PRODUCT_MID_LAYOUT, true);
+  const productWide = useMediaQuery(PRODUCT_WIDE_LAYOUT, true);
+  const unifiedBotPanel = useUnifiedBotPanel();
   useEffect(() => {
     if (!window.ogb?.environments) return;
     const open = (computerId?: string | null) => {
@@ -454,19 +456,20 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
         </main>
       )}
       {/* Sibling panels need distinct keys: two keyed `bot.id` collide in React's keyed reconciliation. */}
-      {state.settingsOpen && bot && (
+      {unifiedBotPanel && bot && (state.settingsOpen || state.computerOpen || state.activityOpen) && (
+        <BotSettingsDialog
+          key={`settings:${bot.id}`}
+          bot={bot}
+          onOpenVmWorkspace={openLocalVmWorkspace}
+          overlay={((state.inspectorOpen || (notificationFeed && state.notificationsOpen)) && !twoSidePanelsFit) || (product && state.computerOpen && !productWide)}
+        />
+      )}
+      {!unifiedBotPanel && state.settingsOpen && bot && (
         remoteClient
           ? <RemoteAgentSettingsPanel bot={bot} overlay={state.computerOpen && !twoSidePanelsFit} />
           : <BotSettingsDialog key={`settings:${bot.id}`} bot={bot} overlay={(state.inspectorOpen || state.computerOpen || (notificationFeed && state.notificationsOpen)) && !twoSidePanelsFit} />
       )}
-      {product && bot && (state.activityOpen || state.computerOpen) && (
-        <WorkPanel
-          key={`work:${bot.id}`}
-          bot={bot}
-          onOpenVmWorkspace={openLocalVmWorkspace}
-        />
-      )}
-      {!product && state.computerOpen && bot && (
+      {!unifiedBotPanel && state.computerOpen && bot && (
         remoteClient ? (
           <RemoteDesktopPanel key={`computer:${bot.id}`} bot={bot} />
         ) : (
@@ -481,7 +484,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
         <RoomPanel key={`room:${group.id}`} group={group} overlay={notificationFeed && state.notificationsOpen && !twoSidePanelsFit} />
       )}
       {!remoteClient && state.inspectorOpen && bot && <InspectorPanel key={bot.threadId} bot={bot} />}
-      {!product && !remoteClient && state.activityOpen && bot && <ActivityPanel key={`activity:${bot.id}`} bot={bot} />}
+      {!unifiedBotPanel && !remoteClient && state.activityOpen && bot && <ActivityPanel key={`activity:${bot.id}`} bot={bot} />}
       {inboxShown && <InboxPanel />}
       {notificationFeed && !calendarFocus && state.notificationsOpen && <NotificationsPanel />}
       {notificationFeed && !calendarFocus && <NotificationRail />}

@@ -5,8 +5,8 @@ import { BOT_SECTIONS } from "../bot-settings/sections";
 import { isSimplePage, PAGE_IDS, PAGES, PANEL_TABS, sectionTarget, SIMPLE_PAGES, TAB_LABEL } from "./page-registry";
 
 describe("the bot panel's page registry", () => {
-  it("has three tabs: Details, Library and Computer", () => {
-    expect(PANEL_TABS).toEqual(["details", "library", "computer"]);
+  it("has four tabs: Details, Activity, Library and Computer", () => {
+    expect(PANEL_TABS).toEqual(["details", "activity", "library", "computer"]);
   });
 
   it("lands every settings section on a tab, and on a Simple page that lives on that tab", () => {
@@ -48,7 +48,7 @@ describe("the bot panel's page registry", () => {
       if (PAGES[id].intro) expect(keys[PAGES[id].intro], id).toBeTruthy();
     }
     for (const tab of PANEL_TABS) expect(keys[TAB_LABEL[tab]]).toBeTruthy();
-    expect(PANEL_TABS.map((tab) => keys[TAB_LABEL[tab]])).toEqual(["Details", "Library", "Computer"]);
+    expect(PANEL_TABS.map((tab) => keys[TAB_LABEL[tab]])).toEqual(["Details", "Activity", "Library", "Computer"]);
     expect(keys[PAGES.settings.title]).toBe("Bot settings");
   });
 });

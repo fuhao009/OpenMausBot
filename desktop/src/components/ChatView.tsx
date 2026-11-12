@@ -88,6 +88,7 @@ import { RenameTitle } from "./RenameTitle"; import { ChatHeadRole, chiefOfStaff
 import { BotActivityPicker } from "./TaskPicker"; import { ChatHeadPill } from "./ChatHeadPill";
 import { ELEVATED_FLOAT, ELEVATED_HOVER } from "./elevated";
 import { ModelPicker } from "./ModelPicker";
+import { useUnifiedBotPanel } from "./bot-panel/use-unified-bot-panel";
 import { isProductWorkspace } from "@/lib/product-workspace";
 import { productAccountNotice, useProductAccount } from "@/lib/use-product-account";
 import { ChatHeaderMenu, ChatMoreMenu } from "./ChatMoreMenu"; import { TeamOwnHelperHeader, TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine";
@@ -97,7 +98,7 @@ import { SpeakButton } from "./SpeakButton";
 import { CallOverlay } from "./CallView";
 import { LiveCallBar } from "./LiveCallBar";
 import { LiveCallChip } from "./LiveCallPill";
-import { effectivePlace, toolPlace, type EffectivePlace } from "@/lib/place";
+import { browserInUse, effectivePlace, toolPlace, type EffectivePlace } from "@/lib/place";
 import { cn } from "@/lib/cn";
 import { activeLocale, t } from "@/lib/i18n";
 import { COMPACT_BUBBLE } from "@/lib/compact-chip";
@@ -760,6 +761,17 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
   const phone = useMediaQuery(PHONE_LAYOUT);
   const phoneMenu = phone && !remoteClient;
   const simpleHead = !advanced && !remoteClient;
+  const unifiedPanel = useUnifiedBotPanel();
+  const botPanelOpen = state.settingsOpen || state.computerOpen || state.activityOpen;
+  const toggleBotPanel = () => {
+    if (!botPanelOpen) {
+      dispatch({ type: "toggleSettings", open: true });
+      return;
+    }
+    dispatch({ type: "toggleSettings", open: false });
+    dispatch({ type: "toggleComputer", open: false });
+    dispatch({ type: "toggleActivity", open: false });
+  };
   const canWrite = useCanWriteIn(bot.threadId, bot.yourAccess);
 
   const computerStarting = computerStartLine(state.computerStarts[bot.id], bot.name); useScreensWhile(Boolean(computerStarting));
@@ -959,13 +971,14 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
               bot={bot}
               avatar={{ state: stateForBot({ ...bot, messages }), motion: mascotMotion?.kind ?? "none", motionKey: mascotMotion?.nonce ?? 0, animated: headerAnimated }}
               privacy={privateChat ? { kind: "private" } : ownHelper ? { kind: "ownHelper" } : sharedChat && team ? { kind: "shared", team: team.name } : null}
-              onToggle={() => dispatch({ type: "toggleSettings", open: !state.settingsOpen })}
+              open={botPanelOpen}
+              onToggle={toggleBotPanel}
             />
           ) : advanced ? (
             <div data-chathead-pill className={cn(CHATHEAD_PILL, "pr-1")}>
               <button
                 type="button"
-                onClick={() => dispatch({ type: "toggleSettings", open: true })}
+                onClick={() => unifiedPanel ? toggleBotPanel() : dispatch({ type: "toggleSettings", open: true })}
                 className="flex shrink-0 items-center justify-center rounded-full"
                 title={t("chat.openProfile")}
                 aria-label={t("chat.openProfileAria", { name: bot.name })}
@@ -1047,7 +1060,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
           <ThreadContextWarning bot={bot} messages={messages} />
           {!product && <EngineLimitNotice engine={bot.modelSelection?.instanceId} />}
           {!phone && !product && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} />}
-          {product && <button
+          {product && !unifiedPanel && <button
             type="button"
             data-product-work-entry="tasks"
             aria-pressed={state.activityOpen}
@@ -1061,7 +1074,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
             <ListChecks size={18} aria-hidden="true" />
           </button>}
           <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />
-          {!phoneMenu && <button
+          {!phoneMenu && !unifiedPanel && <button
             data-tour="computer"
             data-product-work-entry="computer"
             aria-pressed={product ? state.computerOpen : undefined}
@@ -1071,9 +1084,9 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
               "flex size-8 items-center justify-center rounded-full transition-colors hover:bg-ink/[0.06]",
               state.computerOpen ? "text-accent" : "text-ink-secondary hover:text-ink",
             )}
-            title={t("chat.computer")} aria-label={busy && place === "browser" ? `${t("chat.computer")}, ${t("place.live")}` : t("chat.computer")}
+            title={t("chat.computer")} aria-label={browserInUse(bot) ? `${t("chat.computer")}, ${t("place.live")}` : t("chat.computer")}
           >
-            <Monitor size={18} />{busy && place === "browser" && <span aria-hidden="true" className="absolute right-1 top-1 size-1.5 animate-pulse rounded-full bg-success" data-testid="computer-button-live" />}
+            <Monitor size={18} />{browserInUse(bot) && <span aria-hidden="true" className="absolute right-1 top-1 size-1.5 animate-pulse rounded-full bg-success" data-testid="computer-button-live" />}
           </button>}
           {phoneMenu ? <ChatMoreMenu bot={bot} phoneHeader /> : (advanced || remoteClient) && <ChatHeaderMenu key={`menu:${bot.threadId}`} bot={bot} />}
         </div>
