@@ -1125,7 +1125,7 @@
   "sidebar.section.pinned": "已釘選",
   "sidebar.section.channels": "聊天室",
   "sidebar.section.botChats": "機器人對話",
-  "sidebar.section.bots": "機器人",
+  "sidebar.section.bots": "未分組",
   "sidebar.section.moved": "{name} 已移動到第 {position} 個位置，共 {count} 個",
   "sidebar.section.moveToContext": "移至部門",
   "sidebar.section.newContext": "新增部門…",

@@ -1976,7 +1976,7 @@
   "sidebar.section.pinned": "已置顶",
   "sidebar.section.channels": "群组聊天",
   "sidebar.section.botChats": "机器人对话",
-  "sidebar.section.bots": "机器人",
+  "sidebar.section.bots": "未分组",
   "sidebar.section.moved": "{name} 已移到第 {position} 位，共 {count} 位",
   "sidebar.section.moveToContext": "移至部门",
   "sidebar.section.newContext": "添加部门…",

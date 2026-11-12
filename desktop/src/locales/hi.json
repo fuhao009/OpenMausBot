@@ -587,7 +587,7 @@
   "sidebar.preview.you": "आप: {text}",
   "sidebar.section.pinned": "पिन किए गए",
   "sidebar.section.botChats": "बॉट के थ्रेड",
-  "sidebar.section.bots": "बॉट",
+  "sidebar.section.bots": "असमूहित",
   "sidebar.section.moved": "{name} को {count} में से स्थान {position} पर ले जाया गया",
   "sidebar.section.removeFromDepartment": "विभाग से हटाएँ",
   "sidebar.section.newName": "नया विभाग",

@@ -686,7 +686,7 @@
   "sidebar.section.pinned": "Закріплені",
   "sidebar.section.channels": "Групові чати",
   "sidebar.section.botChats": "Гілки ботів",
-  "sidebar.section.bots": "Боти",
+  "sidebar.section.bots": "Без групи",
   "sidebar.section.moved": "{name} переміщено на позицію {position} з {count}",
   "sidebar.section.moveToContext": "Перемістити у відділ",
   "sidebar.section.newContext": "Новий відділ…",

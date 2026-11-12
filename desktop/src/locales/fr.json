@@ -587,7 +587,7 @@
   "sidebar.preview.you": "Vous : {text}",
   "sidebar.section.pinned": "Épinglés",
   "sidebar.section.botChats": "Fils entre bots",
-  "sidebar.section.bots": "Bots",
+  "sidebar.section.bots": "Sans groupe",
   "sidebar.section.moved": "{name} déplacé en position {position} sur {count}",
   "sidebar.section.removeFromDepartment": "Retirer du département",
   "sidebar.section.newName": "Nouveau département",

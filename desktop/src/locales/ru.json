@@ -1746,7 +1746,7 @@
   "sidebar.section.pinned": "Закреплённые",
   "sidebar.section.channels": "Групповые чаты",
   "sidebar.section.botChats": "Потоки ботов",
-  "sidebar.section.bots": "Боты",
+  "sidebar.section.bots": "Без группы",
   "sidebar.section.moved": "{name} перемещён на позицию {position} из {count}",
   "sidebar.section.moveToContext": "Переместить в отдел",
   "sidebar.section.newContext": "Новый отдел…",

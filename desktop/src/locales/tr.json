@@ -1291,7 +1291,7 @@
   "sidebar.section.pinned": "Sabitlenenler",
   "sidebar.section.channels": "Grup sohbetleri",
   "sidebar.section.botChats": "Bot konuları",
-  "sidebar.section.bots": "Botlar",
+  "sidebar.section.bots": "Grupsuz",
   "sidebar.section.moved": "{name}, {count} öğeden {position}. konuma taşındı",
   "sidebar.section.moveToContext": "Departmana taşı",
   "sidebar.section.newContext": "Yeni departman…",

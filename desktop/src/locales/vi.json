@@ -1291,7 +1291,7 @@
   "sidebar.section.pinned": "Đã ghim",
   "sidebar.section.channels": "Group chat",
   "sidebar.section.botChats": "Đoạn chat với bot",
-  "sidebar.section.bots": "Bot",
+  "sidebar.section.bots": "Chưa phân nhóm",
   "sidebar.section.moved": "Đã chuyển {name} đến vị trí {position}/{count}",
   "sidebar.section.moveToContext": "Chuyển vào phòng ban",
   "sidebar.section.newContext": "Phòng ban mới…",

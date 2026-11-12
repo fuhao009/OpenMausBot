@@ -687,7 +687,7 @@
   "sidebar.preview.you": "Du: {text}",
   "sidebar.section.pinned": "Angeheftet",
   "sidebar.section.botChats": "Bot-Threads",
-  "sidebar.section.bots": "Bots",
+  "sidebar.section.bots": "Nicht zugeordnet",
   "sidebar.section.moved": "{name} auf Position {position} von {count} verschoben",
   "sidebar.section.removeFromDepartment": "Aus Abteilung entfernen",
   "sidebar.section.newName": "Neue Abteilung",

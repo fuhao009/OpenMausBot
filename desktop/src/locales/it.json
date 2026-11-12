@@ -1710,7 +1710,7 @@
   "sidebar.section.pinned": "Fissati",
   "sidebar.section.channels": "Chat di gruppo",
   "sidebar.section.botChats": "Thread dei bot",
-  "sidebar.section.bots": "Bot",
+  "sidebar.section.bots": "Senza gruppo",
   "sidebar.section.moved": "{name} spostato in posizione {position} di {count}",
   "sidebar.section.moveToContext": "Sposta nel reparto",
   "sidebar.section.newContext": "Nuovo reparto…",
