@@ -6,6 +6,7 @@ import { routeAiGateway } from "../src/ai-gateway";
 import { createAuth } from "../src/auth";
 import { readAuthConfig } from "../src/config";
 import { sha256 } from "../src/installations";
+import { reviewRequest } from "../src/ai-wallet";
 import worker from "../src/index";
 
 const BASE_URL = "https://auth.hezuo.test";
@@ -285,6 +286,7 @@ describe("ai gateway catalog", () => {
       fetcher,
     );
     expect(response?.status).toBe(200);
+    expect(response?.headers.has("x-ai-request-id")).toBe(false);
     const body = await response?.json<{ data: { id: string }[] }>();
     expect(body?.data.map((model) => model.id)).toEqual(["m1", "r1", "cachecost"]);
     expect(calls).toHaveLength(0);
@@ -300,6 +302,7 @@ describe("ai gateway catalog", () => {
       fetcher,
     );
     expect(response?.status).toBe(401);
+    expect(response?.headers.has("x-ai-request-id")).toBe(false);
     await expect(response?.json()).resolves.toMatchObject({ error: { code: "ai_token_invalid" } });
     expect(calls).toHaveLength(0);
   });
@@ -325,6 +328,7 @@ describe("ai gateway catalog", () => {
       fetcher,
     );
     expect(response?.status).toBe(401);
+    expect(response?.headers.has("x-ai-request-id")).toBe(false);
     await expect(response?.json()).resolves.toMatchObject({ error: { code: "ai_token_invalid" } });
     expect(calls).toHaveLength(0);
   });
@@ -340,6 +344,7 @@ describe("ai gateway catalog", () => {
       fetcher,
     );
     expect(response?.status).toBe(503);
+    expect(response?.headers.has("x-ai-request-id")).toBe(false);
     await expect(response?.json()).resolves.toMatchObject({ error: { code: "ai_unavailable" } });
     expect(calls).toHaveLength(0);
     expect(await requests()).toHaveLength(0);
@@ -357,6 +362,7 @@ describe("ai gateway catalog", () => {
       fetcher,
     );
     expect(response?.status).toBe(403);
+    expect(response?.headers.has("x-ai-request-id")).toBe(false);
     await expect(response?.json()).resolves.toMatchObject({ error: { code: "ai_not_enabled" } });
     expect(calls).toHaveLength(0);
     expect(await requests()).toHaveLength(0);
@@ -373,6 +379,7 @@ describe("ai gateway catalog", () => {
       fetcher,
     );
     expect(response?.status).toBe(403);
+    expect(response?.headers.has("x-ai-request-id")).toBe(false);
     await expect(response?.json()).resolves.toMatchObject({ error: { code: "ai_suspended" } });
     expect(calls).toHaveLength(0);
     expect(await requests()).toHaveLength(0);
@@ -391,6 +398,7 @@ describe("ai gateway catalog", () => {
       fetcher,
     );
     expect(response?.status).toBe(401);
+    expect(response?.headers.has("x-ai-request-id")).toBe(false);
     expect(calls).toHaveLength(0);
   });
 
@@ -412,6 +420,7 @@ describe("ai gateway admission", () => {
       fetcher,
     );
     expect(response?.status).toBe(403);
+    expect(response?.headers.has("x-ai-request-id")).toBe(false);
     await expect(response?.json()).resolves.toMatchObject({ error: { code: "model_not_allowed" } });
     expect(await requests()).toHaveLength(0);
     expect(calls).toHaveLength(0);
@@ -466,6 +475,7 @@ describe("ai gateway admission", () => {
         fetcher,
       );
       expect(response?.status).toBe(400);
+      expect(response?.headers.has("x-ai-request-id")).toBe(false);
       await expect(response?.json()).resolves.toMatchObject({ error: { code: "invalid_request" } });
     }
     expect(calls).toHaveLength(0);
@@ -525,6 +535,7 @@ describe("ai gateway admission", () => {
 
     const response = await routeAiGateway(request, testEnv(), fetcher);
     expect(response?.status).toBe(413);
+    expect(response?.headers.has("x-ai-request-id")).toBe(false);
     await expect(response?.json()).resolves.toMatchObject({ error: { code: "request_too_large" } });
     expect(calls).toHaveLength(0);
     expect(await requests()).toHaveLength(0);
@@ -573,6 +584,7 @@ describe("ai gateway admission", () => {
       first.fetcher,
     );
     expect(shortResponse?.status).toBe(402);
+    expect(shortResponse?.headers.has("x-ai-request-id")).toBe(false);
     await expect(shortResponse?.json()).resolves.toMatchObject({ error: { code: "insufficient_balance", type: "insufficient_quota" } });
     expect(first.calls).toHaveLength(0);
     expect(await requests()).toHaveLength(0);
@@ -581,6 +593,180 @@ describe("ai gateway admission", () => {
 });
 
 describe("ai gateway chat", () => {
+  it.each([400, 401, 403, 404, 408, 409, 413, 422, 429])("releases end-user points after refusal %i without leaking upstream details or retrying", async (status) => {
+    const { sessionId, userId } = await signIn(`refused-${status}@example.com`);
+    const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
+    const secret = `private-upstream-detail-${status} ${UPSTREAM} ${UPSTREAM_KEY}`;
+    const { calls, fetcher } = recorder(() => jsonResponse({ error: { message: secret } }, status));
+    const response = await routeAiGateway(
+      inferenceRequest("/v1/ai/chat/completions", chatBody(), token), testEnv(), fetcher,
+    );
+    expect(response?.status).toBe(503);
+    const text = await response!.text();
+    expect(JSON.parse(text)).toEqual({ error: {
+      code: status === 429 ? "ai_temporarily_busy" : "ai_temporarily_unavailable",
+      type: "service_unavailable",
+      message: status === 429
+        ? "The AI service is busy. No points were charged."
+        : "The AI service is temporarily unavailable. No points were charged.",
+    } });
+    for (const value of [secret, UPSTREAM, UPSTREAM_KEY, token]) expect(text).not.toContain(value);
+    const rows = await requests();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ state: "settled", charged_micro_points: 0, settlement_reason: `upstream_refused_${status}` });
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
+    expect(await balance(userId)).toEqual({ available_micro_points: 10_000, reserved_micro_points: 0 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it.each([500, 502, 503, 302, 418])("keeps unknown status %i reserved for review without retrying", async (status) => {
+    const { sessionId, userId } = await signIn(`review-${status}@example.com`);
+    const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
+    const { calls, fetcher } = recorder(() => jsonResponse({ error: { message: "private detail" } }, status));
+    const response = await routeAiGateway(
+      inferenceRequest("/v1/ai/chat/completions", chatBody(), token), testEnv(), fetcher,
+    );
+    expect(response?.status).toBe(502);
+    await expect(response?.json()).resolves.toMatchObject({ error: { code: "upstream_error" } });
+    const rows = await requests();
+    expect(rows[0]).toMatchObject({ state: "review", charged_micro_points: null, settlement_reason: `upstream_status_${status}` });
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
+    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it.each([false, true])("settles trustworthy 429 usage before refusal policy (stream request: %s)", async (stream) => {
+    const { sessionId, userId } = await signIn(`busy-usage-${stream}@example.com`);
+    const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
+    const { calls, fetcher } = recorder(() => jsonResponse({ error: { message: "private detail" }, usage: CHAT_USAGE }, 429));
+    const response = await routeAiGateway(
+      inferenceRequest("/v1/ai/chat/completions", chatBody({ stream }), token), testEnv(), fetcher,
+    );
+    expect(response?.status).toBe(502);
+    await expect(response?.json()).resolves.toMatchObject({ error: { code: "upstream_error" } });
+    const rows = await requests();
+    expect(rows[0]).toMatchObject({ state: "settled", charged_micro_points: 2100, settlement_reason: null });
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
+    expect(await balance(userId)).toEqual({ available_micro_points: 7900, reserved_micro_points: 0 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("does not claim a release when another writer already moved the request to review", async () => {
+    const { sessionId, userId } = await signIn("release-race@example.com");
+    const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
+    const { calls, fetcher } = recorder(async () => {
+      await reviewRequest(testEnv(), (await requests())[0].id, "operator_review");
+      return jsonResponse({ error: { message: "private detail" } }, 429);
+    });
+    const response = await routeAiGateway(
+      inferenceRequest("/v1/ai/chat/completions", chatBody(), token), testEnv(), fetcher,
+    );
+    expect(response?.status).toBe(502);
+    const text = await response!.text();
+    expect(JSON.parse(text).error.code).toBe("upstream_error");
+    expect(text).not.toContain("No points were charged");
+    const rows = await requests();
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
+    expect(rows[0]).toMatchObject({ state: "review", charged_micro_points: null, settlement_reason: "operator_review" });
+    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it.each(["encoded", "transport", "body-read"])("reviews %s failures even when a refusal release might otherwise apply", async (kind) => {
+    const { sessionId, userId } = await signIn(`failure-${kind}@example.com`);
+    const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
+    const { calls, fetcher } = recorder(() => {
+      if (kind === "transport") throw new Error("private network detail");
+      if (kind === "encoded") return jsonResponse({ usage: CHAT_USAGE }, 429, { "content-encoding": "gzip" });
+      return new Response(new ReadableStream({ start(controller) { controller.error(new Error("private body detail")); } }), { status: 429 });
+    });
+    const response = await routeAiGateway(
+      inferenceRequest("/v1/ai/chat/completions", chatBody(), token), testEnv(), fetcher,
+    );
+    expect(response?.status).toBe(502);
+    const text = await response!.text();
+    expect(JSON.parse(text).error.code).toBe("upstream_error");
+    expect(text).not.toContain("private");
+    const rows = await requests();
+    expect(rows[0]).toMatchObject({ state: "review", charged_micro_points: null });
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
+    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("includes the ledger id when dispatch setup throws after reserve", async () => {
+    const { sessionId, userId } = await signIn("dispatch-setup@example.com");
+    const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
+    const request = inferenceRequest("/v1/ai/chat/completions", chatBody(), token);
+    vi.spyOn(request, "signal", "get").mockImplementation(() => { throw new Error("private setup detail"); });
+    const { calls, fetcher } = recorder(() => jsonResponse({}));
+    const response = await routeAiGateway(request, testEnv(), fetcher);
+    expect(response?.status).toBe(502);
+    await expect(response?.json()).resolves.toMatchObject({ error: { code: "upstream_error" } });
+    const rows = await requests();
+    expect(rows[0]).toMatchObject({ state: "review", charged_micro_points: null });
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each([false, true])("releases an empty Responses refusal before streaming starts (stream request: %s)", async (stream) => {
+    const { sessionId, userId } = await signIn(`responses-refusal-${stream}@example.com`);
+    const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
+    const { calls, fetcher } = recorder(() => new Response(null, { status: 401 }));
+    const response = await routeAiGateway(
+      inferenceRequest("/v1/ai/responses", { input: "hello", model: "r1", stream }, token), testEnv(), fetcher,
+    );
+    expect(response?.status).toBe(503);
+    await expect(response?.json()).resolves.toMatchObject({ error: { code: "ai_temporarily_unavailable" } });
+    const rows = await requests();
+    expect(rows[0]).toMatchObject({ state: "settled", charged_micro_points: 0, settlement_reason: "upstream_refused_401" });
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
+    expect(await balance(userId)).toEqual({ available_micro_points: 10_000, reserved_micro_points: 0 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("keeps a failed 200 stream reserved even when its error code resembles a refusal", async () => {
+    spyOnConsoleError();
+    const { sessionId, userId } = await signIn("stream-refusal-code@example.com");
+    const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
+    const { calls, fetcher } = recorder(() => sseResponse([
+      'data: {"error":{"code":"rate_limit_exceeded","message":"busy"}}\n\n',
+    ]));
+    const response = await routeAiGateway(
+      inferenceRequest("/v1/ai/chat/completions", chatBody({ stream: true }), token), testEnv(), fetcher,
+    );
+    expect(response?.status).toBe(200);
+    const text = await response!.text();
+    expect(text).toContain("event: error");
+    expect(text).toContain("rate_limit_exceeded");
+    expect(text).not.toContain("No points were charged");
+    const rows = await requests();
+    expect(rows[0]).toMatchObject({ state: "review", charged_micro_points: null });
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
+    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it.each([
+    { completion_tokens: 1, prompt_tokens: -1 },
+    { completion_tokens: 1, prompt_tokens: 5000 },
+    { prompt_tokens: 100 },
+  ])("reviews unusable usage on 429 instead of silently releasing it: %j", async (usage) => {
+    const { sessionId, userId } = await signIn(`invalid-refusal-${crypto.randomUUID()}@example.com`);
+    const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
+    const { calls, fetcher } = recorder(() => jsonResponse({ usage }, 429));
+    const response = await routeAiGateway(
+      inferenceRequest("/v1/ai/chat/completions", chatBody(), token), testEnv(), fetcher,
+    );
+    expect(response?.status).toBe(502);
+    await expect(response?.json()).resolves.toMatchObject({ error: { code: "upstream_error" } });
+    const rows = await requests();
+    expect(rows[0]).toMatchObject({ state: "review", charged_micro_points: null });
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
+    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(calls).toHaveLength(1);
+  });
+
   it("settles exact usage from a non-streaming completion and maps the model back", async () => {
     const { sessionId, userId } = await signIn("chat-json@example.com");
     const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
@@ -616,6 +802,7 @@ describe("ai gateway chat", () => {
 
     const rows = await requests();
     expect(rows).toHaveLength(1);
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
     expect(rows[0]).toMatchObject({
       cached_input_tokens: 200,
       charged_micro_points: 2100,
@@ -695,6 +882,7 @@ describe("ai gateway chat", () => {
 
     const rows = await requests();
     expect(rows).toHaveLength(1);
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
     expect(rows[0]).toMatchObject({ charged_micro_points: 2100, state: "settled" });
     expect(await balance(userId)).toEqual({ available_micro_points: 7900, reserved_micro_points: 0 });
   });
@@ -718,6 +906,7 @@ describe("ai gateway chat", () => {
     expect(text).toContain("event: error");
 
     const rows = await requests();
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
     expect(rows[0]).toMatchObject({ charged_micro_points: null, state: "review" });
     expect(rows[0].settlement_reason).toBe("usage_missing");
     expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
@@ -1066,6 +1255,8 @@ describe("ai gateway chat", () => {
       fetcher,
     );
     expect(third?.status).toBe(429);
+    expect(third?.headers.has("x-ai-request-id")).toBe(false);
+    expect(third?.headers.get("retry-after")).toBe("2");
     await expect(third?.json()).resolves.toMatchObject({ error: { code: "ai_busy" } });
 
     gate.resolve();
@@ -1106,6 +1297,7 @@ describe("ai gateway responses", () => {
     expect(calls[0].body).toMatchObject({ model: "upstream-r1", store: false });
 
     const rows = await requests();
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
     expect(rows[0]).toMatchObject({ charged_micro_points: 1800, endpoint: "responses", state: "settled" });
     expect(rows[0].input_tokens).toBe(800);
     expect(rows[0].output_tokens).toBe(50);
@@ -1121,6 +1313,7 @@ describe("ai gateway responses", () => {
       testEnv(),
       fetcher,
     );
+    expect(response?.headers.get("x-ai-request-id")).toBe((await requests())[0].id);
     return { text: (await response?.text()) ?? "", userId };
   }
   const errorData = (text: string) => JSON.parse(/event: error\ndata: (.*)\n/.exec(text)![1]!).error as { code: string; message: string; type: string };
@@ -1189,6 +1382,7 @@ describe("ai gateway responses", () => {
 
     // (400-100)*2 + 100*0.5 + 25*4 = 600 + 50 + 100 = 750 micro-points.
     const rows = await requests();
+    expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
     expect(rows[0]).toMatchObject({ charged_micro_points: 750, state: "settled" });
   });
 });
