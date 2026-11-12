@@ -3,16 +3,18 @@
 // companion origin (the same socket cloudflared used to target). No Cloudflare
 // token, no Tailscale name, and no credential in argv or the environment.
 import net from "node:net";
+import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
-import { WebSocket } from "ws";
 import { createPinnedHttpsFetch, normalizeProductTrust } from "./product-ca.mjs";
 import {
   FRAME,
   COMPANION_RELAY_PATH,
   createFrameDecoder,
   encodeFrame,
-} from "../scripts/local-gateway/companion-relay.mjs";
+} from "./companion-relay-frames.mjs";
 import { validCompanionOriginTarget } from "./companion-origin-gateway.mjs";
+
+const { WebSocket } = createRequire(import.meta.url)("./vendor/ws.cjs");
 
 const DEFAULT_MAX_RETRY_MS = 30_000;
 

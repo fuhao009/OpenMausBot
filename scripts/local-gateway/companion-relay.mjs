@@ -8,16 +8,13 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import tls from "node:tls";
 import { WebSocketServer, WebSocket } from "ws";
+import { COMPANION_RELAY_PATH, FRAME, createFrameDecoder, encodeFrame } from "../../electron/companion-relay-frames.mjs";
 
-export const COMPANION_RELAY_PATH = "/v1/companion/relay";
+export { COMPANION_RELAY_PATH, FRAME, createFrameDecoder, encodeFrame };
+
 export const COMPANION_PREFIX = "/v1/companion/";
 export const INSTALLATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const DESKTOP_PLATFORMS = new Set(["darwin", "windows", "linux"]);
-
-export const FRAME = Object.freeze({ OPEN: 0, DATA: 1, END: 2, RESET: 3 });
-const FRAME_HEADER = 9;
-const MAX_FRAME = 64 * 1024;
-const MAX_BUFFER = 1024 * 1024;
 
 export function companionPathFor(installationId) {
   if (!INSTALLATION_ID.test(installationId)) return null;
@@ -33,48 +30,6 @@ export function parseCompanionRequestPath(pathname) {
   const suffix = slash === -1 ? "/" : rest.slice(slash);
   if (!suffix.startsWith("/") || suffix.includes("\\") || suffix.includes("\0")) return null;
   return { installationId: id.toLowerCase(), path: suffix || "/" };
-}
-
-export function encodeFrame(streamId, type, payload = Buffer.alloc(0)) {
-  if (!Number.isInteger(streamId) || streamId < 0 || streamId > 0xffffffff) {
-    throw new Error("invalid stream id");
-  }
-  if (!Number.isInteger(type) || type < 0 || type > 255) throw new Error("invalid frame type");
-  const body = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
-  if (body.length > MAX_FRAME) throw new Error("frame too large");
-  const header = Buffer.alloc(FRAME_HEADER);
-  header.writeUInt32BE(streamId, 0);
-  header.writeUInt8(type, 4);
-  header.writeUInt32BE(body.length, 5);
-  return Buffer.concat([header, body]);
-}
-
-export function createFrameDecoder() {
-  let buffer = Buffer.alloc(0);
-  return {
-    push(chunk) {
-      const incoming = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      if (buffer.length + incoming.length > MAX_BUFFER) {
-        throw new Error("relay buffer exceeded");
-      }
-      buffer = buffer.length === 0 ? incoming : Buffer.concat([buffer, incoming]);
-      const frames = [];
-      while (buffer.length >= FRAME_HEADER) {
-        const length = buffer.readUInt32BE(5);
-        if (length > MAX_FRAME) throw new Error("frame too large");
-        if (buffer.length < FRAME_HEADER + length) break;
-        const streamId = buffer.readUInt32BE(0);
-        const type = buffer.readUInt8(4);
-        const payload = buffer.subarray(FRAME_HEADER, FRAME_HEADER + length);
-        buffer = buffer.subarray(FRAME_HEADER + length);
-        frames.push({ streamId, type, payload: Buffer.from(payload) });
-      }
-      return frames;
-    },
-    reset() {
-      buffer = Buffer.alloc(0);
-    },
-  };
 }
 
 export function bearerToken(header) {
@@ -595,14 +550,14 @@ export async function dispatchIncoming(dispatchFetch, origin, req) {
   }
   const method = req.method ?? "GET";
   const hasBody = method !== "GET" && method !== "HEAD";
-  const request = new Request(target, {
+  // Miniflare's dispatchFetch builds its own undici Request and rejects a Request from Node's global fetch.
+  return dispatchFetch(target.href, {
     method,
     headers,
     body: hasBody ? Readable.toWeb(req) : undefined,
     duplex: hasBody ? "half" : undefined,
     redirect: "manual",
   });
-  return dispatchFetch(request);
 }
 
 export async function writeFetchResponse(res, response) {

@@ -385,7 +385,7 @@ export function createProxyHandler(options: ProxyOptions) {
         method,
         headers: forwardHeaders(req, device?.id, mutationToken ?? undefined),
       },
-      (harness) => {
+      async (harness) => {
         clearTimeout(headersDeadline);
         // A grant revoked while the native browser opens must not expose frames.
         const refusal = await browserRefusal();
@@ -562,7 +562,7 @@ export function createProxyHandler(options: ProxyOptions) {
           chunks.push(chunk);
         });
         harness.on("error", () => res.destroy());
-        harness.on("end", () => {
+        harness.on("end", async () => {
           const refusal = await browserRefusal();
           if (refusal) return sendJson(res, refusal.status, { error: refusal.error });
           const body = Buffer.concat(chunks).toString("utf8");

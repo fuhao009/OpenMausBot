@@ -25,3 +25,11 @@ name, a type, an extracted function, one shared helper. A rule ("never X",
 rule that guards correctness; fix the code.
 
 More specific `AGENTS.md` files override this note within their directories.
+
+## Local toolchain
+
+On this machine `~/.local/bin/node` is a broken link. Put
+`~/.local/nodejs/node-v24.16.0-darwin-arm64/bin` first on `PATH` before running
+`pnpm`. `pnpm typecheck` and `pnpm lint` already fail at HEAD in `companion/`,
+`electron/gateway-companion-tunnel.mjs` and `scripts/local-gateway/`; check
+`npx tsc -b` and `npx oxlint --deny-warnings src` for front-end changes.

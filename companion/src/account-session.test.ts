@@ -5,14 +5,6 @@ import { describe, expect, it } from "vitest";
 
 import { accountDeviceId, createAccountAuthenticator, readProductAccountTrust } from "./account-session.ts";
 
-const CA = `-----BEGIN CERTIFICATE-----
-MIIB8TCCAXugAwIBAgIUTqG8placeholderAAAAAAAAAAAAAAAAAAAAAwCgYIKoZI
-zj0EAwIwEzERMA8GA1UEAwwIZ2F0ZXdheTAeFw0yNjAxMDEwMDAwMDBaFw0yNzAx
-MDEwMDAwMDBaMBMxETAPBgNVBAMMCGdhdGV3YXkwWTATBgcqhkjOPQIBBggqhkjO
-PQMBBwNCAAAAAAAAAAAAAAAB
------END CERTIFICATE-----
-`;
-
 describe("account device ids", () => {
   it("stays within the companion device id alphabet", () => {
     expect(accountDeviceId("user_alice")).toBe("account-user_alice");

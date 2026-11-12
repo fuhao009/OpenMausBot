@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import net from "node:net";
 import { once } from "node:events";
+import { Readable } from "node:stream";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { WebSocket } from "ws";
@@ -13,6 +14,7 @@ import {
   companionPathFor,
   createCompanionRelay,
   createFrameDecoder,
+  dispatchIncoming,
   encodeFrame,
   installationFromCredential,
   parseCompanionRequestPath,
@@ -218,3 +220,32 @@ async function waitUntil(predicate, timeoutMs = 5_000) {
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
 }
+
+test("dispatchIncoming hands the Worker a string URL with the public host and a streamed body", async () => {
+  const seen = [];
+  const dispatchFetch = async (...args) => {
+    seen.push(args);
+    return new Response("ok");
+  };
+  const request = (method, body) => {
+    const req = Readable.from(body === undefined ? [] : [Buffer.from(body)]);
+    return Object.assign(req, { method, url: "/v1/ai/chat?x=1", headers: { host: "127.0.0.1:9999", "content-type": "application/json", "x-extra": ["a", "b"] } });
+  };
+
+  await dispatchIncoming(dispatchFetch, "https://gateway.example.test", request("POST", '{"a":1}'));
+  const [target, init] = seen[0];
+  assert.equal(typeof target, "string");
+  assert.equal(target, "https://gateway.example.test/v1/ai/chat?x=1");
+  assert.equal(init.method, "POST");
+  assert.equal(init.redirect, "manual");
+  assert.equal(init.duplex, "half");
+  assert.equal(init.headers.get("host"), "gateway.example.test");
+  assert.equal(init.headers.get("content-type"), "application/json");
+  assert.equal(await new Response(init.body).text(), '{"a":1}');
+
+  await dispatchIncoming(dispatchFetch, "https://gateway.example.test", request("GET"));
+  const [, get] = seen[1];
+  assert.equal(get.method, "GET");
+  assert.equal(get.body, undefined);
+  assert.equal(get.duplex, undefined);
+});

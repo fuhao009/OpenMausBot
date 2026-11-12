@@ -553,7 +553,7 @@ export async function startLocalGateway({ config, configPath = null, log = () =>
       port: effective.port,
       cert: readFileSync(certificate.certPath, "utf8"),
       key: readFileSync(certificate.keyPath, "utf8"),
-      dispatchFetch: (request) => mf.dispatchFetch(request),
+      dispatchFetch: (url, init) => mf.dispatchFetch(url, init),
       relay,
     });
     try {
