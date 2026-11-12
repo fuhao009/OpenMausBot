@@ -78,7 +78,7 @@ macOS 产物未签名、未公证，仅本机安装验证；未发布 Windows/Li
 
 ## 待办：前端（桌面端 + 手机端）
 
-分工：本分支 `feat/bot-panel-unify`（目录 `/Users/a1234/Desktop/HezuoBot`）只做桌面端和手机端；服务端由他人在 `backend/gateway-deploy-admin-193`（worktree `/Users/a1234/Desktop/HezuoBot-backend`）开发。凡涉及后端接口与契约，一律以后端分支为准，本分支不改 `desktop/server/`、`gateway/`。截至后端 `fbe737aaf`，后端分支只有文档提交（`docs/gateway-admin-design.md`、`docs/gateway-deployment-193.md`），没有接口变更；下面的待办都不需要新接口。
+分工：本分支 `feat/bot-panel-unify`（目录 `/Users/a1234/Desktop/HezuoBot`）只做桌面端；手机端（TODO 2）不归本分支，另由他人负责；服务端由他人在 `backend/gateway-deploy-admin-193`（worktree `/Users/a1234/Desktop/HezuoBot-backend`）开发。凡涉及后端接口与契约，一律以后端分支为准，本分支不改 `desktop/server/`、`gateway/`。截至后端 `fbe737aaf`，后端分支只有文档提交（`docs/gateway-admin-design.md`、`docs/gateway-deployment-193.md`），没有接口变更；下面的待办都不需要新接口。
 
 以下均未开始，没有任何代码改动。方案是设计意见，实施前可调整。
 
@@ -103,7 +103,7 @@ macOS 产物未签名、未公证，仅本机安装验证；未发布 Windows/Li
 - [ ] `scripts/verify-product-account.mjs` 约 525–620 行的布局检查依赖 `data-product-work-entry` / `data-product-work-panel`，要改成：从头像胶囊打开 → 点 `[data-panel-tab="computer"]` → 对 `[data-bot-panel]` 断言（1440×900 停靠，1000×800 浮层并可 Esc 关闭），同时断言头部不再有 `data-product-work-entry`。截图名保持不变，另补拍 详情 / 活动 / 电脑 三个标签的截图。
 - [ ] 验证：`npx tsc -b desktop`、`npx oxlint --deny-warnings desktop/src scripts/verify-product-account.mjs`、相关 vitest；再用 `scripts/verify-product-account.mjs` 跑隔离验收（不碰 `/Applications/Hezuo.app` 和真实数据）。
 
-### TODO 2：手机端同步（Android）
+### TODO 2：手机端同步（Android）——不归本分支，交给手机端负责人
 
 - [ ] `mobile/android/app/src/main/kotlin/com/openmausbot/companion/ui/ChatScreen.kt` 的 `ChatHeader`（约 1159–1172 行）去掉 `ic_display` 小电脑按钮，保留通话按钮。
 - [ ] 点头像打开的 `AgentProfileSheet.kt` 顶部加一张"电脑"卡片：16:10 圆角块，有现成帧数据就显示最新屏幕，否则显示头像加"正在工作 / 休息中"；点击后关闭资料页并调用原来的 `onOpenComputer(bot.id)`（新增参数，从 ChatScreen 传入）。斜杠命令和 `ChatActionId` 打开电脑的路径保留。
@@ -123,7 +123,7 @@ macOS 产物未签名、未公证，仅本机安装验证；未发布 Windows/Li
 方案：
 - [ ] 在 `packages/shared/bot-avatar` 里把形状收成一份登记表：每项包含 id、文案 key，以及绘制方式（CSS `clip-path` 或 SVG mask，不再只靠 `border-radius`）。`avatarCropRadius` 由这份表派生；编辑器的 `IMAGE_CROPS` / `CROP_KEY` 改成读表。以后加形状只需往表里加一项。
 - [ ] `BotAvatar`（`desktop/src/components/Avatar.tsx` 第 274–301 行）的图片分支按登记表绘制；侧栏、群成员、通知等所有调用点都走 `BotAvatar`，不用逐个改。
-- [ ] 先不新增形状。需要新形状时，先让后端分支在 `BOT_AVATAR_CROPS` 和 `package-format.ts` 的 `AVATAR_CROPS` 里放开新取值，前端再往表里加，同步更新 iOS 的 `BotAvatarRendering.swift` 和 Android 的头像绘制。
+- [ ] 先不新增形状。需要新形状时，先让后端分支在 `BOT_AVATAR_CROPS` 和 `package-format.ts` 的 `AVATAR_CROPS` 里放开新取值，前端再往表里加；iOS 的 `BotAvatarRendering.swift` 和 Android 的头像绘制由手机端负责人同步。
 - [ ] 待确认：形状是只作用于上传图片，还是也要作用于吉祥物头像（吉祥物目前由身体轮廓决定，没有外框）。
 
 ### 分支状态
