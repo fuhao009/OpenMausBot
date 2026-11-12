@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { isTechnicalError, plainErrorLine } from "./plain-error";
+import { isTechnicalError, plainErrorLine, productGatewayLine } from "./plain-error";
 import { setLocale } from "./i18n";
 import { registrySaveFailure } from "../../../packages/shared/registry-save-failure";
 import { requestTooLargeMessage } from "../../../packages/shared/request-too-large";
@@ -79,5 +79,31 @@ describe("an account refusing a request reservation", () => {
     setLocale("zh");
     expect(plainErrorLine(`  ${PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE}\n`))
       .toBe("可用点数不足以预留本次请求，请联系管理员");
+  });
+});
+
+describe("a product account's gateway refusals", () => {
+  afterEach(() => setLocale("en"));
+
+  it.each([
+    ["upstream HTTP 429: Too many requests are in flight for this account. (ai_busy)", "服务当前繁忙，请稍后再试。本次没有扣除积分。"],
+    ["upstream HTTP 503: The AI service is busy. No points were charged. (ai_temporarily_busy)", "服务当前繁忙，请稍后再试。本次没有扣除积分。"],
+    ["upstream HTTP 503: The AI service is not available. (ai_unavailable)", "AI 服务暂时不可用，请稍后再试。本次没有扣除积分。"],
+    ["upstream HTTP 503: x (ai_temporarily_unavailable)", "AI 服务暂时不可用，请稍后再试。本次没有扣除积分。"],
+    ["upstream HTTP 502: The upstream request failed. (upstream_error)", "这条回复没有完成，请重新发送。本次用量正在核对，部分积分暂时冻结，可在账户页查看。"],
+    ["provider returned a streaming completion error: The upstream stream failed. (upstream_error)", "这条回复没有完成，请重新发送。本次用量正在核对，部分积分暂时冻结，可在账户页查看。"],
+    ["Stream ended before completion", "这条回复没有完成，请重新发送。本次用量正在核对，部分积分暂时冻结，可在账户页查看。"],
+    ["upstream HTTP 402: Available points cannot cover another request. (insufficient_balance)", "积分不足，暂时无法发送，请联系管理员充值。"],
+    ["upstream HTTP 403: AI access is not enabled. (ai_not_enabled)", "你的账户还没有开通 AI 功能，请联系管理员。"],
+    ["upstream HTTP 403: suspended (ai_suspended)", "你的账户还没有开通 AI 功能，请联系管理员。"],
+    ["upstream HTTP 401: The AI token is invalid or expired. (ai_token_invalid)", "登录已过期，请重新登录。"],
+  ])("reads %j in the person's language", (raw, line) => {
+    setLocale("zh");
+    expect(productGatewayLine(raw)).toBe(line);
+  });
+
+  it("speaks English by default, and leaves any other error to the usual reading", () => {
+    expect(productGatewayLine("upstream HTTP 429: x (ai_busy)")).toBe("The service is busy right now. Try again shortly. No points were charged.");
+    expect(productGatewayLine("EACCES: permission denied")).toBeUndefined();
   });
 });

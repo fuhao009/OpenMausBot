@@ -22,8 +22,6 @@ export const PRODUCT_AI_KEY_ENV = "HEZUO_PRODUCT_AI_TOKEN";
 export const PRODUCT_AI_PATH = "/v1/ai";
 /** How long a request waits for a free slot when the account already has its in-flight limit running. */
 export const ACCOUNT_SLOT_WAIT_MS = 600_000;
-/** How many more times a reply is asked for when the gateway ends its stream with an upstream error. */
-export const UPSTREAM_STREAM_RETRIES = 2;
 
 const DISPLAY_NAME = "Hezuo AI";
 const TOKEN = /^omb_product_ai_[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
@@ -182,7 +180,6 @@ export function productAiInstanceConfigs(
         managedModels: models.map(model => model.id),
         modelProtocols: Object.fromEntries(models.map(model => [model.id, model.protocol])),
         accountSlotWaitMs: ACCOUNT_SLOT_WAIT_MS,
-        upstreamStreamRetries: UPSTREAM_STREAM_RETRIES,
       },
     },
   };

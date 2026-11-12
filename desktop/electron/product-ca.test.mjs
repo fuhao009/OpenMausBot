@@ -38,7 +38,9 @@ async function certificates() {
   const otherLeaf = make("other", ["-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:10.0.0.1"]);
   const ca = make("root", ["-subj", "/CN=Hezuo fixture root", "-addext", "basicConstraints=critical,CA:TRUE",
     "-addext", "keyUsage=critical,digitalSignature,keyCertSign", "-addext", "subjectAltName=DNS:gateway.example"]);
-  if (!leaf || !wrongLeaf || !otherLeaf || !ca) return null;
+  const lanRoot = make("lan", ["-subj", "/CN=192.168.66.193", "-addext", "basicConstraints=critical,CA:TRUE",
+    "-addext", "subjectAltName=IP:192.168.66.193"]);
+  if (!leaf || !wrongLeaf || !otherLeaf || !ca || !lanRoot) return null;
   const read = async (file) => await readFile(file, "utf8");
   return {
     directory,
@@ -47,6 +49,7 @@ async function certificates() {
     wrongPem: await read(wrongLeaf),
     otherPem: await read(otherLeaf),
     rootPem: await read(ca),
+    lanRootPem: await read(lanRoot),
   };
 }
 
@@ -78,6 +81,12 @@ describe("the bundled certificate", () => {
     expect(productCaBindsOrigin(normalizeProductCa(certs.otherPem), "https://127.0.0.1:18487")).toBe(false);
     // A CA root is a trust anchor; the handshake's own name check decides.
     expect(productCaBindsOrigin(normalizeProductCa(certs.rootPem), "https://gateway.example")).toBe(true);
+    expect(productCaBindsOrigin(normalizeProductCa(certs.rootPem), "https://other.example")).toBe(false);
+    expect(productCaBindsOrigin(normalizeProductCa(certs.rootPem), "https://192.168.66.193:18487")).toBe(false);
+    const lanRoot = normalizeProductCa(certs.lanRootPem);
+    expect(productCaBindsOrigin(lanRoot, "https://192.168.66.193:18487")).toBe(true);
+    expect(productCaBindsOrigin(lanRoot, "https://127.0.0.1:18487")).toBe(false);
+    expect(productCaBindsOrigin(lanRoot, "https://192.168.66.194:18487")).toBe(false);
     expect(normalizeProductTrust({ origin: "https://127.0.0.1:18487", ca })).toEqual({ origin: "https://127.0.0.1:18487", ca });
     expect(normalizeProductTrust({ origin: "https://elsewhere.example", ca })).toBeNull();
     expect(normalizeProductTrust({ origin: "http://127.0.0.1:18487", ca })).toBeNull();

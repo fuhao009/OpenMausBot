@@ -34,10 +34,10 @@ function serve(answers: Array<() => Response>) {
   }));
 }
 
-async function start(accountSlotWaitMs?: number, upstreamStreamRetries?: number) {
+async function start(accountSlotWaitMs?: number) {
   const instance = await OpenAICompatDriver.create({
     instanceId: "gateway", displayName: "Gateway", enabled: true,
-    config: OpenAICompatDriver.decodeConfig({ url: "https://gateway.example.test/v1/ai", apiKeyEnv: "GATEWAY_KEY", model: "m", ...(accountSlotWaitMs ? { accountSlotWaitMs } : {}), ...(upstreamStreamRetries ? { upstreamStreamRetries } : {}) }),
+    config: OpenAICompatDriver.decodeConfig({ url: "https://gateway.example.test/v1/ai", apiKeyEnv: "GATEWAY_KEY", model: "m", ...(accountSlotWaitMs ? { accountSlotWaitMs } : {}) }),
     environment: { GATEWAY_KEY: "secret" },
   });
   const events: RuntimeEvent[] = [];
@@ -129,59 +129,25 @@ describe("a gateway that admits only a few requests per account", () => {
   });
 });
 
-describe("a gateway whose upstream stream fails before any of the reply arrived", () => {
-  it("asks again, saying why, and the turn completes", async () => {
+describe("a gateway whose upstream stream fails", () => {
+  it("never sends the request again, since each attempt may be billed", async () => {
     serve([streamFailure, completion]);
-    const { instance, events } = await start(undefined, 2);
+    const { instance, events } = await start(600_000);
     await instance.adapter.sendTurn({ threadId: "thread", text: "hi" });
     await settle(events);
-    expect(finished(events)).toMatchObject({ ok: true });
-    expect(requests).toBe(2);
-    expect(retries(events).map((event) => [event.attempt, event.reason])).toEqual([[1, "upstream_stream"]]);
-    expect(retries(events)[0]!.delayMs).toBeGreaterThanOrEqual(1_500);
-    await instance.dispose();
-  });
-
-  it("gives up with the gateway's own message after the attempts it was given", async () => {
-    serve([streamFailure]);
-    const { instance, events } = await start(undefined, 2);
-    await instance.adapter.sendTurn({ threadId: "thread", text: "hi" });
-    await settle(events);
-    expect(requests).toBe(3);
-    expect(retries(events).map((event) => event.reason)).toEqual(["upstream_stream", "upstream_stream"]);
+    expect(requests).toBe(1);
+    expect(retries(events)).toEqual([]);
     expect(events.some((event) => event.type === "runtime.error" && /The upstream request failed/.test(JSON.stringify(event)))).toBe(true);
     await instance.dispose();
   });
 
-  it("does not ask again once part of the reply has streamed", async () => {
+  it("does not send again once part of the reply has streamed", async () => {
     serve([failureAfterText, completion]);
-    const { instance, events } = await start(undefined, 2);
+    const { instance, events } = await start(600_000);
     await instance.adapter.sendTurn({ threadId: "thread", text: "hi" });
     await settle(events);
     expect(requests).toBe(1);
     expect(retries(events)).toEqual([]);
-    await instance.dispose();
-  });
-
-  it("does nothing of the kind when it was not asked to", async () => {
-    serve([streamFailure, completion]);
-    const { instance, events } = await start();
-    await instance.adapter.sendTurn({ threadId: "thread", text: "hi" });
-    await settle(events);
-    expect(requests).toBe(1);
-    expect(retries(events)).toEqual([]);
-    await instance.dispose();
-  });
-
-  it("stops waiting when the turn is stopped, and sends nothing more", async () => {
-    serve([streamFailure]);
-    const { instance, events } = await start(undefined, 2);
-    await instance.adapter.sendTurn({ threadId: "thread", text: "hi" });
-    await vi.advanceTimersByTimeAsync(100);
-    expect(retries(events)).toHaveLength(1);
-    await instance.adapter.interruptTurn("thread");
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(requests).toBe(1);
     await instance.dispose();
   });
 });

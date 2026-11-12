@@ -33,7 +33,7 @@ import {
   openBot,
 } from "@/state/store";
 import { claudeUpdateTarget, failedTurnCause, signedOutEngine } from "@/lib/failed-turn";
-import { plainErrorLine } from "@/lib/plain-error";
+import { plainErrorLine, productGatewayLine } from "@/lib/plain-error";
 import { openPlaceAction, placeRowViewFor, usePlaceSeat, worksOnSimpleLabel } from "@/lib/place-view";
 import type { PlaceRow } from "../../../packages/shared/place-view";
 import { trialCreditKind, type TrialCreditRefusal } from "../../../packages/shared/trial-credit";
@@ -218,7 +218,7 @@ export function FailedTurnRow({ tool, engine, onRetry, botId, threadId }: {
   return (
     <ErrorRow
       message={cause}
-      headline={signedOut ? t("chat.error.signedOut", { name: signedOut.displayName }) : plainErrorLine(cause)}
+      headline={signedOut ? t("chat.error.signedOut", { name: signedOut.displayName }) : (product ? productGatewayLine(cause) : undefined) ?? plainErrorLine(cause)}
       onRetry={onRetry}
       action={resume}
       managed={product}
