@@ -93,12 +93,12 @@ describe("BotListItem", () => {
     expect(preview).not.toContain("waiting-dot");
   });
 
-  it("offers direct New thread and New folder icons and a keyboard-accessible bot menu", () => {
+  it("draws no buttons on the row: its menu opens from a right-click, a long press or the menu key, and it drags", () => {
     const markup = renderRow(bot());
-    expect(markup).toContain('aria-label="New thread"');
-    expect(markup).toContain('aria-label="New folder under Atlas"');
-    expect(markup).toContain('aria-label="Actions for Atlas"');
-    expect(markup).toContain('aria-haspopup="menu"');
+    expect(markup).not.toContain('aria-label="New thread"');
+    expect(markup).not.toContain('aria-label="New folder under Atlas"');
+    expect(markup).not.toContain("data-bot-actions");
+    expect(markup).toMatch(/<div class="group relative[^"]*" draggable="true"/);
   });
   const twoThreads = (): Partial<Bot> => ({
     tasks: [{ threadId: "thread-atlas", title: "Current", createdAt: 2 }, { threadId: "thread-earlier", title: "Earlier", createdAt: 1 }],
@@ -357,12 +357,10 @@ describe("BotListItem", () => {
     expect(markup).not.toContain('data-testid="teammate-wait-dot"');
   });
 
-  it("keeps Archive in the Actions menu and reveals quiet row controls on focus as well as hover", () => {
+  it("keeps Archive in the Actions menu, not on the row, and leaves no room held for hover buttons", () => {
     const markup = renderRow(bot());
     expect(markup).not.toContain('aria-label="Archive Atlas"');
-    expect(markup).toContain('aria-label="Actions for Atlas"');
-    expect(markup).toContain("group-focus-within:opacity-100");
-    expect(markup).toContain("group-hover:pointer-events-auto");
+    expect(markup).not.toContain("group-hover:pr-");
     expect(markup).not.toContain("pr-[92px]");
   });
 });

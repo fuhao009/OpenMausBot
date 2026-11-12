@@ -74,14 +74,12 @@ describe("folder controls", () => {
     expect(button.props["aria-label"]).toBe("New thread");
     expect(dispatch.mock.invocationCallOrder[0]).toBeLessThan(onCreated.mock.invocationCallOrder[0]!);
   });
-  it("provides a keyboard-reachable actions menu without a hidden double-click gesture", () => {
+  it("draws nothing on the row while its menu is closed: the row opens it", () => {
     const markup = renderToStaticMarkup(createElement(FolderActions, {
-      project: bot.projects![0]!, canMoveUp: false, canMoveDown: true, canMarkRead: true, saving: false,
-      menu: null, onMenuChange: vi.fn(), onEdit: vi.fn(), onMove: vi.fn(), onMarkRead: vi.fn(),
+      project: bot.projects![0]!, canMarkRead: true, saving: false,
+      menu: null, onMenuChange: vi.fn(), onEdit: vi.fn(), onNewThread: vi.fn(), onMarkRead: vi.fn(),
     }));
-    expect(markup).toContain('aria-label="Actions for Email folder"');
-    expect(markup).toContain('aria-haspopup="menu" aria-expanded="false"');
-    expect(markup).toContain("focus-visible:opacity-100");
+    expect(markup).toBe("");
   });
   it.each([
     { canMarkRead: true, saving: false, disabled: false },
@@ -89,8 +87,8 @@ describe("folder controls", () => {
     { canMarkRead: true, saving: true, disabled: true },
   ])("offers a read-only folder action with canMarkRead=$canMarkRead and saving=$saving", ({ canMarkRead, saving, disabled }) => {
     const markup = renderToStaticMarkup(createElement(FolderActions, {
-      project: { id: "archive", name: "Archived" }, canMoveUp: false, canMoveDown: false, canMarkRead, saving,
-      menu: { left: 990, top: 790 }, onMenuChange: vi.fn(), onEdit: vi.fn(), onMove: vi.fn(), onMarkRead: vi.fn(),
+      project: { id: "archive", name: "Archived" }, canMarkRead, saving,
+      menu: { left: 990, top: 790 }, onMenuChange: vi.fn(), onEdit: vi.fn(), onNewThread: vi.fn(), onMarkRead: vi.fn(),
     }));
     expect(markup).toContain('role="menu" aria-label="Actions for Archived folder"');
     expect(markup).toContain("left:772px;top:620px");

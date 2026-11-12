@@ -131,3 +131,38 @@ the page's own drag events, and exits.
 `src/components/SidebarSectionHeader.naming.dom.test.ts` the name field. The
 headless pictures cannot prove the operating system's own drag image or a drag
 between two windows.
+
+## Fewer buttons, more dragging
+
+Run `node --experimental-strip-types scripts/verify-sidebar-drag.ts`. It starts
+a disposable fake-engine server with two bots, gives Research a **Launch**
+folder and two extra conversations, and prints the address of the real app.
+Ctrl-C closes both servers and removes only the fixture data. With
+`--shots <dir>` it drives a headless Chrome in a throwaway profile through the
+steps below, checks each one against the fixture's API, saves a picture of each
+and exits.
+
+1. No bot, folder or conversation row draws ⋯, + or folder buttons. A
+   right-click, a long press on touch or pen, or the menu key (Shift+F10) on a
+   row opens its menu, which still holds New thread, New folder and the rest.
+2. A folder's menu offers New thread in it, Folder settings and Mark folder as
+   read. Its order comes from dragging the row or Alt+Up/Down.
+3. Drag a conversation onto a folder: the folder is ringed, and dropping saves
+   its `projectId` (the fixture checks `/api/bots`). Hovering a closed folder
+   for a moment opens it.
+4. Drag a conversation out of its folder onto **Drop here to take it out of the
+   folder**: it is saved with no folder.
+5. Drag files onto a bot in the sidebar: the bot is ringed, and dropping opens
+   it with the files in its composer. The full-window **Drop to attach** sheet
+   leaves the sidebar alone.
+6. Drag a bot from the sidebar into a one-to-one chat: the chat shows **Drop to
+   start a channel with …**, and dropping creates a channel with both bots. In a
+   channel, a newcomer is added and named in the composer; a member is named.
+7. A conversation's menu in the sidebar has no Move to folder list; the bot
+   panel's Conversations, which has no folders to drop on, keeps it.
+
+`src/lib/thread-folder-drop.test.ts`, `src/lib/bot-chat-drop.test.ts` and
+`src/hooks/use-long-press.dom.test.ts` cover where drops land and the long
+press. The headless pictures cannot prove the operating system's drag image,
+a drag of real files from Finder or Explorer, or a long press on a real touch
+screen.

@@ -21,7 +21,6 @@ import {
   prependComposerDraft,
   recoverFailedComposerSend,
   rememberFailedComposerSend,
-  replaceDraftAttachment,
   restoredSendId,
   restoredRequestText,
   useComposerDraft,
@@ -35,6 +34,7 @@ import { DEVS_CHOICE, MentionMenu, teammateChoices, type MentionChoice } from ".
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { MentionTextarea } from "./MentionTextarea";
 import { ComposerAttachments, pathForFile } from "./ComposerAttachments";
+import { addFilesToDraft, uploadImageToDraft } from "@/lib/draft-files";
 import { PointedChips } from "./app/PointedChips"; import { SetupRequestChip, setupRequestPlaceholder } from "./SetupOffer";
 import { takePointedChips } from "@/lib/pointed-chips";
 import { splitTranscriptCitations, type CitationAttachment } from "@/lib/citations";
@@ -45,7 +45,6 @@ import { useOnCall } from "@/lib/call";
 import { isLiveCallRunning, useLiveMedia } from "@/lib/live-call-media";
 import {
   appendPastedText,
-  handoffAttachmentImagePreview,
   clipboardHasImages,
   clipboardImageFiles,
   composeMessage,
@@ -53,13 +52,10 @@ import {
   discardUnsentUpload,
   composerShouldRefocus,
   composerTakesFocusOnOpen,
-  imageAttachmentFromFile,
   imageSlotsLeft,
   imagesThatFit,
   replyTargetTakesFocus,
-  intakeFiles,
   isLongPaste,
-  optimisticImageAttachment,
   pasteAttachment,
   releaseAttachmentImagePreview,
   type Attachment,
@@ -484,43 +480,11 @@ export function Composer({
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
   const modeBot = group ? undefined : bot;
   const { choice: approvalChoice, dialogs: approvalDialogs } = useThreadApproval(modeBot);
-  const uploadImage = useCallback(async (file: File): Promise<Attachment | null> => {
-    const optimistic = optimisticImageAttachment(file);
-    if (!optimistic) return null;
-    appendDraftAttachments(draftId, [optimistic]);
-    try {
-      const completed = await imageAttachmentFromFile(file, optimistic);
-      if (!completed) {
-        replaceDraftAttachment(draftId, optimistic.id, null);
-        releaseAttachmentImagePreview(optimistic);
-        return null;
-      }
-      handoffAttachmentImagePreview(completed.path, completed.previewUrl);
-      if (!replaceDraftAttachment(draftId, optimistic.id, completed)) {
-        releaseAttachmentImagePreview(completed);
-      }
-      return null;
-    } catch (error) {
-      replaceDraftAttachment(draftId, optimistic.id, null);
-      releaseAttachmentImagePreview(optimistic);
-      throw error;
-    }
-  }, [draftId]);
+  const uploadImage = useCallback((file: File) => uploadImageToDraft(draftId, file), [draftId]);
   const pickFiles = async (picked: FileList | null) => {
     if (!picked?.length) return;
-    changeDraftAttachmentPending(draftId, true);
-    try {
-      const { attachments: added, notice } = await intakeFiles(Array.from(picked), {
-        allowImages: engineSupportsImages,
-        getPath: pathForFile,
-        uploadImage,
-        imageSlots: imageSlotsLeft(attachments),
-      });
-      if (added.length) addAttachments(added);
-      if (notice) setAttachmentNotice(notice);
-    } finally {
-      changeDraftAttachmentPending(draftId, false);
-    }
+    const notice = await addFilesToDraft(draftId, Array.from(picked), { allowImages: engineSupportsImages, getPath: pathForFile });
+    if (notice) setAttachmentNotice(notice);
     refocusInput();
   };
 

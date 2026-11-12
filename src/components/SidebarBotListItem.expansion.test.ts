@@ -24,6 +24,7 @@ vi.mock("react", async (original) => {
       else actual.useEffect(effect, dependencies);
     },
     useMemo: <T,>(factory: () => T, dependencies: unknown[]) => fixture.capturing ? factory() : actual.useMemo(factory, dependencies),
+    useRef: (initial: unknown) => fixture.capturing ? { current: initial } : actual.useRef(initial),
   };
 });
 vi.mock("./DesktopCapabilities", () => ({ useDesktopCapabilities: () => ({}) }));

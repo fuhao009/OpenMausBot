@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowDown, ArrowUp, CheckCheck, Folder, MoreHorizontal, Pencil, Plus, X } from "lucide-react";
+import { CheckCheck, Folder, Pencil, Plus, X } from "lucide-react";
 import { useStore, type Bot, type BotProject } from "@/state/store";
 import { cn } from "@/lib/cn";
 import { MENU_SHEET } from "./menu-recipe";
@@ -24,21 +24,23 @@ export function navigateThreadMenu(event: React.KeyboardEvent<HTMLDivElement>) {
   buttons[next]?.focus();
 }
 
-export function FolderActions({ project, canMoveUp, canMoveDown, canMarkRead, saving, menu, onMenuChange, onEdit, onMove, onMarkRead }: {
+/** A folder's menu, opened by right-clicking, long-pressing or the menu key on its row. Closing hands focus back to
+ * the row's name. Order comes from dragging the row or Alt+Up/Down. */
+export function FolderActions({ project, canMarkRead, saving, menu, onMenuChange, onEdit, onNewThread, onMarkRead }: {
   project: BotProject;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
   canMarkRead: boolean;
   saving: boolean;
   menu: { left: number; top: number } | null;
   onMenuChange: (menu: { left: number; top: number } | null) => void;
   onEdit: () => void;
-  onMove: (direction: -1 | 1, onSaved: () => void) => void;
+  onNewThread: () => void;
   onMarkRead: (onSaved: () => void) => void;
 }) {
-  const actionRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const close = () => { onMenuChange(null); actionRef.current?.focus(); };
+  const close = () => {
+    onMenuChange(null);
+    document.querySelector<HTMLElement>(`[data-sidebar-folder-label="${CSS.escape(project.id)}"]`)?.focus();
+  };
   useEffect(() => {
     if (saving && menu) menuRef.current?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
   }, [saving, menu]);
@@ -46,32 +48,26 @@ export function FolderActions({ project, canMoveUp, canMoveDown, canMarkRead, sa
     if (!menu) return;
     menuRef.current?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
     const outside = (event: MouseEvent) => {
-      if (event.target instanceof Node && !menuRef.current?.contains(event.target) && !actionRef.current?.contains(event.target)) onMenuChange(null);
+      if (event.target instanceof Node && !menuRef.current?.contains(event.target)) onMenuChange(null);
     };
     window.addEventListener("mousedown", outside);
     return () => window.removeEventListener("mousedown", outside);
   }, [menu]);
-  const move = (direction: -1 | 1) => onMove(direction, close);
   const motion = useHeldMenuMotion(menu);
   const shown = motion.value;
   const position = shown && {
     left: Math.max(8, Math.min(shown.left, window.innerWidth - 228)),
     top: Math.max(8, Math.min(shown.top, window.innerHeight - 180)),
   };
-  return <>
-    <button ref={actionRef} type="button" aria-label={t("folder.actions", { name: project.name })} title={t("folder.actions", { name: project.name })} aria-haspopup="menu" aria-expanded={Boolean(menu)}
-      onClick={(event) => { if (menu) { close(); return; } const rect = event.currentTarget.getBoundingClientRect(); onMenuChange({ left: rect.left, top: rect.bottom + 4 }); }}
-      className="flex size-6 shrink-0 items-center justify-center rounded opacity-0 hover:bg-raised hover:text-ink focus-visible:opacity-100 group-hover/folder:opacity-100 max-md:opacity-70 touch:opacity-70"><MoreHorizontal size={13} /></button>
-    {motion.shown && position && createPortal(<div ref={menuRef} role="menu" aria-label={t("folder.actions", { name: project.name })} aria-busy={saving || undefined} data-thread-overlay style={position}
-      className={cn("fixed z-50 w-[220px]", MENU_SHEET, motion.className)} {...motion.exitProps}
-      onMouseDown={(event) => event.stopPropagation()}
-      onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); } else navigateThreadMenu(event); }}>
-      <button type="button" role="menuitem" onClick={() => { close(); onEdit(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[14px] leading-[18px] text-ink hover:bg-menu-hover"><Pencil size={16} />{t("folder.settings")}</button>
-      <button type="button" role="menuitem" disabled={!canMarkRead || saving} onClick={() => onMarkRead(close)} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[14px] leading-[18px] text-ink hover:bg-menu-hover disabled:opacity-40"><CheckCheck size={16} />{t("folder.markRead")}</button>
-      <button type="button" role="menuitem" disabled={!canMoveUp || saving} onClick={() => move(-1)} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[14px] leading-[18px] text-ink hover:bg-menu-hover disabled:opacity-40"><ArrowUp size={16} />{t("folder.moveUp")}</button>
-      <button type="button" role="menuitem" disabled={!canMoveDown || saving} onClick={() => move(1)} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[14px] leading-[18px] text-ink hover:bg-menu-hover disabled:opacity-40"><ArrowDown size={16} />{t("folder.moveDown")}</button>
-    </div>, document.body)}
-  </>;
+  if (!motion.shown || !position) return null;
+  return createPortal(<div ref={menuRef} role="menu" aria-label={t("folder.actions", { name: project.name })} aria-busy={saving || undefined} data-thread-overlay style={position}
+    className={cn("fixed z-50 w-[220px]", MENU_SHEET, motion.className)} {...motion.exitProps}
+    onMouseDown={(event) => event.stopPropagation()}
+    onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); } else navigateThreadMenu(event); }}>
+    <button type="button" role="menuitem" onClick={() => { onMenuChange(null); onNewThread(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[14px] leading-[18px] text-ink hover:bg-menu-hover"><Plus size={16} />{t("task.newIn", { name: project.name })}</button>
+    <button type="button" role="menuitem" onClick={() => { close(); onEdit(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[14px] leading-[18px] text-ink hover:bg-menu-hover"><Pencil size={16} />{t("folder.settings")}</button>
+    <button type="button" role="menuitem" disabled={!canMarkRead || saving} onClick={() => onMarkRead(close)} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[14px] leading-[18px] text-ink hover:bg-menu-hover disabled:opacity-40"><CheckCheck size={16} />{t("folder.markRead")}</button>
+  </div>, document.body);
 }
 
 export function BotProjectDialog({ bot, project, onClose, onCreated }: {

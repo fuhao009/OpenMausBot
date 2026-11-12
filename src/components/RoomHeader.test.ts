@@ -81,8 +81,9 @@ describe("the room header in Simple mode", () => {
     expect(head).toContain("data-room-name=");
     expect(head).toContain('aria-label="Open settings for Desk HQ"');
     expect(head).toContain("The recruiting desk");
-    expect(head.match(/data-held|title="(?:Desk Manager|Vendor Bench|Job Board Sourcer|Paperwork|Phone Screener|Matcher|Interview Coordinator|Submission Writer|Timesheets)"/g)).toHaveLength(3);
-    expect(head).toContain(">+6</span>");
+    expect(head.match(/data-held|title="(?:Desk Manager|Vendor Bench|Job Board Sourcer|Paperwork|Phone Screener|Matcher|Interview Coordinator|Submission Writer|Timesheets)"/g)).toHaveLength(9);
+    expect(head.match(/hidden group-hover\/faces:inline-flex/g)).toHaveLength(6);
+    expect(head).toContain("+6</span>");
     expect(markup).not.toContain(BULLETIN);
   });
 
@@ -153,6 +154,26 @@ describe("the Simple header's buttons", () => {
     expect(opened.id).toBe("desk");
     flushSync(() => host.querySelector<HTMLButtonElement>("[data-room-faces]")!.click());
     expect(onOpenMembers).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws every member's face, three showing and the rest revealed on hover, each one draggable out of the channel", () => {
+    draw();
+    const faces = [...host.querySelectorAll<HTMLElement>("[data-room-faces] > span > span[draggable]")];
+    expect(faces).toHaveLength(bots.length);
+    expect(faces.every((face) => face.getAttribute("draggable") === "true")).toBe(true);
+    expect(faces.filter((face) => face.classList.contains("hidden"))).toHaveLength(bots.length - 3);
+    expect(host.querySelector("[data-room-faces]")!.classList.contains("group/faces")).toBe(true);
+    expect(host.querySelector("[data-room-faces]")!.textContent).toContain(`+${bots.length - 3}`);
+  });
+
+  it("makes no face draggable in a direct chat or for a remote client", () => {
+    const faces = (props: object) => renderToStaticMarkup(createElement(RoomHeader, {
+      group: room(), members: bots, simple: true, setupPending: false, remoteClient: false, findOpen: false,
+      onToggleFind: vi.fn(), onToggleFolder: vi.fn(), onOpenMembers, membersTriggerRef: { current: null }, ...props,
+    })).match(/draggable="true"/g) ?? [];
+    expect(faces({})).toHaveLength(bots.length);
+    expect(faces({ remoteClient: true })).toHaveLength(0);
+    expect(faces({ group: room({ dm: true }) })).toHaveLength(0);
   });
 
   it("cuts both buttons out of the window's drag region", () => {

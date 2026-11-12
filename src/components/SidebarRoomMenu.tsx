@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ClipboardCopy, FolderPlus, Pencil, TextQuote, Trash2, X } from "lucide-react";
+import { Check, ClipboardCopy, FolderPlus, Pencil, SquarePen, TextQuote, Trash2, X } from "lucide-react";
 import { useStore } from "@/state/store";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
@@ -56,6 +56,7 @@ export function RoomContextMenu({
 
   if (!motion.shown || !group || !shown) return null;
   const isBotChat = Boolean(group.dm);
+  const roomBusy = Boolean(group.busyBotId) || Boolean(group.working);
   const saveRename = () => {
     const name = nextRename(group.name, draft);
     if (name) dispatch({ type: "patchGroup", groupId: group.id, patch: { name } });
@@ -80,6 +81,21 @@ export function RoomContextMenu({
       style={{ top, left }}
       className={cn("fixed z-40 w-[228px] overflow-hidden", MENU_SHEET, motion.className)} {...motion.exitProps}
     >
+      {!renaming && !describing && !isBotChat && (
+        <button
+          role="menuitem"
+          disabled={roomBusy}
+          title={roomBusy ? t("task.newBusy") : undefined}
+          onClick={() => {
+            onClose();
+            dispatch({ type: "newGroupTask", groupId: group.id });
+          }}
+          className={cn(MENU_ITEM, "text-ink hover:bg-menu-hover disabled:opacity-40")}
+        >
+          <SquarePen size={16} className="text-ink-secondary" />
+          {t("task.newShort")}
+        </button>
+      )}
       {!remoteClient && describing ? (
         <div className="flex items-center gap-1 px-2 py-1">
           <input

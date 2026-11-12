@@ -325,6 +325,10 @@ export function leadComposerDraft(id: string, text: string): void {
   if (!getDraft(getStore(), id).startsWith(text)) prependComposerDraft(id, text);
 }
 
+export function getDraftAttachmentsFor(id: string): Attachment[] {
+  return getDraftAttachments(getStore(), id);
+}
+
 export function appendDraftAttachments(id: string, additions: Attachment[]): void {
   if (additions.length === 0) return;
   markDraftEdited(id);

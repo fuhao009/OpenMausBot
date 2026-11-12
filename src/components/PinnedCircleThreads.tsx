@@ -1,6 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type DragEvent, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, FolderPlus, Plus } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { openBot, visibleMessages, type Bot, type Message } from "@/state/store";
 import { avatarCropRadius, botAvatarProfile } from "../../shared/bot-avatar";
 import { liveActivityLabel } from "@/lib/live-activity";
@@ -10,7 +10,6 @@ import { cn } from "@/lib/cn";
 import { searchMatchesThreads, useSearchDisclosure } from "@/lib/search-disclosure";
 import { lastNonReceipt } from "@/lib/receipts";
 import { t } from "@/lib/i18n";
-import { BotProjectDialog } from "./BotProjects";
 import { useShowThreads } from "@/lib/thread-preferences";
 import { sidebarBotActivityTasks } from "./SidebarBotActivity";
 import { setPinnedCircleOrder, usePinnedCircleOrder, type SidebarDensity } from "@/lib/sidebar-preferences";
@@ -19,6 +18,8 @@ import { sidebarSectionAttention } from "@/lib/sidebar-attention";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 import { BotListItem, BotThreadList, type BotRowProps } from "./Sidebar";
 import { useUnreadNotice } from "./unread-notice";
+import { useLongPress } from "@/hooks/use-long-press";
+import { FILE_DROP_RING, botChatDragStart, chainDragHandlers, useBotFileDrop, type DropHandlers } from "./sidebar-drop";
 
 function useVisibleMessages(bot: Bot): Message[] {
   const { messages, activeLeafId } = bot;
@@ -53,25 +54,13 @@ function chunkPinnedCircles<T>(items: readonly T[], columns: number): T[][] {
 
 export function PinnedCircleThreadPanel(props: BotRowProps) {
   const showThreads = useShowThreads();
-  const { bot, query, dispatch } = props;
+  const { bot, query } = props;
   const visible = useVisibleMessages(bot);
   const last = lastNonReceipt(visible);
-  const [creatingProject, setCreatingProject] = useState(false);
   if (!showThreads) return null;
   return (
     <div id={pinnedCircleThreadPanelId(bot.id)} data-sidebar-pinned-circle-thread-list={bot.id} className="mt-1">
       <BotThreadList {...props} activityLabel={liveActivityLabel(last)} query={threadListQuery(bot, query)} />
-      <div className="flex items-center gap-1 pl-6">
-        <button type="button" aria-label={t("task.newShort")} title={t("task.newShort")} onClick={() => dispatch({ type: "newTask", botId: bot.id })}
-          className="inline-flex h-7 items-center gap-1 rounded px-1 text-[13px] font-medium text-ink-secondary outline-none hover:text-ink focus-visible:ring-1 focus-visible:ring-accent/60">
-          <Plus aria-hidden="true" size={13} />{t("task.newShort")}
-        </button>
-        <button type="button" aria-label={t("folder.newNamed", { name: bot.name })} title={t("folder.new")} onClick={() => setCreatingProject(true)}
-          className="inline-flex h-7 items-center gap-1 rounded px-1 text-[13px] font-medium text-ink-secondary outline-none hover:text-ink focus-visible:ring-1 focus-visible:ring-accent/60">
-          <FolderPlus aria-hidden="true" size={13} />{t("folder.new")}
-        </button>
-      </div>
-      {creatingProject && <BotProjectDialog bot={bot} onClose={() => setCreatingProject(false)} />}
     </div>
   );
 }
@@ -133,6 +122,12 @@ export function pinnedCircleDragHandlers(botId: string, { drag, dragging = false
   };
 }
 
+/** A pinned bot reorders among its neighbours, drags into a chat and takes files dropped on it. */
+export function circleHandlers(botId: string, props: PinnedCircleDragProps, files: DropHandlers) {
+  const { onKeyDown, ...reorder } = pinnedCircleDragHandlers(botId, props);
+  return { ...chainDragHandlers(reorder, { onDragStart: botChatDragStart(botId) }, files), onKeyDown };
+}
+
 export function usePinnedCircleDrag(bots: Bot[]) {
   const saved = usePinnedCircleOrder();
   const ranked = rankPinnedCircles(bots, saved);
@@ -192,19 +187,23 @@ export const PinnedBotCircle = memo(function PinnedBotCircle({
   const unread = bot.unread || activityTasks.some((task) => task.unread);
   const noticing = useUnreadNotice(Boolean(bot.unread));
   const radius = avatarCropRadius(botAvatarProfile(bot).avatarCrop);
+  const longPress = useLongPress((point) => onMenu({ botId: bot.id, ...point }));
+  const fileDrop = useBotFileDrop({ bot, dispatch, instances: props.allInstances ?? props.instances });
   return (
     <div className="flex w-full min-w-0 flex-col items-center">
       <button
         type="button"
         data-sidebar-bot-row={bot.id}
         data-sidebar-pinned-circle={bot.id}
-        draggable={Boolean(drag)}
+        draggable
+        data-file-drop={fileDrop.over ? "" : undefined}
         aria-current={selected ? "page" : undefined}
         aria-keyshortcuts={drag ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
         aria-label={`${bot.name}${waiting ? ` · ${t("sidebar.preview.waiting")}` : working ? ` · ${t("chat.activity.working")}` : ""}${unread ? ` · ${t("task.unread")}` : ""}`}
         title={bot.name}
         onClick={() => openBot(dispatch, bot, showThreads)}
-        {...pinnedCircleDragHandlers(bot.id, { drag, dragging, prevId, nextId })}
+        {...circleHandlers(bot.id, { drag, dragging, prevId, nextId }, fileDrop.handlers)}
+        {...longPress}
         onContextMenu={(event) => {
           event.preventDefault();
           onMenu({ botId: bot.id, x: event.clientX, y: event.clientY });
@@ -212,6 +211,7 @@ export const PinnedBotCircle = memo(function PinnedBotCircle({
         className={cn(
           "flex w-full min-w-0 flex-col items-center gap-1 rounded-lg px-1 py-1 text-center outline-none focus-visible:ring-1 focus-visible:ring-accent/60",
           pinnedCircleDragClass({ drag, dragging, drop }),
+          fileDrop.over && FILE_DROP_RING,
         )}
       >
         <span className="relative">

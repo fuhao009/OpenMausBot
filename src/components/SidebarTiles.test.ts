@@ -93,8 +93,9 @@ describe("the tile grid", () => {
     const row = (candidate: Bot) => botRowProps({ ...initialState, bots, selectedId: "", activeView: "chat" }, dispatch, candidate, { density: "comfortable", query: "", onMenu });
     return renderToStaticMarkup(createElement(SidebarTileGrid, { primary, pinned, row }));
   };
-  const tiles = (html: string) => [...html.matchAll(/data-sidebar-bot-row="([^"]+)" data-sidebar-tile="([^"]+)" draggable="(true|false)"/g)]
-    .map(([, id, kind, draggable]) => `${kind}:${id}${draggable === "true" ? ":drag" : ""}`);
+  // Every tile drags into a chat; only the pinned ones, among two or more, reorder (Alt+Up/Down).
+  const tiles = (html: string) => [...html.matchAll(/<div [^>]*data-sidebar-bot-row="([^"]+)" data-sidebar-tile="([^"]+)" draggable="true"[^>]*>/g)]
+    .map(([tag, id, kind]) => `${kind}:${id}${tag.includes('aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"') ? ":drag" : ""}`);
 
   afterEach(() => setPinnedCircleOrder([]));
 

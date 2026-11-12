@@ -26,6 +26,7 @@ import { BotListItem, botRowProps, PinnedBotCircle, PinnedCircleThreadPanel, Pin
 import { PinnedBotRoster } from "./PinnedCircleThreads";
 import { setPinnedCircleOrder } from "@/lib/sidebar-preferences";
 import { PINNED_CIRCLE_DRAG_TYPE } from "@/lib/pinned-circle-order";
+import { BOT_DRAG_TYPE } from "@/lib/bot-chat-drop";
 import { forgetSearchDisclosuresForTests } from "@/lib/search-disclosure";
 
 const bot = (overrides: Partial<Bot> = {}): Bot => ({
@@ -121,7 +122,7 @@ describe("pinned circle thread list", () => {
     expect(markup).toContain('aria-expanded="true"');
     expect(markup).toContain("Collapse Pinned");
     expect(markup.indexOf("Atlas")).toBeLessThan(markup.indexOf("Beacon"));
-    expect(markup).toContain('aria-label="Actions for Atlas"');
+    expect(markup).not.toContain("data-bot-actions");
     expect(markup).toContain("Expand Atlas threads");
     expect(markup).not.toContain("data-sidebar-pinned-circles");
     expect(markup).not.toContain("Drag to reorder");
@@ -137,13 +138,13 @@ describe("pinned circle thread list", () => {
     expect(markup).not.toContain("data-sidebar-thread-row");
   });
 
-  it("lists that circle's threads, with a way to start another", () => {
+  it("lists that circle's threads, leaving New thread to its menu", () => {
     const markup = renderToStaticMarkup(createElement(PinnedCircleThreadPanel, row(atlas)));
     expect(markup).toContain('data-sidebar-pinned-circle-thread-list="atlas"');
     expect(markup).toContain("Current");
     expect(markup).toContain("Earlier");
     expect(markup).toContain("data-sidebar-thread-row");
-    expect(markup).toContain("New thread");
+    expect(markup).not.toContain("New folder");
   });
 
   it("hides the circle disclosure when threads are off", () => {
@@ -201,8 +202,9 @@ describe("pinned circle order", () => {
     key({ key: "ArrowDown", altKey: true, shiftKey: true });
     expect(drag.reorder.mock.calls).toEqual([["atlas", "comet", "before"], ["atlas", "beacon", "after"]]);
     const setData = vi.fn();
-    (button.props.onDragStart as Handler)({ stopPropagation: vi.fn(), dataTransfer: { setData } });
+    (button.props.onDragStart as Handler)({ stopPropagation: vi.fn(), dataTransfer: { setData }, currentTarget: { addEventListener: vi.fn() } });
     expect(setData).toHaveBeenCalledWith(PINNED_CIRCLE_DRAG_TYPE, "atlas");
+    expect(setData).toHaveBeenCalledWith(BOT_DRAG_TYPE, "atlas");
     expect(drag.setDragging).toHaveBeenCalledWith("atlas");
     const rect = { left: 0, top: 0, width: 80, height: 80 };
     const dropEvent = { preventDefault: vi.fn(), stopPropagation: vi.fn(), clientX: 70, clientY: 40, currentTarget: { getBoundingClientRect: () => rect }, dataTransfer: { types: [PINNED_CIRCLE_DRAG_TYPE], getData: () => "comet" } };
@@ -215,7 +217,8 @@ describe("pinned circle order", () => {
     function Plain() { still = circle(row(atlas)); return still; }
     renderToStaticMarkup(createElement(Plain));
     const plain = find(still, (props) => props["data-sidebar-pinned-circle"] === "atlas")!;
-    expect(plain.props.draggable).toBe(false);
+    // A lone circle has no neighbour to swap with, but still drags into a chat.
+    expect(plain.props.draggable).toBe(true);
     expect(plain.props.onKeyDown).toBeUndefined();
   });
 

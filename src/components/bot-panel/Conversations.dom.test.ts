@@ -64,6 +64,10 @@ const settle = async () => {
 };
 const listed = () => [...host.querySelectorAll("[data-conversation]")].map((row) => row.getAttribute("data-conversation"));
 const row = (threadId: string) => host.querySelector(`[data-conversation="${threadId}"]`)!;
+const rightClick = (title: string) => {
+  const target = [...host.querySelectorAll<HTMLElement>("[data-sidebar-thread-row]")].find((candidate) => candidate.textContent?.includes(title))!;
+  flushSync(() => target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })));
+};
 const click = (element: Element | null) => {
   if (!element) throw new Error("nothing to click");
   flushSync(() => element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 })));
@@ -228,7 +232,7 @@ describe("a bot's conversations in its panel", () => {
   it("pins, archives, renames and deletes through the thread menu the sidebar uses", () => {
     render(research());
     const menuFor = (title: string) => {
-      click(host.querySelector(`[aria-label="Actions for ${title}"]`));
+      rightClick(title);
       return [...document.querySelector(`[data-thread-overlay][aria-label="Actions for ${title}"]`)!.querySelectorAll("button")];
     };
     const items = menuFor("Translate the launch post");
@@ -266,7 +270,7 @@ describe("a bot's conversations in its panel", () => {
     expect(archivedToggle.getAttribute("aria-expanded")).toBe("false");
     click(archivedToggle);
     expect(listed()).toEqual(["hiring", "who", "pricing", "launch", "deck"]);
-    click(host.querySelector('[aria-label="Actions for Summarise the board deck"]'));
+    rightClick("Summarise the board deck");
     const unarchive = [...document.querySelector('[data-thread-overlay][aria-label="Actions for Summarise the board deck"]')!.querySelectorAll("button")]
       .find((button) => button.textContent === "Unarchive")!;
     click(unarchive);

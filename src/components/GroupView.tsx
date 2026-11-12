@@ -74,6 +74,7 @@ import { useLiveToolIds } from "@/hooks/use-live-tool-ids";
 import { roomNeedsSetup } from "@/lib/room-setup";
 import { useComposerDockPad } from "@/lib/composer-dock";
 import { GlassBar, GlassScrollFrame } from "./GlassScrollFrame";
+import { BotChatDropZone } from "./BotChatDropZone";
 import { awaitedMemberId, showWorkingDots } from "@/lib/turn-tail";
 import { turnNowPhrases } from "@/lib/live-activity"; import { useTurnLive } from "@/state/turn-status";
 import { splitTranscriptAttachments } from "@/lib/composer-attachments";
@@ -975,6 +976,7 @@ export function GroupView({ group }: { group: Group }) {
       {membersOpen && !remoteClient && !group.dm && (
         <ManageMembersPanel group={group} onClose={closeMembers} triggerRef={membersTriggerRef} />
       )}
+      <BotChatDropZone target={remoteClient ? null : { kind: "group", groupId: group.id, memberIds: group.memberIds, dm: Boolean(group.dm) }} draftId={`group:${group.id}:${group.threadId}`}>
       <GlassScrollFrame className="flex-1 [--glass-tint:var(--color-app)]">
       {/* z-[25]: above the room set-up card (z-20), below the GroupCallOverlay (z-30). */}
       <GlassBar edge="top" fade={!advancedMode && !remoteClient} className="z-[25]">
@@ -1186,6 +1188,7 @@ export function GroupView({ group }: { group: Group }) {
       />
       </div>
       </GlassScrollFrame>
+      </BotChatDropZone>
     </main>
   );
 }

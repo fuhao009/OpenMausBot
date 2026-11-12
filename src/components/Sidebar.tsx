@@ -1,11 +1,13 @@
 import { RoomContextMenu } from "./SidebarRoomMenu";
 import { OrganizationIdentity } from "./OrganizationIdentity";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type DragEvent } from "react";
 import { createPortal } from "react-dom";
-import { Activity, Archive, Bot as BotIcon, ChevronRight, Crown, FolderPlus, Library, Loader2, MessageSquarePlus, MoreHorizontal, Phone, Pin, PinOff, Plus, Search, Trash2, Users, X, Zap } from "lucide-react";
+import { Activity, Archive, Bot as BotIcon, ChevronRight, Crown, FolderPlus, Library, Loader2, MessageSquarePlus, Phone, Pin, PinOff, Plus, Search, Trash2, Users, X, Zap } from "lucide-react";
 import { api, useStore, formatTime, visibleMessages, currentTaskBot, botOpensTo, openBot, openThread, type Action, type AppState, type Bot, type BotProject, type Group, type InstanceInfo, type Message } from "@/state/store";
 import { approvalModeFor } from "../../shared/approval-mode";
 import { liveActivityLabel } from "@/lib/live-activity";
+import { track } from "@/lib/analytics";
+import { activeBotDrag, BOT_DRAG_TYPE, botChatDrop } from "@/lib/bot-chat-drop";
 import { SidebarWorkingStep } from "./SidebarWorkingStep";
 import { llmThreadTitlesEnabled } from "@/lib/feature-flags";
 
@@ -37,6 +39,7 @@ import { NewTaskFolderDialog } from "./NewTaskFolderDialog";
 import { GroupThreadList } from "./SidebarGroupThreadList";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
 import { draggedFolder, FOLDER_DRAG_TYPE, moveFolder, placeFolder } from "@/lib/folder-order";
+import { activeThreadDrag, draggedThread, endThreadDrag, FOLDER_OPEN_DELAY_MS, THREAD_ROW_DRAG_TYPE, threadFolderMove, useThreadDrag } from "@/lib/thread-folder-drop";
 import { folderUnreadThreadIds, markFolderRead } from "@/lib/folder-read";
 import { HelperThreadGroup, orderedThreadList, partitionHelperThreads, SidebarThreadRow, stampClock, threadRecency, threadRowActions, useRelativeNow, useRevealedThreadRow, useSnoozeExpiry, visibleSidebarThreads } from "./SidebarThreadRow";
 import { loadSidebarAttentionPinned, saveSidebarAttentionPinned, setSidebarDensity, useSidebarDensity, usePinnedCircles, useUniversalPins, type SidebarDensity } from "@/lib/sidebar-preferences";
@@ -102,6 +105,9 @@ import { useLiveMedia } from "@/lib/live-call-media";
 import { LiveCallPill, liveBadgeFor } from "./LiveCallPill";
 import { ShortcutHint } from "./ShortcutHint";
 import { usePopoverDismiss } from "@/hooks/use-popover-dismiss";
+import { useLongPress } from "@/hooks/use-long-press";
+import { opensRowMenuFromKey } from "@/lib/bulk-select";
+import { FILE_DROP_RING, botChatDragStart, chainDragHandlers, useBotFileDrop } from "./sidebar-drop";
 import { useAdvancedMode } from "@/lib/interface-mode";
 import { myDefaultBot, useViewerEmail, useWelcomingBot } from "@/lib/default-bot";
 import { PinnedBotRoster, PinnedCircleThreadSection } from "./PinnedCircleThreads";
@@ -164,14 +170,52 @@ export function GroupListItem({
   const expanded = !group.dm && threadsOpen && density !== "icons" && hasThreadList;
   const simpleRow = !advanced && density === "comfortable";
   const railTile = !advanced && density === "icons";
-  const roomBusy = Boolean(group.busyBotId) || Boolean(group.working);
+  const longPress = useLongPress((point) => onMenu({ groupId: group.id, ...point }));
   const members = group.memberIds
     .map((id) => state.bots.find((b) => b.id === id))
     .filter((b): b is Bot => Boolean(b));
   const last = group.messages.at(-1);
+  const [botOver, setBotOver] = useState(false);
+  useEffect(() => {
+    const clear = () => setBotOver(false);
+    window.addEventListener("dragend", clear, true);
+    return () => window.removeEventListener("dragend", clear, true);
+  }, []);
+  const botDrop = (botId: string) => {
+    const drop = botChatDrop({ kind: "group", groupId: group.id, memberIds: group.memberIds, dm: Boolean(group.dm) }, botId);
+    return drop?.kind === "add" || drop?.kind === "create" ? drop : null;
+  };
+  const carriesBot = (event: DragEvent<HTMLElement>) => event.dataTransfer.types.includes(BOT_DRAG_TYPE);
   return (
     <>
-    <div className={cn("group relative", railTile && "mx-auto w-[54px]")}>
+    <div
+      className={cn("group relative", railTile && "mx-auto w-[54px]", botOver && "rounded-[10px] bg-accent/10 outline outline-2 -outline-offset-2 outline-accent/70")}
+      onDragOver={(event) => {
+        if (!carriesBot(event)) return;
+        const allowed = botDrop(activeBotDrag() ?? "") !== null;
+        if (!allowed) return setBotOver(false);
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = "copy";
+        setBotOver(true);
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setBotOver(false);
+      }}
+      onDrop={(event) => {
+        if (!carriesBot(event)) return;
+        const drop = botDrop(event.dataTransfer.getData(BOT_DRAG_TYPE));
+        setBotOver(false);
+        if (!drop) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (drop.kind === "add") dispatch({ type: "patchGroup", groupId: drop.groupId, patch: { memberIds: drop.memberIds } });
+        else {
+          dispatch({ type: "createGroup", memberIds: drop.memberIds });
+          track("room_created", { members: drop.memberIds.length, context: false });
+        }
+      }}
+    >
     <button
       data-sidebar-group-row={group.id}
       aria-current={selected && !expanded ? "page" : undefined}
@@ -187,10 +231,11 @@ export function GroupListItem({
         const rect = e.currentTarget.getBoundingClientRect();
         onMenu({ groupId: group.id, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
       }}
+      {...longPress}
       className={cn(
         "relative flex w-full items-center rounded-md text-left", SIMPLE_ROW_FOCUS,
         density === "icons" ? (railTile ? "h-[54px] justify-center" : "justify-center px-1 py-1.5") : simpleRow
-          ? cn("gap-2 rounded-[10px] py-2 pr-2 group-hover:pr-9 group-focus-within:pr-9 max-md:pr-9 touch:pr-9 md:h-[54px] md:py-0", !group.dm && hasThreadList ? "pl-6" : "pl-2") : "gap-2 py-1.5 pl-6 pr-9",
+          ? cn("gap-2 rounded-[10px] py-2 pr-2 md:h-[54px] md:py-0", !group.dm && hasThreadList ? "pl-6" : "pl-2") : "gap-2 py-1.5 pl-6 pr-2",
         selected && !expanded ? "bg-raised" : "hover:bg-raised/50",
       )}
       title={density === "icons" ? group.name : undefined}
@@ -198,7 +243,7 @@ export function GroupListItem({
     >
       <StackedHezuos members={members} density={railTile ? "comfortable" : density} large={simpleRow || railTile} />
       <div className={cn("min-w-0 flex-1", density === "icons" && "hidden")}>
-        <div className={cn("flex items-baseline justify-between gap-2", simpleRow && "pr-7")}>
+        <div className="flex items-baseline justify-between gap-2">
           <span className={cn("truncate text-[14px] text-ink", simpleRow ? "font-medium leading-5" : "font-semibold")}>{group.name}</span>
           {advanced && selected && last && !expanded && <span className="shrink-0 text-[10px] text-ink-secondary">{formatTime(last.at)}</span>}
           {!simpleRow && expanded && group.unread && <span className="size-1.5 shrink-0 rounded-full bg-accent" aria-label={t("task.unreadMany")} />}
@@ -218,9 +263,6 @@ export function GroupListItem({
       onClick={() => setThreadsOpen((open) => !open)} className="absolute left-0.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded text-ink-secondary outline-none hover:text-ink focus-visible:ring-1 focus-visible:ring-accent/60">
       <ChevronRight aria-hidden="true" size={12} className={cn("transition-transform", expanded && "rotate-90")} />
     </button>}
-    {!group.dm && density !== "icons" && <button type="button" disabled={roomBusy} aria-label={t("task.newShort")} title={t(roomBusy ? "task.newBusy" : "task.newShort")}
-      onClick={() => { setThreadsOpen(true); dispatch({ type: "newGroupTask", groupId: group.id }); }}
-      className="pointer-events-none absolute right-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded text-ink-secondary opacity-0 hover:bg-raised hover:text-ink disabled:opacity-40 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 max-md:pointer-events-auto max-md:opacity-70 touch:pointer-events-auto touch:opacity-70 touch:disabled:opacity-40"><Plus size={14} /></button>}
     </div>
     {expanded && <GroupThreadList group={group} selected={selected} query={group.name.toLowerCase().includes(query.toLowerCase()) ? "" : query} />}
     </>
@@ -303,7 +345,7 @@ export function BotThreadList({ bot, selected, query, pendingQueued, reveal, loc
     const thread = currentTaskBot(bot, task.threadId);
     return <SidebarThreadRow key={task.threadId} task={{ ...task, busy: thread.busy, activity: thread.activity, waitingForTeammates: thread.waitingForTeammates }} ownerId={bot.id} current={selected && task.threadId === bot.threadId} folders={projects}
       activityLabel={task.threadId === bot.threadId ? activityLabel : undefined} now={stampClock(threadRecency(task), now)} locale={locale} {...actions}
-      selectMode={bulk.active} checked={selection.has(task.threadId)} onToggleSelect={bulk.toggle} />;
+      selectMode={bulk.active} checked={selection.has(task.threadId)} onToggleSelect={bulk.toggle} draggableToFolder={projects.length > 0} />;
   };
   const ungrouped = visibleTasks.filter((task) => !projects.some((project) => project.id === task.projectId));
   const shownRows = [...orderedProjects.filter((project) => query || bulk.active || !collapsed.has(project.id)).flatMap((project) => visibleTasks.filter((task) => task.projectId === project.id)), ...ungrouped]
@@ -319,6 +361,66 @@ export function BotThreadList({ bot, selected, query, pendingQueued, reveal, loc
       onError: (message) => { setReordering(false); setReorderStatus(""); setReorderError(message); } });
   };
   const resetFolderDrag = () => { draggingFolder.current = null; setFolderDrop(null); };
+  const draggingThread = useThreadDrag();
+  const [threadDrop, setThreadDrop] = useState<string | null | undefined>(undefined);
+  const opening = useRef<{ id: string; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const stopOpening = () => { if (opening.current) clearTimeout(opening.current.timer); opening.current = null; };
+  useEffect(() => { if (!draggingThread) { setThreadDrop(undefined); stopOpening(); } }, [draggingThread]);
+  useEffect(() => stopOpening, []);
+  const threadMove = (target: string | null) => {
+    const dragged = activeThreadDrag();
+    if (!dragged || dragged.botId !== bot.id || bulk.active) return undefined;
+    return threadFolderMove(tasks.find((task) => task.threadId === dragged.threadId)?.projectId, target, projectIds);
+  };
+  const carriesThread = (event: React.DragEvent) => event.dataTransfer.types.includes(THREAD_ROW_DRAG_TYPE);
+  /** True when the event was a conversation drag, handled here. */
+  const threadDropOver = (event: React.DragEvent, target: string | null, closed = false): boolean => {
+    if (!carriesThread(event)) return false;
+    event.stopPropagation();
+    if (threadMove(target) === undefined) { event.dataTransfer.dropEffect = "none"; setThreadDrop(undefined); return true; }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setThreadDrop(target);
+    if (closed && target && opening.current?.id !== target) {
+      stopOpening();
+      opening.current = { id: target, timer: setTimeout(() => {
+        opening.current = null;
+        setCollapsed((previous) => { const next = new Set(previous); next.delete(target); return next; });
+      }, FOLDER_OPEN_DELAY_MS) };
+    }
+    return true;
+  };
+  const threadDropLeave = (target: string | null) => {
+    setThreadDrop((current) => (current === target ? undefined : current));
+    if (opening.current?.id === target) stopOpening();
+  };
+  const threadDropped = (event: React.DragEvent, target: string | null): boolean => {
+    if (!carriesThread(event)) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    const dragged = draggedThread(event.dataTransfer.getData(THREAD_ROW_DRAG_TYPE), bot.id);
+    const move = dragged ? threadMove(target) : undefined;
+    setThreadDrop(undefined);
+    stopOpening();
+    endThreadDrag();
+    if (!dragged || move === undefined) return true;
+    actions.onMove(dragged, move);
+    const folder = projects.find((project) => project.id === move);
+    setReorderStatus(folder ? t("folder.threadMovedInto", { name: folder.name }) : t("folder.threadMovedOut"));
+    return true;
+  };
+  const threadZone = (target: string | null) => ({
+    onDragOver: (event: React.DragEvent) => { threadDropOver(event, target); },
+    onDragLeave: (event: React.DragEvent) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) threadDropLeave(target); },
+    onDrop: (event: React.DragEvent) => { threadDropped(event, target); },
+  });
+  const pressedFolder = useRef<string | null>(null);
+  const folderPress = useLongPress((point) => { if (pressedFolder.current) setFolderMenu({ projectId: pressedFolder.current, left: point.x, top: point.y }); });
+  const folderLongPress = (projectId: string) => ({
+    ...folderPress,
+    onPointerDown: (event: React.PointerEvent<HTMLElement>) => { pressedFolder.current = projectId; folderPress.onPointerDown(event); },
+  });
+  const fromFolder = draggingThread?.botId === bot.id && projects.some((project) => project.id === tasks.find((task) => task.threadId === draggingThread.threadId)?.projectId);
   const readFolder = async (projectId: string, onSaved: () => void) => {
     if (markingRead) return;
     setMarkingRead(true); setReadError(null); setReadStatus(t("folder.markingRead"));
@@ -338,15 +440,20 @@ export function BotThreadList({ bot, selected, query, pendingQueued, reveal, loc
       {!hidden && <>
       {bulk.active && <BulkSelectFilters rows={shownRows} selected={selection} now={now} onChange={bulk.setSelected} onDone={bulk.finish} />}
       {orderedProjects.map((project) => {
-        const index = projects.indexOf(project);
         const projectTasks = tasks.filter((task) => task.projectId === project.id);
         const visible = visibleTasks.filter((task) => task.projectId === project.id);
         if (query && visible.length === 0 && !project.name.toLowerCase().includes(query.toLowerCase())) return null;
         const open = Boolean(query) || bulk.active || !collapsed.has(project.id);
         const waiting = projectTasks.some((task) => task.activity === "waiting-on-you");
         const working = projectTasks.some((task) => task.busy);
+        const threadOver = threadDrop === project.id;
+        const toggle = () => setCollapsed((previous) => {
+          const next = new Set(previous);
+          if (next.has(project.id)) next.delete(project.id); else next.add(project.id);
+          return next;
+        });
         return <div key={project.id} data-sidebar-project={project.id}>
-          <div data-sidebar-folder-row={project.id} draggable={!reordering}
+          <div data-sidebar-folder-row={project.id} draggable={!reordering} data-thread-drop={threadOver ? "" : undefined}
             onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setFolderMenu({ projectId: project.id, left: event.clientX, top: event.clientY }); }}
             onDragStart={(event) => {
               event.stopPropagation();
@@ -356,6 +463,7 @@ export function BotThreadList({ bot, selected, query, pendingQueued, reveal, loc
             }}
             onDragEnd={(event) => { event.stopPropagation(); resetFolderDrag(); }}
             onDragOver={(event) => {
+              if (threadDropOver(event, project.id, !open)) return;
               if (!event.dataTransfer.types.includes(FOLDER_DRAG_TYPE)) return;
               event.stopPropagation();
               if (!draggingFolder.current || reordering) { event.dataTransfer.dropEffect = "none"; return; }
@@ -363,8 +471,9 @@ export function BotThreadList({ bot, selected, query, pendingQueued, reveal, loc
               const rect = event.currentTarget.getBoundingClientRect();
               setFolderDrop({ id: project.id, place: event.clientY < rect.top + rect.height / 2 ? "before" : "after" });
             }}
-            onDragLeave={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setFolderDrop(null); }}
+            onDragLeave={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) { setFolderDrop(null); threadDropLeave(project.id); } }}
             onDrop={(event) => {
+              if (threadDropped(event, project.id)) return;
               if (!event.dataTransfer.types.includes(FOLDER_DRAG_TYPE)) return;
               event.preventDefault(); event.stopPropagation();
               const from = draggedFolder(event.dataTransfer.getData(FOLDER_DRAG_TYPE), bot.id, projectIds);
@@ -372,33 +481,35 @@ export function BotThreadList({ bot, selected, query, pendingQueued, reveal, loc
               if (from) saveOrder(placeFolder(projectIds, from, project.id, event.clientY < rect.top + rect.height / 2 ? "before" : "after"));
               resetFolderDrag();
             }}
-            className={cn("group/folder flex items-center gap-0.5 rounded-md pl-0.5 text-ink-secondary hover:bg-raised/30",
+            className={cn("group/folder flex items-center gap-0.5 rounded-md pl-0.5 text-ink-secondary transition-colors hover:bg-raised/30",
+              threadOver && "bg-accent/10 text-ink outline outline-2 -outline-offset-2 outline-accent/70",
               folderDrop?.id === project.id && draggingFolder.current !== project.id && (folderDrop.place === "before" ? "shadow-[0_-2px_var(--color-accent)]" : "shadow-[0_2px_var(--color-accent)]"))}>
-            <button type="button" aria-expanded={open} onClick={() => setCollapsed((previous) => {
-              const next = new Set(previous);
-              if (next.has(project.id)) next.delete(project.id); else next.add(project.id);
-              return next;
-            })} className="flex size-6 shrink-0 items-center justify-center rounded outline-none hover:text-ink focus-visible:ring-1 focus-visible:ring-accent/60" aria-label={t(open ? "task.collapseNamed" : "task.expandNamed", { name: project.name })}>
+            <button type="button" aria-expanded={open} tabIndex={-1} onClick={toggle} className="flex size-6 shrink-0 items-center justify-center rounded outline-none hover:text-ink" aria-label={t(open ? "task.collapseNamed" : "task.expandNamed", { name: project.name })}>
               <ChevronRight aria-hidden="true" size={11} className={cn("shrink-0 transition-transform", open && "rotate-90")} />
             </button>
-            <button type="button" aria-label={t("folder.iconNamed", { name: project.name })} title={t("folder.iconNamed", { name: project.name })} onClick={() => setEditingProject(project.id)} className="flex size-6 shrink-0 items-center justify-center rounded hover:bg-raised"><FolderIcon emoji={project.emoji} size={14} /></button>
-            <button type="button" data-sidebar-folder-label={project.id} draggable={!reordering} aria-expanded={open} onClick={() => setCollapsed((previous) => {
-              const next = new Set(previous);
-              if (next.has(project.id)) next.delete(project.id); else next.add(project.id);
-              return next;
-            })} className="flex min-h-8 min-w-0 flex-1 cursor-grab select-none items-center gap-1.5 py-1 text-left text-[13px] font-semibold active:cursor-grabbing" title={project.name}>
+            <button type="button" data-sidebar-folder-label={project.id} draggable={!reordering} aria-expanded={open} aria-haspopup="menu" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
+              onClick={toggle} onDoubleClick={() => setEditingProject(project.id)}
+              onKeyDown={(event) => {
+                const step = stepKey(event);
+                if (step) { event.preventDefault(); saveOrder(moveFolder(projectIds, project.id, step)); return; }
+                if (!opensRowMenuFromKey(event.key, event.shiftKey, false)) return;
+                event.preventDefault();
+                const rect = event.currentTarget.getBoundingClientRect();
+                setFolderMenu({ projectId: project.id, left: rect.left, top: rect.bottom + 4 });
+              }}
+              {...folderLongPress(project.id)}
+              className="flex min-h-8 min-w-0 flex-1 cursor-grab select-none items-center gap-1.5 rounded py-1 text-left text-[13px] font-semibold outline-none focus-visible:ring-1 focus-visible:ring-accent/60 active:cursor-grabbing" title={project.name}>
+              <FolderIcon emoji={project.emoji} size={14} />
               <span className="truncate">{project.name}</span>
               <span className="shrink-0 text-[10px] font-normal opacity-50">{projectTasks.length}</span>
               {!open && (waiting ? <span className="text-[10px] text-warning">{t("task.waiting")}</span> : working ? <Loader2 size={10} className="shrink-0 animate-spin text-success" /> : projectTasks.some((task) => task.unread) ? <span className="size-1.5 shrink-0 rounded-full bg-accent" aria-label={t("task.unreadMany")} /> : null)}
             </button>
-            <button type="button" title={t("task.newIn", { name: project.name })} aria-label={t("task.newIn", { name: project.name })} onClick={() => dispatch({ type: "newTask", botId: bot.id, projectId: project.id })}
-              className="flex size-6 items-center justify-center rounded opacity-0 hover:bg-raised hover:text-ink focus-visible:opacity-100 group-hover/folder:opacity-100 max-md:opacity-70 touch:opacity-70"><Plus size={12} /></button>
-            <FolderActions project={project} canMoveUp={index > 0} canMoveDown={index < projects.length - 1} canMarkRead={folderUnreadThreadIds(bot, project.id).length > 0} saving={reordering || markingRead}
+            <FolderActions project={project} canMarkRead={folderUnreadThreadIds(bot, project.id).length > 0} saving={reordering || markingRead}
               menu={folderMenu?.projectId === project.id ? folderMenu : null} onMenuChange={(menu) => setFolderMenu(menu ? { ...menu, projectId: project.id } : null)}
-              onEdit={() => setEditingProject(project.id)} onMove={(direction, onSaved) => saveOrder(moveFolder(projectIds, project.id, direction), onSaved)}
+              onEdit={() => setEditingProject(project.id)} onNewThread={() => dispatch({ type: "newTask", botId: bot.id, projectId: project.id })}
               onMarkRead={(onSaved) => { void readFolder(project.id, onSaved); }} />
           </div>
-          {open && <div role="group" aria-label={t("task.namedList", { name: project.name })}>
+          {open && <div role="group" aria-label={t("task.namedList", { name: project.name })} {...threadZone(project.id)} className={cn("rounded-md", threadOver && "bg-accent/[0.05]")}>
             {visible.map(renderThread)}
             {projectTasks.length === 0 && <p className="px-2.5 py-1 text-[11px] text-ink-tertiary">{t("task.empty")}</p>}
             {/* The short list keeps only the newest threads, so an open folder can hold none of them: offer the rest. */}
@@ -411,8 +522,12 @@ export function BotThreadList({ bot, selected, query, pendingQueued, reveal, loc
       <span role="status" className="sr-only">{reorderStatus}</span>
       {readError && <p role="alert" className="px-2.5 py-1 text-[12px] text-danger">{readError}</p>}
       <span role="status" className="sr-only">{readStatus}</span>
-      {projects.length > 0 && ungrouped.length > 0 && <div className="pl-6 pr-3 pb-1 pt-2 text-[11px] text-ink-tertiary">{t("task.list")}</div>}
-      {ungrouped.map(renderThread)}
+      {projects.length > 0 && (ungrouped.length > 0 || fromFolder) && <div data-sidebar-unfiled="" data-thread-drop={threadDrop === null ? "" : undefined} {...threadZone(null)}
+        className={cn("rounded-md transition-colors", threadDrop === null && "bg-accent/10 outline outline-2 -outline-offset-2 outline-accent/70")}>
+        <div className="pl-6 pr-3 pb-1 pt-2 text-[11px] text-ink-tertiary">{fromFolder ? t("folder.dropOut") : t("task.list")}</div>
+        {ungrouped.map(renderThread)}
+      </div>}
+      {!(projects.length > 0 && (ungrouped.length > 0 || fromFolder)) && ungrouped.map(renderThread)}
       <HelperThreadGroup tasks={orderedThreadList(helpers)} busy={helpers.some((task) => currentTaskBot(bot, task.threadId).busy)} renderThread={renderThread} />
       <ThreadListFooter bulk={bulk} rows={shownRows} selected={selection} total={ownTasks.length} canShowAll={!query && !showAll && ownTasks.length > visibleTasks.length} canSelect={tasks.length > 1}
         onShowAll={() => setShowAll(true)} freshConversation onDelete={(threadIds) => deleteThreadsInBulk({ botId: bot.id }, threadIds, dispatch)} />
@@ -439,6 +554,8 @@ export interface BotRowProps {
   reveal: AppState["revealThread"];
   pendingQueued: AppState["pendingQueued"];
   instances: InstanceInfo[];
+  /** Every engine, even where the row shows none: what a dropped file can be sent to. */
+  allInstances?: InstanceInfo[];
   liveCall: AppState["liveCall"];
   locale: string;
   generatedTitles: boolean;
@@ -469,6 +586,7 @@ export function botRowProps(
     reveal: reveal && (bot.threadId === reveal.threadId || bot.tasks?.some((task) => task.threadId === reveal.threadId)) ? reveal : null,
     pendingQueued: state.pendingQueued,
     instances: isProductWorkspace(state.config?.productManaged) ? [] : state.instances,
+    allInstances: state.instances,
     liveCall: state.liveCall,
     locale: activeLocale(),
     generatedTitles: llmThreadTitlesEnabled(state.config),
@@ -483,12 +601,11 @@ export function useVisibleMessages(bot: Bot): Message[] {
 
 export const BotListItem = memo(function BotListItem(props: BotRowProps) {
   const advanced = useAdvancedMode();
-  const { bot, selected, deleting, mascotMotion, reveal, pendingQueued, instances, liveCall, density, query, dispatch, onMenu, renameRequest, botDrag: drag, botDrop: drop, botDragging: dragging } = props;
+  const { bot, selected, deleting, mascotMotion, reveal, pendingQueued, instances, allInstances, liveCall, density, query, dispatch, onMenu, renameRequest, botDrag: drag, botDrop: drop, botDragging: dragging } = props;
   const showThreads = useShowThreads();
   const liveMedia = useLiveMedia();
   const remoteClient = typeof window !== "undefined" && window.ogb?.remoteClient?.active === true;
   const [renaming, setRenaming] = useState(false);
-  const [creatingProject, setCreatingProject] = useState(false);
   const [threadsOpen, setThreadsOpen] = useSearchDisclosure(`bot:${bot.id}`, showThreads ? query : "", searchMatchesThreads(query, bot.tasks, bot.projects));
   useEffect(() => { if (reveal && showThreads) setThreadsOpen(true); }, [reveal, showThreads]);
   const hasThreadList = (bot.tasks?.filter((task) => !task.routineRunId).length ?? 1) > 1 || (bot.projects?.length ?? 0) > 0 || Boolean(query);
@@ -509,7 +626,7 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
     iconOnly
       ? railTile ? "h-[54px] justify-center" : "justify-center px-1 py-1.5"
       : simpleRow ? "gap-2 rounded-[10px] py-2 pl-2 pr-2 md:h-[54px] md:py-0"
-        : cn(showThreads ? "gap-2 py-2" : "gap-3 py-2", showThreads ? "pl-6 pr-9 group-hover:pr-[5.75rem] group-focus-within:pr-[5.75rem] max-md:pr-9 touch:pr-[5.75rem]" : "pl-2.5 pr-9"),
+        : cn(showThreads ? "gap-2 py-2" : "gap-3 py-2", showThreads ? "pl-6 pr-2" : "pl-2.5 pr-2"),
     !iconOnly && "max-md:rounded-2xl max-md:py-2.5",
     selected ? "bg-raised" : "hover:bg-raised/50",
     simpleRow && rowSurface(selected),
@@ -562,7 +679,7 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
         )}
       </span>
       <div className={cn("min-w-0 flex-1", iconOnly && "hidden")}>
-        <div className={cn("flex items-baseline justify-between gap-2", simpleRow && "pr-7")}>
+        <div className="flex items-baseline justify-between gap-2">
           <span className={cn("flex min-w-0 grow items-center gap-1.5 truncate text-ink", simpleRow ? "text-[14px] font-medium leading-5" : "text-[15px] font-semibold leading-5")}>
             {!simpleList && bot.pinned && <Pin size={12} className="shrink-0 text-ink-secondary" />}
             <RenameTitle
@@ -632,6 +749,8 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
   const onContextMenu = (event: React.MouseEvent) => {
     openBotContextMenu(onMenu, bot.id, event);
   };
+  const longPress = useLongPress((point) => onMenu({ botId: bot.id, ...point }));
+  const fileDrop = useBotFileDrop({ bot, dispatch, instances: allInstances ?? instances, enabled: !deleting });
   const onSelect = (event: React.MouseEvent) => {
     if (renaming) return;
     const insideRenameInput = event.target instanceof HTMLInputElement;
@@ -642,7 +761,8 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
 
   return (
     <>
-    <div className={cn("group relative", railTile && "mx-auto w-[54px]", botRowDropClass(drop, dragging))} data-bot-drop={drop ?? undefined} {...(drag && !renaming ? drag.row(bot.id) : {})}
+    <div className={cn("group relative", railTile && "mx-auto w-[54px]", botRowDropClass(drop, dragging), fileDrop.over && FILE_DROP_RING)} data-bot-drop={drop ?? undefined} data-file-drop={fileDrop.over ? "" : undefined}
+      draggable={!renaming || undefined} {...chainDragHandlers(drag && !renaming ? drag.row(bot.id) : undefined, renaming ? undefined : { onDragStart: botChatDragStart(bot.id) }, fileDrop.handlers)}
       title={railTile ? botTooltip(bot, instances) : iconOnly ? [bot.name, bot.title?.trim()].filter(Boolean).join(" · ") : undefined}><BotDropLine place={drop} />
       {/* Keep this wrapper mounted: replacing it remounts RenameTitle and leaves the row stuck in rename mode. */}
       <div
@@ -663,12 +783,19 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
         onKeyDown={(event) => {
           if (renaming) return;
           if (drag && stepKey(event)) { event.preventDefault(); drag.step(bot.id, stepKey(event)!); return; }
+          if (opensRowMenuFromKey(event.key, event.shiftKey, false)) {
+            event.preventDefault();
+            const rect = event.currentTarget.getBoundingClientRect();
+            onMenu({ botId: bot.id, x: rect.left + 24, y: rect.bottom });
+            return;
+          }
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             openBot(dispatch, bot, showThreads);
           }
         }}
         onContextMenu={onContextMenu}
+        {...(renaming ? {} : longPress)}
         className={rowClass}
       >
         {body}
@@ -683,15 +810,6 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
       {!renaming && iconOnly && unread && (
         <span className={cn("pointer-events-none absolute size-2 rounded-full border border-panel bg-accent", railTile ? "right-1 top-1" : "bottom-1.5 right-1.5")} />
       )}
-      {!renaming && !deleting && !iconOnly && <>
-        {showThreads && <button type="button" aria-label={t("task.newShort")} title={t("task.newShort")} onClick={() => { setThreadsOpen(true); dispatch({ type: "newTask", botId: bot.id }); }}
-          className="pointer-events-none absolute right-[3.75rem] top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded text-ink-secondary opacity-0 hover:bg-raised hover:text-ink group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 max-md:hidden touch:pointer-events-auto touch:opacity-70"><Plus size={14} /></button>}
-        {showThreads && <button type="button" aria-label={t("folder.newNamed", { name: bot.name })} title={t("folder.new")} onClick={() => { setThreadsOpen(true); setCreatingProject(true); }}
-          className="pointer-events-none absolute right-8 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded text-ink-secondary opacity-0 hover:bg-raised hover:text-ink group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 max-md:hidden touch:pointer-events-auto touch:opacity-70"><FolderPlus size={14} /></button>}
-        <button type="button" data-bot-actions={bot.id} aria-label={t("sidebar.bot.actions", { name: bot.name })} title={t("sidebar.bot.actions", { name: bot.name })} aria-haspopup="menu" onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); onMenu({ botId: bot.id, x: rect.left, y: rect.bottom }); }}
-          className={cn("absolute right-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded text-ink-secondary hover:bg-raised hover:text-ink", simpleRow && "right-2 top-1 translate-y-0 rounded-lg",
-            selected && !simpleRow ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 max-md:pointer-events-auto max-md:opacity-70 touch:pointer-events-auto touch:opacity-70")}><MoreHorizontal size={15} /></button>
-      </>}
       {deleting && iconOnly && (
         <span className="pointer-events-none absolute bottom-1 right-1 rounded-full bg-card p-1 text-ink-secondary">
           <Loader2 size={12} className="animate-spin" />
@@ -702,7 +820,6 @@ export const BotListItem = memo(function BotListItem(props: BotRowProps) {
       activityLabel={liveActivityLabel(last)}
       query={bot.name.toLowerCase().includes(query.toLowerCase()) || bot.title.toLowerCase().includes(query.toLowerCase()) ? "" : query} />}
     {(advanced || (!iconOnly && (waiting || unread || bot.tasks?.some(runningRoutineRun)))) && <SidebarBotActivity bot={bot} rowThreadId={selected ? bot.threadId : botOpensTo(bot, showThreads)} density={density} pendingQueued={pendingQueued} dispatch={dispatch} waitingOnly={!advanced} runsOnly={expanded} />}
-    {showThreads && creatingProject && <BotProjectDialog bot={bot} onClose={() => setCreatingProject(false)} />}
     </>
   );
 });
@@ -986,7 +1103,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
     ...(pinnedBots.length > 0 && !universalPins && !simpleDesk ? [PINNED_SECTION_ID] : []),
     ...(unsectionedRooms.length > 0 ? [CHANNELS_SECTION_ID] : []),
     ...(botChats.length > 0 ? [BOT_CHATS_SECTION_ID] : []),
-    ...(unsectionedBots.length > 0 || drops.slot ? [BOTS_SECTION_ID] : []),
+    ...(unsectionedBots.length > 0 ? [BOTS_SECTION_ID] : []),
     ...sectionNames.map(userSectionId),
   ];
   const layout = sections.arrange(naturalSectionIds);
@@ -1159,7 +1276,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
           <button type="button" onClick={railSearch} aria-label={t("sidebar.searchAria")} title={t("sidebar.searchAria")} className={SIMPLE_TOP_BUTTON}>
             <Search size={18} strokeWidth={1.5} aria-hidden="true" />
           </button>
-          {!product && <div className="relative flex">{plusControl}</div>}
+          <div className="relative flex">{plusControl}</div>
         </div>}
         {density !== "icons" && (simpleDesk ? <div data-sidebar-top-slot className="min-w-0 flex-1" /> : (
           <div data-sidebar-top-slot className={cn("@container/sidebar-top flex min-w-0 flex-1 items-center", simple && "justify-end")}>
@@ -1235,7 +1352,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
               </>
             )}
           </div>}
-          {!product && plusControl}
+          {plusControl}
           {productDrawer && <button
             type="button"
             data-sidebar-drawer-close
@@ -1312,7 +1429,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
       {!product && !collapseToIcons && !phone && <SidebarResizeHandle sizing={sizing} sidebarRef={sidebarRef} avatars={density === "icons"} avatarsWidth={rail ? 92 : 80}
         onAvatars={(avatars) => setSidebarDensity(avatars ? "icons" : "comfortable")} style={windowNoDragStyle} />}
 
-      <GlassScroller className={rail ? "[scrollbar-gutter:stable_both-edges]" : simpleDesk ? "px-3" : "px-2"}>
+      <GlassScroller className={rail ? "[scrollbar-gutter:stable_both-edges]" : simpleDesk ? "px-3" : "px-2"} {...drops.gap}>
         <div className={cn("flex flex-col", simpleDesk ? cn("gap-0.5 pb-2", !tiles && "pt-2") : advanced ? "gap-0.5" : "gap-1 pb-2 pt-2")}>
           {matchingBots.length === 0 && visibleGroups.length === 0 && q && q.length < MIN_QUERY && (
             <div className="px-3 py-6 text-center text-[13px] text-ink-secondary">{t("sidebar.noMatch", { query })}</div>
@@ -1396,7 +1513,6 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
                   className="mx-3 mb-1 inline-flex h-7 items-center self-start rounded-full bg-raised/50 px-3 text-[13px] font-medium leading-4 text-ink-secondary hover:text-ink">{t("task.queued")} · {queued.length}</button>}
                 {!collapsed && (
                   <>
-                    {id === BOTS_SECTION_ID && drops.slot}
                     {sectionChiefItems.map((bot) => <BotListItem key={bot.id} {...botRow(bot)} />)}
                     {sectionGroupItems.map((group) => (
                       <GroupListItem
@@ -1422,6 +1538,10 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
                         <Plus size={13} /> {t(state.bots.some(bot => !bot.hidden && bot.section?.trim() === sectionName) ? "team.manageBots" : "team.addBots")}
                       </button>
                     )}
+                    {sectionName && drops.enabled && !drops.naming(sectionName) && sectionChiefItems.length + sectionGroupItems.length + sectionBotItems.length === 0 && (product || remoteClient || !layoutInteractive) && (
+                      <div data-bot-empty-drop="" className={cn("mx-2 my-1 flex h-9 items-center justify-center rounded-[10px] border border-dashed text-[12px] text-ink-secondary",
+                        drops.into(sectionName) ? "border-accent bg-accent/10 text-ink" : "border-ink/20")}>{t("sidebar.section.emptyDrop")}</div>
+                    )}
                   </>
                 )}
                 {layout.dropLine(id, "after")}
@@ -1439,6 +1559,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
           )}
         </div>
       </GlassScroller>
+      {drops.slot && <div className="absolute inset-x-2 bottom-[calc(var(--glass-bottom,0px)+8px)] z-20">{drops.slot}</div>}
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {sections.announcement}
       </p>

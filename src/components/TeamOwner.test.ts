@@ -39,11 +39,9 @@ describe("who looks after a team bot, in the sidebar", () => {
     expect(row(bot({ createdBy: ADA.email }))).not.toContain("data-owner-face");
   });
 
-  it("keeps the selected bot's ⋯ menu in view, not only on hover", () => {
-    const actions = (markup: string) => markup.match(/<button[^>]*data-bot-actions="fox"[^>]*>/)?.[0] ?? "";
-    expect(actions(row(bot(), true))).toContain("opacity-100");
-    expect(actions(row(bot(), false))).toContain("opacity-0");
-    expect(actions(row(bot(), false))).toContain("group-hover:opacity-100");
+  it("draws no ⋯ on a team bot's row, selected or not: its menu opens from the row", () => {
+    expect(row(bot(), true)).not.toContain("data-bot-actions");
+    expect(row(bot(), false)).not.toContain("data-bot-actions");
   });
 
   it("names no department caption for the person its bots report to", () => {

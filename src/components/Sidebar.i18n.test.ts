@@ -44,16 +44,13 @@ describe("sidebar rows", () => {
     expect(markup).not.toContain('title="New thread"');
   });
 
-  it("translates the row's own copy and its actions", () => {
+  it("translates the row's own copy", () => {
     setLocale("pt-br");
     const markup = renderRow(bot({ chiefOfStaff: true, busy: true }));
 
     expect(markup).toContain("Chefe de gabinete");
     expect(markup).toContain(`>${t("chat.activity.thinking")}</span>`);
     expect(markup).not.toContain("Chief of Staff");
-
-    setLocale("ja");
-    expect(renderRow(bot())).toContain(`aria-label="${t("sidebar.bot.actions", { name: "Atlas" })}"`);
   });
 });
 

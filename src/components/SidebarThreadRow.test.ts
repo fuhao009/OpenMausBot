@@ -7,7 +7,7 @@ import { formatUpdatedAt, nextSnoozeExpiry, orderedSidebarThreads, orderedThread
 type ThreadRowProps = ComponentProps<typeof SidebarThreadRow>;
 
 // Stubs useState, useRef, useEffect and useLayoutEffect (state kept across re-renders, effects never run) so the row
-// renders directly and its real More button can be clicked.
+// renders directly and its real menu can be opened from the row.
 const rowHooks = vi.hoisted(() => {
   const slots: unknown[] = [];
   let cursor = 0;
@@ -34,6 +34,7 @@ vi.mock("react", async (importOriginal) => {
     useRef: ((initial: unknown) => ({ current: initial })) as unknown as typeof actual.useRef,
     useEffect: (() => undefined) as unknown as typeof actual.useEffect,
     useLayoutEffect: (() => undefined) as unknown as typeof actual.useLayoutEffect,
+    useSyncExternalStore: ((_subscribe: unknown, snapshot: () => unknown) => snapshot()) as unknown as typeof actual.useSyncExternalStore,
   };
 });
 
@@ -542,13 +543,17 @@ const buttonWithLabel = (tree: RowNode, label: string) => {
   return found;
 };
 
-const moreMenuButton = (tree: RowNode) => {
+/** The row itself: the menu key (as a right-click or long press does) opens its menu. */
+const threadRow = (tree: RowNode) => {
   let found: RowNode | undefined;
   walk(tree, (element) => {
-    if (!found && element.props && "aria-expanded" in element.props) found = element;
+    if (!found && element.props && "data-sidebar-thread-row" in element.props) found = element;
   });
   return found;
 };
+const pressMenuKey = (tree: RowNode) => (threadRow(tree)!.props!.onKeyDown as (event: unknown) => void)({
+  key: "ContextMenu", shiftKey: false, preventDefault: () => {}, currentTarget: { getBoundingClientRect: () => ({ left: 100, bottom: 200 }) },
+});
 
 describe("Copy link", () => {
   it("writes the exact canonical link for the row's owner to the clipboard", () => {
@@ -563,10 +568,8 @@ describe("Copy link", () => {
     for (const { task, ownerId, link } of rows) {
       const closed = renderRow(task, ownerId);
       expect(buttonWithLabel(closed, "Copy link")).toBeUndefined();
-      const more = moreMenuButton(closed);
-      expect(more?.props).toBeDefined();
-      const openMenu = more!.props!.onClick as (event: unknown) => void;
-      openMenu({ currentTarget: { getBoundingClientRect: () => ({ left: 100, bottom: 200 }) } });
+      expect(threadRow(closed)?.props).toBeDefined();
+      pressMenuKey(closed);
       const menu = renderRow(task, ownerId, false);
       const copy = buttonWithLabel(menu, "Copy link");
       expect(copy).toBeDefined();
@@ -582,7 +585,7 @@ describe("Copy link", () => {
 
 describe("Refresh permissions", () => {
   const openMenu = (tree: RowNode) => {
-    (moreMenuButton(tree)!.props!.onClick as (event: unknown) => void)({ currentTarget: { getBoundingClientRect: () => ({ left: 100, bottom: 200 }) } });
+    pressMenuKey(tree);
   };
 
   it("is offered only when the row can refresh, and stays disabled while the thread is working", () => {
@@ -610,7 +613,7 @@ describe("Refresh permissions", () => {
 
 describe("Regenerate title", () => {
   const openMenu = (tree: RowNode) => {
-    (moreMenuButton(tree)!.props!.onClick as (event: unknown) => void)({ currentTarget: { getBoundingClientRect: () => ({ left: 100, bottom: 200 }) } });
+    pressMenuKey(tree);
   };
 
   it("is offered next to Rename only when the caller can regenerate titles", () => {
@@ -668,11 +671,11 @@ describe("Thread link", () => {
     walk(renderRow({ ...task, link: "https://docs.example.com/plan" }, "scout", true, { onLink }), (element) => { if (element.type === "a") other = element; });
     expect(textOf(other)).toBe("Link");
     expect(other?.props?.["aria-label"]).toBe("Open https://docs.example.com/plan");
-    (moreMenuButton(closed)!.props!.onClick as (event: unknown) => void)({ currentTarget: { getBoundingClientRect: () => ({ left: 100, bottom: 200 }) } });
+    pressMenuKey(closed);
     (buttonWithLabel(renderRow(task, "scout", false, { onLink }), "Remove link")!.props!.onClick as () => void)();
     expect(onLink).toHaveBeenCalledWith(task, null);
     const unlinked = { threadId: "t2", title: "No link" };
-    (moreMenuButton(renderRow(unlinked, "scout", true, { onLink }))!.props!.onClick as (event: unknown) => void)({ currentTarget: { getBoundingClientRect: () => ({ left: 100, bottom: 200 }) } });
+    pressMenuKey(renderRow(unlinked, "scout", true, { onLink }));
     expect(buttonWithLabel(renderRow(unlinked, "scout", false, { onLink }), "Remove link")).toBeUndefined();
     vi.unstubAllGlobals();
   });

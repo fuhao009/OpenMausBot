@@ -1982,6 +1982,8 @@
   "sidebar.section.newContext": "添加部门…",
   "sidebar.section.newContextAria": "新部门名称",
   "sidebar.section.removeFromContext": "移至一般区域",
+  "sidebar.section.dropToRemove": "拖到这里移出部门",
+  "sidebar.section.emptyDrop": "把机器人拖到这里",
   "sidebar.section.removeFromDepartment": "移出部门",
   "sidebar.section.newName": "新部门",
   "sidebar.room.renameAria": "重命名 {name}",
@@ -7445,5 +7447,17 @@
   "server.product.welcome": "你好！我是 Hezuo，可以帮你处理机器人、例行任务和待办。准备好后直接发消息给我，我们就开始。",
   "server.product.accessChanged": "账户 AI 权限已变更，请刷新账户状态。",
   "product.backupsNote": "此账户只使用一个托管模型，因此没有备用 AI。",
-  "product.accountHint": "打开账户页"
+  "product.accountHint": "打开账户页",
+  "chat.dropBot.add": "松手把 {name} 拉进这个频道",
+  "chat.dropBot.create": "松手和 {name} 建一个频道",
+  "chat.dropBot.mention": "松手 @{name}",
+  "chat.dropBot.remove": "松手把 {name} 移出这个频道",
+  "chat.dropBot.unavailable": "这个 Bot 不能加入这里",
+  "composer.dropToAttach": "松手附加",
+  "composer.paste.display": "点一下放进消息里",
+  "composer.paste.displayAria": "把粘贴的文本放进消息里",
+  "folder.dropOut": "拖到这里移出文件夹",
+  "folder.threadMovedInto": "已移到 {name}",
+  "folder.threadMovedOut": "已移出文件夹",
+  "sidebar.bot.dropFiles": "把文件拖给 {name}"
 }

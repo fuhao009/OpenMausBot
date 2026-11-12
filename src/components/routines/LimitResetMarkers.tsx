@@ -4,8 +4,8 @@ import { Hourglass } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { resetTime, type ResetMarker } from "@/lib/limit-resets";
+import { BOT_DRAG_TYPE } from "@/lib/bot-chat-drop";
 
-export const BOT_DRAG_TYPE = "application/x-hezuo-bot";
 export const EVENT_DRAG_TYPE = "application/x-hezuo-calendar-event";
 
 /** What was dropped on a reset marker: a bot from the sidebar, or an automation already on the calendar. */

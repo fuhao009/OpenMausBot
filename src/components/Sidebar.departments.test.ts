@@ -49,6 +49,7 @@ import { PHONE_LAYOUT } from "@/lib/use-media-query";
 import { BotContextMenu, BotListItem, Sidebar, TeamMenuItems } from "./Sidebar";
 import { NEW_DEPARTMENT } from "./SidebarBotDrag";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
+import { GlassScroller } from "./GlassScrollFrame";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { TeamDialog } from "./TeamDialog";
 
@@ -82,6 +83,7 @@ const sections = () => render().map((node) => node.props["data-sidebar-section-i
 const section = (id: string) => render().find((node) => node.props["data-sidebar-section-id"] === id)!.props as unknown as {
   onDragOver: (event: unknown) => void; onDrop: (event: unknown) => void; children: ReactNode;
 };
+const sectionHas = (id: string) => nodes(section(id).children).some((node) => node.props["data-bot-empty-drop"] !== undefined);
 const headers = () => render().filter((node) => node.type === SidebarSectionHeader).map((node) => node.props as unknown as HeaderProps);
 const header = (name: string) => headers().find((props) => props.name === name)!;
 const actions = () => fixture.dispatch.mock.calls.map(([action]) => action as Action);
@@ -104,9 +106,11 @@ const at = (offset = 27) => ({
 function drag(id: string) {
   carried = transfer();
   row(id).botDrag!.row(id).onDragStart(at() as never);
+  vi.runOnlyPendingTimers();
 }
 
 beforeEach(() => {
+  vi.useFakeTimers();
   fixture.values = [];
   fixture.advanced = false;
   fixture.phone = false;
@@ -137,7 +141,7 @@ beforeEach(() => {
     removeItem: (key: string) => { fixture.storage.delete(key); },
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("Simple's sidebar before anyone drags", () => {
   it("looks as it did: the same sections and rows, nothing marked, each row ready to drag", () => {
@@ -243,7 +247,7 @@ describe("dragging a bot", () => {
   it("out of a department to the end of the main list, or a place in it", () => {
     drag("echo");
     section(BOTS_SECTION_ID).onDragOver(at() as never);
-    expect(row("cleo").botDrop).toBe("after");
+    expect(row("cleo").botDrop).toBeNull();
     section(BOTS_SECTION_ID).onDrop(at() as never);
     expect(actions()).toEqual([{ type: "updateBot", botId: "echo", patch: { section: "" } }]);
     expect(fixture.requests).toEqual([]);
@@ -253,16 +257,40 @@ describe("dragging a bot", () => {
     expect(actions()).toEqual([{ type: "updateBot", botId: "dodo", patch: { section: "" } }, { type: "botsOrdered", botIds: ["atlas", "bea", "dodo", "cleo"] }]);
   });
 
-  it("offers a place to drop it out when every row is in a department", () => {
+  const slotNode = () => render().find((node) => node.props["data-bot-drop-slot"] !== undefined);
+  const sectionNodes = () => render().filter((node) => node.props["data-sidebar-section-id"] !== undefined);
+  const inSection = (target: ReactElement<Props>) => sectionNodes().some((node) => nodes(node.props.children).includes(target));
+
+  it("offers a place to drop it out outside every section, so no row moves, and takes the drop there", () => {
+    drag("echo");
+    expect(slotNode()).toBeDefined();
+    expect(inSection(slotNode()!)).toBe(false);
+    expect(sections()).toEqual([BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work")]);
+    const over = at();
+    (slotNode()!.props.onDragOver as (event: unknown) => void)(over);
+    expect(over.preventDefault).toHaveBeenCalled();
+    expect(over.stopPropagation).toHaveBeenCalled();
+    expect(carried.dropEffect).toBe("move");
+    expect(String(slotNode()!.props.className)).toContain("border-accent");
+    expect(rows().some((props) => props.botDrop)).toBe(false);
+    (slotNode()!.props.onDrop as (event: unknown) => void)(at());
+    expect(actions()).toEqual([{ type: "updateBot", botId: "echo", patch: { section: "" } }]);
+  });
+
+  it("offers no such place for a bot already outside departments", () => {
+    drag("atlas");
+    expect(slotNode()).toBeUndefined();
+  });
+
+  it("adds no bots section just for the place to drop it out, when every row is in a department", () => {
     fixture.state = { ...fixture.state, bots: fixture.state.bots.map((candidate) => ({ ...candidate, section: "Work" })) };
     expect(sections()).not.toContain(BOTS_SECTION_ID);
     drag("dodo");
-    expect(sections()[0]).toBe(BOTS_SECTION_ID);
-    section(BOTS_SECTION_ID).onDragOver(at() as never);
-    expect(render().some((node) => node.props["data-bot-drop-slot"] !== undefined)).toBe(true);
-    section(BOTS_SECTION_ID).onDrop(at() as never);
-    expect(actions()).toEqual([{ type: "updateBot", botId: "dodo", patch: { section: "" } }]);
     expect(sections()).not.toContain(BOTS_SECTION_ID);
+    expect(slotNode()).toBeDefined();
+    expect(inSection(slotNode()!)).toBe(false);
+    (slotNode()!.props.onDrop as (event: unknown) => void)(at());
+    expect(actions()).toEqual([{ type: "updateBot", botId: "dodo", patch: { section: "" } }]);
   });
 
   it("never drops on group chats, and hands a heading's drag to the section order", () => {
@@ -290,6 +318,102 @@ describe("dragging a bot", () => {
     drag("dodo");
     row("atlas").botDrag!.row("atlas").onDrop(at() as never);
     expect(header(NEW_DEPARTMENT).naming!.value).toBe("New department");
+  });
+});
+
+describe("dropping between the sections or below the last one", () => {
+  type Box = { top: number; bottom: number; height: number };
+  const box = (top: number, bottom: number): Box => ({ top, bottom, height: bottom - top });
+  const rowAt = (id: string, top: number) => ({ dataset: { sidebarBotRow: id }, getBoundingClientRect: () => box(top, top + 50) });
+  const zone = (id: string, top: number, bottom: number, rows: ReturnType<typeof rowAt>[] = []) => ({
+    dataset: { sidebarSectionId: id }, getBoundingClientRect: () => box(top, bottom), querySelectorAll: () => rows,
+  });
+  const list = () => render().find((node) => node.type === GlassScroller)!.props as unknown as {
+    onDragOver: (event: unknown) => void; onDrop: (event: unknown) => void;
+  };
+  const gapAt = (y: number, zones: ReturnType<typeof zone>[], extra: object = {}) => ({
+    dataTransfer: carried, clientY: y, target: {}, defaultPrevented: false,
+    currentTarget: { querySelectorAll: () => zones }, preventDefault: vi.fn(), ...extra,
+  });
+
+  it("puts the bot in the nearer department, whichever side of the gap it is released on", () => {
+    fixture.state = { ...fixture.state, sections: ["Work", "Empty"] };
+    const zones = [zone(userSectionId("Work"), 100, 200, [rowAt("dodo", 150), rowAt("echo", 100)]), zone(userSectionId("Empty"), 204, 244)];
+    drag("atlas");
+    const over = gapAt(206, zones);
+    list().onDragOver(over);
+    expect(over.preventDefault).toHaveBeenCalled();
+    expect(carried.dropEffect).toBe("move");
+    expect(header("Empty").dropInto).toBe(true);
+    list().onDrop(gapAt(206, zones));
+    expect(actions()).toEqual([{ type: "updateBot", botId: "atlas", patch: { section: "Empty" } }]);
+    fixture.dispatch.mockClear();
+    drag("atlas");
+    list().onDrop(gapAt(202, zones));
+    expect(actions()).toEqual([
+      { type: "updateBot", botId: "atlas", patch: { section: "Work" } },
+      { type: "botsOrdered", botIds: ["dodo", "echo", "atlas"] },
+    ]);
+  });
+
+  it("puts it at the end of the last department when released below it", () => {
+    const zones = [zone(userSectionId("Work"), 100, 200, [rowAt("dodo", 100), rowAt("echo", 150)])];
+    drag("atlas");
+    list().onDragOver(gapAt(600, zones));
+    expect(row("echo").botDrop).toBe("after");
+    list().onDrop(gapAt(600, zones));
+    expect(actions()).toEqual([
+      { type: "updateBot", botId: "atlas", patch: { section: "Work" } },
+      { type: "botsOrdered", botIds: ["dodo", "echo", "atlas"] },
+    ]);
+  });
+
+  it("leaves a drag a zone or row already took, one begun inside a section, and a drag that is not a bot", () => {
+    const zones = [zone(userSectionId("Work"), 100, 200, [rowAt("dodo", 100), rowAt("echo", 150)])];
+    drag("atlas");
+    const taken = gapAt(600, zones, { defaultPrevented: true });
+    list().onDragOver(taken);
+    list().onDrop(gapAt(600, zones, { defaultPrevented: true }));
+    expect(taken.preventDefault).not.toHaveBeenCalled();
+    expect(actions()).toEqual([]);
+    const inside = gapAt(150, zones, { target: { closest: () => ({}) } });
+    list().onDrop(inside);
+    expect(inside.preventDefault).not.toHaveBeenCalled();
+    expect(actions()).toEqual([]);
+    carried = { ...transfer(), types: ["Files"] };
+    const files = gapAt(600, zones);
+    list().onDragOver(files);
+    expect(files.preventDefault).not.toHaveBeenCalled();
+  });
+});
+
+describe("an empty department", () => {
+  const placeholders = () => render().filter((node) => node.props["data-bot-empty-drop"] !== undefined);
+
+  beforeEach(() => {
+    fixture.state = { ...fixture.state, sections: ["Work", "Empty"], config: { ...initialState.config, productManaged: true } as AppState["config"] };
+  });
+
+  it("shows a place to drag a bot to in the product, and none in a department that has bots", () => {
+    expect(placeholders()).toHaveLength(1);
+    expect(sectionHas(userSectionId("Empty"))).toBe(true);
+    expect(sectionHas(userSectionId("Work"))).toBe(false);
+  });
+
+  it("takes a bot dropped on it, and shows it as the target meanwhile", () => {
+    drag("atlas");
+    section(userSectionId("Empty")).onDragOver(at() as never);
+    expect(String(placeholders()[0]!.props.className)).toContain("border-accent");
+    section(userSectionId("Empty")).onDrop(at() as never);
+    expect(actions()).toEqual([{ type: "updateBot", botId: "atlas", patch: { section: "Empty" } }]);
+  });
+
+  it("is not there while the department is being named, or where the add-bots button already is", () => {
+    drag("cleo");
+    row("atlas").botDrag!.row("atlas").onDrop(at() as never);
+    expect(sectionHas(userSectionId(NEW_DEPARTMENT))).toBe(false);
+    fixture.state = { ...fixture.state, config: { ...initialState.config, productManaged: false } as AppState["config"] };
+    expect(placeholders()).toHaveLength(0);
   });
 });
 

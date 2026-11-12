@@ -12,7 +12,9 @@ import { useChiefStepOpen } from "@/lib/default-bot";
 import { BotAvatar } from "./Avatar";
 import { botTooltip } from "./BotModelBadge";
 import { liveBadgeFor } from "./LiveCallPill";
-import { pinnedCircleDragClass, pinnedCircleDragHandlers, usePinnedCircleDrag, type PinnedCircleDragProps } from "./PinnedCircleThreads";
+import { circleHandlers, pinnedCircleDragClass, usePinnedCircleDrag, type PinnedCircleDragProps } from "./PinnedCircleThreads";
+import { useLongPress } from "@/hooks/use-long-press";
+import { FILE_DROP_RING, useBotFileDrop } from "./sidebar-drop";
 import { RenameTitle } from "./RenameTitle";
 import { openBotContextMenu, useVisibleMessages, type BotRowProps } from "./Sidebar";
 import { sidebarBotStatus } from "./SidebarBotActivity";
@@ -36,7 +38,9 @@ export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, dr
   const tooltip = botTooltip(bot, instances);
   const status = waiting ? t("sidebar.preview.waiting") : working ? t("chat.activity.working") : teammateWait ? t("sidebar.preview.waitingOnTeammate") : queued ? t("task.queued") : "";
   const label = [bot.name, bot.chiefOfStaff ? t("sidebar.bot.chiefOfStaff") : "", onLiveCall ? t("call.live.badge") : "", status, unread ? t("task.unread") : ""].filter(Boolean).join(" · ");
-  const reorder = pinnedCircleDragHandlers(bot.id, { drag, dragging, prevId, nextId });
+  const fileDrop = useBotFileDrop({ bot, dispatch, instances: row.allInstances ?? instances, enabled: !deleting });
+  const longPress = useLongPress((point) => onMenu({ botId: bot.id, ...point }));
+  const reorder = circleHandlers(bot.id, { drag, dragging, prevId, nextId }, fileDrop.handlers);
   const open = () => openBot(dispatch, bot, showThreads);
   const rename = (name: string) => {
     if (!remoteClient) return dispatch({ type: "updateBot", botId: bot.id, patch: { name } });
@@ -64,13 +68,15 @@ export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, dr
       tabIndex={renaming ? undefined : 0}
       data-sidebar-bot-row={bot.id}
       data-sidebar-tile={primary ? "primary" : "pinned"}
-      draggable={Boolean(drag) && !renaming}
+      draggable={!renaming}
+      data-file-drop={fileDrop.over ? "" : undefined}
       aria-label={renaming ? undefined : label}
       aria-current={selected && !renaming ? "page" : undefined}
       aria-busy={deleting || undefined}
       aria-keyshortcuts={drag ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
       title={tooltip}
       {...reorder}
+      {...(renaming ? {} : longPress)}
       onClick={(event: MouseEvent) => { if (!renaming && !(event.target instanceof HTMLInputElement)) open(); }}
       onKeyDown={onKeyDown}
       onContextMenu={(event) => openBotContextMenu(onMenu, bot.id, event)}
@@ -78,6 +84,7 @@ export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, dr
         "flex h-[92px] w-[78px] shrink-0 cursor-default flex-col items-center rounded-[10px] bg-[var(--tile)] px-1 pt-2 transition-colors duration-150", SIMPLE_ROW_FOCUS,
         selected ? "[--tile:var(--color-raised)]" : "[--tile:var(--color-panel)] hover:[--tile:color-mix(in_srgb,var(--color-raised)_50%,var(--color-panel))]",
         pinnedCircleDragClass({ drag, dragging, drop }),
+        fileDrop.over && FILE_DROP_RING,
       )}
     >
       <span className="relative flex">

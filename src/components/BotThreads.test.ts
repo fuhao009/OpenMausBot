@@ -65,25 +65,22 @@ describe("sidebar bot threads", () => {
     const markup = renderToStaticMarkup(threadList(projectBot));
     expect(markup).toContain('data-sidebar-project="research"');
     expect(markup).toContain('aria-label="Research threads"');
-    expect(markup).toContain('aria-label="Actions for Research folder"');
-    expect(markup).toContain('aria-label="Change Research folder icon"');
+    expect(markup).not.toContain('aria-label="Actions for Research folder"');
+    expect(markup).not.toContain('aria-label="Change Research folder icon"');
+    expect(markup).not.toContain('aria-label="New thread in Research"');
     expect(markup).toContain('data-sidebar-folder-row="research" draggable="true"');
     // Native buttons do not inherit their parent's drag gesture in Chromium.
-    expect(markup).toContain('<button type="button" data-sidebar-folder-label="research" draggable="true"');
+    expect(markup).toMatch(/<button type="button" data-sidebar-folder-label="research" draggable="true" aria-expanded="true" aria-haspopup="menu" aria-keyshortcuts="Alt\+ArrowUp Alt\+ArrowDown Shift\+F10"/);
     expect(markup).toContain("🧪");
     expect(markup).toContain("lucide-folder");
-    expect(markup).toContain('aria-label="New thread in Research"');
     expect(markup).not.toContain('aria-label="Choose folder for new thread"');
-    const folderToggle = markup.match(/<button[^>]*aria-label="Collapse Research threads"[^>]*>/)?.[0];
-    expect(folderToggle).toContain("focus-visible:ring-1");
-    expect(folderToggle).not.toContain("hover:bg-");
     expect(markup.indexOf('aria-label="Collapse Research threads"')).toBeLessThan(markup.indexOf('data-sidebar-folder-label="research"'));
     expect(markup).toContain("Threads");
     expect(markup).toContain("No threads yet");
     expect(markup).not.toContain("disabled");
     expect(markup).not.toContain("test");
-    expect(markup).toContain('data-sidebar-thread-row="idle" aria-current="page"');
-    expect(markup).toContain('aria-label="Actions for Quick question"');
+    expect(markup).toMatch(/data-sidebar-thread-row="idle" aria-current="page" aria-haspopup="menu" draggable="true"/);
+    expect(markup).not.toContain('aria-label="Actions for Quick question"');
   });
 
   it("keeps internal routine execution out of ordinary folders while showing the results conversation", () => {

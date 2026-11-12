@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import { ChevronRight, Pause, Plus, Search } from "lucide-react";
 
+import { beginMemberDrag, endMemberDrag, ROOM_MEMBER_DRAG_TYPE } from "@/lib/bot-chat-drop";
 import { cn } from "@/lib/cn";
 import { roomContextWarnings } from "@/lib/context-warning";
 import { effectiveDefaultResponder, jevRoomRoutingOn } from "@/lib/group-routing";
@@ -59,10 +60,10 @@ export function DefaultResponderSelect({ group, members }: { group: Group; membe
   );
 }
 
-function memberHezuos(group: Group, members: Bot[]) {
+function memberHezuos(group: Group, members: Bot[], removable: boolean, collapsedFrom = members.length) {
   const contextWarnings = roomContextWarnings(group, members);
   const speakersElsewhere = new Set(roomSpeakerIds(group).filter((id) => id !== group.busyBotId));
-  return members.map((b) => {
+  return members.map((b, index) => {
     const busy = group.busyBotId === b.id;
     const queueTitle = busy ? undefined : roomMemberQueueTitle(group, members, b);
     const contextWarning = contextWarnings.find((warning) => warning.bot.id === b.id);
@@ -74,6 +75,14 @@ function memberHezuos(group: Group, members: Bot[]) {
     return (
       <span
         key={b.id}
+        draggable={removable || undefined}
+        onDragStart={removable ? (event) => {
+          event.stopPropagation();
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData(ROOM_MEMBER_DRAG_TYPE, b.id);
+          beginMemberDrag({ groupId: group.id, botId: b.id });
+          event.currentTarget.addEventListener("dragend", endMemberDrag, { once: true });
+        } : undefined}
         data-held={held || undefined}
         title={
           held
@@ -83,7 +92,8 @@ function memberHezuos(group: Group, members: Bot[]) {
               : `${b.name}${busy ? " — working…" : ""}${contextWarning ? ` — ${t("contextWarning.short", { percent: contextWarning.percent })}` : ""}`)
         }
         className={cn(
-          "relative inline-flex rounded-full",
+          "relative rounded-full",
+          index >= collapsedFrom ? "hidden group-hover/faces:inline-flex group-focus-within/faces:inline-flex" : "inline-flex",
           busy && "ring-2 ring-accent/50 ring-offset-1 ring-offset-app",
           busyElsewhere && "ring-1 ring-hairline ring-offset-1 ring-offset-app",
           queueTitle && !busyElsewhere && "ring-1 ring-accent/30 ring-offset-1 ring-offset-app",
@@ -146,7 +156,8 @@ export function RoomHeader({
   membersTriggerRef: RefObject<HTMLButtonElement | null>;
 }) {
   const { dragProps: headerDragProps, noDragStyle: headerNoDragStyle } = useCaptionChrome();
-  const faces = memberHezuos(group, members);
+  const removable = !group.dm && !remoteClient && members.length > 1;
+  const faces = memberHezuos(group, members, removable, simple ? SIMPLE_FACES : undefined);
   const membersLabel = members.length === 1
     ? t("room.members.ariaOne")
     : t("room.members.ariaMany", { count: members.length });
@@ -180,12 +191,12 @@ export function RoomHeader({
               title={t("room.members.manage")}
               aria-label={membersLabel}
               style={headerNoDragStyle}
-              className="flex items-center rounded-full py-0.5 pl-1 pr-1.5 hover:bg-raised/60"
+              className="group/faces flex items-center rounded-full py-0.5 pl-1 pr-1.5 hover:bg-raised/60"
             >
               <span className="flex items-center -space-x-1.5">
-                {faces.slice(0, SIMPLE_FACES)}
+                {faces}
                 {more > 0 && (
-                  <span className="relative flex h-6 min-w-6 items-center justify-center rounded-full border border-app bg-raised px-1 text-[11px] font-medium tabular-nums text-ink-secondary">
+                  <span className="relative flex h-6 min-w-6 items-center justify-center rounded-full border border-app bg-raised px-1 text-[11px] font-medium tabular-nums text-ink-secondary group-hover/faces:hidden group-focus-within/faces:hidden">
                     +{more}
                   </span>
                 )}

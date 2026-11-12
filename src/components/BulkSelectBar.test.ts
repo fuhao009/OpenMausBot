@@ -36,7 +36,7 @@ describe("select mode rows", () => {
       onSelect: noop, onRename: noop, onDelete: noop,
     }));
     expect(markup).not.toContain('role="checkbox"');
-    expect(markup).toContain("Actions for");
+    expect(markup).toContain('aria-haspopup="menu"');
   });
 });
 

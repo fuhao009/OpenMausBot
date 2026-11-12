@@ -96,7 +96,8 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData(BOT_ROW_DRAG_TYPE, botId);
         moving.current = { botId, drop: null };
-        setDragging(botId);
+        // Chromium cancels a drag whose source row moves during dragstart, and the drop slot shifts the rows.
+        setTimeout(() => { if (moving.current.botId === botId) setDragging(botId); }, 0);
       },
       onDragEnd: end,
       onDragOver: (event) => {
@@ -146,21 +147,36 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
       const active = movable && dragging !== null && botListOf(lists, dragging) !== undefined ? dragging : null;
       const shown = active ? drop : null;
       const mainIds = lists.get("")!.filter((id) => id !== active);
+      const slotShown = active !== null && botListOf(lists, active) !== "";
       const listFor = (sectionId: string) => (sectionId === BOTS_SECTION_ID ? "" : userSectionName(sectionId));
       // Between rows, or under the last one, the nearest row places the bot; a department's heading takes it in.
-      const zoneDrop = (event: DragEvent<HTMLElement>, list: string): BotDrop => {
+      const zoneDrop = (container: Element, clientY: number, list: string): BotDrop => {
         const ids = lists.get(list)!;
-        const rows = [...event.currentTarget.querySelectorAll<HTMLElement>("[data-sidebar-bot-row]")]
+        const rows = [...container.querySelectorAll<HTMLElement>("[data-sidebar-bot-row]")]
           .filter((element) => ids.includes(element.dataset.sidebarBotRow ?? "")).map((element) => ({ botId: element.dataset.sidebarBotRow!, box: element.getBoundingClientRect() }));
-        if (!rows.length || (list !== "" && event.clientY < rows[0]!.box.top)) return { kind: "end", list };
-        const row = rows.find(({ box }) => event.clientY < box.bottom) ?? rows.at(-1)!;
-        return { kind: "row", botId: row.botId, place: event.clientY < row.box.top + row.box.height / 2 ? "before" : "after" };
+        if (!rows.length || (list !== "" && clientY < rows[0]!.box.top)) return { kind: "end", list };
+        const row = rows.find(({ box }) => clientY < box.bottom) ?? rows.at(-1)!;
+        return { kind: "row", botId: row.botId, place: clientY < row.box.top + row.box.height / 2 ? "before" : "after" };
+      };
+      // Between the sections, and past the last one, the nearest section takes the drop.
+      const nearestZone = (event: DragEvent<HTMLElement>): BotDrop | null | undefined => {
+        if ((event.target as Element | null)?.closest?.("[data-sidebar-section-id]")) return undefined;
+        let best: { element: HTMLElement; list: string; distance: number } | null = null;
+        for (const element of event.currentTarget.querySelectorAll<HTMLElement>("[data-sidebar-section-id]")) {
+          const list = listFor(element.dataset.sidebarSectionId ?? "");
+          if (list === null || !lists.has(list)) continue;
+          const box = element.getBoundingClientRect();
+          const distance = Math.max(box.top - event.clientY, event.clientY - box.bottom, 0);
+          if (!best || distance < best.distance) best = { element, list, distance };
+        }
+        return best ? zoneDrop(best.element, event.clientY, best.list) : null;
       };
       return {
+        enabled: movable,
         row: (botId: string): { botDrag?: BotRowDrag; botDrop?: BotDropPlace | null; botDragging?: boolean } => {
           if (!movable || botListOf(lists, botId) === undefined) return {};
           const place = shown?.kind === "row" && shown.botId === botId ? shown.place
-            : shown?.kind === "end" && shown.list === "" && botId === mainIds.at(-1) ? "after" : null;
+            : shown?.kind === "end" && shown.list === "" && !slotShown && botId === mainIds.at(-1) ? "after" : null;
           return { botDrag: controller.current!, botDrop: place, botDragging: active === botId };
         },
         into: (name: string | null) => shown?.kind === "end" && name !== null && name !== "" && shown.list === name,
@@ -171,19 +187,52 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
             if (!moving.current.botId || list === null || !lists.has(list)) return show(null);
             event.preventDefault();
             event.dataTransfer.dropEffect = "move";
-            const target = zoneDrop(event, list);
+            const target = zoneDrop(event.currentTarget, event.clientY, list);
             show(target.kind === "row" && target.botId === moving.current.botId ? null : target);
           },
           onDrop: (event) => {
             if (!carries(event)) return fallback.onDrop(event);
             event.preventDefault();
             const list = listFor(sectionId);
-            finish(list !== null && lists.has(list) ? zoneDrop(event, list) : null);
+            finish(list !== null && lists.has(list) ? zoneDrop(event.currentTarget, event.clientY, list) : null);
           },
         }),
-        slot: active !== null && mainIds.length === 0 && botListOf(lists, active) !== ""
-          ? <div data-bot-drop-slot="" className={cn("mx-2 flex h-10 items-center justify-center rounded-[10px] border border-dashed text-[13px] leading-[18px]",
-            shown?.kind === "end" && shown.list === "" ? "border-accent bg-accent/10 text-ink" : "border-ink/20 text-ink-secondary")}>{t("sidebar.section.removeFromDepartment")}</div>
+        gap: {
+          onDragOver: (event: DragEvent<HTMLElement>) => {
+            if (!carries(event) || !moving.current.botId || event.defaultPrevented) return;
+            const target = nearestZone(event);
+            if (target === undefined) return;
+            if (target === null) return show(null);
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            show(target.kind === "row" && target.botId === moving.current.botId ? null : target);
+          },
+          onDrop: (event: DragEvent<HTMLElement>) => {
+            if (!carries(event) || !moving.current.botId || event.defaultPrevented) return;
+            const target = nearestZone(event);
+            if (target === undefined) return;
+            event.preventDefault();
+            finish(target);
+          },
+        } satisfies DropHandlers,
+        slot: slotShown
+          ? <div
+            data-bot-drop-slot=""
+            onDragOver={(event) => {
+              if (!carries(event) || !moving.current.botId) return;
+              event.preventDefault();
+              event.stopPropagation();
+              event.dataTransfer.dropEffect = "move";
+              show({ kind: "end", list: "" });
+            }}
+            onDrop={(event) => {
+              if (!carries(event) || !moving.current.botId) return;
+              event.preventDefault();
+              event.stopPropagation();
+              finish({ kind: "end", list: "" });
+            }}
+            className={cn("mx-2 flex h-10 items-center justify-center rounded-[10px] border border-dashed text-[13px] leading-[18px]",
+              shown?.kind === "end" && shown.list === "" ? "border-accent bg-accent/10 text-ink" : "border-ink/20 text-ink-secondary")}>{t("sidebar.section.dropToRemove")}</div>
           : null,
         naming: (name: string | null): SectionNaming | undefined => {
           if (!naming || name === null) return undefined;

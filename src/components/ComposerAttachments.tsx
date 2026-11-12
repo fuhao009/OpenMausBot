@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ClipboardPaste, File as FileIcon, Image as ImageIcon, LoaderCircle, MessageSquareText, X } from "lucide-react";
+import { ClipboardPaste, File as FileIcon, Image as ImageIcon, LoaderCircle, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { t } from "@/lib/i18n";
 import {
   attachmentImageUrl,
   intakeFiles,
@@ -18,6 +19,9 @@ import type { CitationAttachment } from "@/lib/citations";
 export function pathForFile(file: File): string {
   return window.ogb?.getPathForFile?.(file) ?? "";
 }
+
+/** The sidebar takes files dropped on a bot itself, so this composer leaves them alone. */
+const overSidebar = (event: DragEvent) => event.target instanceof Element && event.target.closest("[data-sidebar]") !== null;
 
 export function ComposerAttachments({
   items,
@@ -67,13 +71,16 @@ export function ComposerAttachments({
     };
     // Without preventDefault the window navigates to the dropped file.
     const onOver = (e: DragEvent) => {
-      if (carriesFiles(e)) e.preventDefault();
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      setDragging(!overSidebar(e));
     };
     const onDrop = async (e: DragEvent) => {
       if (!carriesFiles(e)) return;
       e.preventDefault();
       depth.current = 0;
       setDragging(false);
+      if (overSidebar(e)) return;
       const files = Array.from(e.dataTransfer?.files ?? []);
       const operation = Symbol("attachment-drop");
       pendingDrops.current.add(operation);
@@ -107,9 +114,9 @@ export function ComposerAttachments({
   return (
     <>
       {dragging && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-10">
+        <div data-composer-drop-overlay="" className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-10 animate-fade-in">
           <div className="rounded-2xl border-2 border-dashed border-accent/70 bg-panel/90 px-8 py-6 text-[14px] font-medium text-ink shadow-2xl">
-            Drop to attach
+            {t("composer.dropToAttach")}
           </div>
         </div>
       )}
@@ -144,23 +151,20 @@ export function ComposerAttachments({
                 title={a.text.slice(0, 4000)}
                 onRemove={() => onRemove(a.id)}
               >
-                <div className="relative h-[76px] overflow-hidden">
+                <button
+                  type="button"
+                  data-paste-display=""
+                  onClick={() => onDisplayInChatBox(a)}
+                  aria-label={t("composer.paste.displayAria")}
+                  title={t("composer.paste.display")}
+                  className="relative block h-[76px] w-full cursor-pointer overflow-hidden rounded-md text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/60"
+                >
                   <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-[1.45] text-ink-secondary">
                     {a.text.slice(0, 400)}
                   </pre>
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-b from-transparent to-raised" />
-                </div>
-                <div className="mt-1 text-[11px] text-ink-tertiary">{pasteSummary(a)}</div>
-                <button
-                  type="button"
-                  onClick={() => onDisplayInChatBox(a)}
-                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent/25 bg-accent/5 px-2 py-1.5 text-[11px] font-medium text-accent-text transition-colors hover:border-accent/50 hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/60"
-                  aria-label="Display pasted text in chat box"
-                  title="Display in chat box"
-                >
-                  <MessageSquareText size={12} aria-hidden="true" />
-                  <span>Display in chat box</span>
+                  <span className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-b from-transparent to-raised" />
                 </button>
+                <div className="mt-1 text-[11px] text-ink-tertiary">{pasteSummary(a)}</div>
               </Chip>
             ) : a.kind === "image" ? (
               <Chip key={a.id} label="IMAGE" title={a.name} onRemove={() => onRemove(a.id)}>

@@ -4,8 +4,7 @@ import { BotAvatar } from "@/components/Avatar";
 import type { Bot } from "@/state/store";
 import { MiniMonth } from "./MiniMonth";
 import { t } from "@/lib/i18n";
-
-export const BOT_CALENDAR_DRAG_TYPE = "application/x-hezuo-bot";
+import { BOT_DRAG_TYPE } from "@/lib/bot-chat-drop";
 
 export interface CalendarSidebarProps {
   bots: Bot[];
@@ -25,7 +24,7 @@ export function CalendarSidebar({ bots, anchor, onSelectDate }: CalendarSidebarP
 
   const beginBotDrag = (event: DragEvent<HTMLDivElement>, bot: Bot) => {
     event.dataTransfer.effectAllowed = "copy";
-    event.dataTransfer.setData(BOT_CALENDAR_DRAG_TYPE, bot.id);
+    event.dataTransfer.setData(BOT_DRAG_TYPE, bot.id);
     event.dataTransfer.setData("text/plain", bot.id);
   };
 

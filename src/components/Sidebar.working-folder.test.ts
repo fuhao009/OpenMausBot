@@ -34,7 +34,8 @@ const render = () => flushSync(() => root.render(createElement(BotEditorStore, {
     flushBotPatches: async () => null, refreshInstances: async () => {}, refreshModels: async () => {} },
   children: createElement(Sidebar, { open: true, onClose: () => {} }),
 })));
-const openMenu = () => flushSync(() => document.querySelector<HTMLButtonElement>('button[aria-label="Actions for Pepper"]')!.click());
+const openMenu = () => flushSync(() => document.querySelector<HTMLElement>('[data-sidebar-bot-row="pepper"]')!
+  .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })));
 const menuItem = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((button) => button.textContent === label);
 
 beforeEach(() => {
