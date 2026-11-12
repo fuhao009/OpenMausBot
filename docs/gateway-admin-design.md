@@ -4,7 +4,7 @@
 
 面向网关运营者，不是桌面工作区后台。网关管理账号、AI 权限、积分、请求结算和连接状态；不读取桌面 bot、对话正文或工作区文件。
 
-当前没有 `/admin` 页面。已有运营者 API 和 `gateway/scripts/account-ai-admin.mjs`。本文件是设计方案，不代表功能已经实现。
+`/admin` 已实现账号权限、积分、请求结算和系统状态页面；接口契约见 [gateway-admin-api.md](gateway-admin-api.md)，部署与验证范围见 [gateway-deployment-193.md](gateway-deployment-193.md)。本文件保留功能边界和扩展接口要求。
 
 ## 页面与交互
 
