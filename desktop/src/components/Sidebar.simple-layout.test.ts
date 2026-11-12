@@ -37,6 +37,7 @@ vi.mock("./DesktopCapabilities", async () => {
 });
 vi.mock("@/lib/thread-preferences", () => ({ useShowThreads: () => fixture.advanced }));
 vi.mock("@/lib/interface-mode", () => ({ useAdvancedMode: () => fixture.advanced, setAdvancedMode: () => {} }));
+vi.mock("@/lib/default-bot", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/default-bot")>(), useViewerEmail: () => null }));
 vi.mock("@/state/store", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/state/store")>();
   return { ...original, useStore: () => ({ state: fixture.state, dispatch: fixture.dispatch }) };
@@ -107,28 +108,51 @@ afterEach(() => {
 });
 
 describe("Simple-mode sidebar layout", () => {
-  it("lists the bots with no heading, then gives group chats and a person's own departments a quiet heading with a count", () => {
+  it("gives group chats, a person's own departments and the ungrouped bots, last, a quiet heading with a count", () => {
     const { tree } = render();
-    expect(sectionOrder(tree)).toEqual([BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work")]);
-    expect(listedBots(tree)).toEqual(["atlas", "bea", "dodo"]);
+    expect(sectionOrder(tree)).toEqual([CHANNELS_SECTION_ID, userSectionId("Work"), BOTS_SECTION_ID]);
+    expect(listedBots(tree)).toEqual(["dodo", "atlas", "bea"]);
     const lines = headers(tree);
-    expect(lines.map((header) => [header.props.name, header.props.line, header.props.count])).toEqual([["Group chats", true, 1], ["Work", true, 1]]);
+    expect(lines.map((header) => [header.props.name, header.props.line, header.props.count])).toEqual([["Group chats", true, 1], ["Work", true, 1], ["Ungrouped", true, 2]]);
     expect(lines[0]!.props.onMenu).toBeUndefined();
     expect(lines[1]!.props.onDelete).toBeUndefined();
     expect(lines[1]!.props.onMenu).toBeTypeOf("function");
+    expect(lines[2]!.props.onMenu).toBeUndefined();
     expect(labelled(tree, "Add or remove bots in Work")).toBe(false);
     expect(tree.some((node) => node.type === SidebarTileGrid)).toBe(false);
   });
 
-  it("shows the Chief and the pinned bots as tiles above the rows, with no Pinned or Bots heading", () => {
+  it("shows the Chief and the pinned bots as tiles above the rows, with no Pinned heading", () => {
     fixture.state = { ...fixture.state, bots: [bot("chief", { chiefOfStaff: true, pinned: true }), bot("atlas", { pinned: true }), bot("bea"), bot("dodo", { section: "Work", pinned: true })] };
     const { tree } = render();
     const grid = tree.find((node) => node.type === SidebarTileGrid)!.props as Parameters<typeof SidebarTileGrid>[0];
     expect(grid.primary?.id).toBe("chief");
     expect(grid.pinned.map((candidate) => candidate.id)).toEqual(["atlas", "dodo"]);
-    expect(sectionOrder(tree)).toEqual([BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work")]);
+    expect(sectionOrder(tree)).toEqual([CHANNELS_SECTION_ID, userSectionId("Work"), BOTS_SECTION_ID]);
     expect(listedBots(tree)).toEqual(["bea"]);
-    expect(headers(tree).map((header) => header.props.name)).toEqual(["Group chats", "Work"]);
+    expect(headers(tree).map((header) => header.props.name)).toEqual(["Group chats", "Work", "Ungrouped"]);
+  });
+
+  it("gives a product workspace the same tiles and line headings, with the ungrouped bots last", () => {
+    fixture.state = {
+      ...initialState,
+      config: { ...initialState.config, productManaged: true } as AppState["config"],
+      bots: [
+        bot("hezuo", { defaultBot: {} }), bot("atlas", { pinned: true }), bot("bea", { pinned: true }),
+        bot("cleo"), bot("dodo", { section: "Work" }), bot("echo", { section: "Work" }),
+      ],
+      groups: [],
+      sections: ["Work"],
+    };
+    const { tree } = render();
+    const grid = tree.find((node) => node.type === SidebarTileGrid)!.props as Parameters<typeof SidebarTileGrid>[0];
+    expect(grid.primary?.id).toBe("hezuo");
+    expect(grid.pinned.map((candidate) => candidate.id)).toEqual(["atlas", "bea"]);
+    expect(sectionOrder(tree)).toEqual([userSectionId("Work"), BOTS_SECTION_ID]);
+    expect(headers(tree).map((header) => [header.props.name, header.props.line, header.props.count])).toEqual([["Work", true, 2], ["Ungrouped", true, 1]]);
+    expect(listedBots(tree)).toEqual(["dodo", "echo", "cleo"]);
+    expect(tree.some((node) => node.props["data-sidebar-product-default"] !== undefined)).toBe(false);
+    expect(tree.some((node) => node.type === SidebarSearchToggle)).toBe(true);
   });
 
   it("fades the list's edges in both modes, with the top buttons and the tiles fixed above it", () => {
@@ -174,7 +198,7 @@ describe("Simple-mode sidebar layout", () => {
   it("still offers Add bots under an empty team", () => {
     fixture.state = { ...fixture.state, sections: ["Work", "Empty"] };
     const { tree } = render();
-    expect(headers(tree).map((header) => header.props.name)).toEqual(["Group chats", "Work", "Empty"]);
+    expect(headers(tree).map((header) => header.props.name)).toEqual(["Group chats", "Work", "Empty", "Ungrouped"]);
     expect(labelled(tree, "Add bots to Empty")).toBe(true);
     expect(labelled(tree, "Add or remove bots in Work")).toBe(false);
   });
@@ -184,7 +208,7 @@ describe("Simple-mode sidebar layout", () => {
     const { tree } = render();
     expect(sectionOrder(tree)).toEqual([CHANNELS_SECTION_ID, BOTS_SECTION_ID, userSectionId("Work")]);
     const all = headers(tree);
-    expect(all.map((header) => header.props.name)).toEqual(["Group chats", "Bots", "Work"]);
+    expect(all.map((header) => header.props.name)).toEqual(["Group chats", "Ungrouped", "Work"]);
     for (const header of all) {
       expect(header.props.line).toBe(false);
       expect(header.props.onMenu).toBeUndefined();
@@ -211,32 +235,34 @@ describe("Simple-mode sidebar layout", () => {
     fixture.state = { ...fixture.state, sections: ["Work", "Home"] };
     const saved = [userSectionId("Home"), CHANNELS_SECTION_ID, BOTS_SECTION_ID, userSectionId("Work")];
     fixture.storage.set(SIDEBAR_SECTION_ORDER_KEY, JSON.stringify(saved));
-    expect(sectionOrder(render().tree)).toEqual([BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Home"), userSectionId("Work")]);
+    expect(sectionOrder(render().tree)).toEqual([CHANNELS_SECTION_ID, userSectionId("Home"), userSectionId("Work"), BOTS_SECTION_ID]);
     const work = () => headers(render().tree).find((header) => header.props.name === "Work")!;
     expect(work().props.reorderable).toBe(true);
     work().props.onMove!(-1);
-    const moved = [BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work"), userSectionId("Home")];
+    const moved = [CHANNELS_SECTION_ID, userSectionId("Work"), userSectionId("Home"), BOTS_SECTION_ID];
     expect(JSON.parse(fixture.storage.get(SIMPLE_SIDEBAR_SECTION_ORDER_KEY)!)).toEqual(moved);
     expect(JSON.parse(fixture.storage.get(SIDEBAR_SECTION_ORDER_KEY)!)).toEqual(saved);
     expect(sectionOrder(render().tree)).toEqual(moved);
   });
 
-  it("moves group chats above the bots, which then get their own heading, and leaves Advanced's order alone", () => {
-    const chats = () => headers(render().tree).find((header) => header.props.name === "Group chats")!;
-    expect(chats().props.reorderable).toBe(true);
-    chats().props.onMove!(-1);
+  it("moves the ungrouped bots above the departments, and leaves Advanced's order alone", () => {
+    const ungrouped = () => headers(render().tree).find((header) => header.props.name === "Ungrouped")!;
+    expect(ungrouped().props.reorderable).toBe(true);
+    ungrouped().props.onMove!(-1);
     const { tree } = render();
     expect(sectionOrder(tree)).toEqual([CHANNELS_SECTION_ID, BOTS_SECTION_ID, userSectionId("Work")]);
-    expect(headers(tree).map((header) => header.props.name)).toEqual(["Group chats", "Bots", "Work"]);
+    expect(headers(tree).map((header) => header.props.name)).toEqual(["Group chats", "Ungrouped", "Work"]);
     expect(listedBots(tree)).toEqual(["atlas", "bea", "dodo"]);
     expect(fixture.storage.get(SIDEBAR_SECTION_ORDER_KEY)).toBeUndefined();
   });
 
-  it("never hides the heading-less bots behind a collapse saved in Advanced", () => {
+  it("collapses the ungrouped bots like any other section", () => {
     fixture.storage.set(SIDEBAR_COLLAPSED_SECTIONS_KEY, JSON.stringify([BOTS_SECTION_ID, userSectionId("Work")]));
     const { tree } = render();
-    expect(listedBots(tree)).toEqual(["atlas", "bea"]);
-    expect(headers(tree).find((header) => header.props.name === "Work")!.props.collapsed).toBe(true);
+    expect(listedBots(tree)).toEqual([]);
+    const lines = headers(tree);
+    expect(lines.find((header) => header.props.name === "Work")!.props.collapsed).toBe(true);
+    expect(lines.find((header) => header.props.name === "Ungrouped")!.props.collapsed).toBe(true);
   });
 
   it("toggles a search pill from the round search button, and closing it clears the filter", () => {
@@ -252,7 +278,7 @@ describe("Simple-mode sidebar layout", () => {
     expect(listedBots(render().tree)).toEqual(["bea"]);
     pill()!.onClose();
     expect(pill()).toBeUndefined();
-    expect(listedBots(render().tree)).toEqual(["atlas", "bea", "dodo"]);
+    expect(listedBots(render().tree)).toEqual(["dodo", "atlas", "bea"]);
     toggle().onToggle();
     pill()!.onQuery("atlas");
     toggle().onToggle();
@@ -298,8 +324,8 @@ describe("Simple-mode sidebar layout", () => {
     expect(fixture.storage.get(SIDEBAR_DENSITY_KEY)).toBe("avatars");
     const { root, tree } = render();
     expect(root.props.className).toContain("w-[92px]");
-    expect(sectionOrder(tree)).toEqual([BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work")]);
-    expect(listedBots(tree)).toEqual(["atlas", "bea", "dodo"]);
+    expect(sectionOrder(tree)).toEqual([CHANNELS_SECTION_ID, userSectionId("Work"), BOTS_SECTION_ID]);
+    expect(listedBots(tree)).toEqual(["dodo", "atlas", "bea"]);
     expect(headers(tree)).toEqual([]);
     expect(tree.filter((node) => node.type === SidebarRailSeparator)).toHaveLength(2);
     expect(tree.some((node) => node.type === SidebarSearchToggle)).toBe(false);

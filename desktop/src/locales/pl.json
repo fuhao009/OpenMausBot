@@ -1740,7 +1740,7 @@
   "sidebar.section.pinned": "Przypięte",
   "sidebar.section.channels": "Czaty grupowe",
   "sidebar.section.botChats": "Wątki botów",
-  "sidebar.section.bots": "Boty",
+  "sidebar.section.bots": "Bez grupy",
   "sidebar.section.moved": "{name} przeniesiono na pozycję {position} z {count}",
   "sidebar.section.moveToContext": "Przenieś do działu",
   "sidebar.section.newContext": "Nowy dział…",

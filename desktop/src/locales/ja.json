@@ -1747,7 +1747,7 @@
   "sidebar.section.pinned": "ピン留め",
   "sidebar.section.channels": "グループチャット",
   "sidebar.section.botChats": "ボット間のスレッド",
-  "sidebar.section.bots": "ボット",
+  "sidebar.section.bots": "未分類",
   "sidebar.section.moved": "{name} を {count} 件中 {position} 番目に移動しました",
   "sidebar.section.moveToContext": "部署に移動",
   "sidebar.section.newContext": "新しい部署…",

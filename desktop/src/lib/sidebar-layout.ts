@@ -174,12 +174,15 @@ export function orderedSidebarSections(
   return result;
 }
 
-export const SIMPLE_FIRST_SECTION_IDS: readonly SidebarSectionId[] = [PINNED_SECTION_ID, BOTS_SECTION_ID, CHANNELS_SECTION_ID, BOT_CHATS_SECTION_ID];
+export const SIMPLE_FIRST_SECTION_IDS: readonly SidebarSectionId[] = [PINNED_SECTION_ID, CHANNELS_SECTION_ID, BOT_CHATS_SECTION_ID];
+
+export const SIMPLE_LAST_SECTION_IDS: readonly SidebarSectionId[] = [BOTS_SECTION_ID];
 
 export function simpleSidebarSections(ids: SidebarSectionId[]): SidebarSectionId[] {
   return [
     ...SIMPLE_FIRST_SECTION_IDS.filter((id) => ids.includes(id)),
-    ...ids.filter((id) => !SIMPLE_FIRST_SECTION_IDS.includes(id)),
+    ...ids.filter((id) => !SIMPLE_FIRST_SECTION_IDS.includes(id) && !SIMPLE_LAST_SECTION_IDS.includes(id)),
+    ...SIMPLE_LAST_SECTION_IDS.filter((id) => ids.includes(id)),
   ];
 }
 

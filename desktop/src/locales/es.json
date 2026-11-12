@@ -1582,7 +1582,7 @@
   "sidebar.section.pinned": "Fijados",
   "sidebar.section.channels": "Chats de grupo",
   "sidebar.section.botChats": "Hilos entre bots",
-  "sidebar.section.bots": "Bots",
+  "sidebar.section.bots": "Sin grupo",
   "sidebar.section.moved": "{name} movido a la posición {position} de {count}",
   "sidebar.section.moveToContext": "Mover al departamento",
   "sidebar.section.newContext": "Departamento nuevo…",

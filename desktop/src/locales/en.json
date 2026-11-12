@@ -2005,7 +2005,7 @@
   "sidebar.section.pinned": "Pinned",
   "sidebar.section.channels": "Group chats",
   "sidebar.section.botChats": "Bot threads",
-  "sidebar.section.bots": "Bots",
+  "sidebar.section.bots": "Ungrouped",
   "sidebar.section.moved": "{name} moved to position {position} of {count}",
   "sidebar.section.moveToContext": "Move to department",
   "sidebar.section.newContext": "New department…",

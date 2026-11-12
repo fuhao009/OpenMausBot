@@ -145,8 +145,8 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("Simple's sidebar before anyone drags", () => {
   it("looks as it did: the same sections and rows, nothing marked, each row ready to drag", () => {
-    expect(sections()).toEqual([BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work")]);
-    expect(listed()).toEqual(["atlas", "bea", "cleo", "dodo", "echo"]);
+    expect(sections()).toEqual([CHANNELS_SECTION_ID, userSectionId("Work"), BOTS_SECTION_ID]);
+    expect(listed()).toEqual(["dodo", "echo", "atlas", "bea", "cleo"]);
     for (const props of rows()) {
       expect(props.botDrop).toBeNull();
       expect(props.botDragging).toBe(false);
@@ -179,11 +179,11 @@ describe("dragging a bot", () => {
     expect(row("atlas").botDrop).toBe("group");
     row("atlas").botDrag!.row("atlas").onDrop(at() as never);
     expect(actions()).toEqual([]);
-    expect(sections()).toEqual([BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work"), userSectionId(NEW_DEPARTMENT)]);
+    expect(sections()).toEqual([CHANNELS_SECTION_ID, userSectionId("Work"), userSectionId(NEW_DEPARTMENT), BOTS_SECTION_ID]);
     const naming = header(NEW_DEPARTMENT).naming!;
     expect(naming.value).toBe("New department");
     expect(naming.label).toBe("New department name");
-    expect(listed()).toEqual(["bea", "dodo", "echo", "atlas", "cleo"]);
+    expect(listed()).toEqual(["dodo", "echo", "atlas", "cleo", "bea"]);
     naming.onCommit("  ");
     expect(actions()).toEqual([
       { type: "updateBot", botId: "atlas", patch: { section: "New department" } },
@@ -203,7 +203,7 @@ describe("dragging a bot", () => {
     expect(over.preventDefault).not.toHaveBeenCalled();
     expect(header(NEW_DEPARTMENT).dropInto).toBe(false);
     header(NEW_DEPARTMENT).naming!.onCancel();
-    expect(listed()).toEqual(["atlas", "bea", "cleo", "dodo", "echo"]);
+    expect(listed()).toEqual(["dodo", "echo", "atlas", "bea", "cleo"]);
     expect(actions()).toEqual([]);
   });
 
@@ -265,7 +265,7 @@ describe("dragging a bot", () => {
     drag("echo");
     expect(slotNode()).toBeDefined();
     expect(inSection(slotNode()!)).toBe(false);
-    expect(sections()).toEqual([BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId("Work")]);
+    expect(sections()).toEqual([CHANNELS_SECTION_ID, userSectionId("Work"), BOTS_SECTION_ID]);
     const over = at();
     (slotNode()!.props.onDragOver as (event: unknown) => void)(over);
     expect(over.preventDefault).toHaveBeenCalled();
@@ -421,7 +421,7 @@ describe("who may drag a bot: whoever the bot menu offers Move to department", (
   it("gives a Team Cloud member without the admin scope no row to drag and no Alt+Up/Down, and starts no drag", () => {
     const drawnEarlier = row("atlas").botDrag!;
     fixture.admin = false;
-    expect(listed()).toEqual(["atlas", "bea", "cleo", "dodo", "echo"]);
+    expect(listed()).toEqual(["dodo", "echo", "atlas", "bea", "cleo"]);
     expect(rows().map((props) => props.botDrag)).toEqual([undefined, undefined, undefined, undefined, undefined]);
     carried = transfer();
     drawnEarlier.row("atlas").onDragStart(at() as never);

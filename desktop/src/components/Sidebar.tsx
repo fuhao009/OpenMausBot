@@ -953,9 +953,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
   const [query, setQuery] = useState("");
   const storedDensity = useSidebarDensity();
   const density = collapseToIcons ? "icons" : product ? "comfortable" : storedDensity;
-  // A product account's list is always the plain list of bots and threads — never the tile grid or the search pill that
-  // simple mode swaps in — because its default bot is pinned above the list and the rest of the bots follow as rows.
-  const simple = !advanced && density !== "icons" && !product;
+  const simple = !advanced && density !== "icons";
   const simpleDesk = simple && !phone;
   const rail = !advanced && density === "icons" && !product;
   const sidePanelOpen = state.computerOpen || state.inspectorOpen;
@@ -1072,12 +1070,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
     );
   const visibleGroups = state.groups.filter((g) => !q || g.name.toLowerCase().includes(q) || g.tasks?.some((task) => task.title.toLowerCase().includes(q)));
   const viewerEmail = useViewerEmail();
-  // A product account's own Hezuo is pinned above the list, not left among the bots where a long list buries it. It is
-  // taken out of the partitioned set, so no section, pin or tile lists it a second time.
-  const productDefault = product ? myDefaultBot(matchingBots, viewerEmail) : undefined;
-  const parts = partitionSidebarBots(botDrag.preview(
-    productDefault ? matchingBots.filter((bot) => bot.id !== productDefault.id) : matchingBots,
-  ), { universalPins, viewerEmail, welcoming: useWelcomingBot() });
+  const parts = partitionSidebarBots(botDrag.preview(matchingBots), { universalPins, viewerEmail, welcoming: useWelcomingBot() });
   const {
     primary,
     unsectionedChief,
@@ -1434,7 +1427,6 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
           {matchingBots.length === 0 && visibleGroups.length === 0 && q && q.length < MIN_QUERY && (
             <div className="px-3 py-6 text-center text-[13px] text-ink-secondary">{t("sidebar.noMatch", { query })}</div>
           )}
-          {productDefault && <div data-sidebar-product-default className="mb-1.5"><BotListItem {...botRow(productDefault)} /></div>}
           {!q && <NeedsYouButton compact={rail} />}{!q && <SidebarPeople compact={rail} />}
           {unsectionedChief && (phone ? (
             <PhoneHero bot={unsectionedChief} selected={botRow(unsectionedChief).selected} onOpen={() => openBot(dispatch, unsectionedChief, showThreads)} onMenu={setMenu} />
@@ -1464,8 +1456,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
                   : sectionName
                     ? sectionedBots.filter((bot) => bot.section === sectionName)
                     : [];
-            const headless = simple && id === BOTS_SECTION_ID && index === 0;
-            const collapsed = !headless && sectionCollapsed(id);
+            const collapsed = sectionCollapsed(id);
             const queued = collapsed ? [...sectionChiefItems, ...sectionBotItems].flatMap((bot) =>
               sidebarBotActivityTasks(bot, state.pendingQueued).filter((task) => task.queued).map((task) => `${bot.name}: ${task.title}`)) : [];
             const attention = collapsed
@@ -1487,7 +1478,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
               >
                 {rail && index > 0 && <SidebarRailSeparator />}
                 {layout.dropLine(id, "before")}
-                {density !== "icons" && !headless && (
+                {density !== "icons" && (
                   <SidebarSectionHeader
                     name={sectionLabel(id)}
                     line={simple}
