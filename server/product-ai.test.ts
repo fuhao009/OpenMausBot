@@ -223,6 +223,8 @@ describe("the account engine's config", () => {
       url: `${ORIGIN}/v1/ai`, apiKeyEnv: PRODUCT_AI_KEY_ENV, provider: "", model: "hezuo-default",
       managedModels: ["hezuo-default", "hezuo-pro"],
       modelProtocols: { "hezuo-default": "chat", "hezuo-pro": "responses" },
+      accountSlotWaitMs: 600000,
+      upstreamStreamRetries: 2,
     });
     expect(JSON.stringify(entry)).not.toContain(TOKEN);
     expect(JSON.stringify(entry)).not.toMatch(/OPENAI_COMPAT_API_KEY|OPENAI_API_KEY|sk-/);

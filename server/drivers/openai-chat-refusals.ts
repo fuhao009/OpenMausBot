@@ -93,7 +93,9 @@ export function refusedToolCallFailure(error: RejectedToolCallError, earlierStep
 export function completionError(json: ProviderBody, label: string): ChatProtocolError | null {
   const message = providerError(json);
   if (!message) return null;
-  const text = `provider returned a ${label}: ${message.slice(0, 200)}`;
+  const code = object(json.error)?.code;
+  const suffix = typeof code === "string" && MACHINE_CODE.test(code) ? ` (${code})` : "";
+  const text = `provider returned a ${label}: ${message.slice(0, 200)}${suffix}`;
   const refusal = toolCallRefusal(json.error);
   return refusal ? new RejectedToolCallError(text, refusal) : new ChatProtocolError(text);
 }

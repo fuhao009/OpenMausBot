@@ -301,14 +301,19 @@ async function markReview(env: Env, requestId: string, reason: string): Promise<
  * reservation. An unreported cache split is not a discount, so the wallet
  * bills that input at the higher of the two rates. */
 async function settleUsage(env: Env, requestId: string, candidate: UsageCandidate | null): Promise<boolean> {
+  return (await settleOutcome(env, requestId, candidate)) === null;
+}
+
+/** Null when the usage settled, else why it did not. */
+async function settleOutcome(env: Env, requestId: string, candidate: UsageCandidate | null): Promise<string | null> {
   if (!candidate) {
     await markReview(env, requestId, "usage_missing");
-    return false;
+    return "usage_missing";
   }
   const { cached, input, output } = candidate;
   if (!isCount(input) || !isCount(output) || (cached !== null && (!isCount(cached) || cached > input))) {
     await markReview(env, requestId, "usage_invalid");
-    return false;
+    return "usage_invalid";
   }
   try {
     const result = await settleRequest(env, requestId, {
@@ -316,9 +321,9 @@ async function settleUsage(env: Env, requestId: string, candidate: UsageCandidat
       inputTokens: input,
       outputTokens: output,
     });
-    return result.status === "settled";
+    return result.status === "settled" ? null : "settle_failed";
   } catch {
-    return false;
+    return "settle_failed";
   }
 }
 
@@ -469,8 +474,26 @@ const renderData = (frame: SseFrame, data: string): string =>
     ...data.split("\n").map((line) => `data: ${line}`),
   ].join("\n")}\n\n`;
 
-const renderStreamError = (message: string): string =>
-  `event: error\ndata: ${JSON.stringify({ error: { code: "upstream_error", message, type: "upstream_error" } })}\n\n`;
+const renderStreamError = (message: string, code = "upstream_error"): string =>
+  `event: error\ndata: ${JSON.stringify({ error: { code, message, type: "upstream_error" } })}\n\n`;
+
+const STREAM_ERROR_MESSAGE_LIMIT = 300;
+const STREAM_ERROR_CODE = /^[A-Za-z][\w.-]{0,63}$/;
+
+/** What the upstream said went wrong, when it said so: its own short code and its message cut to a sentence or two. */
+function upstreamFailure(error: unknown, fallbackMessage: string): { code: string; message: string } {
+  const source = isRecord(error) ? error : null;
+  const code = source && isString(source.code) && STREAM_ERROR_CODE.test(source.code) ? source.code : "upstream_error";
+  const message = source && isString(source.message) && source.message.trim()
+    ? source.message.trim().slice(0, STREAM_ERROR_MESSAGE_LIMIT)
+    : fallbackMessage;
+  return { code, message };
+}
+
+/** One line, never any prompt text, header or key. */
+function logStreamFailure(requestId: string, reason: string, code: string, event: string): void {
+  console.error(`[ai-gateway] stream failed request=${requestId} reason=${reason} code=${code} event=${event}`);
+}
 
 function rewriteModel(value: Record<string, unknown>, upstreamModel: string, publicModel: string): boolean {
   if (value.model !== upstreamModel) return false;
@@ -551,7 +574,9 @@ function forwardStream(options: StreamOptions): Response {
       }
       if (parsed.error !== undefined && parsed.error !== null) {
         await markReview(env, requestId, "upstream_stream_error");
-        pending.push(renderStreamError("The upstream request failed."));
+        const failure = upstreamFailure(parsed.error, "The upstream request failed.");
+        logStreamFailure(requestId, "upstream_stream_error", failure.code, "error-frame");
+        pending.push(renderStreamError(failure.message, failure.code));
         return false;
       }
 
@@ -567,10 +592,15 @@ function forwardStream(options: StreamOptions): Response {
       const changed = response ? rewriteModel(response, model.upstreamModel, model.id) : false;
       if (isTerminalEvent(parsed.type)) {
         const candidate = response ? responsesUsageCandidate(response) : null;
-        if (await settleUsage(env, requestId, candidate)) {
+        const unsettled = await settleOutcome(env, requestId, candidate);
+        if (unsettled === null) {
           pending.push(changed ? renderData(frame, JSON.stringify(parsed)) : renderFrame(frame));
-        } else {
+        } else if (parsed.type === "response.completed") {
           pending.push(renderStreamError("The response could not be settled."));
+        } else {
+          const failure = upstreamFailure(response?.error, "The response could not be settled.");
+          logStreamFailure(requestId, unsettled, failure.code, String(parsed.type));
+          pending.push(renderStreamError(failure.message, failure.code));
         }
         return false;
       }

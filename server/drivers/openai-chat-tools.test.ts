@@ -161,6 +161,38 @@ async function fixture(script: Script, provider: Provider = "openai-compat", api
   };
 }
 
+describe("a round with nothing in it", () => {
+  const silent = (response: ServerResponse) => sse(response, [chunk({}, "stop")]);
+
+  it("ends the turn quietly once the tool calls before it all succeeded, as the model waits for work it handed off", async () => {
+    const f = await fixture((_body, response, round) => round === 1
+      ? sse(response, [chunk({ tool_calls: [toolCall("audit_write", '{"name":"handoff","value":"sent"}', "call-1")] }, "tool_calls")])
+      : silent(response));
+    await f.start({ approvalMode: "full" });
+    expect(await f.completed()).toMatchObject({ ok: true });
+    expect(f.requests).toHaveLength(2);
+    expect(f.effects().map((effect) => effect.name)).toEqual(["handoff"]);
+    expect(f.recorder.events.some((event) => event.type === "runtime.error")).toBe(false);
+    expect(f.recorder.events.some((event) => event.type === "item.completed" && (event as { itemType?: string }).itemType === "assistant_text")).toBe(false);
+  });
+
+  it("still fails when the very first reply is empty", async () => {
+    const f = await fixture((_body, response) => silent(response));
+    await f.start();
+    expect(await f.completed()).toMatchObject({ ok: false });
+    expect(f.requests).toHaveLength(1);
+    expect(f.recorder.events).toContainEqual(expect.objectContaining({ type: "runtime.error", message: expect.stringContaining("provider returned an empty response") }));
+  });
+
+  it("still fails when a tool call before it failed", async () => {
+    const f = await fixture((_body, response, round) => round === 1
+      ? sse(response, [chunk({ tool_calls: [toolCall("audit_fail")] }, "tool_calls")])
+      : silent(response));
+    await f.start({ approvalMode: "full" });
+    expect(await f.completed()).toMatchObject({ ok: false });
+  });
+});
+
 describe("bounded action announcement recovery", () => {
   const later = `${"The terminal output is absent; the launch receipt only confirms the process. ".repeat(7)}\n\nLet me execute the commands to create the file and read it back.`;
 

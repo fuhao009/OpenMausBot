@@ -521,6 +521,18 @@ describe("what Responses can answer", () => {
     expect(failureOf(seen)).toContain("Stream ended before completion");
   });
 
+  it("reports a gateway's error frame, which carries no event type, rather than a cut-short stream", async () => {
+    const f = await fixture(onResponses((response) => {
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      response.write(`event: error\ndata: ${JSON.stringify({ error: { code: "upstream_error", message: "The upstream request failed.", type: "upstream_error" } })}\n\n`);
+      response.end();
+    }));
+    const { end, events: seen } = await f.turn();
+    expect(end).toMatchObject({ ok: false });
+    expect(failureOf(seen)).toContain("The upstream request failed.");
+    expect(failureOf(seen)).not.toContain("Stream ended before completion");
+  });
+
   it("reads frames far larger than a chat chunk", async () => {
     const f = await fixture(onResponses((response) => {
       const echoed = { ...created, response: { ...created.response, instructions: "x".repeat(3_000_000) } };

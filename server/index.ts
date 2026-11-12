@@ -6703,7 +6703,11 @@ bus.subscribe((event: RuntimeEvent) => {
       pushMessage({
         role: "bot",
         kind: "activity",
-        tool: { name: `retrying — attempt ${event.attempt + 1}/${RETRY_MAX_ATTEMPTS} in ${Math.round(event.delayMs / 1000)}s — ${event.reason}`, ok: true },
+        tool: { name: event.reason === "account_busy"
+          ? `waiting for a free account slot — retry ${event.attempt} in ${Math.round(event.delayMs / 1000)}s`
+          : event.reason === "upstream_stream"
+          ? `upstream hiccup — retry ${event.attempt} in ${Math.round(event.delayMs / 1000)}s`
+          : `retrying — attempt ${event.attempt + 1}/${RETRY_MAX_ATTEMPTS} in ${Math.round(event.delayMs / 1000)}s — ${event.reason}`, ok: true },
       });
       break;
     case "runtime.notice":

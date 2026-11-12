@@ -115,6 +115,11 @@ interface RuntimeOptions<Config> {
   includeUsageInCompleted?: boolean;
   noBodyError?: string;
   retryScale?: number;
+  /** The gateway admits a few in-flight requests per account and refuses the rest with `ai_busy` before running
+   * anything; a request that was refused waits for a free slot and goes again, for at most `maxMs` in all. */
+  accountSlotWait?: { maxMs: number };
+  /** A gateway that ends a reply stream with an error before any of the reply arrived is asked again, this many times. */
+  upstreamStreamRetry?: { attempts: number };
   tools?: boolean;
   computerUse?: boolean;
   /** A text-only model keeps the computer and browser tools but never receives a screenshot or attachment. */
@@ -148,6 +153,16 @@ const stoppedAfter = (count: string) =>
 
 const CORRECTIVE_ROUND = "[Hezuo: a tool call in this turn failed (its result is marked ok:false). Re-run the failed operations with corrected inputs where possible, check the results, then give your final answer. Do not report results you did not get.]";
 const NUDGE_ANNOUNCED_ACTION = "You said what you would do next but called no tool. Use your tools for only the remaining work, or reply with verified results if nothing is left to do. Never repeat an operation that succeeded, was denied, or may already have taken effect; inspect its state instead. Do not retry a destructive operation.";
+
+const ACCOUNT_BUSY = /\(ai_busy\)/;
+const UPSTREAM_STREAM_FAILURE = /\(upstream_error\)|\(server_error\)|\bHTTP 5\d\d\b|Stream ended before completion|The upstream (?:stream failed|request failed|stream ended unexpectedly)/i;
+const UPSTREAM_STREAM_DELAYS_MS = [2_000, 5_000];
+const withJitter = (ms: number) => ms * (0.75 + Math.random() * 0.5);
+
+/** 1.5s, growing by half each time to a cap of 8s, give or take a quarter so waiting requests do not retry together. */
+function accountSlotDelay(attempt: number): number {
+  return withJitter(Math.min(8_000, 1_500 * 1.5 ** (attempt - 1)));
+}
 
 export function announcesAction(text: string): boolean {
   const reply = text.trim();
@@ -455,7 +470,11 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     onDelta?: (delta: string, kind: "assistant_text" | "reasoning_text") => void,
     tools: ChatToolDefinition[] = [],
     onUsage?: TextGenerationOptions["onUsage"],
+    onWait?: (reason: "account_busy" | "upstream_stream", attempt: number, delayMs: number) => void,
   ): Promise<Completion> => {
+    let slotAttempts = 0;
+    let slotWaited = 0;
+    let streamRetries = 0;
     for (;;) {
       let replied = false;
       try {
@@ -464,6 +483,23 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
           onDelta(text, kind);
         }), tools, onUsage);
       } catch (error) {
+        const wait = options.accountSlotWait;
+        if (wait && !replied && !signal?.aborted && error instanceof Error && ACCOUNT_BUSY.test(error.message) && slotWaited < wait.maxMs) {
+          const delayMs = Math.min(accountSlotDelay(++slotAttempts), wait.maxMs - slotWaited);
+          slotWaited += delayMs;
+          onWait?.("account_busy", slotAttempts, delayMs);
+          await interruptibleDelay(delayMs, signal).promise;
+          signal?.throwIfAborted();
+          continue;
+        }
+        const again = options.upstreamStreamRetry;
+        if (again && !replied && !signal?.aborted && error instanceof Error && UPSTREAM_STREAM_FAILURE.test(error.message) && streamRetries < again.attempts) {
+          const delayMs = withJitter(UPSTREAM_STREAM_DELAYS_MS[Math.min(streamRetries, UPSTREAM_STREAM_DELAYS_MS.length - 1)]!);
+          onWait?.("upstream_stream", ++streamRetries, delayMs);
+          await interruptibleDelay(delayMs, signal).promise;
+          signal?.throwIfAborted();
+          continue;
+        }
         if (!(error instanceof ModelRouteRefused) || replied || signal?.aborted) throw error;
         if (!routes.advance(model, error.refusal)) {
           const pinned = routes.pinnedProtocol(model);
@@ -649,7 +685,9 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
                 if (streamKind === "assistant_text") answerStreamed = true;
                 const shown = holdback && streamKind === "assistant_text" ? holdback.feed(text) : text;
                 if (shown) delta(shown, streamKind);
-              }, tools.definitions);
+              }, tools.definitions, undefined, (reason, waitAttempt, delayMs) => {
+                emit({ ...base(turn.threadId, turnId), type: "turn.retrying", attempt: waitAttempt, delayMs: Math.round(delayMs), reason });
+              });
               // A reply cut off at the token limit may be a call cut short; running half of one is worse than saying so.
               const written = holdback && !completion.toolCalls.length && completion.finishReason !== "length" ? textToolCalls(completion.text, tools.definitions) : null;
               unreadable = written?.kind === "unreadable" && !askedAgain;
@@ -732,7 +770,8 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
             continue;
           }
           if (!completion.toolCalls.length) {
-            if (!reply.trim()) throw new ChatProtocolError("provider returned an empty response");
+            // After tool calls that all succeeded, a silent round is the model waiting on work it handed off.
+            if (!reply.trim() && (seenCalls.size === 0 || toolFailed)) throw new ChatProtocolError("provider returned an empty response");
             if (completion.finishReason && completion.finishReason !== "stop") {
               throw new ChatProtocolError(`provider did not finish the response (${completion.finishReason})`);
             }

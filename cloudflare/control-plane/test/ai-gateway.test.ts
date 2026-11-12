@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { routeAiGateway } from "../src/ai-gateway";
 import { createAuth } from "../src/auth";
@@ -222,6 +222,10 @@ function streamedRequest(path: string, body: string, token: string, headers: Rec
     method: "POST",
   });
 }
+
+afterEach(() => vi.restoreAllMocks());
+
+const spyOnConsoleError = () => vi.spyOn(console, "error").mockImplementation(() => {});
 
 async function requests() {
   const result = await env.DB.prepare(
@@ -1106,6 +1110,59 @@ describe("ai gateway responses", () => {
     expect(rows[0].input_tokens).toBe(800);
     expect(rows[0].output_tokens).toBe(50);
     expect(await balance(userId)).toEqual({ available_micro_points: 8200, reserved_micro_points: 0 });
+  });
+
+  async function streamedResponses(email: string, frames: string[]) {
+    const { sessionId, userId } = await signIn(email);
+    const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
+    const { fetcher } = recorder(() => sseResponse(frames, 11));
+    const response = await routeAiGateway(
+      inferenceRequest("/v1/ai/responses", { input: "hello", model: "r1", stream: true, store: false }, token),
+      testEnv(),
+      fetcher,
+    );
+    return { text: (await response?.text()) ?? "", userId };
+  }
+  const errorData = (text: string) => JSON.parse(/event: error\ndata: (.*)\n/.exec(text)![1]!).error as { code: string; message: string; type: string };
+
+  it("passes on the upstream's own code and message when its stream carries an error frame", async () => {
+    const error = spyOnConsoleError();
+    const { text } = await streamedResponses("responses-error-frame@example.com", [
+      `data: {"type":"response.created","response":{"id":"resp_1","model":"upstream-r1"}}\n\n`,
+      `data: {"error":{"code":"server_error","message":"The model is overloaded. ${"x".repeat(400)}","private":"never shown"}}\n\n`,
+    ]);
+    expect(errorData(text)).toMatchObject({ code: "server_error", type: "upstream_error" });
+    expect(errorData(text).message).toHaveLength(300);
+    expect(text).not.toContain("never shown");
+    expect((await requests())[0]).toMatchObject({ state: "review", settlement_reason: "upstream_stream_error" });
+    expect(error.mock.calls.map(([line]) => String(line))).toEqual([expect.stringMatching(/^\[ai-gateway\] stream failed request=\S+ reason=upstream_stream_error code=server_error event=error-frame$/)]);
+  });
+
+  it("keeps the fixed text and code when the error frame says nothing usable", async () => {
+    spyOnConsoleError();
+    const { text } = await streamedResponses("responses-error-bare@example.com", [`data: {"error":{"code":"bad code!","message":"  "}}\n\n`]);
+    expect(errorData(text)).toMatchObject({ code: "upstream_error", message: "The upstream request failed." });
+  });
+
+  it("passes on why the upstream failed a response, and still reviews the missing usage", async () => {
+    const error = spyOnConsoleError();
+    const { text, userId } = await streamedResponses("responses-failed@example.com", [
+      `data: {"type":"response.created","response":{"id":"resp_1","model":"upstream-r1"}}\n\n`,
+      `data: {"type":"response.failed","response":{"id":"resp_1","model":"upstream-r1","status":"failed","error":{"code":"server_error","message":"The server had an error while processing your request."}}}\n\n`,
+    ]);
+    expect(errorData(text)).toEqual({ code: "server_error", message: "The server had an error while processing your request.", type: "upstream_error" });
+    expect((await requests())[0]).toMatchObject({ charged_micro_points: null, state: "review", settlement_reason: "usage_missing" });
+    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(error.mock.calls.map(([line]) => String(line))).toEqual(["[ai-gateway] stream failed request=" + (await requests())[0].id + " reason=usage_missing code=server_error event=response.failed"]);
+  });
+
+  it("still says only that a completed response without usage could not be settled", async () => {
+    const { text } = await streamedResponses("responses-no-usage@example.com", [
+      `data: {"type":"response.completed","response":{"id":"resp_1","model":"upstream-r1","error":{"code":"leaky","message":"must not pass"}}}\n\n`,
+    ]);
+    expect(errorData(text)).toMatchObject({ code: "upstream_error", message: "The response could not be settled." });
+    expect(text).not.toContain("must not pass");
+    expect((await requests())[0].settlement_reason).toBe("usage_missing");
   });
 
   it("settles a non-streaming responses body and forces store off", async () => {

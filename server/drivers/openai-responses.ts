@@ -219,6 +219,7 @@ export async function readResponsesStream(body: ReadableStream<Uint8Array> | nul
 
   const consume = (event: Record<string, unknown>): boolean => {
     const delta = typeof event.delta === "string" ? event.delta : "";
+    if (typeof event.type !== "string" && object(event.error)) throw failure(object(event.error));
     switch (event.type) {
       case "response.output_text.delta":
       case "response.refusal.delta":
