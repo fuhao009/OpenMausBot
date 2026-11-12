@@ -29,6 +29,8 @@ ssh root@192.168.66.193 'systemctl restart hezuo-gateway'
 - systemd：active (running)，enabled。
 - 网关 status：running=true、healthy=true；13 项迁移已应用，0 项待应用。
 - 从开发机使用 curl `--cacert` 校验证书并跨机器访问：`/healthz` 200；`/v1/auth/methods` 200；`/admin` 404。
+
+隔离验证补充：开发机真实 Worker fixture 在 300 秒内未完成；远端临时数据目录的独立网关检查在 120 秒内未完成。两次均超时，不能视为通过。生产地址的只读 HTTPS 检查结果不替代隔离业务验证，注册、权限、积分和中继联调仍未验证。
 - 未对部署后的真实数据库执行测试注册、积分修改或推理请求；以上不证明手机/桌面中继完整链路或上游推理可用。
 
 后台方案见 [gateway-admin-design.md](gateway-admin-design.md)。目前不存在可登录的管理网页，设计方案不是已实现后台。
