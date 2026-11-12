@@ -12,7 +12,7 @@
 
 全新部署，未迁移原电脑数据库、账户或上游凭据。密码登录已开启；管理员 `fuhaoliang@admin.com` 已按用户授权创建并显式加入运营者配置。未配置邮件、上游模型或价格，因此邮箱验证码和 AI 推理未启用。没有修改现有 nginx 或其他服务。
 
-管理网页：`https://192.168.66.193:18487/admin`。已部署实现提交 `9b0e3cb4e`，远端记录在 `/opt/hezuo-gateway/deployed-commit`。随机管理员初始密码保存在服务器 `/root/hezuo-admin-initial-credentials.json`（root，0600），不进入 Git。通过 SSH 私下读取，不粘贴到联调日志。
+管理网页：`https://192.168.66.193:18487/admin`。已部署实现提交 `64b453286`，远端记录在 `/opt/hezuo-gateway/deployed-commit`。随机管理员初始密码保存在服务器 `/root/hezuo-admin-initial-credentials.json`（root，0600），不进入 Git。通过 SSH 私下读取，不粘贴到联调日志。
 
 ## 运维
 
@@ -29,7 +29,7 @@ ssh root@192.168.66.193 'systemctl restart hezuo-gateway'
 ## 已观察到的验证结果
 
 - systemd：active (running)，enabled。
-- 网关 status：running=true、healthy=true；13 项迁移已应用，0 项待应用。
+- 网关 status：running=true、healthy=true；14 项迁移已应用，0 项待应用。
 - 从开发机使用 curl `--cacert` 校验证书并跨机器访问：`/healthz` 200；`/v1/auth/methods` 200；部署后 `/admin` 200。
 - `tsc --noEmit -p gateway/control-plane/tsconfig.json` 通过。
 - `vitest run test/admin.test.ts test/account-ai.test.ts`：2 个文件、21 项测试通过，涵盖运营者权限和现有账本管理行为。
@@ -38,4 +38,12 @@ ssh root@192.168.66.193 'systemctl restart hezuo-gateway'
 - 桌面宽度 1440px、窄屏 390px 已观察真实页面；窄屏无整页横向溢出，localStorage/sessionStorage 均为空，浏览器无页面错误。仅本机一次性 fixture 浏览器放行自签证书；生产跨机器检查使用 CA 校验。
 - 生产环境只执行用户授权的管理员注册与授权，没有注入测试积分或推理请求。手机/桌面中继和真实模型推理未验证。
 
-实现包含账号查询、权限启停、增加积分、请求记录/详情/人工结算和系统状态。接口契约见 [gateway-admin-api.md](gateway-admin-api.md)。全局用户列表、设备管理、网页修改模型定价不在此版界面内；不把账号级接口冒充全局运营接口。
+实现包含账号查询、权限启停、增加积分、请求记录/详情/人工结算、渠道模型管理和系统状态。接口契约见 [gateway-admin-api.md](gateway-admin-api.md) 与 [gateway-channels.md](gateway-channels.md)。全局用户列表、设备管理不在此版界面内。
+
+## 渠道管理发布验证
+
+- 类型检查与 admin/account-ai/channel-management/ai-gateway 四文件共 70 项测试通过，覆盖双渠道 Chat/Responses 路由、精确扣费、并发版本冲突、密钥隔离、停用与错误不重试。
+- 真实 Worker 首次发现模型失败：workerd 不支持 `redirect: error`。改为 `manual` 后仍拒绝所有非 2xx；没有放宽重定向或证书校验。修复后 `node scripts/verify-gateway-admin.mjs --smoke` 通过渠道发布、发现、推理、重启和加密凭据持久化检查。
+- 浏览器实际新增渠道并保存版本 2，发现 2 个模型，填写三个价格与 token 限额后发布版本 3。使用网页发布模型完成实际隔离推理；网页停用渠道保存版本 4 后，该模型请求 403。1440px 和 390px 页面已观察，窄屏无整页横向溢出，浏览器存储为空、无页面错误。
+- 生产通过 CA 校验登录已有管理员，`/admin`、脚本、`/v1/operator/me`、`/v1/operator/channels` 均 200，检查后撤销临时登录会话。生产渠道目录仍为空（revision 0），没有复制测试上游或真实个人 key，也未改变用户积分。
+- 停服后完整备份数据与旧代码到 `/opt/hezuo-gateway/backups/pre-channels-64b453286-data.tgz` 和 `pre-channels-64b453286-code.tgz`，文件由 root 私有保存。回滚必须协调停服与完整恢复，不可只恢复部分账本或覆盖运行中的数据库。
