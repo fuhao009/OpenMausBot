@@ -5,7 +5,6 @@
 // Tailscale. Account and installation checks reuse the Worker's own routes.
 import { createServer as createHttpsServer } from "node:https";
 import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import tls from "node:tls";
 import { WebSocketServer, WebSocket } from "ws";
 import { COMPANION_RELAY_PATH, FRAME, createFrameDecoder, encodeFrame } from "../../../desktop/electron/companion-relay-frames.mjs";
@@ -565,7 +564,27 @@ export async function writeFetchResponse(res, response) {
     res.end();
     return;
   }
-  await pipeline(Readable.fromWeb(response.body), res);
+  const reader = response.body.getReader();
+  let disconnected = res.destroyed;
+  const closed = () => { disconnected = true; };
+  res.once("close", closed);
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!disconnected && !res.write(value)) {
+        await new Promise((resolve) => {
+          const resume = () => { res.off("drain", resume); res.off("close", resume); resolve(); };
+          res.once("drain", resume);
+          res.once("close", resume);
+        });
+      }
+    }
+    if (!disconnected) res.end();
+  } finally {
+    res.off("close", closed);
+    reader.releaseLock();
+  }
 }
 
 /**
