@@ -937,6 +937,7 @@ async function dispatch(options: {
   const control = createUpstreamControl(disconnect.signal);
   // A relayed stream owns the control until it closes.
   let streamOwned = false;
+  let receivedResponse = false;
 
   try {
     const upstream = await fetcher(
@@ -954,6 +955,15 @@ async function dispatch(options: {
         signal: control.signal,
       },
     );
+    receivedResponse = true;
+    if (env.LOCAL_GATEWAY_DISCONNECT && upstream.status === 502 && upstream.headers.get("x-hezuo-egress-failed") === "1") {
+      await upstream.body?.cancel().catch(() => {});
+      if (await releaseRequest(env, requestId, "upstream_transport_failed")) {
+        return inferenceError(503, "ai_temporarily_unavailable", "The AI service is temporarily unavailable. No points were charged.");
+      }
+      await markReview(env, requestId, "upstream_release_failed");
+      return inferenceError(502, "upstream_error", "The upstream request failed.");
+    }
     await markRequestStreaming(env, requestId).catch(() => false);
 
     const contentType = upstream.headers.get("content-type")?.toLowerCase() ?? "";
@@ -1001,8 +1011,15 @@ async function dispatch(options: {
     }
     return await forwardJSON({ env, mode, model: prepared.model, requestId, upstream, control });
   } catch {
-    // The request may have reached the upstream: never assume it did not.
-    await markReview(env, requestId, control.disconnected() ? "client_disconnected" : control.timedOut() ? "upstream_timeout" : "upstream_unreachable");
+    // A transport failure can still cost the operator; end-user points are released.
+    if (!receivedResponse) {
+      if (await releaseRequest(env, requestId, "upstream_transport_failed")) {
+        return inferenceError(503, "ai_temporarily_unavailable", "The AI service is temporarily unavailable. No points were charged.");
+      }
+      await markReview(env, requestId, "upstream_release_failed");
+    } else {
+      await markReview(env, requestId, control.disconnected() ? "client_disconnected" : control.timedOut() ? "upstream_timeout" : "upstream_unreachable");
+    }
     return inferenceError(502, "upstream_error", "The upstream request failed.");
   } finally {
     if (!streamOwned) {

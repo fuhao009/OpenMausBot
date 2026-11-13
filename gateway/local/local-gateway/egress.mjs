@@ -32,9 +32,15 @@ export async function directEgress(request, { fetchImpl = fetch, log = console.e
     if (trace) log(`[local-gateway] egress ${request.method} ${target.origin} ${bytes}B`);
     const response = await fetchImpl(request.url, { method: request.method, headers, body, redirect: "manual" });
     if (trace) log(`[local-gateway] egress reply ${response.status}`);
+    // Only this transport may assert failure; an upstream cannot supply this marker.
+    if (response.headers.has("x-hezuo-egress-failed")) {
+      const cleanHeaders = new Headers(response.headers);
+      cleanHeaders.delete("x-hezuo-egress-failed");
+      return new Response(response.body, { status: response.status, statusText: response.statusText, headers: cleanHeaders });
+    }
     return response;
   } catch (error) {
     log(`[local-gateway] egress failed ${JSON.stringify({ host: target.host, method: request.method, bytes, elapsedMs: now() - started, codes: egressFailureCodes(error) })}`);
-    return new Response(JSON.stringify({ error: "egress_failed" }), { status: 502, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ error: "egress_failed" }), { status: 502, headers: { "content-type": "application/json", "x-hezuo-egress-failed": "1" } });
   }
 }

@@ -111,6 +111,7 @@ async function run() {
   const upstreamCalls = [];
   let heldReply;
   let refuseNextReply = false;
+  let failNextTransport = false;
 
   async function cli(name, ...args) {
     startup.throwIfAborted();
@@ -176,6 +177,11 @@ async function run() {
         return;
       }
       upstreamCalls.push({ model: body.model, path, billingForwarded: Object.hasOwn(body, "billing") });
+      if (failNextTransport) {
+        failNextTransport = false;
+        request.socket.destroy();
+        return;
+      }
       if (heldReply) {
         const gate = heldReply; heldReply = undefined;
         gate.entered.resolve();
@@ -271,6 +277,27 @@ async function run() {
     await adjust("/v1/operator/ai/account", { enabled: true });
     await adjust("/v1/operator/ai/balance", { amountMicroPoints: taskBilling ? 1_000_000_000 : 5_000_000 });
     const { token } = await (await request("/v1/account/ai/tokens", 201, ordinarySession.accountToken, { deviceId: randomUUID() })).json();
+    if (smoke) {
+      const wallet = async () => {
+        const state = await (await request("/v1/account/ai", 200, ordinarySession.accountToken)).json();
+        return { available: state.availableMicroPoints, reserved: state.reservedMicroPoints };
+      };
+      const before = await wallet();
+      const callsBefore = upstreamCalls.length;
+      failNextTransport = true;
+      const failed = await request("/v1/ai/chat/completions", 503, token, {
+        model: model.id, messages: [{ role: "user", content: "Isolated transport failure" }],
+      });
+      assert.equal((await failed.json()).error.code, "ai_temporarily_unavailable");
+      assert.deepEqual(await wallet(), before);
+      assert.equal(upstreamCalls.length, callsBefore + 1);
+      const rows = (await (await request(`/v1/operator/ai/requests?userId=${encodeURIComponent(userId)}`, 200, operatorToken)).json()).requests;
+      const row = rows.find(value => value.id === failed.headers.get("x-ai-request-id"));
+      assert.equal(row.state, "settled");
+      assert.equal(row.chargedMicroPoints, 0);
+      assert.equal(row.settlementReason, "upstream_transport_failed");
+      console.log(JSON.stringify({ transportFailure: "zero-charge-released", requestId: row.id }));
+    }
     await (await request("/v1/ai/chat/completions", 502, token, {
       model: model.id, messages: [{ role: "user", content: "Seed one request for operator review." }],
     })).json();

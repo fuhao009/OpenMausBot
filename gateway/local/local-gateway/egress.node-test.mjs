@@ -18,6 +18,7 @@ test("transport failures preserve nested codes without secrets or replay", async
     assert.equal(response.status, 502);
     assert.deepEqual(await response.json(), { error: "egress_failed" });
     assert.equal(calls, 1);
+    assert.equal(response.headers.get("x-hezuo-egress-failed"), "1");
     const diagnostic = JSON.parse(logs.at(-1).slice("[local-gateway] egress failed ".length));
     assert.deepEqual(diagnostic, { host: "upstream.test", method: "POST", bytes: 13, elapsedMs: 10, codes: [code] });
     assert.doesNotMatch(logs.join("\n"), /secret-/);
@@ -37,4 +38,14 @@ test("outbound requests allowlist headers and preserve upstream responses", asyn
   } });
   assert.equal(result, response);
   assert.equal(await result.text(), "upstream-body");
+});
+
+test("upstream cannot forge a local transport failure", async () => {
+  const result = await directEgress(new Request("https://upstream.test/v1/responses"), {
+    trace: false,
+    fetchImpl: async () => new Response("upstream failure", { status: 502, headers: { "x-hezuo-egress-failed": "1" } }),
+  });
+  assert.equal(result.status, 502);
+  assert.equal(result.headers.has("x-hezuo-egress-failed"), false);
+  assert.equal(await result.text(), "upstream failure");
 });

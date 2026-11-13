@@ -672,11 +672,26 @@ describe("ai gateway chat", () => {
     expect(calls).toHaveLength(1);
   });
 
-  it.each(["encoded", "transport", "body-read"])("reviews %s failures even when a refusal release might otherwise apply", async (kind) => {
-    const { sessionId, userId } = await signIn(`failure-${kind}@example.com`);
+  it.each(["transport", "local-egress"])("releases %s failures without retrying or review", async (kind) => {
+    const { sessionId, userId } = await signIn(`transport-${kind}@example.com`);
     const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
     const { calls, fetcher } = recorder(() => {
       if (kind === "transport") throw new Error("private network detail");
+      return jsonResponse({ error: "egress_failed" }, 502, { "x-hezuo-egress-failed": "1" });
+    });
+    const response = await routeAiGateway(inferenceRequest("/v1/ai/chat/completions", chatBody(), token),
+      testEnv(kind === "local-egress" ? { LOCAL_GATEWAY_DISCONNECT: {} } : {}), fetcher);
+    expect(response?.status).toBe(503);
+    await expect(response?.json()).resolves.toMatchObject({ error: { code: "ai_temporarily_unavailable" } });
+    expect((await requests())[0]).toMatchObject({ state: "settled", charged_micro_points: 0, settlement_reason: "upstream_transport_failed" });
+    expect(await balance(userId)).toEqual({ available_micro_points: 10_000, reserved_micro_points: 0 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it.each(["encoded", "body-read"])("reviews %s failures even when a refusal release might otherwise apply", async (kind) => {
+    const { sessionId, userId } = await signIn(`failure-${kind}@example.com`);
+    const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
+    const { calls, fetcher } = recorder(() => {
       if (kind === "encoded") return jsonResponse({ usage: CHAT_USAGE }, 429, { "content-encoding": "gzip" });
       return new Response(new ReadableStream({ start(controller) { controller.error(new Error("private body detail")); } }), { status: 429 });
     });
