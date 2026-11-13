@@ -194,8 +194,11 @@ key.
 
 The gateway-only admin and task-billing fixture uses the real Worker/CLI with a
 disposable database and a local TLS fake upstream:
-`node scripts/verify-gateway-admin.mjs --task-billing --smoke`. It proves automatic
-model selection, cost/points settlement and policy persistence across restart.
+`node scripts/verify-gateway-admin.mjs --task-billing --smoke`. It verifies three
+complexity tiers across Chat/Responses JSON and SSE: free quotes, pre-dispatch
+budget rejection, exact in-flight reservations, wallet/ledger charges and refunds,
+upstream refusal release with unknown procurement cost, and restart persistence.
+It prints per-request receipts and the opening/closing wallet totals.
 Omit `--smoke` to inspect the actual `/admin` billing surface using the printed
 disposable credentials; interrupt the launcher after browser verification. This
 does not contact a personal upstream or prove production billing. See the
