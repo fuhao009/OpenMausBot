@@ -3,7 +3,7 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { nextRename } from "@/lib/rename";
 import { BOTS_SECTION_ID, userSectionName } from "@/lib/sidebar-layout";
-import { BOT_ROW_DRAG_TYPE, PINNED_LIST, botDropPlace, botListOf, planBotDrop, sameBotDrop, stepBot, unusedName, type BotDrop, type BotDropPlace, type BotMove } from "@/lib/sidebar-bot-drop";
+import { BOT_ROW_DRAG_TYPE, PINNED_LIST, botDropPlace, botListOf, planBotDrop, sameBotDrop, stepBot, tileDropPlace, unusedName, type BotDrop, type BotDropPlace, type BotMove } from "@/lib/sidebar-bot-drop";
 import type { Action, Bot } from "@/state/store";
 import { moveBotsToSection, renameDepartment, saveBotOrder, unpinIntoSection, useMayMoveBots } from "./bot-sections";
 
@@ -68,8 +68,16 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
     setDrop(null);
   };
   const startNew = (botIds: string[]) => setNaming({ kind: "new", botIds, name: unusedName(t("sidebar.section.newName"), latest.current.taken) });
+  const createDepartment = (botIds: string[], name: string) => {
+    const { bots } = latest.current;
+    const ids = botIds.filter((id) => bots.some((bot) => bot.id === id && !bot.hidden));
+    for (const id of ids) if (bots.some((bot) => bot.id === id && bot.pinned)) actions.current.dispatch({ type: "updateBot", botId: id, patch: { pinned: false } });
+    moveBotsToSection(actions.current.dispatch, ids, name);
+    saveBotOrder(actions.current.dispatch, bots, ids);
+    onNamed(name);
+  };
   const apply = (botId: string, move: BotMove, keyboard: boolean) => {
-    if (move.kind === "group") return startNew(move.botIds);
+    if (move.kind === "group") return createDepartment(move.botIds, unusedName(t("sidebar.section.untitledName"), latest.current.taken));
     const { lists, bots } = latest.current;
     const from = botListOf(lists, botId);
     if (move.section === PINNED_LIST && from !== PINNED_LIST) actions.current.dispatch({ type: "updateBot", botId, patch: { pinned: true } });
@@ -92,7 +100,7 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
     const list = botListOf(latest.current.lists, botId);
     if (list === PINNED_LIST) {
       const rtl = typeof document !== "undefined" && document.documentElement?.dir === "rtl";
-      return { kind: "row", botId, place: (event.clientX < box.left + box.width / 2) !== rtl ? "before" : "after" };
+      return { kind: "row", botId, place: tileDropPlace(event.clientX - box.left, box.width, rtl) };
     }
     return { kind: "row", botId, place: botDropPlace(event.clientY - box.top, box.height, list === "") };
   };
@@ -133,11 +141,7 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
   const finishNaming = (current: Naming, draft: string) => {
     setNaming(null);
     if (current.kind === "new") {
-      const name = draft.trim() || current.name;
-      const ids = current.botIds.filter((id) => latest.current.bots.some((bot) => bot.id === id && !bot.hidden));
-      for (const id of ids) if (latest.current.bots.some((bot) => bot.id === id && bot.pinned)) dispatch({ type: "updateBot", botId: id, patch: { pinned: false } });
-      moveBotsToSection(dispatch, ids, name);
-      onNamed(name);
+      createDepartment(current.botIds, draft.trim() || current.name);
       return;
     }
     const to = nextRename(current.section, draft);

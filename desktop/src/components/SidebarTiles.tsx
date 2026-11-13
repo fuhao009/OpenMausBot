@@ -18,15 +18,15 @@ import { FILE_DROP_RING, botChatDragStart, chainDragHandlers, useBotFileDrop } f
 import { RenameTitle } from "./RenameTitle";
 import { openBotContextMenu, useVisibleMessages, type BotRowProps } from "./Sidebar";
 import { sidebarBotStatus } from "./SidebarBotActivity";
-import type { SidebarBotDragApi } from "./SidebarBotDrag";
+import { botRowDropClass, type SidebarBotDragApi } from "./SidebarBotDrag";
 import { SIMPLE_ROW_FOCUS } from "./SidebarSimpleTop";
 import { useBotUnread } from "./unread-notice";
 
 const RING = "ring-2 ring-[var(--tile)]";
 
-/** A tile takes a dragged bot before it or after it, by the pointer's side of the middle. */
+/** A tile takes a dragged bot before it or after it by the pointer's side, or with it into a new department in the middle. */
 function tileDropClass(place: BotDropPlace | null | undefined, dragging: boolean | undefined): string {
-  return cn(dragging && "opacity-40", place === "before" && "shadow-[-2px_0_var(--color-accent)]", place === "after" && "shadow-[2px_0_var(--color-accent)]");
+  return cn(botRowDropClass(place, dragging), place === "before" && "shadow-[-2px_0_var(--color-accent)]", place === "after" && "shadow-[2px_0_var(--color-accent)]");
 }
 
 export const SidebarBotTile = memo(function SidebarBotTile(row: BotRowProps) {

@@ -1985,6 +1985,7 @@
   "sidebar.section.dropToRemove": "拖到这里移出部门",
   "sidebar.section.emptyDrop": "把机器人拖到这里",
   "sidebar.section.removeFromDepartment": "移出部门",
+  "sidebar.section.untitledName": "未命名分组",
   "sidebar.section.newName": "新部门",
   "sidebar.room.renameAria": "重命名 {name}",
   "sidebar.room.saveChatName": "保存对话名称",

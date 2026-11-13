@@ -17,7 +17,7 @@ export type BotDrop =
 export type BotMove =
   /** The bot goes to `section` (`""`: no department), and that list's rows take `order`. */
   | { kind: "move"; section: string; order: string[] }
-  /** The first bot stays where the second was dropped on it; both start a department. */
+  /** The department starts with both bots, the first, the one dropped on, above the second. */
   | { kind: "group"; botIds: [string, string] };
 
 /** The middle half of a row starts a department with it, where `canGroup`; the rest places the bot above or below. */
@@ -25,6 +25,13 @@ export function botDropPlace(offset: number, height: number, canGroup: boolean):
   const fraction = height > 0 ? offset / height : 0.5;
   if (canGroup && fraction > 0.25 && fraction < 0.75) return "group";
   return fraction < 0.5 ? "before" : "after";
+}
+
+/** The middle 40% of a tile's width starts a department with it; either side places the bot before or after it. */
+export function tileDropPlace(offset: number, width: number, rtl = false): BotDropPlace {
+  const fraction = width > 0 ? offset / width : 0.5;
+  if (fraction > 0.3 && fraction < 0.7) return "group";
+  return (fraction < 0.5) !== rtl ? "before" : "after";
 }
 
 export function botListOf(lists: BotLists, botId: string): string | undefined {
@@ -46,14 +53,15 @@ function placed(lists: BotLists, botId: string, from: string, to: string, at: (o
   return { kind: "move", section: to, order };
 }
 
-/** What dropping `botId` there does, or null when it changes nothing. Only a row outside any department starts one. */
+/** What dropping `botId` there does, or null when it changes nothing. Only a bot in no department, or a pinned tile,
+ * starts a department. */
 export function planBotDrop(lists: BotLists, botId: string, drop: BotDrop): BotMove | null {
   const from = botListOf(lists, botId);
   if (from === undefined) return null;
   if (drop.kind === "end") return lists.has(drop.list) ? placed(lists, botId, from, drop.list, (others) => others.length) : null;
   const to = botListOf(lists, drop.botId);
   if (drop.botId === botId || to === undefined) return null;
-  if (drop.place === "group") return to === "" ? { kind: "group", botIds: [drop.botId, botId] } : null;
+  if (drop.place === "group") return to === "" || to === PINNED_LIST ? { kind: "group", botIds: [drop.botId, botId] } : null;
   return placed(lists, botId, from, to, (others) => others.indexOf(drop.botId) + (drop.place === "after" ? 1 : 0));
 }
 
