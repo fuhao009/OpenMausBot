@@ -4819,6 +4819,33 @@ describe("harness HTTP API", () => {
     }
   });
 
+  it("saves the order of the departments, and refuses a list that is not each department once", async () => {
+    const names = ["Order A", "Order B", "Order C"];
+    const made: { id: string }[] = [];
+    try {
+      for (const name of names) {
+        const bot = (await api("POST", "/api/bots")).body.bot;
+        made.push(bot);
+        expect((await api("POST", "/api/sidebar-sections", { name, botIds: [bot.id] })).status).toBe(200);
+      }
+      const current = (await api("GET", "/api/sidebar-sections")).body.sections as string[];
+      expect(current.filter((name) => names.includes(name))).toEqual(names);
+      const reversed = [...current].reverse();
+      expect(await api("PUT", "/api/sidebar-sections/order", { sections: reversed })).toEqual({ status: 200, body: { sections: reversed } });
+      expect((await api("GET", "/api/sidebar-sections")).body.sections).toEqual(reversed);
+      for (const body of [
+        { sections: reversed.slice(1) },
+        { sections: [...reversed, "No such department"] },
+        { sections: [...reversed.slice(1), reversed[1]] },
+        { sections: reversed, extra: true },
+        { sections: "Order A" },
+      ]) expect((await api("PUT", "/api/sidebar-sections/order", body)).status).toBe(400);
+      expect((await api("GET", "/api/sidebar-sections")).body.sections).toEqual(reversed);
+    } finally {
+      for (const bot of made) await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
   it("rejects malformed or unavailable sidebar section targets without partially filing bots", async () => {
     const visible = (await api("POST", "/api/bots")).body.bot;
     const hidden = (await api("POST", "/api/bots")).body.bot;

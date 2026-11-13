@@ -24,14 +24,12 @@ import { useBotUnread } from "./unread-notice";
 
 const RING = "ring-2 ring-[var(--tile)]";
 
-type TileProps = BotRowProps & { primary?: boolean };
-
 /** A tile takes a dragged bot before it or after it, by the pointer's side of the middle. */
 function tileDropClass(place: BotDropPlace | null | undefined, dragging: boolean | undefined): string {
   return cn(dragging && "opacity-40", place === "before" && "shadow-[-2px_0_var(--color-accent)]", place === "after" && "shadow-[2px_0_var(--color-accent)]");
 }
 
-export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, ...row }: TileProps) {
+export const SidebarBotTile = memo(function SidebarBotTile(row: BotRowProps) {
   const { bot, selected, deleting, mascotMotion, pendingQueued, instances, liveCall, dispatch, onMenu, renameRequest, botDrag: drag, botDrop: drop, botDragging: dragging } = row;
   const showThreads = useShowThreads();
   const liveMedia = useLiveMedia();
@@ -74,7 +72,7 @@ export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, ..
       role={renaming ? undefined : "button"}
       tabIndex={renaming ? undefined : 0}
       data-sidebar-bot-row={bot.id}
-      data-sidebar-tile={primary ? "primary" : "pinned"}
+      data-sidebar-tile=""
       draggable={!renaming}
       data-file-drop={fileDrop.over ? "" : undefined}
       aria-label={renaming ? undefined : label}
@@ -104,7 +102,7 @@ export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, ..
           motionKey={mascotMotion?.nonce ?? 0}
           animated={working || noticing || (mascotMotion?.kind ?? "none") !== "none"}
         />
-        {primary && bot.chiefOfStaff && (
+        {bot.chiefOfStaff && (
           <span data-testid="chief-badge" className={cn("absolute -bottom-px -right-px flex size-4 items-center justify-center rounded-full bg-[#E8993A] text-white", RING)}>
             <Crown size={10} strokeWidth={1.5} fill="currentColor" aria-hidden="true" />
           </span>
@@ -180,17 +178,19 @@ function useBesideCorner(corner: boolean, count: number) {
   return { ref, beside };
 }
 
-/** The default bot first, then the pinned bots in the order shown. The grid takes a bot dragged onto it, at its end. */
-export function SidebarTileGrid({ primary, pinned, row, corner = false, drop }: {
-  primary: Bot | null; pinned: Bot[]; row: (bot: Bot) => BotRowProps; corner?: boolean; drop?: SidebarBotDragApi["tiles"];
+/** The pinned bots in the order shown. The grid takes a bot dragged onto it, at its end; with none pinned it is only a
+ * slim place to drop one, shown while a bot is being dragged. */
+export function SidebarTileGrid({ pinned, row, corner = false, drop }: {
+  pinned: Bot[]; row: (bot: Bot) => BotRowProps; corner?: boolean; drop?: SidebarBotDragApi["tiles"];
 }) {
-  const besideCorner = useBesideCorner(corner, (primary ? 1 : 0) + pinned.length);
-  if (!primary && pinned.length === 0) return null;
+  const besideCorner = useBesideCorner(corner, pinned.length);
+  const empty = pinned.length === 0;
   return (
     <div ref={besideCorner.ref} data-sidebar-tiles="" data-beside-corner={besideCorner.beside ? "" : undefined} data-bot-drop={drop?.over ? "end" : undefined}
-      className={cn("flex max-h-[40vh] flex-wrap justify-center gap-1 overflow-y-auto px-3 pb-4 pt-2.5", drop?.over && "rounded-[10px] bg-accent/10 outline outline-2 -outline-offset-2 outline-accent/70")} {...drop?.handlers}>
-      {primary && <SidebarBotTile {...row(primary)} primary />}
-      {pinned.map((bot) => <SidebarBotTile key={bot.id} {...row(bot)} />)}
+      className={cn(empty ? "mx-3 mb-2 mt-2.5 flex h-10 items-center justify-center rounded-[10px] border border-dashed text-[13px] leading-[18px]" : "flex max-h-[40vh] flex-wrap justify-center gap-1 overflow-y-auto px-3 pb-4 pt-2.5",
+        empty && (drop?.over ? "border-accent text-ink" : "border-ink/20 text-ink-secondary"),
+        drop?.over && "rounded-[10px] bg-accent/10 outline outline-2 -outline-offset-2 outline-accent/70")} {...drop?.handlers}>
+      {empty ? t("sidebar.tiles.dropToPin") : pinned.map((bot) => <SidebarBotTile key={bot.id} {...row(bot)} />)}
     </div>
   );
 }

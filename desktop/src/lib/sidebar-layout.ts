@@ -105,35 +105,25 @@ export function pinnedCircleThreadListVisible(
   return circles && density !== "icons" && pinnedCount > 0;
 }
 
+/** `chiefsAsBots`: a Chief is placed like any other bot, by its own pin and department, instead of standing above the
+ * list or its department's rows. */
 export function partitionSidebarBots<T extends SidebarBot>(
   bots: T[],
-  options?: { universalPins?: boolean; viewerEmail?: string | null; welcoming?: string | null },
+  options?: { universalPins?: boolean; viewerEmail?: string | null; welcoming?: string | null; chiefsAsBots?: boolean },
 ) {
   const universalPins = options?.universalPins === true;
+  const chiefsAsBots = options?.chiefsAsBots === true;
+  const ordinary = (bot: T) => chiefsAsBots || !bot.chiefOfStaff;
   const visible = bots.filter((bot) => !bot.hidden && !hiddenFromSidebar(bot, options?.viewerEmail) && bot.id !== options?.welcoming);
   // The pin flag is the server's, the same on every client. Only the main Chief keeps its own top slot when pins are
   // not universal (a device's layout choice); a pinned Chief of a group is listed with the other pinned bots.
-  const pinnedBots = visible.filter((bot) => Boolean(bot.pinned) && (universalPins || !bot.chiefOfStaff || Boolean(bot.section)));
+  const pinnedBots = visible.filter((bot) => Boolean(bot.pinned) && (chiefsAsBots || universalPins || !bot.chiefOfStaff || Boolean(bot.section)));
   const pinnedIds = new Set(pinnedBots.map((bot) => bot.id));
-  const unsectionedChief = visible.find((bot) => bot.chiefOfStaff && !bot.section && !pinnedIds.has(bot.id)) ?? null;
-  const sectionChiefs = visible.filter((bot) => bot.chiefOfStaff && Boolean(bot.section) && !pinnedIds.has(bot.id));
-  const sectionedBots = visible.filter(
-    (bot) => !bot.chiefOfStaff && Boolean(bot.section) && !pinnedIds.has(bot.id),
-  );
-  const unsectionedBots = visible.filter(
-    (bot) => !bot.chiefOfStaff && !bot.section && !pinnedIds.has(bot.id),
-  );
+  const unsectionedChief = chiefsAsBots ? null : visible.find((bot) => bot.chiefOfStaff && !bot.section && !pinnedIds.has(bot.id)) ?? null;
+  const sectionChiefs = chiefsAsBots ? [] : visible.filter((bot) => bot.chiefOfStaff && Boolean(bot.section) && !pinnedIds.has(bot.id));
+  const sectionedBots = visible.filter((bot) => ordinary(bot) && Boolean(bot.section) && !pinnedIds.has(bot.id));
+  const unsectionedBots = visible.filter((bot) => ordinary(bot) && !bot.section && !pinnedIds.has(bot.id));
   return { unsectionedChief, pinnedBots, sectionChiefs, sectionedBots, unsectionedBots };
-}
-
-export function withPrimaryTile<T extends SidebarBot>(parts: ReturnType<typeof partitionSidebarBots<T>>, defaultBotId: string | undefined) {
-  const primary = parts.unsectionedChief
-    ?? parts.pinnedBots.find((bot) => bot.chiefOfStaff && !bot.section)
-    ?? [...parts.pinnedBots, ...parts.unsectionedBots].find((bot) => bot.id === defaultBotId)
-    ?? null;
-  if (!primary) return { ...parts, primary };
-  const others = (bots: T[]) => bots.filter((bot) => bot.id !== primary.id);
-  return { ...parts, primary, unsectionedChief: null, pinnedBots: others(parts.pinnedBots), unsectionedBots: others(parts.unsectionedBots) };
 }
 
 export function partitionSidebarGroups<T extends SidebarGroup>(groups: T[]) {
@@ -174,20 +164,15 @@ export function orderedSidebarSections(
   return result;
 }
 
-export const SIMPLE_FIRST_SECTION_IDS: readonly SidebarSectionId[] = [PINNED_SECTION_ID, CHANNELS_SECTION_ID, BOT_CHATS_SECTION_ID];
-
-export const SIMPLE_LAST_SECTION_IDS: readonly SidebarSectionId[] = [BOTS_SECTION_ID];
-
+/** Simple mode's order: Pinned, group chats and bot threads, then the departments as given (the workspace's own order),
+ * then the bots in no department. */
 export function simpleSidebarSections(ids: SidebarSectionId[]): SidebarSectionId[] {
+  const first = [PINNED_SECTION_ID, CHANNELS_SECTION_ID, BOT_CHATS_SECTION_ID];
   return [
-    ...SIMPLE_FIRST_SECTION_IDS.filter((id) => ids.includes(id)),
-    ...ids.filter((id) => !SIMPLE_FIRST_SECTION_IDS.includes(id) && !SIMPLE_LAST_SECTION_IDS.includes(id)),
-    ...SIMPLE_LAST_SECTION_IDS.filter((id) => ids.includes(id)),
+    ...first.filter((id) => ids.includes(id)),
+    ...ids.filter((id) => !first.includes(id) && id !== BOTS_SECTION_ID),
+    ...(ids.includes(BOTS_SECTION_ID) ? [BOTS_SECTION_ID] : []),
   ];
-}
-
-export function simpleOrderedSections(ordered: SidebarSectionId[], simpleSaved: SidebarSectionId[]): SidebarSectionId[] {
-  return orderedSidebarSections(simpleSidebarSections(ordered), simpleSaved);
 }
 
 export function moveSection(

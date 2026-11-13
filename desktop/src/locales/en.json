@@ -2037,6 +2037,7 @@
   "sidebar.newChannel.create": "Create group chat",
   "sidebar.newChannel.createOne": "Create group chat · 1 bot",
   "sidebar.newChannel.createMany": "Create group chat · {count} bots",
+  "sidebar.tiles.dropToPin": "Drop here to pin",
   "sidebar.bot.pin": "Pin",
   "sidebar.bot.unpin": "Unpin",
   "sidebar.bot.makeChief": "Make Chief of Staff",

@@ -1859,6 +1859,7 @@
   "sidebar.newChannel.create": "그룹 채팅 만들기",
   "sidebar.newChannel.createOne": "그룹 채팅 만들기 · 봇 1개",
   "sidebar.newChannel.createMany": "그룹 채팅 만들기 · 봇 {count}개",
+  "sidebar.tiles.dropToPin": "여기로 끌어 고정",
   "sidebar.bot.pin": "고정",
   "sidebar.bot.unpin": "고정 해제",
   "sidebar.bot.makeChief": "비서실장으로 지정",

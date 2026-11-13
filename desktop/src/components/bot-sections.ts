@@ -32,6 +32,17 @@ export function moveBotsToSection(dispatch: Dispatch<Action>, botIds: string[], 
     .catch((cause) => dispatch({ type: "error", message: failure(cause) }));
 }
 
+/** A pinned bot leaves the tiles for `section` (`""`: no department). A remote client may unpin but not file a bot
+ * with a profile patch, so it files it by the same request as any other move. */
+export function unpinIntoSection(dispatch: Dispatch<Action>, botId: string, section: string): void {
+  if (typeof window !== "undefined" && window.ogb?.remoteClient?.active === true) {
+    dispatch({ type: "updateBot", botId, patch: { pinned: false } });
+    moveBotsToSection(dispatch, [botId], section);
+    return;
+  }
+  dispatch({ type: "updateBot", botId, patch: { pinned: false, section } });
+}
+
 /** Shows `botIds` in this order at once and saves it; every other bot keeps its place in the fleet. */
 export function saveBotOrder(dispatch: Dispatch<Action>, bots: readonly Pick<Bot, "id">[], botIds: string[]): void {
   const before = bots.filter((bot) => botIds.includes(bot.id)).map((bot) => bot.id);
@@ -41,6 +52,18 @@ export function saveBotOrder(dispatch: Dispatch<Action>, bots: readonly Pick<Bot
     dispatch({ type: "botsOrdered", botIds: before });
     dispatch({ type: "error", message: failure(cause) });
   });
+}
+
+/** Shows the departments in `next` at once and saves that order for every client; an error puts `current` back. */
+export async function reorderDepartments(dispatch: Dispatch<Action>, current: readonly string[], next: string[]): Promise<void> {
+  dispatch({ type: "sections", sections: next });
+  try {
+    const { sections } = await api("/api/sidebar-sections/order", { method: "PUT", body: JSON.stringify({ sections: next }) });
+    dispatch({ type: "sections", sections });
+  } catch (cause) {
+    dispatch({ type: "sections", sections: [...current] });
+    dispatch({ type: "error", message: failure(cause) });
+  }
 }
 
 export async function renameDepartment(dispatch: Dispatch<Action>, from: string, to: string): Promise<void> {

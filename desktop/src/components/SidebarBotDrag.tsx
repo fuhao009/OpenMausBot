@@ -3,10 +3,9 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { nextRename } from "@/lib/rename";
 import { BOTS_SECTION_ID, userSectionName } from "@/lib/sidebar-layout";
-import { setPinnedCircleOrder } from "@/lib/sidebar-preferences";
 import { BOT_ROW_DRAG_TYPE, PINNED_LIST, botDropPlace, botListOf, planBotDrop, sameBotDrop, stepBot, unusedName, type BotDrop, type BotDropPlace, type BotMove } from "@/lib/sidebar-bot-drop";
 import type { Action, Bot } from "@/state/store";
-import { moveBotsToSection, renameDepartment, saveBotOrder, useMayMoveBots } from "./bot-sections";
+import { moveBotsToSection, renameDepartment, saveBotOrder, unpinIntoSection, useMayMoveBots } from "./bot-sections";
 
 /** The department being named, before it exists. The server trims names and never keeps a control character. */
 export const NEW_DEPARTMENT = "\u0000new";
@@ -73,14 +72,10 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
     if (move.kind === "group") return startNew(move.botIds);
     const { lists, bots } = latest.current;
     const from = botListOf(lists, botId);
-    if (move.section === PINNED_LIST) {
-      if (from !== PINNED_LIST) actions.current.dispatch({ type: "updateBot", botId, patch: { pinned: true } });
-      setPinnedCircleOrder(move.order);
-    } else {
-      if (from === PINNED_LIST) actions.current.dispatch({ type: "updateBot", botId, patch: { pinned: false, section: move.section } });
-      else if (from !== move.section) moveBotsToSection(actions.current.dispatch, [botId], move.section);
-      saveBotOrder(actions.current.dispatch, bots, move.order);
-    }
+    if (move.section === PINNED_LIST && from !== PINNED_LIST) actions.current.dispatch({ type: "updateBot", botId, patch: { pinned: true } });
+    else if (from === PINNED_LIST && move.section !== PINNED_LIST) unpinIntoSection(actions.current.dispatch, botId, move.section);
+    else if (from !== move.section) moveBotsToSection(actions.current.dispatch, [botId], move.section);
+    saveBotOrder(actions.current.dispatch, bots, move.order);
     if (!keyboard) return;
     const name = bots.find((bot) => bot.id === botId)?.name ?? "";
     actions.current.announce(t("sidebar.section.moved", { name, position: move.order.indexOf(botId) + 1, count: move.order.length }));
@@ -191,6 +186,7 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
       };
       return {
         enabled: movable,
+        dragging: active !== null,
         row: (botId: string): { botDrag?: BotRowDrag; botDrop?: BotDropPlace | null; botDragging?: boolean } => {
           if (!movable || botListOf(lists, botId) === undefined) return {};
           const place = shown?.kind === "row" && shown.botId === botId ? shown.place

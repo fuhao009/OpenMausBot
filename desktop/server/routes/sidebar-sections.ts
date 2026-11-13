@@ -39,6 +39,11 @@ export function createSidebarSectionRoutes(deps: SidebarSectionRouteDeps): Route
       if (error) return json(res, error === "No such department" ? 404 : 409, { error });
       return json(res, 200, { sections: store.sections });
     }
+    if (method === "PUT" && path === "/api/sidebar-sections/order") {
+      const parsed = z.object({ sections: z.array(z.string().max(60)).max(1_000) }).strict().safeParse(await readBody(req));
+      if (!parsed.success || !store.reorderSections(parsed.data.sections)) return json(res, 400, { error: "List every department exactly once" });
+      return json(res, 200, { sections: store.sections });
+    }
     if (method === "PUT" && path === "/api/sidebar-sections") {
       const section = url.searchParams.get("section")?.trim();
       if (!section || !store.sections.includes(section)) return json(res, 404, { error: "No such department" });

@@ -2008,6 +2008,7 @@
   "sidebar.newChannel.create": "创建群组聊天",
   "sidebar.newChannel.createOne": "创建群组聊天 · 1 个机器人",
   "sidebar.newChannel.createMany": "创建群组聊天 · {count} 个机器人",
+  "sidebar.tiles.dropToPin": "拖到这里置顶",
   "sidebar.bot.pin": "置顶",
   "sidebar.bot.unpin": "取消置顶",
   "sidebar.bot.makeChief": "设为总协调机器人",
