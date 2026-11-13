@@ -6,7 +6,13 @@ import { sha256 } from "./installations";
 
 const actionSchema = z.strictObject({
   operationId: z.uuid(),
-  reason: z.string().trim().min(1).max(500).refine((value) => !/[\x00-\x1f\x7f]/.test(value)),
+  reason: z.string().trim().min(1).max(500).refine((value) => {
+    for (const character of value) {
+      const point = character.codePointAt(0);
+      if (point === undefined || point < 32 || point === 127) return false;
+    }
+    return true;
+  }),
 });
 const passwordSchema = z.strictObject({
   currentPassword: z.string().min(1).max(PASSWORD_MAX_LENGTH),
