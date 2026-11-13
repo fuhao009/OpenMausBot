@@ -235,12 +235,12 @@ describe("account AI status and credentials", () => {
     expect((await call("/v1/account/ai")).status).toBe(401);
   });
 
-  it("reports an enabled account below one reservation as insufficient balance", async () => {
+  it("issues credentials below a full-context reservation and leaves affordability to each request", async () => {
     const account = await signIn("short@example.com");
     const operator = await enableAndGrant(account.userId, 2_399);
     const status = await call("/v1/account/ai", { token: account.token, env: operator.env });
     const body = await status.json<{ state: string; unit: string; availableMicroPoints: number; defaultModel: string | null }>();
-    expect(body.state).toBe("insufficient_balance");
+    expect(body.state).toBe("ready");
     // Published amounts are the product's own points, never a currency.
     expect(body.unit).toBe("points");
     expect(body).not.toHaveProperty("currency");
@@ -254,8 +254,8 @@ describe("account AI status and credentials", () => {
       env: operator.env,
       body: { deviceId: DEVICE_A },
     });
-    expect(issue.status).toBe(402);
-    await expect(issue.json()).resolves.toEqual({ error: "insufficient_balance" });
+    expect(issue.status).toBe(201);
+    await expect(issue.json()).resolves.toMatchObject({ token: expect.stringMatching(/^omb_product_ai_/) });
   });
 
   it("moves to ready once the balance covers one reservation and issues a device credential", async () => {
@@ -638,6 +638,38 @@ describe("operator administration", () => {
       env: operator.env,
       body: { operationId: crypto.randomUUID(), chargedMicroPoints: 0, reason: "ghost" },
     })).status).toBe(404);
+  });
+  it("lists global reviews only for operators and settles three accounts idempotently", async () => {
+    const operator = await operatorSession();
+    const targets = [];
+    for (let i = 0; i < 3; i++) {
+      const target = await signIn(`global-review-${i}@example.com`);
+      await enableAndGrant(target.userId, 10_000);
+      const credential = await call("/v1/account/ai/tokens", { method: "POST", token: target.token, env: operator.env, body: { deviceId: DEVICE_A } });
+      const { id: tokenId } = await credential.json<{ id: string }>();
+      const reserved = await reserveRequest(operator.env, {
+        endpoint: "chat", model: MODEL.id, ownerUserId: target.userId, tokenId,
+        pricing: { cachedRate: 500_000, inputRate: 2_000_000, outputRate: 4_000_000, maxInputTokens: 1000, maxOutputTokens: 100, pricingVersion: MODEL.pricingVersion },
+      });
+      if (!reserved.ok) throw new Error(reserved.reason);
+      await reviewRequest(operator.env, reserved.id, "client_disconnected");
+      targets.push({ ...target, requestId: reserved.id });
+    }
+    const path = "/v1/operator/ai/requests?state=review";
+    expect((await call(path, { token: targets[0].token, env: operator.env })).status).toBe(403);
+    const response = await call(path, { token: operator.token, env: operator.env });
+    expect(response.status).toBe(200);
+    const page = await response.json<{ requests: Array<{ id: string; email: string }> }>();
+    expect(page.requests.map((item) => item.email).sort()).toEqual(targets.map((item) => item.email).sort());
+    for (const target of targets) {
+      const options = { method: "POST", token: operator.token, env: operator.env, body: { operationId: crypto.randomUUID(), reason: "batch review", chargedMicroPoints: 0 } };
+      const endpoint = `/v1/operator/ai/requests/${target.requestId}/settle`;
+      expect((await call(endpoint, options)).status).toBe(200);
+      await expect((await call(endpoint, options)).json()).resolves.toMatchObject({ replayed: true });
+      await expect((await call("/v1/account/ai", { token: target.token, env: operator.env })).json()).resolves.toMatchObject({ availableMicroPoints: 10_000, reservedMicroPoints: 0 });
+    }
+    const audit = await env.DB.prepare("SELECT COUNT(*) AS total FROM account_ai_adjustments WHERE kind = 'settle'").first<{ total: number }>();
+    expect(audit?.total).toBe(3);
   });
 });
 

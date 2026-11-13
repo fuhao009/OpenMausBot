@@ -6,9 +6,12 @@ import { errorResponse, HTTPError, json, preflight, secureResponse, withBoundedR
 import { limitedOTPResponse } from "./otp-rate-limit";
 import type { CloudflareFetch } from "./cloudflare-api";
 import { routeAccountAi } from "./account-ai";
+import { routeAccountLifecycle } from "./account-lifecycle";
+import { aiConfigFrom } from "./ai-config";
 import { routeAdminAssets } from "./admin-assets";
 import { routeAiGateway } from "./ai-gateway";
 import { recoverStaleRequests } from "./ai-wallet";
+import { refreshBillingController } from "./task-billing";
 import {
   cleanupEndpointForInstallation,
   deleteManagedEndpoint,
@@ -154,6 +157,8 @@ async function route(
   }
 
   const auth = createAuth(env, ctx, config, requestId);
+  const lifecycle = await routeAccountLifecycle(request, env, auth, aiConfigFrom(env).operatorUserIds);
+  if (lifecycle) return lifecycle;
   const accountAi = await routeAccountAi(request, env, auth, config, aiFetch);
   if (accountAi) return accountAi;
 
@@ -288,11 +293,11 @@ export function createWorker(
           return secureResponse(routeError(url.pathname, 403, "origin_not_allowed"), request, config, requestId);
         }
         if (url.pathname.startsWith("/v1/ai/") && request.method !== "OPTIONS") {
-          const response = await routeAiGateway(request, env, aiFetch);
+          const response = await routeAiGateway(request, env, aiFetch, (promise) => ctx.waitUntil(promise));
           return secureResponse(response ?? routeError(url.pathname, 404, "not_found"), request, config, requestId);
         }
         const ownsBody = url.pathname.startsWith("/v1/account/ai") || url.pathname.startsWith("/v1/operator/ai/")
-          || url.pathname === "/v1/operator/channels";
+          || url.pathname === "/v1/operator/channels" || url.pathname === "/v1/operator/billing";
         const boundedRequest = ownsBody ? request : await withBoundedRequestBody(request);
         return secureResponse(
           await route(boundedRequest, env, ctx, config, requestId, cloudflareFetch, apnsFetch, highLevelFetch, aiFetch),
@@ -311,6 +316,9 @@ export function createWorker(
     },
     scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
       const requestId = crypto.randomUUID();
+      ctx.waitUntil(refreshBillingController(env).catch(() => {
+        console.error(JSON.stringify({ message: "billing controller refresh failed", requestId, errorCode: "billing_internal" }));
+      }));
       ctx.waitUntil(recoverStaleRequests(env).catch(() => {
         console.error(JSON.stringify({ message: "AI reservation recovery failed", requestId, errorCode: "ai_internal" }));
       }));

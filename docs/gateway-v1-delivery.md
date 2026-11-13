@@ -2,10 +2,10 @@
 
 ## 版本与部署
 
-- 分支：`backend/gateway-v1-lan`，已推送 personal。
-- 功能提交及 193 deployed-commit：`c911aefce`。
+- T1–T4 分支：`backend/gateway-v1-lan`；任务计费增量分支：`backend/task-aware-billing`。
+- T1–T4 基线功能提交：`c911aefce`；当前部署以 [193 部署记录](gateway-deployment-193.md) 为准。
 - 管理后台：`https://192.168.66.193:18487/admin`。
-- 本次仅改网关和交接文档，无桌面/手机/共享类型改动，无新 migration。
+- T1–T4 基线仅改网关和交接文档，无桌面/手机/共享类型改动。下方任务计费增量新增迁移 `0015_task_billing.sql` 与 `0016_billing_policy.sql`。
 
 ## T1–T4
 
@@ -38,7 +38,7 @@ T1/T2 回归名称（参数化覆盖多个场景）：
 
 整仓 pre-push 在已有 desktop/local-gateway 未使用符号及既有 channel-store 控制字符正则 lint 告警处失败。没有掩盖为整仓通过；后端要求的完整验收已通过，发布使用一次性 core.hooksPath 绕过该整仓钩子，不改全局配置或其他端代码。
 
-## 生产渠道
+## T1–T4 生产渠道（历史记录）
 
 按用户授权，从本机 OMP `~/.omp/agent/models.yml` 的 fuhaoliang 供应商读取地址与 key，经 SSH stdin 传输后由管理员 API 保存到加密渠道目录；没有将 key 写入源码、文档、命令参数或日志。OMP 文件中没有 Luna 显式条目，但上游 `/models` 实际确认 `gpt-6-luna` 存在。
 
@@ -57,3 +57,56 @@ T1/T2 回归名称（参数化覆盖多个场景）：
 ## 客户端对接
 
 拉取本分支后读 [客户端错误契约](gateway-client-api.md#错误与重试)。普通账号仍需管理员开通并补充积分；模型协议为 Responses，不能把该 ID 发送到 Chat 端点。生产未验证项：桌面真实请求、SSE、工具授权/拒绝、主动停止、账户并发与限流提示。不得将隔离通过写成三端生产联调完成。
+
+## 任务感知计费增量（2026-11-13）
+
+功能提交 `89e3991c6` 已推送 `personal/backend/task-aware-billing` 并部署 193。生产渠道 revision 2、策略 revision 2 已启用：Luna/Sol/Astra 三档 Responses 与 `auto-responses`，1000 积分/USD 估值、50% 目标毛利、10% 风险附加、初始 2.2 倍。默认仍为 Luna，不替客户端暗中开启自动选模。生产激活时无新计费样本，真实推理和盈利没有验证；完整备份、迁移与版本记录见 [部署记录](gateway-deployment-193.md#2026-11-13-任务计费上线)。
+
+### 能力与兼容边界
+
+- `auto-chat` / `auto-responses` 根据可解释的结构启发式复杂度，筛选协议、能力、工具/图片支持和上下文后选估算低价模型；显式模型保持选择，不自动失败重放。
+- `POST /v1/ai/quote` 不调用上游、不预占、不扣积分；返回估计与预占上限但不承诺价格。实际请求的 `billing.maxMicroPoints` 限制准入预占。请求开始即锁定成本费率、积分换算、倍率、模型、档位和时间条件。
+- 用户扣费微积分与采购估算微 USD 分开存储；完整缓存分区不重复计费，缺失细项作带标记的保守估算，未知采购成本不填零。流式、在途改价、人工结算、拒绝释放沿用原账本原子性。
+- 成本表来自运营者提供的价格，不是账单。长上下文、北京时间工作日时段、priority/fast/ultrafast 规则按快照结算；Sonnet 浮点尾数规范为十进制 `122.816`。
+- 控制器按新终态样本、窗口、最少样本、冷却、倍率上下限和最大步长调整；审计保存原因，没新证据不重复涨价。只报告已知成本样本的估算毛利，不能保证实际盈利。
+- 管理后台增加“智能计费”：策略保存、能力档案、按模型与请求查看费用/耗时/成本证据、手动刷新和只读采购价。普通账号拿不到采购成本或毛利。
+- 迁移保持旧请求成本元数据为 NULL，既有显式模型和原积分费率路径可继续使用。新安装策略默认关闭，不能把部署代码等同于授权生产改价。
+
+### 本次已观察到的验收
+
+```sh
+pnpm exec tsc --noEmit -p gateway/control-plane/tsconfig.json
+pnpm --dir gateway/control-plane exec vitest run \
+  test/task-billing.test.ts test/task-billing-api.test.ts test/ai-wallet.test.ts \
+  test/admin.test.ts test/channel-management.test.ts test/ai-gateway.test.ts \
+  test/control-plane.test.ts test/account-ai.test.ts
+node scripts/verify-gateway-admin.mjs --task-billing --smoke
+```
+
+- TypeScript 检查退出 0；8 个测试文件、195 项测试通过。覆盖缓存分区、阈值/时段/档位、快照锁价、预算拒绝、自动选模、SSE 结算、未知成本、控制器冷却/CAS 和普通账号数据隔离。
+- 真实网关 CLI、一次性数据库与 TLS 假上游 smoke 通过；16 项迁移全部应用，简单任务选 `task-economy`、复杂任务选 `task-expert`，两次结算的成本指标可读取，重启后策略版本 1 保留。
+- 浏览器通过一次性运营者账号读取两条真实隔离结算记录，修改目标毛利后保存成功，服务端返回策略版本 2。1440px 与 390px 实际页面已观察；390px 整页宽度仍为 390px，无页面错误，localStorage/sessionStorage 为空。完成后停止 fixture 并关闭浏览器。
+- 这些证据不代表真实供应商费用、三端联调或生产动态定价已启用；没有使用真实账号测试扣费。生产启用状态单独记录于部署文档。
+
+客户端按 [报价与预算契约](gateway-client-api.md#任务计费报价与预算) 接入；运营者按 [策略与指标契约](gateway-admin-api.md#智能计费) 配置。
+
+### 193 隔离 HTTP API 扣费实测（2026-11-13）
+
+使用 193 已部署 `89e3991c6` 的服务端源码副本、同机 Node/Miniflare 依赖，以 `hezuo-gateway` 用户运行增强后的 `scripts/verify-gateway-admin.mjs --task-billing --smoke`。配置、home、数据库、证书、账号和上游均为一次性数据，HTTPS 只绑定回环动态端口；没有读取生产配置、充值真实账号、调用真实模型或重启正式服务。固定用量由本地 TLS 假上游提供，认证、HTTP 路由、D1 预占和扣费均执行实际服务端代码。
+
+每次成功请求报告输入 12 tokens（其中缓存读取 2）、输出 3，缓存写入两项明确为 0；请求最大输出 10，测试模型上下文上限 2048。策略为 1000 积分/USD、倍率 2.2。下表每档分别执行 Chat JSON、Chat SSE、Responses JSON、Responses SSE 共四次，四条路径扣费相同。
+
+| 档位 / 采购费率模型 | 每次预占积分 | 每次实际扣费积分 | 每次退回预占积分 | 成功次数 |
+| --- | --- | --- | --- | --- |
+| simple / `gpt-6-luna` | 1.137400 | 0.005544 | 1.131856 | 4 |
+| standard / `gpt-6.1-sol` | 11.429000 | 0.110440 | 11.318560 | 4 |
+| complex / `gpt-6-astra` | 54.903200 | 0.554400 | 54.348800 | 4 |
+
+- 测试账户初始 1000 积分，12 次合计扣费 **2.681536 积分**，最终可用 **997.318464 积分**，预占 **0**。原后台演示用待复核记录仅在 smoke 模式通过运营者 API 结算为零，避免混入本次预占核对。
+- 每次都先报价：账户余额、预占和客户端流水不变，上游调用计数不变。随后设置低于报价预占 1 微积分的预算：12 次均返回 402 `budget_exceeded`，无账本请求 ID、无上游调用、无余额变化。
+- 放行请求后先暂停假上游响应，通过账户 API 观察真实在途预占；随后读取成功 JSON 或完整 SSE、客户端流水、运营者请求与余额，逐笔断言预占、扣费、退款、缓存用量和实际模型完全一致。上游每次只收到一条请求，未收到网关私有 `billing` 字段。
+- 三档每次采购成本分别向上取整记录为 3、51、252 微 USD（`estimated`）；用户积分直接从精确成本分子计算，不用已取整成本再乘积分，避免小请求重复放大。普通账号流水不返回采购成本。
+- 另一次上游完整 429 且无 usage 返回网关 503 `ai_temporarily_busy`，用户扣费为零、预占全额释放、没有重试；运营者采购成本仍为 null / `unknown`。统计共 13 条动态请求，其中 1 条成本未知，不纳入已知成本毛利。
+- 重启隔离服务后，策略 revision 1、最终账户余额和完整客户端流水保持不变。脚本输出 `smoke: passed`、`quoteUncharged: true`、`budgetRejectedBeforeUpstream: true`、`refusalReleased: true`、`restartPreserved: true`，随后清理临时实例。
+
+本次只增强验收脚本和记录，线上算法代码仍为 `89e3991c6`，生产渠道/策略保持 revision 2。实测证明真实 HTTP API 的扣费与预占链路，不是对真实供应商返回 usage、实际账单成本或三端客户端的验证。

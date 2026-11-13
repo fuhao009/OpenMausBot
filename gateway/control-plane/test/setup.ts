@@ -23,6 +23,8 @@ beforeAll(async () => {
 afterEach(async () => {
   await forgetCachedCapacity(readConfig(env));
   await env.DB.batch([
+    env.DB.prepare("DELETE FROM ai_billing_policy"),
+    env.DB.prepare("DELETE FROM ai_billing_policy_audit"),
     env.DB.prepare("DELETE FROM otp_recipient_rate_limits"),
     env.DB.prepare("DELETE FROM control_action_rate_limits"),
     env.DB.prepare("DELETE FROM installation_action_rate_limits"),
@@ -37,6 +39,7 @@ afterEach(async () => {
     // Account AI rows hold no ON DELETE CASCADE: settled charges and review
     // reservations must outlive a token revocation or a signed-out session.
     // Delete them explicitly, before the account rows they reference.
+    env.DB.prepare("DELETE FROM account_lifecycle_audit"),
     env.DB.prepare("DELETE FROM account_ai_adjustments"),
     env.DB.prepare("DELETE FROM account_ai_requests"),
     env.DB.prepare("DELETE FROM account_ai_tokens"),

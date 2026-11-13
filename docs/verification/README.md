@@ -192,6 +192,19 @@ billed hello, a real MCP file write behind approval, account isolation, and the
 three viewport sizes. It needs no operator domain, Cloudflare account or model
 key.
 
+The gateway-only admin and task-billing fixture uses the real Worker/CLI with a
+disposable database and a local TLS fake upstream:
+`node scripts/verify-gateway-admin.mjs --task-billing --smoke`. It verifies three
+complexity tiers across Chat/Responses JSON and SSE: free quotes, pre-dispatch
+budget rejection, exact in-flight reservations, wallet/ledger charges and refunds,
+upstream refusal release with unknown procurement cost, and restart persistence.
+It prints per-request receipts and the opening/closing wallet totals.
+Omit `--smoke` to inspect the actual `/admin` billing surface using the printed
+disposable credentials; interrupt the launcher after browser verification. This
+does not contact a personal upstream or prove production billing. See the
+[billing delivery evidence](../gateway-v1-delivery.md#任务感知计费增量2026-11-13).
+
+
 The [desktop server connection smoke](desktop-server-connection.md) mounts the
 real Settings connection component in disposable Electron windows.
 

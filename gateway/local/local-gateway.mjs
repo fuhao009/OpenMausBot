@@ -26,7 +26,7 @@ import {
 } from "./local-gateway/service.mjs";
 import { AccountLookupError, d1DatabaseFiles, findAccountByEmail } from "./local-gateway/operator-bootstrap.mjs";
 import { GATEWAY_D1_IDENTITY, assertLegacyGatewayRetired, migrateGatewayIdentity } from "./local-gateway/identity-migration.mjs";
-import { createCompanionRelay, createGatewayFront } from "./local-gateway/companion-relay.mjs";
+import { createCompanionRelay, createDisconnectBridge, createGatewayFront } from "./local-gateway/companion-relay.mjs";
 
 import { DEFAULT_DATA_DIR, DEFAULT_PORT, DEFAULT_MAX_OUTPUT_TOKENS, EMAIL, SECRET_FILES, UsageError, RefusalError, fail, readPrivateFile, writePrivateFile, secretPath, hasSecret, exactHTTPSOrigin, gatewayOrigin, certificateFor, trustGatewayCertificate, readGatewayConfig, writeConfig, envValue, seededModels, resolveGatewayConfig } from "./local-gateway/config.mjs";
 export { UsageError, RefusalError, exactHTTPSOrigin, gatewayOrigin, trustGatewayCertificate, readGatewayConfig, resolveGatewayConfig };
@@ -355,7 +355,7 @@ function gatewayRequest(url, certPath, { method = "GET", path: requestPath } = {
   });
 }
 
-function runtimeOptions({ runtime, config, port, script, mail, bindings, host = null }) {
+function runtimeOptions({ runtime, config, port, script, mail, bindings, host = null, disconnectBridge = null }) {
   const certificate = certificateFor(config);
   const workers = [{
     name: "hezuo-local-gateway",
@@ -366,7 +366,10 @@ function runtimeOptions({ runtime, config, port, script, mail, bindings, host = 
     bindings,
     // The persistent database the Worker's `DB` binding resolves to.
     d1Databases: { DB: D1_NAME },
-    ...(mail ? { serviceBindings: { EMAIL: { name: "hezuo-local-mailer", entrypoint: "EmailSender" } } } : {}),
+    serviceBindings: {
+      ...(mail ? { EMAIL: { name: "hezuo-local-mailer", entrypoint: "EmailSender" } } : {}),
+      ...(disconnectBridge ? { LOCAL_GATEWAY_DISCONNECT: request => disconnectBridge.fetch(request) } : {}),
+    },
     outboundService: directEgress,
   }];
   if (mail) {
@@ -498,8 +501,9 @@ export async function startLocalGateway({ config, configPath = null, log = () =>
   // The Worker stays on loopback. The public origin is a Node TLS front that
   // serves the companion relay and dispatches everything else to Miniflare, so
   // a phone can reach the owner's desktop without Cloudflare or Tailscale.
+  const disconnectBridge = createDisconnectBridge();
   const mf = new runtime.Miniflare(runtimeOptions({
-    runtime, config: effective, port: 0, host: "127.0.0.1", script, mail, bindings,
+    runtime, config: effective, port: 0, host: "127.0.0.1", script, mail, bindings, disconnectBridge,
   }));
   let closed = false;
   let maintenanceTimer;
@@ -532,6 +536,7 @@ export async function startLocalGateway({ config, configPath = null, log = () =>
       key: readFileSync(certificate.keyPath, "utf8"),
       dispatchFetch: (url, init) => mf.dispatchFetch(url, init),
       relay,
+      disconnectBridge,
     });
     try {
       await front.listen();

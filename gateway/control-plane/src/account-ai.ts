@@ -4,13 +4,14 @@ import { z } from "zod";
 import type { ProductAiStatus, ProductModel } from "../../../packages/shared/product-account";
 import { aiConfigFrom, findModel, publicModels, type AiConfig } from "./ai-config";
 import { loadChannelCatalog, loadRuntimeAiConfig, probeChannel, saveChannelCatalog } from "./channel-store";
+import { applyBillingCatalog, getBillingMetrics, loadBillingPolicy, saveBillingPolicy } from "./task-billing";
 import {
   applyAdjustment,
   getBalance,
   getRequest,
   listLedger,
   listRequests,
-  reservationMicroPoints,
+  listReviewRequests,
   type Balance,
 } from "./ai-wallet";
 import { accountSession, type AuthPolicy, type ControlPlaneAuth } from "./auth";
@@ -100,15 +101,6 @@ interface TokenRow {
   session_expires_at: string;
 }
 
-/**
- * The account's published AI state, in the fixed product order: never enabled
- * is pending, disabled after activation is suspended, an enabled account on an
- * unusable deployment is unavailable, a balance below one full reservation is
- * insufficient, and only then ready.
- *
- * The catalog is published only where it can be used: a pending, suspended, or
- * unavailable account sees no fallback models.
- */
 function aiStatus(balance: Balance | null, config: AiConfig): ProductAiStatus {
   const status = (state: ProductAiStatus["state"], models: ProductModel[] = [], defaultModel: string | null = null) => ({
     state,
@@ -125,16 +117,10 @@ function aiStatus(balance: Balance | null, config: AiConfig): ProductAiStatus {
 
   const model = config.defaultModel === null ? null : findModel(config, config.defaultModel);
   if (!model) return status("unavailable");
-  let reservation: number;
-  try {
-    reservation = reservationMicroPoints(model);
-  } catch {
-    // A reservation beyond safe-integer range means the deployment cannot
-    // price this model at all: the account cannot use AI here.
-    return status("unavailable");
-  }
   const catalog = publicModels(config);
-  if (balance.availableMicroPoints < reservation) {
+  const free = catalog.some((entry) => entry.inputMicroPointsPerMillion === 0
+    && entry.cachedInputMicroPointsPerMillion === 0 && entry.outputMicroPointsPerMillion === 0);
+  if (balance.availableMicroPoints === 0 && !free) {
     return status("insufficient_balance", catalog, config.defaultModel);
   }
   return status("ready", catalog, config.defaultModel);
@@ -167,7 +153,9 @@ export async function authenticateModelToken(
             s."expiresAt" AS session_expires_at
        FROM account_ai_tokens t
        JOIN "session" s ON s.id = t.session_id AND s."userId" = t.owner_user_id
-      WHERE t.lookup_id = ? AND t.revoked_at IS NULL AND t.expires_at > ?`,
+      WHERE t.lookup_id = ? AND t.revoked_at IS NULL AND t.expires_at > ?
+        AND NOT EXISTS (SELECT 1 FROM account_lifecycle l WHERE l.user_id = t.owner_user_id
+          AND (l.disabled = 1 OR l.deleted = 1 OR l.password_change_required = 1))`,
   ).bind(parsed[1], now).first<TokenRow>();
   // Better Auth stores session dates as ISO-8601 text.
   const sessionExpiry = row === null ? Number.NaN : Date.parse(row.session_expires_at);
@@ -347,7 +335,7 @@ async function operatorAccountView(
   userId: string,
   config: AiConfig,
 ) {
-  const user = await env.DB.prepare('SELECT id, email, "emailVerified" AS emailVerified FROM "user" WHERE id = ?')
+  const user = await env.DB.prepare('SELECT id, email, "emailVerified" AS emailVerified FROM "user" WHERE id = ? AND NOT EXISTS (SELECT 1 FROM account_lifecycle l WHERE l.user_id = "user".id AND l.deleted = 1)')
     .bind(userId).first<{ id: string; email: string; emailVerified: number | string | boolean }>();
   if (!user) throw new HTTPError(404, "not_found");
   const balance = await getBalance(env, userId);
@@ -463,8 +451,14 @@ async function operatorListAccountRequests(
 ): Promise<Response> {
   await requireOperator(request, auth, config);
   const url = new URL(request.url);
-  const userId = userIdSchema.safeParse(url.searchParams.get("userId") ?? "");
-  if (!userId.success) throw new HTTPError(400, "invalid_request");
+  const state = url.searchParams.get("state");
+  const rawUserId = url.searchParams.get("userId");
+  if (rawUserId === null && state === "review") {
+    const page = await listReviewRequests(env, url.searchParams.get("cursor") ?? undefined);
+    return wireJSON({ requests: page.items, nextCursor: page.nextCursor });
+  }
+  const userId = userIdSchema.safeParse(rawUserId ?? "");
+  if (!userId.success || state !== null) throw new HTTPError(400, "invalid_request");
   const page = await listRequests(env, userId.data, url.searchParams.get("cursor") ?? undefined);
   return wireJSON({ requests: page.items, nextCursor: page.nextCursor });
 }
@@ -519,6 +513,15 @@ export async function routeAccountAi(
   const { method } = request;
   const tokenRoute = pathname.match(ACCOUNT_ROUTE);
   const settleRoute = pathname.match(SETTLE_ROUTE);
+  if (pathname === "/v1/operator/billing" || pathname === "/v1/operator/billing/metrics") {
+    const operator = await requireOperator(request, auth, aiConfigFrom(env));
+    if (pathname.endsWith("/metrics") && method === "GET") return wireJSON(await getBillingMetrics(env));
+    if (pathname === "/v1/operator/billing" && method === "GET") return wireJSON(await loadBillingPolicy(env));
+    if (pathname === "/v1/operator/billing" && method === "POST") {
+      return wireJSON(await saveBillingPolicy(env, operator.user.id, await readBoundedJSON(request, 64 * 1024)));
+    }
+    throw new HTTPError(405, "method_not_allowed");
+  }
   const channelProbe = pathname.match(/^\/v1\/operator\/channels\/([A-Za-z0-9_-]+)\/probe$/);
   if (pathname === "/v1/operator/channels" || channelProbe) {
     const operator = await requireOperator(request, auth, aiConfigFrom(env));
@@ -539,7 +542,7 @@ export async function routeAccountAi(
     || (pathname === "/v1/operator/ai/requests" && method === "GET")
     || (settleRoute !== null && method === "POST");
   if (!matched) return null;
-  const config = await loadRuntimeAiConfig(env);
+  const config = await applyBillingCatalog(env, await loadRuntimeAiConfig(env));
   if (pathname === "/v1/operator/me") {
     const session = await requireOperator(request, auth, config);
     return wireJSON({

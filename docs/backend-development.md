@@ -8,7 +8,7 @@
 4. [生产部署记录](gateway-deployment-193.md)：实际服务器、部署 SHA、验证证据与限制。
 5. [架构](architecture.md)：网关与桌面本地服务的数据边界。
 
-本文对应后端分支 `backend/gateway-deploy-admin-193`。仓库远端 `personal` 指向 `fuhao009/OpenMausBot`；`origin` 是上游项目，不能把本项目改动默认推往上游。已部署功能提交 `64b453286`，文档更新提交与功能部署不是一回事。
+任务计费交付分支为 `backend/task-aware-billing`，基于 `backend/gateway-v1-lan`。仓库远端 `personal` 指向 `fuhao009/OpenMausBot`；`origin` 是上游项目，不能把本项目改动默认推往上游。实际部署 SHA 以部署记录为准，文档提交不等于功能部署。
 
 ## 这套后端是什么
 
@@ -27,10 +27,12 @@
 | `channel-store.ts` | D1 渠道目录、加密密钥、版本保存、模型发现、运行时路由配置 | 保存原子性、URL 换 key、读取错误不能回退启用旧配置 |
 | `ai-gateway.ts` | Chat/Responses 校验、预占、单次转发、SSE/JSON 结算 | 失败不等于未计费，不能透明重试或自动退款 |
 | `ai-wallet.ts` | 整数积分、预占、结算、调整、流水 | 金额安全整数/BigInt；历史价格快照不可重算 |
+| `task-billing.ts`、`cost-tariffs.ts` | 复杂度评估、选模、成本与积分运算、版本化策略和有界控制器 | 成本为运营者估算价；新请求锁价，未知成本不填零，不保证净利润 |
 | `installations.ts` | 桌面安装注册、归属、凭据轮换/撤销 | 账号、安装、模型凭据不能互换 |
 | `endpoints.ts`、`push.ts`、`highlevel.ts` | 可选托管隧道、APNS、HighLevel OAuth | 配置能力与账号登录独立，不能把未配置当已支持 |
 | `admin-assets.ts`、`admin-html.ts`、`admin-script.ts`、`admin-style.ts` | `/admin` 静态界面与账号/结算交互 | Worker 直接打包字符串资产，无额外前端构建服务 |
 | `admin-channel-html.ts`、`admin-channel-script.ts` | 渠道与模型表单 | 表单→暂存→填写原因→版本化保存；不回显 key |
+| `admin-billing-html.ts`、`admin-billing-script.ts` | 智能计费策略、能力档案、指标和只读费率 | 仅运营者；15 秒刷新，离开页面或会话失效停止；不修改在途请求 |
 | `gateway/control-plane/migrations/` | Worker/D1 schema | 历史 SQL 不改，新建递增 migration |
 | `gateway/control-plane/test/` | 真实 workerd/D1 隔离测试 | 使用现有 env/setup，不能调用生产 |
 | `gateway/local/local-gateway.mjs` | CLI、bundle、迁移、运行时、定时任务 | 启动先迁移，后开放监听；运营者名单不依赖是否已配置 AI |
@@ -65,6 +67,7 @@ flowchart TD
 - 用户/会话、安装、AI 令牌摘要、账本和请求都在 D1。
 - `0012_account_ai.sql`、`0013_account_ai_points.sql` 管理账本约束；不要绕开触发器直接改余额。
 - `0014_ai_channels.sql` 增加单行 `ai_channel_catalog` 和 `ai_channel_audit`；CAS 更新 revision，审计触发器与更新同事务。
+- `0015_task_billing.sql` 扩展请求成本、缓存写入及延迟字段并保护快照/结算不可变；`0016_billing_policy.sql` 创建策略及审计。旧请求保留 NULL 元数据，不能给历史用量补猜成本。
 - 渠道 key AES-GCM 加密，HKDF 从 `BETTER_AUTH_SECRET` 域分离派生密钥；AAD 绑定渠道 ID 与 canonical base URL。
 - GET 管理目录仅返回 `hasKey`。密钥留空仅允许同渠道 ID、同 URL 保留；改 URL 需重新提供。
 - 未保存渠道目录时读取旧部署环境变量；首次保存后 DB 唯一权威，空目录仍是明确关闭，不回退。
@@ -85,8 +88,8 @@ pnpm install --frozen-lockfile
 若你位于其他平台，使用对应 Node 24 安装路径，不复制 macOS 路径。独立 worktree：
 
 ```sh
-git fetch personal backend/gateway-deploy-admin-193
-git worktree add ../HezuoBot-backend-local -b backend/my-change personal/backend/gateway-deploy-admin-193
+git fetch personal backend/task-aware-billing
+git worktree add ../HezuoBot-backend-local -b backend/my-change personal/backend/task-aware-billing
 ```
 
 ### 启动可操作的隔离后台
@@ -107,6 +110,8 @@ node scripts/verify-gateway-admin.mjs --smoke
 
 覆盖渠道发布、发现、实际假上游推理、重启与加密凭据读取。该脚本目前依赖 POSIX 进程组，Windows 开发者在 Linux/WSL 环境运行。
 
+任务计费使用 `node scripts/verify-gateway-admin.mjs --task-billing --smoke`，覆盖简单/复杂任务路由、成本与积分结算和重启持久化；去掉 `--smoke` 后在真实隔离后台操作策略。报价、预算和错误见 [客户端契约](gateway-client-api.md#任务计费报价与预算)，策略字段、控制器边界及成本口径见 [管理契约](gateway-admin-api.md#智能计费)。专项测试为 `test/task-billing.test.ts`、`test/task-billing-api.test.ts` 和 `test/ai-wallet.test.ts`，与受影响路由测试一起执行。
+
 ### 检查命令
 
 ```sh
@@ -123,7 +128,7 @@ pnpm --dir gateway/control-plane exec vitest run \
 - Cloudflare workerd fetch 只支持 `follow`/`manual`，不支持 `redirect: error`。渠道发现使用 `manual` 并拒绝非 2xx，不泄漏 key 到重定向目标。
 - 发现模型有显式 10 秒 deadline，不能只依赖一个未必被宿主传递的 AbortSignal。
 - 账号只有 `set-auth-token` 中签名 Bearer 可用于客户端；不要拿 JSON `token` 字段代替。
-- 关闭/未配置托管 Cloudflare endpoint 的隔离环境，定时任务可能输出 `managed endpoint cleanup sweep failed ... misconfigured`；这不等于账号/渠道失败，也不能因此说隧道配置完整。
+- 完整缺失托管 Cloudflare endpoint 配置时定时维护跳过该项；部分/非法配置和真实执行失败仍报错。其他定时任务独立运行，不将错误解释为隧道已配置。
 - CLI `status.capabilities` 是启动元数据，网页热更新后应查询运营者/账号 API 看当前模型能力。
 
 ## 生产部署维护
@@ -159,4 +164,4 @@ ssh root@192.168.66.193 'journalctl -u hezuo-gateway -n 100 --no-pager'
 
 ## 当前明确边界
 
-已有账号/积分/人工结算、渠道/模型/只写 key、动态路由。尚无全局用户列表、设备管理后台、自动故障切换、Anthropic/Gemini 转换或订阅凭据发现。生产真实渠道仍需运营者填写；邮件/APNS/Cloudflare 托管端点并非已配置。后续需求必须真实实现后再标记可用，不增加空按钮或假统计。
+已有账号/积分/人工结算、渠道/模型/只写 key、任务复杂度自动路由与动态积分估算。尚无全局用户列表、设备管理后台、自动故障切换、Anthropic/Gemini 转换或订阅凭据发现。积分/USD 是估值，不是现金兑付、充值收款或支付履约；成本未对供应商发票核账，估算毛利不是净利润。邮件/APNS/Cloudflare 托管端点并非已配置。生产渠道、策略实际启用和未验证范围见部署记录，不增加空按钮或假统计。

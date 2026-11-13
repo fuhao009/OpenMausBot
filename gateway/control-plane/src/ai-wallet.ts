@@ -4,6 +4,7 @@ import type {
   ProductModel,
 } from "../../../packages/shared/product-account";
 import { HTTPError } from "./http";
+import { calculateTaskCharge, calculateTaskReservation, type BillingUsage, type TaskBillingSnapshot } from "./task-billing";
 
 /**
  * Account-funded AI ledger: balances, per-request reservations, settlement,
@@ -58,11 +59,7 @@ export interface PricingSnapshot {
 /** A missing `cachedInputTokens` means the upstream did not report cache
  * usage at all: it is billed at the higher of the two input rates instead of
  * being treated as a free cache hit. */
-export interface Usage {
-  cachedInputTokens?: number | null;
-  inputTokens: number;
-  outputTokens: number;
-}
+export interface Usage extends BillingUsage {}
 
 export interface RequestEntry {
   cachedInputTokens: number | null;
@@ -85,6 +82,14 @@ export interface RequestEntry {
   state: RequestState;
   updatedAt: number;
   userId: string;
+  cacheWriteTokens?: number | null;
+  cacheWriteHourTokens?: number | null;
+  costMicroCurrency?: number | null;
+  costStatus?: "estimated" | "conservative" | "unknown" | null;
+  latencyMs?: number | null;
+  complexity?: TaskBillingSnapshot["complexity"];
+  requestedModel?: string;
+  serviceTier?: string;
 }
 
 interface BalanceRow {
@@ -115,6 +120,12 @@ interface RequestRow {
   settled_at: number | null;
   state: RequestState;
   updated_at: number;
+  billing_snapshot: string | null;
+  cost_micro_currency: number | null;
+  cost_status: "estimated" | "conservative" | "unknown" | null;
+  cache_write_tokens: number | null;
+  cache_write_hour_tokens: number | null;
+  latency_ms: number | null;
 }
 
 interface AdmissionProbeRow {
@@ -146,9 +157,9 @@ function ceilMicroPoints(numerator: bigint): number {
 
 /**
  * The amount a request must hold before it may reach the upstream:
- * `ceil((maxContext × max(inputRate, cachedRate) + effectiveMaxOutput ×
- * outputRate) / 1e6)`. The input ceiling is the model's full context bound,
- * not a guess from the prompt, so an accepted request can never exceed it.
+ * `ceil((inputReservation × max(inputRate, cachedRate) + effectiveMaxOutput ×
+ * outputRate) / 1e6)`. The caller supplies the input reservation estimate;
+ * trusted actual usage can draw additional available funds at settlement.
  */
 export function reservationMicroPoints(model: Pick<
   ProductModel,
@@ -266,6 +277,7 @@ function cursorClause(
 }
 
 function requestEntry(row: RequestRow): RequestEntry {
+  const billing: TaskBillingSnapshot | null = row.billing_snapshot === null ? null : JSON.parse(row.billing_snapshot);
   return {
     cachedInputTokens: row.cached_input_tokens,
     cachedRate: row.cached_rate,
@@ -287,13 +299,24 @@ function requestEntry(row: RequestRow): RequestEntry {
     state: row.state,
     updatedAt: row.updated_at,
     userId: row.owner_user_id,
+    ...(billing === null ? {} : {
+      cacheWriteTokens: row.cache_write_tokens,
+      cacheWriteHourTokens: row.cache_write_hour_tokens,
+      costMicroCurrency: row.cost_micro_currency,
+      costStatus: row.cost_status,
+      latencyMs: row.latency_ms,
+      complexity: billing.complexity,
+      requestedModel: billing.requestedModel,
+      serviceTier: billing.serviceTier,
+    }),
   };
 }
 
 const REQUEST_COLUMNS = `id, owner_user_id, model, endpoint, pricing_version, input_rate, cached_rate,
   output_rate, max_input_tokens, max_output_tokens, reserved_micro_points, state,
   charged_micro_points, input_tokens, cached_input_tokens, output_tokens,
-  settlement_reason, created_at, updated_at, settled_at`;
+  settlement_reason, created_at, updated_at, settled_at, billing_snapshot,
+  cost_micro_currency, cost_status, cache_write_tokens, cache_write_hour_tokens, latency_ms`;
 
 /** The account's ledger row, or null when it has never been touched. An
  * account without a row is pending with a zero balance; reading never
@@ -436,19 +459,34 @@ export async function listRequests(
   };
 }
 
+/** Global operator review queue, newest first. */
+export async function listReviewRequests(env: Env, cursor?: string, limit?: number): Promise<{ items: (RequestEntry & { email: string | null })[]; nextCursor: string | null }> {
+  const take = pageLimit(limit);
+  const after = cursor === undefined || cursor === "" ? null : decodeLedgerCursor(cursor);
+  const page = cursorClause("account_ai_requests", "id", after);
+  const rows = await env.DB.prepare(`SELECT ${REQUEST_COLUMNS},
+    (SELECT email FROM user WHERE user.id = account_ai_requests.owner_user_id) AS email
+    FROM account_ai_requests WHERE state = 'review'${page.sql}
+    ORDER BY created_at DESC, id DESC LIMIT ?`).bind(...page.values, take + 1).all<RequestRow & { email: string | null }>();
+  const items = rows.results.slice(0, take).map(row => ({ ...requestEntry(row), email: row.email }));
+  const last = items.at(-1);
+  return { items, nextCursor: rows.results.length > take && last ? encodeCursor({ createdAt: last.createdAt, id: last.id }) : null };
+}
+
 export interface ReserveInput {
   endpoint: "chat" | "responses";
   model: string;
   ownerUserId: string;
   pricing: PricingSnapshot;
   tokenId: string;
+  billing?: TaskBillingSnapshot;
 }
 
 export type ReserveResult =
   | { id: string; ok: true; reservedMicroPoints: number }
   | { ok: false; reason: "ai_busy" | "insufficient_balance" | "not_enabled" };
 
-function validatePricing(pricing: PricingSnapshot): number {
+function validatePricing(pricing: PricingSnapshot, calculateReservation = true): number {
   requireSafeCount(pricing.inputRate, "input rate");
   requireSafeCount(pricing.cachedRate, "cached rate");
   requireSafeCount(pricing.outputRate, "output rate");
@@ -462,10 +500,46 @@ function validatePricing(pricing: PricingSnapshot): number {
   ) {
     throw new RangeError("invalid pricing version");
   }
+  if (!calculateReservation) return 0;
   return ceilMicroPoints(
     BigInt(pricing.maxInputTokens) * BigInt(Math.max(pricing.inputRate, pricing.cachedRate))
       + BigInt(pricing.maxOutputTokens) * BigInt(pricing.outputRate),
   );
+}
+
+/** Dynamic callers supply the planner's selected model, maximum sale rates and
+ * exact token bounds. The hold uses exact tariff arithmetic, not the rounded
+ * public per-million hints (rounding those first can overstate the hold). */
+function validateBilling(input: ReserveInput): number {
+  const billing = input.billing!;
+  if (billing.version !== 1 || billing.currency !== "USD"
+    || billing.selectedModel !== input.model
+    || billing.maxInputTokens !== input.pricing.maxInputTokens
+    || billing.maxOutputTokens !== input.pricing.maxOutputTokens) {
+    throw new RangeError("billing_snapshot_mismatch");
+  }
+  const bound = calculateTaskReservation(billing);
+  if (requireSafeCount(billing.reservedMicroPoints, "billing reservation") !== bound.reservedMicroPoints
+    || requireSafeCount(billing.maxCostMicroCurrency, "billing cost bound") !== bound.maxCostMicroCurrency) {
+    throw new RangeError("billing_reservation_mismatch");
+  }
+  const all = billing.longRates === null ? [billing.rates] : [billing.rates, billing.longRates];
+  const inputRate = Math.max(...all.flatMap((rate) => [rate.input, rate.cached, rate.write ?? 0, rate.writeHour ?? 0]));
+  const outputRate = Math.max(...all.map((rate) => rate.output));
+  const saleRate = (rate: number): number => {
+    const numerator = BigInt(requireSafeCount(rate, "tariff rate"))
+      * BigInt(requireSafeCount(billing.pointsPerCurrency, "points per currency"))
+      * BigInt(requireSafeCount(billing.multiplierBps, "billing multiplier"));
+    const result = (numerator + 9999n) / 10000n;
+    if (result > BigInt(MAX_AMOUNT)) throw new RangeError("amount_out_of_range");
+    return Number(result);
+  };
+  if (input.pricing.inputRate !== saleRate(inputRate)
+    || input.pricing.cachedRate !== saleRate(inputRate)
+    || input.pricing.outputRate !== saleRate(outputRate)) {
+    throw new RangeError("billing_sale_rates_mismatch");
+  }
+  return bound.reservedMicroPoints;
 }
 
 /**
@@ -492,7 +566,9 @@ export async function reserveRequest(
   if (typeof input.tokenId !== "string" || input.tokenId.length === 0) {
     throw new RangeError("invalid token");
   }
-  const reserved = validatePricing(input.pricing);
+  const legacyReserved = validatePricing(input.pricing, input.billing === undefined);
+  const reserved = input.billing === undefined ? legacyReserved : validateBilling(input);
+  const billingJSON = input.billing === undefined ? null : JSON.stringify(input.billing);
   const id = crypto.randomUUID();
 
   try {
@@ -500,8 +576,8 @@ export async function reserveRequest(
       `INSERT INTO account_ai_requests
          (id, owner_user_id, token_id, model, endpoint, pricing_version,
           input_rate, cached_rate, output_rate, max_input_tokens, max_output_tokens,
-          reserved_micro_points, state, created_at, updated_at)
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, ?
+          reserved_micro_points, state, created_at, updated_at, billing_snapshot, cost_status)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, ?, ?, ?
          FROM account_ai_balances b
          JOIN account_ai_tokens t
            ON t.id = ? AND t.owner_user_id = b.owner_user_id
@@ -509,6 +585,8 @@ export async function reserveRequest(
          JOIN "session" s ON s.id = t.session_id AND s."userId" = t.owner_user_id
         WHERE b.owner_user_id = ?
           AND b.enabled = 1
+          AND NOT EXISTS (SELECT 1 FROM account_lifecycle l WHERE l.user_id = b.owner_user_id
+            AND (l.disabled = 1 OR l.deleted = 1 OR l.password_change_required = 1))
           AND b.available_micro_points >= ?`,
     ).bind(
       id,
@@ -525,6 +603,8 @@ export async function reserveRequest(
       reserved,
       now,
       now,
+      billingJSON,
+      billingJSON === null ? null : "unknown",
       input.tokenId,
       now,
       input.ownerUserId,
@@ -595,16 +675,16 @@ export type SettleResult =
   | { status: "missing" };
 
 /**
- * Settles a finished request at its real usage and returns the unused part of
- * the reservation exactly once. Usage outside the snapshot's bounds is never
- * charged at the maximum: the row moves to `review` with the reservation
- * intact for an operator to check.
+ * Settles trusted usage exactly once, collecting any overage from available
+ * funds atomically. An insolvent request records the collected amount and
+ * usage in review with no remaining hold; manual resolution can refund it.
  */
 export async function settleRequest(
   env: Env,
   requestId: string,
   usage: Usage,
   now: number = Date.now(),
+  reason: string | null = null,
 ): Promise<SettleResult> {
   if (!UUID_PATTERN.test(requestId)) return { status: "missing" };
   const row = await env.DB.prepare(
@@ -620,37 +700,52 @@ export async function settleRequest(
   if (invalid !== null) return { status: "review", reason: await reviewOrKeep(env, requestId, invalid, now) };
 
   let charged: number;
+  let costMicroCurrency: number | null = null;
+  let costStatus: "estimated" | "conservative" | null = null;
   try {
-    charged = chargeMicroPoints(
-      { cachedRate: row.cached_rate, inputRate: row.input_rate, outputRate: row.output_rate },
-      usage,
-    );
+    if (row.billing_snapshot !== null) {
+      const cost = calculateTaskCharge(JSON.parse(row.billing_snapshot) as TaskBillingSnapshot, usage);
+      charged = cost.chargedMicroPoints;
+      costMicroCurrency = cost.costMicroCurrency;
+      costStatus = cost.costStatus;
+    } else {
+      charged = chargeMicroPoints(
+        { cachedRate: row.cached_rate, inputRate: row.input_rate, outputRate: row.output_rate },
+        usage,
+      );
+    }
   } catch {
     return { status: "review", reason: await reviewOrKeep(env, requestId, "usage_invalid", now) };
-  }
-  if (charged > row.reserved_micro_points) {
-    return { status: "review", reason: await reviewOrKeep(env, requestId, "charge_exceeds_reservation", now) };
   }
 
   const cached = usage.cachedInputTokens === undefined || usage.cachedInputTokens === null
     ? null
     : usage.cachedInputTokens;
-  const result = await env.DB.prepare(
+  await env.DB.prepare(
     `UPDATE account_ai_requests
-        SET state = 'settled', charged_micro_points = ?, input_tokens = ?,
-            cached_input_tokens = ?, output_tokens = ?, settlement_reason = NULL,
-            settled_at = ?, updated_at = ?
+        SET state = CASE WHEN ? <= reserved_micro_points + (SELECT available_micro_points FROM account_ai_balances WHERE owner_user_id = account_ai_requests.owner_user_id) THEN 'settled' ELSE 'review' END,
+            charged_micro_points = min(?, reserved_micro_points + (SELECT available_micro_points FROM account_ai_balances WHERE owner_user_id = account_ai_requests.owner_user_id)), input_tokens = ?,
+            cached_input_tokens = ?, output_tokens = ?, settlement_reason = CASE WHEN ? <= reserved_micro_points + (SELECT available_micro_points FROM account_ai_balances WHERE owner_user_id = account_ai_requests.owner_user_id) THEN ? ELSE 'usage_exceeds_reservation' END,
+            settled_at = ?, updated_at = ?, cost_micro_currency = ?, cost_status = ?,
+            cache_write_tokens = ?, cache_write_hour_tokens = ?, latency_ms = ?
       WHERE id = ? AND state IN ('reserved', 'streaming') AND charged_micro_points IS NULL`,
   ).bind(
+    charged,
     charged,
     usage.inputTokens,
     cached,
     usage.outputTokens,
+    charged,
+    reason,
     now,
     now,
+    costMicroCurrency,
+    costStatus,
+    costStatus === null ? null : usage.cacheWriteTokens ?? null,
+    costStatus === null ? null : usage.cacheWriteHourTokens ?? null,
+    costStatus === null ? null : Math.max(0, now - row.created_at),
     requestId,
   ).run();
-  if ((result.meta.changes ?? 0) > 0) return { chargedMicroPoints: charged, status: "settled" };
 
   // Another writer settled it first (a duplicated terminal frame) or an
   // operator settled it out of review. Report what actually happened.
@@ -674,8 +769,6 @@ function reasonForUnusable(row: RequestRow, usage: Usage): string | null {
     if (typeof cached !== "number" || !Number.isSafeInteger(cached) || cached < 0) return "usage_invalid";
     if (cached > usage.inputTokens) return "usage_invalid";
   }
-  if (usage.inputTokens > row.max_input_tokens) return "usage_over_reservation";
-  if (usage.outputTokens > row.max_output_tokens) return "usage_over_reservation";
   return null;
 }
 
@@ -694,9 +787,12 @@ export async function reviewRequest(
 ): Promise<boolean> {
   const result = await env.DB.prepare(
     `UPDATE account_ai_requests
-        SET state = 'review', settlement_reason = ?, updated_at = ?
+        SET state = 'review', settlement_reason = ?, updated_at = ?,
+            cost_micro_currency = NULL,
+            cost_status = CASE WHEN billing_snapshot IS NULL THEN NULL ELSE 'unknown' END,
+            latency_ms = CASE WHEN billing_snapshot IS NULL THEN NULL ELSE max(0, ? - created_at) END
       WHERE id = ? AND state IN ('reserved', 'streaming')`,
-  ).bind(reason.slice(0, MAX_SETTLEMENT_REASON) || "review", now, requestId).run();
+  ).bind(reason.slice(0, MAX_SETTLEMENT_REASON) || "review", now, now, requestId).run();
   return (result.meta.changes ?? 0) > 0;
 }
 
@@ -713,9 +809,11 @@ export async function releaseRequest(
   const result = await env.DB.prepare(
     `UPDATE account_ai_requests
         SET state = 'settled', charged_micro_points = 0, settlement_reason = ?,
-            settled_at = ?, updated_at = ?
+            settled_at = ?, updated_at = ?, cost_micro_currency = NULL,
+            cost_status = CASE WHEN billing_snapshot IS NULL THEN NULL ELSE 'unknown' END,
+            latency_ms = CASE WHEN billing_snapshot IS NULL THEN NULL ELSE max(0, ? - created_at) END
       WHERE id = ? AND state IN ('reserved', 'streaming') AND charged_micro_points IS NULL`,
-  ).bind(reason.slice(0, MAX_SETTLEMENT_REASON) || "released", now, now, requestId).run();
+  ).bind(reason.slice(0, MAX_SETTLEMENT_REASON) || "released", now, now, now, requestId).run();
   return (result.meta.changes ?? 0) > 0;
 }
 
@@ -735,7 +833,10 @@ export async function recoverStaleRequests(
     : RECOVERY_BATCH_LIMIT;
   const result = await env.DB.prepare(
     `UPDATE account_ai_requests
-        SET state = 'review', settlement_reason = 'stale_reservation', updated_at = ?
+        SET state = 'review', settlement_reason = 'stale_reservation', updated_at = ?,
+            cost_micro_currency = NULL,
+            cost_status = CASE WHEN billing_snapshot IS NULL THEN NULL ELSE 'unknown' END,
+            latency_ms = CASE WHEN billing_snapshot IS NULL THEN NULL ELSE max(0, ? - created_at) END
       WHERE state IN ('reserved', 'streaming') AND created_at <= ?
         AND id IN (
           SELECT id FROM account_ai_requests
@@ -743,7 +844,7 @@ export async function recoverStaleRequests(
            ORDER BY created_at, id
            LIMIT ?
         )`,
-  ).bind(now, cutoff, cutoff, take).run();
+  ).bind(now, now, cutoff, cutoff, take).run();
   return result.meta.changes ?? 0;
 }
 
@@ -888,7 +989,7 @@ export async function applyAdjustment(env: Env, input: AdjustmentInput): Promise
       const request = await getRequest(env, input.requestId);
       if (request === null || request.userId !== input.ownerUserId) throw new HTTPError(404, "not_found");
       if (request.state !== "review") throw new HTTPError(409, "request_not_in_review");
-      if (value > request.reservedMicroPoints) throw new HTTPError(400, "invalid_request");
+      if (value > (request.chargedMicroPoints ?? request.reservedMicroPoints)) throw new HTTPError(400, "invalid_request");
       requestId = input.requestId;
       amount = value;
       result = { chargedMicroPoints: value, kind: "settle", requestId: input.requestId };

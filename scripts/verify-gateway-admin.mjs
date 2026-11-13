@@ -1,6 +1,7 @@
 // Run with Node >=24: node scripts/verify-gateway-admin.mjs
 // Add --smoke for isolated publication, probe, inference and restart verification.
 // Opens no browser and never reads an existing gateway config or database.
+import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -19,6 +20,15 @@ const HOST = "127.0.0.1";
 const STARTUP_MS = 90_000;
 const model = MODELS[0];
 const smoke = process.argv.includes("--smoke");
+const taskBilling = process.argv.includes("--task-billing");
+const taskModels = [
+  { id: "task-economy", label: "Task Economy", upstreamModel: "gpt-6-luna", capacity: "simple" },
+  { id: "task-standard", label: "Task Standard", upstreamModel: "gpt-6.1-sol", capacity: "standard" },
+  { id: "task-expert", label: "Task Expert", upstreamModel: "gpt-6-astra", capacity: "complex" },
+].flatMap(value => [
+  { ...value, protocol: "chat" },
+  { ...value, id: `${value.id}-responses`, protocol: "responses", chatMaxTokensField: undefined },
+]);
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -98,6 +108,9 @@ async function run() {
   const startupAborted = waitForAbort(startup);
   let command;
   let upstream;
+  const upstreamCalls = [];
+  let heldReply;
+  let refuseNextReply = false;
 
   async function cli(name, ...args) {
     startup.throwIfAborted();
@@ -146,11 +159,11 @@ async function run() {
       if (request.method === "GET" && path === "/v1/models") {
         request.resume();
         response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({
-          data: [{ id: model.upstreamModel }, { id: "fixture-browser-model" }],
+          data: [{ id: model.upstreamModel }, { id: "fixture-browser-model" }, ...taskModels.map(value => ({ id: value.upstreamModel }))],
         }));
         return;
       }
-      if (request.method !== "POST" || path !== "/v1/chat/completions") {
+      if (request.method !== "POST" || !["/v1/chat/completions", "/v1/responses"].includes(path)) {
         request.resume();
         response.writeHead(404).end();
         return;
@@ -158,17 +171,36 @@ async function run() {
       let raw = "";
       for await (const chunk of request) raw += chunk;
       const body = JSON.parse(raw);
-      if (![model.upstreamModel, "fixture-browser-model"].includes(body.model)) {
+      if (![model.upstreamModel, "fixture-browser-model", ...taskModels.map(value => value.upstreamModel)].includes(body.model)) {
         response.writeHead(400).end();
         return;
       }
-      // Keep one held reservation for the existing review UI; all subsequent
-      // browser and smoke requests have real usage and settle normally.
+      upstreamCalls.push({ model: body.model, path, billingForwarded: Object.hasOwn(body, "billing") });
+      if (heldReply) {
+        const gate = heldReply; heldReply = undefined;
+        gate.entered.resolve();
+        await gate.release.promise;
+      }
+      if (refuseNextReply) {
+        refuseNextReply = false;
+        response.writeHead(429, { "content-type": "application/json" }).end(JSON.stringify({ error: { message: "Disposable upstream refusal" } }));
+        return;
+      }
       const review = body.messages?.some(message => message.content === "Seed one request for operator review.");
-      response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({
-        model: body.model, choices: [{ message: { role: "assistant", content: "Disposable fixture reply" } }],
-        ...(review ? {} : { usage: { prompt_tokens: 12, completion_tokens: 3, prompt_tokens_details: { cached_tokens: 2 } } }),
-      }));
+      const details = { cached_tokens: 2, cache_write_tokens: 0, cache_write_1h_tokens: 0 };
+      const completion = path === "/v1/responses"
+        ? { id: `resp-${randomUUID()}`, object: "response", status: "completed", model: body.model, output: [],
+          usage: { input_tokens: 12, output_tokens: 3, input_tokens_details: details } }
+        : { model: body.model, choices: [{ message: { role: "assistant", content: "Disposable fixture reply" } }],
+          ...(review ? {} : { usage: { prompt_tokens: 12, completion_tokens: 3, prompt_tokens_details: details } }) };
+      if (body.stream) {
+        const stream = path === "/v1/responses"
+          ? `event: response.completed\ndata: ${JSON.stringify({ type: "response.completed", response: completion })}\n\n`
+          : `data: ${JSON.stringify(completion)}\n\ndata: [DONE]\n\n`;
+        response.writeHead(200, { "content-type": "text/event-stream" }).end(stream);
+      } else {
+        response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(completion));
+      }
     });
     const upstreamPort = await listen(upstream);
     const portReservation = createTcpServer();
@@ -219,7 +251,7 @@ async function run() {
     const initialPublication = {
       revision: 0, reason: "Publish disposable admin fixture",
       channels: [{ id: "fixture", name: "Disposable fixture", baseURL: `https://${HOST}:${upstreamPort}/v1`, enabled: true, apiKey: upstreamKey }],
-      models: MODELS.map(value => ({ ...value, channelId: "fixture" })), defaultModel: model.id,
+      models: [...MODELS.map(value => ({ ...value, channelId: "fixture" })), ...(taskBilling ? taskModels.map(({ capacity, ...value }) => ({ ...model, ...value, maxContextTokens: 2048, maxOutputTokens: 128, channelId: "fixture" })) : [])], defaultModel: model.id,
     };
     await (await request("/v1/operator/channels", 200, operatorToken, initialPublication)).json();
     const discovery = await (await request("/v1/operator/channels/fixture/probe", 200, operatorToken, {})).json();
@@ -237,7 +269,7 @@ async function run() {
       userId, operationId: randomUUID(), reason: "Seed disposable admin fixture", ...payload,
     })).json();
     await adjust("/v1/operator/ai/account", { enabled: true });
-    await adjust("/v1/operator/ai/balance", { amountMicroPoints: 5_000_000 });
+    await adjust("/v1/operator/ai/balance", { amountMicroPoints: taskBilling ? 1_000_000_000 : 5_000_000 });
     const { token } = await (await request("/v1/account/ai/tokens", 201, ordinarySession.accountToken, { deviceId: randomUUID() })).json();
     await (await request("/v1/ai/chat/completions", 502, token, {
       model: model.id, messages: [{ role: "user", content: "Seed one request for operator review." }],
@@ -251,6 +283,125 @@ async function run() {
 
     const browserChannel = { id: "browser", name: "Browser disposable upstream", baseURL: `https://${HOST}:${upstreamPort}/browser/v1`, enabled: true, apiKey: upstreamKey };
     const browserModel = { ...model, id: "browser-model", label: "Browser published model", upstreamModel: "fixture-browser-model", channelId: "browser" };
+    if (taskBilling) {
+      const initial = await (await request("/v1/operator/billing", 200, operatorToken)).json();
+      await (await request("/v1/operator/billing", 200, operatorToken, {
+        revision: initial.revision, reason: "Enable isolated task pricing", policy: { ...initial.policy, enabled: true,
+          profiles: taskModels.map(value => ({ modelId: value.id, capacity: value.capacity, tools: true, vision: true })) },
+      })).json();
+      if (smoke) await (await request(`/v1/operator/ai/requests/${reviewed.id}/settle`, 200, operatorToken, {
+        operationId: randomUUID(), reason: "Release disposable review before exact wallet verification", chargedMicroPoints: 0,
+      })).json();
+      const balance = async () => {
+        const body = await (await request("/v1/account/ai", 200, ordinarySession.accountToken)).json();
+        return { availableMicroPoints: body.availableMicroPoints, reservedMicroPoints: body.reservedMicroPoints };
+      };
+      const ledger = async () => (await (await request("/v1/account/ai/ledger", 200, ordinarySession.accountToken)).json()).items;
+      const operatorRequests = async () => (await (await request(`/v1/operator/ai/requests?userId=${encodeURIComponent(userId)}`, 200, operatorToken)).json()).requests;
+      const openingBalance = await balance();
+      assert.equal(openingBalance.reservedMicroPoints, smoke ? 0 : reviewed.reservedMicroPoints);
+      const cases = [
+        { complexity: "simple", id: "task-economy", upstreamModel: "gpt-6-luna", prompt: "hello", charge: 5_544, cost: 3 },
+        { complexity: "standard", id: "task-standard", upstreamModel: "gpt-6.1-sol", prompt: "Review architecture", charge: 110_440, cost: 51 },
+        { complexity: "complex", id: "task-expert", upstreamModel: "gpt-6-astra", prompt: "Audit architecture and prove correctness", charge: 554_400, cost: 252 },
+      ];
+      const receipts = [];
+      for (const endpoint of ["chat", "responses"]) for (const item of cases) for (const stream of [false, true]) {
+        const inference = endpoint === "chat"
+          ? { model: "auto-chat", messages: [{ role: "user", content: item.prompt }], max_tokens: 10, stream,
+            ...(item.complexity === "complex" ? { reasoning_effort: "high" } : {}) }
+          : { model: "auto-responses", input: item.prompt, max_output_tokens: 10, stream,
+            ...(item.complexity === "complex" ? { reasoning: { effort: "high" } } : {}) };
+        const path = endpoint === "chat" ? "/v1/ai/chat/completions" : "/v1/ai/responses";
+        const selectedModel = endpoint === "chat" ? item.id : `${item.id}-responses`;
+        const before = await balance(), beforeLedger = await ledger(), callsBefore = upstreamCalls.length;
+        const quote = await (await request("/v1/ai/quote", 200, token, { endpoint, request: inference })).json();
+        assert.equal(quote.selectedModel, selectedModel);
+        assert.equal(quote.complexity, item.complexity);
+        assert.equal(quote.noPriceCommitment, true);
+        assert.deepEqual(await balance(), before, "Quote changed the wallet");
+        assert.deepEqual(await ledger(), beforeLedger, "Quote created a ledger entry");
+        assert.equal(upstreamCalls.length, callsBefore, "Quote reached upstream");
+        const rejected = await request(path, 402, token, { ...inference, billing: { maxMicroPoints: quote.reservedMicroPoints - 1 } });
+        assert.equal((await rejected.json()).error.code, "budget_exceeded");
+        assert.equal(rejected.headers.get("x-ai-request-id"), null);
+        assert.deepEqual(await balance(), before, "Budget rejection changed the wallet");
+        assert.deepEqual(await ledger(), beforeLedger, "Budget rejection created a ledger entry");
+        assert.equal(upstreamCalls.length, callsBefore, "Budget rejection reached upstream");
+        const gate = { entered: Promise.withResolvers(), release: Promise.withResolvers() };
+        heldReply = gate;
+        const pending = request(path, 200, token, { ...inference, billing: { maxMicroPoints: quote.reservedMicroPoints } });
+        let during;
+        try {
+          await Promise.race([gate.entered.promise, pending.then(() => { throw new Error("Inference completed before reservation inspection"); }),
+            startupAborted.then(() => { throw new Error("Reservation inspection timed out"); })]);
+          during = await balance();
+          assert.deepEqual(during, { availableMicroPoints: before.availableMicroPoints - quote.reservedMicroPoints,
+            reservedMicroPoints: before.reservedMicroPoints + quote.reservedMicroPoints }, "In-flight reservation did not match quote");
+        } finally { gate.release.resolve(); }
+        const response = await pending;
+        const requestId = response.headers.get("x-ai-request-id");
+        assert.ok(requestId);
+        assert.equal(response.headers.get("x-ai-model"), selectedModel);
+        assert.equal(response.headers.get("x-ai-pricing-version"), "task-v1-r1-m22000");
+        if (stream) {
+          const text = await response.text();
+          assert.ok(text.includes(endpoint === "chat" ? "[DONE]" : "response.completed"));
+          assert.ok(!text.includes("event: error"), "Streaming settlement failed");
+        } else {
+          assert.equal((await response.json()).model, selectedModel);
+        }
+        const after = await balance();
+        assert.deepEqual(after, { availableMicroPoints: before.availableMicroPoints - item.charge,
+          reservedMicroPoints: before.reservedMicroPoints }, "Final wallet delta did not match the exact charge");
+        const entry = (await ledger()).find(row => row.id === requestId);
+        assert.ok(entry);
+        assert.equal(entry.state, "settled");
+        assert.equal(entry.chargedMicroPoints, item.charge);
+        assert.equal(entry.reservedMicroPoints, quote.reservedMicroPoints);
+        assert.equal(entry.inputTokens, 12); assert.equal(entry.cachedInputTokens, 2); assert.equal(entry.outputTokens, 3);
+        assert.ok(!Object.hasOwn(entry, "costMicroCurrency"), "Customer ledger exposed procurement cost");
+        const operatorEntry = (await operatorRequests()).find(row => row.id === requestId);
+        assert.equal(operatorEntry.costMicroCurrency, item.cost);
+        assert.equal(operatorEntry.costStatus, "estimated");
+        assert.equal(upstreamCalls.length, callsBefore + 1, "Inference was replayed");
+        assert.equal(upstreamCalls.at(-1).model, item.upstreamModel);
+        assert.equal(upstreamCalls.at(-1).billingForwarded, false);
+        receipts.push({ endpoint, stream, complexity: item.complexity, model: selectedModel, requestId,
+          beforeAvailableMicroPoints: before.availableMicroPoints, heldMicroPoints: during.reservedMicroPoints - before.reservedMicroPoints,
+          chargedMicroPoints: entry.chargedMicroPoints, releasedMicroPoints: quote.reservedMicroPoints - entry.chargedMicroPoints,
+          afterAvailableMicroPoints: after.availableMicroPoints, afterReservedMicroPoints: after.reservedMicroPoints,
+          costMicroCurrency: operatorEntry.costMicroCurrency });
+      }
+      const beforeRefusal = await balance(), callsBeforeRefusal = upstreamCalls.length;
+      refuseNextReply = true;
+      const refused = await request("/v1/ai/responses", 503, token, { model: "auto-responses", input: "hello", max_output_tokens: 10 });
+      assert.equal((await refused.json()).error.code, "ai_temporarily_busy");
+      assert.deepEqual(await balance(), beforeRefusal, "Refusal retained or charged user points");
+      assert.equal(upstreamCalls.length, callsBeforeRefusal + 1, "Refusal was retried");
+      const refusedEntry = (await operatorRequests()).find(row => row.id === refused.headers.get("x-ai-request-id"));
+      assert.equal(refusedEntry.state, "settled"); assert.equal(refusedEntry.chargedMicroPoints, 0);
+      assert.equal(refusedEntry.costMicroCurrency, null); assert.equal(refusedEntry.costStatus, "unknown");
+      const totalChargedMicroPoints = receipts.reduce((sum, entry) => sum + entry.chargedMicroPoints, 0);
+      const closingBalance = await balance();
+      assert.equal(openingBalance.availableMicroPoints - closingBalance.availableMicroPoints, totalChargedMicroPoints);
+      const metrics = await (await request("/v1/operator/billing/metrics", 200, operatorToken)).json();
+      assert.equal(metrics.sampleCount, receipts.length + 1); assert.equal(metrics.unknownCostCount, 1);
+      assert.equal(metrics.chargedMicroPoints, totalChargedMicroPoints);
+      assert.equal(metrics.estimatedCostMicroCurrency, receipts.reduce((sum, entry) => sum + entry.costMicroCurrency, 0));
+      const settledLedger = await ledger();
+      await stopCommand(command); command = undefined; await startGateway(origin);
+      const restored = await (await request("/v1/operator/billing", 200, operatorToken)).json();
+      assert.equal(restored.policy.enabled, true); assert.equal(restored.revision, 1);
+      assert.deepEqual(await balance(), closingBalance, "Wallet changed after restart");
+      assert.deepEqual(await ledger(), settledLedger, "Ledger changed after restart");
+      if (smoke) {
+        console.log(JSON.stringify({ smoke: "passed", taskBilling: true, usage: { inputTokens: 12, cachedInputTokens: 2, outputTokens: 3 },
+          receipts, totalChargedMicroPoints, openingBalance, closingBalance, quoteUncharged: true, budgetRejectedBeforeUpstream: true,
+          refusalReleased: true, restartPreserved: true, metricsSamples: metrics.sampleCount, url: `${origin}/admin` }, null, 2));
+        return;
+      }
+    }
     if (smoke) {
       const published = await (await request("/v1/operator/channels", 200, operatorToken, {
         revision: persisted.revision, reason: "Smoke browser channel publication",

@@ -1,9 +1,10 @@
 import { createServer } from "node:http";
 import net from "node:net";
-import { once } from "node:events";
+import { EventEmitter, once } from "node:events";
 import { Readable } from "node:stream";
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { miniflareRuntime } from "../../../scripts/product-fixture/runtime.mjs";
 import { WebSocket } from "ws";
 import {
   COMPANION_RELAY_PATH,
@@ -13,11 +14,13 @@ import {
   bearerToken,
   companionPathFor,
   createCompanionRelay,
+  createDisconnectBridge,
   createFrameDecoder,
   dispatchIncoming,
   encodeFrame,
   installationFromCredential,
   parseCompanionRequestPath,
+  writeFetchResponse,
 } from "./companion-relay.mjs";
 
 const INSTALLATION = "2c1b5c4e-7a0a-4d3f-9c11-0b5a6d8e9f10";
@@ -248,4 +251,79 @@ test("dispatchIncoming hands the Worker a string URL with the public host and a 
   assert.equal(get.method, "GET");
   assert.equal(get.body, undefined);
   assert.equal(get.duplex, undefined);
+});
+
+test("closed client socket does not cancel the worker settlement stream", async () => {
+  const res = new EventEmitter();
+  res.destroyed = false;
+  res.writeHead = () => {};
+  let writes = 0;
+  res.write = () => { writes++; res.destroyed = true; res.emit("close"); return true; };
+  res.end = () => assert.fail("closed socket must not be written");
+  let cancelled = false;
+  let chunks = 0;
+  const response = new Response(new ReadableStream({
+    pull(controller) {
+      chunks++;
+      if (chunks <= 3) controller.enqueue(new TextEncoder().encode(String(chunks)));
+      else controller.close();
+    },
+    cancel() { cancelled = true; },
+  }));
+  await writeFetchResponse(res, response);
+  assert.equal(writes, 1);
+  assert.equal(chunks, 4);
+  assert.equal(cancelled, false);
+});
+
+test("trusted local disconnect notification survives Miniflare while its response drains", { timeout: 30_000 }, async () => {
+  const runtime = await miniflareRuntime();
+  const bridge = createDisconnectBridge();
+  const mf = new runtime.Miniflare(runtime.convertV4MiniflareOptions({
+    port: 0,
+    workers: [{
+      name: "disconnect-fixture", modules: true, compatibilityDate: "2026-08-25",
+      serviceBindings: { LOCAL_GATEWAY_DISCONNECT: request => bridge.fetch(request) },
+      script: `export default { async fetch(request, env, ctx) {
+        const id = request.cf?.localGatewayDisconnectId;
+        if (!id) return new Response("untrusted", {status: 400});
+        const encoder = new TextEncoder();
+        return new Response(new ReadableStream({start(controller) {
+          controller.enqueue(encoder.encode("data: " + "x".repeat(32 * 1024) + "\\n\\n"));
+          ctx.waitUntil(env.LOCAL_GATEWAY_DISCONNECT.fetch("https://disconnect.local/" + id).then(response => {
+            controller.enqueue(encoder.encode("closed:" + response.status));
+            controller.close();
+          }));
+        }}), { headers: { "content-type": "text/event-stream", "cache-control": "no-cache" } });
+      }};`,
+    }],
+  }));
+  const res = new EventEmitter();
+  res.destroyed = false;
+  res.writeHead = () => {};
+  const writes = [];
+  res.write = value => {
+    writes.push(Buffer.from(value).toString());
+    res.destroyed = true;
+    res.emit("close");
+    return true;
+  };
+  res.end = () => assert.fail("must not write after disconnect");
+  const lifecycle = bridge.open(res);
+  const req = () => Object.assign(Readable.from([]), { method: "GET", url: "/", headers: { "localGatewayDisconnectId": lifecycle.id } });
+  try {
+    await mf.ready;
+    const dispatch = (url, init) => mf.dispatchFetch(url, init);
+    assert.equal((await dispatchIncoming(dispatch, "https://gateway.test", req())).status, 400);
+    const response = await dispatchIncoming(dispatch, "https://gateway.test", req(), lifecycle.id);
+    await writeFetchResponse(res, response);
+    assert.ok(writes.join("").startsWith("data: "));
+    assert.ok(!writes.join("").includes("closed:"));
+    assert.equal((await bridge.fetch(new Request(`https://disconnect.local/${lifecycle.id}`))).status, 204);
+    lifecycle.dispose();
+    assert.equal((await bridge.fetch(new Request(`https://disconnect.local/${lifecycle.id}`))).status, 404);
+  } finally {
+    lifecycle.dispose();
+    await mf.dispose();
+  }
 });
