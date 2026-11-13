@@ -363,14 +363,14 @@ describe("dragging between the pinned tiles and the departments", () => {
     expect(listed()).toEqual(["dodo", "echo", "atlas", "bea"]);
   });
 
-  it("pins a bot dropped on the tile grid, at its end, keeping its department, and saves the order on the server", () => {
+  it("moves a bot out of its department when dropped on the pinned grid", () => {
     drag("dodo");
     const over = gridEvent();
     grid().drop!.handlers.onDragOver!(over as never);
     expect(over.preventDefault).toHaveBeenCalled();
     expect(grid().drop!.over).toBe(true);
     grid().drop!.handlers.onDrop!(gridEvent() as never);
-    expect(actions()).toEqual([{ type: "updateBot", botId: "dodo", patch: { pinned: true } }]);
+    expect(actions()).toEqual([{ type: "updateBot", botId: "dodo", patch: { pinned: true, section: "" } }]);
     expect(fixture.storage.get(PINNED_CIRCLE_ORDER_KEY)).toBeUndefined();
     expect(grid().drop!.over).toBe(false);
   });
@@ -380,7 +380,7 @@ describe("dragging between the pinned tiles and the departments", () => {
     tile("quin").botDrag!.row("quin").onDragOver(tileEvent("left") as never);
     expect(tile("quin").botDrop).toBe("before");
     tile("quin").botDrag!.row("quin").onDrop(tileEvent("left") as never);
-    expect(actions()).toEqual([{ type: "updateBot", botId: "atlas", patch: { pinned: true } }, { type: "botsOrdered", botIds: ["hezuo", "pia", "atlas", "quin"] }]);
+    expect(actions()).toEqual([{ type: "updateBot", botId: "atlas", patch: { pinned: true, section: "" } }, { type: "botsOrdered", botIds: ["hezuo", "pia", "atlas", "quin"] }]);
   });
 
   it("reorders the tiles on the server, not on this device, by the side of the tile dropped on", () => {
@@ -474,7 +474,7 @@ describe("dragging between the pinned tiles and the departments", () => {
       expect(over.preventDefault).toHaveBeenCalled();
       expect(grid().drop!.over).toBe(true);
       grid().drop!.handlers.onDrop!(gridEvent() as never);
-      expect(actions()).toEqual([{ type: "updateBot", botId: "atlas", patch: { pinned: true } }]);
+      expect(actions()).toEqual([{ type: "updateBot", botId: "atlas", patch: { pinned: true, section: "" } }]);
     });
 
     it("keeps the bots in their lists, with the default bot among the ungrouped", () => {

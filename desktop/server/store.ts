@@ -722,7 +722,27 @@ export class Store {
     }))));
   }
 
-  get sections(): string[] { return readSections(); }
+  get sections(): string[] {
+    const names = readSections();
+    const empty = new Set(names.filter(name => !this.bots.some(bot => !bot.pinned && sectionKey(bot.section) === name)));
+    if (!empty.size) return names;
+    const affectedBots = this.bots.filter(bot => empty.has(sectionKey(bot.section)) || bot.managedSections?.some(name => empty.has(sectionKey(name))));
+    const nextBots = this.bots.map(bot => ({ ...bot,
+      ...(empty.has(sectionKey(bot.section)) ? { section: undefined } : {}),
+      ...(bot.managedSections ? { managedSections: bot.managedSections.filter(name => !empty.has(sectionKey(name))) } : {}),
+    }));
+    const affectedGroups = this.groups.filter(group => empty.has(sectionKey(group.section)));
+    const nextGroups = this.groups.map(group => empty.has(sectionKey(group.section)) ? { ...group, section: undefined } : group);
+    this.saveBots(nextBots, false);
+    this.saveGroups(nextGroups, false);
+    for (let i = 0; i < nextBots.length; i++) Object.assign(this.bots[i], nextBots[i]);
+    for (let i = 0; i < nextGroups.length; i++) Object.assign(this.groups[i], nextGroups[i]);
+    for (const name of empty) changeEmptySection(name, null);
+    for (const bot of affectedBots) this.emit({ type: "bot", botId: bot.id });
+    for (const group of affectedGroups) this.emit({ type: "group", groupId: group.id });
+    this.emit({ type: "sections" });
+    return names.filter(name => !empty.has(name));
+  }
 
   private rememberSections(names: (string | undefined)[]) {
     try {

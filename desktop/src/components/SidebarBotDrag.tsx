@@ -80,7 +80,12 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
     if (move.kind === "group") return createDepartment(move.botIds, unusedName(t("sidebar.section.untitledName"), latest.current.taken));
     const { lists, bots } = latest.current;
     const from = botListOf(lists, botId);
-    if (move.section === PINNED_LIST && from !== PINNED_LIST) actions.current.dispatch({ type: "updateBot", botId, patch: { pinned: true } });
+    if (move.section === PINNED_LIST && from !== PINNED_LIST) {
+      if (typeof window !== "undefined" && window.ogb?.remoteClient?.active === true) {
+        moveBotsToSection(actions.current.dispatch, [botId], "");
+        actions.current.dispatch({ type: "updateBot", botId, patch: { pinned: true } });
+      } else actions.current.dispatch({ type: "updateBot", botId, patch: { pinned: true, section: "" } });
+    }
     else if (from === PINNED_LIST && move.section !== PINNED_LIST) unpinIntoSection(actions.current.dispatch, botId, move.section);
     else if (from !== move.section) moveBotsToSection(actions.current.dispatch, [botId], move.section);
     saveBotOrder(actions.current.dispatch, bots, move.order);

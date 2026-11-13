@@ -128,19 +128,51 @@ the page's own drag events, and exits.
 7. Switch to Advanced: the same departments and order show, and rows drag the
    same way.
 
-Moving or deleting the last bot automatically removes its vacated department
-from persisted sidebar sections and broadcasts the change. Single-bot moves,
-batch moves and membership editing share this behavior. Archived bots and group
-chats still count as members; a department containing either is retained.
-Unrelated pre-existing empty departments are not swept. Removed department
-authority is revoked before its name can be reused.
+Departments with no unpinned bots are automatically removed when sections are
+read, including historical empty departments and legacy pinned memberships.
+Pinned bots lose stale department membership. Group chats in a removed
+department move to General without deleting their conversations. Archived
+unpinned bots still count as members. Authority for removed names is revoked.
+
+The all-empty-groups build was installed directly into `/Applications/Hezuo.app`
+without a new backup, per the user's test-environment instruction. In the
+existing `beta-a@hezuo.test` workspace, the historical empty **未命名分组 3**
+disappeared on startup. Actual mouse dragging moved Ivy, the final unpinned
+member of **xq**, into the pinned grid; **xq** disappeared after synchronization.
+The server section list contained only **未命名分组 4**, its four bots remained,
+and a page reload preserved this result. No AI message was sent; displayed
+balance remained 509.009120 points. This follow-up is not committed yet.
+
 
 The vacated-section and membership regression selection passes nine isolated
 Store tests, including reload persistence, authority revocation, archived bots,
 group chats and failed membership writes. Server TypeScript compilation passes.
 The complete Store file also reports two unrelated locale failures (`es-MX`
 setup choices and `pt-PT` greeting); those are not hidden by this selection.
-This change has not been installed into the user's running desktop application.
+The installed package later exposed a separate drag-to-pin defect: a pinned bot
+kept its previous department even though it left that department's visible list.
+The drag-to-pin action now clears its section while pinning; remote clients use
+the existing section-membership endpoint before the pin patch. The 48 sidebar
+department regressions, renderer typecheck and targeted lint pass. The follow-up
+package `release/pin-vacated-followup/mac-arm64/Hezuo.app` passed the isolated
+22-step account flow including page DragEvents from a one-bot department to the
+pinned grid: the bot persisted as pinned with no section, the vacated department
+disappeared, and a nonempty department remained after reload. Evidence is under
+`/private/var/folders/s0/5h112y2d3495p65t6p7cph400000gn/T/omb-product-verify-1CYQ5l/evidence`.
+The follow-up was installed and its account workspace loaded successfully.
+
+The macOS arm64 package containing `763d56be9` was rebuilt under
+`release/empty-group-763d56be9/mac-arm64/Hezuo.app` and tested in an isolated
+packaged Electron workspace. Moving the last bot through its **Move to
+department → Remove from department** menu removed **Vacated Test**; **Retained
+Test** and its bot remained. Both results survived a completed page reload.
+The account fixture reported 22 steps passed using the task-billing backend
+worktree and a loopback upstream, with screenshots and receipt under
+`/private/var/folders/s0/5h112y2d3495p65t6p7cph400000gn/T/omb-product-verify-4wRd42/evidence`.
+Its cleanup exit was `SIGKILL`, so this run does not prove graceful shutdown.
+This is an unsigned `.app`, not a signed/notarized installer. The test used the
+menu path; native OS drag-and-drop and a full app restart were not exercised.
+
 
 
 

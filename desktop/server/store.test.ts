@@ -1388,12 +1388,12 @@ describe("Store", () => {
     else expect(store.deleteBot(bot.id)).toBe(true);
     const restored = new Store(selection);
     expect(restored.sections).not.toContain("Source");
-    expect(restored.sections).toContain("Keep empty");
+    expect(restored.sections).not.toContain("Keep empty");
     expect(restored.bot(manager.id)?.managedSections ?? []).not.toContain("Source");
     expect(changes.some(change => change.type === "sections")).toBe(true);
   });
 
-  it("retains departments with archived bots or group chats when a visible bot leaves", () => {
+  it("retains archived bot membership but removes a department containing only group chats", () => {
     const store = new Store(selection);
     const bot = store.createBot({ section: "Source" });
     const archived = store.createBot({ section: "Source" });
@@ -1402,7 +1402,19 @@ describe("Store", () => {
     expect(store.sections).toContain("Source");
     store.createGroup("Room", [bot.id], false, "Source");
     store.deleteBot(archived.id);
-    expect(new Store(selection).sections).toContain("Source");
+    expect(new Store(selection).sections).not.toContain("Source");
+  });
+
+  it("cleans legacy pinned membership and empty departments without deleting bots or chats", () => {
+    const store = new Store(selection);
+    const bot = store.createBot({ section: "Legacy" });
+    const room = store.createGroup("Room", [bot.id], false, "Legacy");
+    store.patchBot(bot.id, { pinned: true });
+    expect(store.sections).not.toContain("Legacy");
+    const restored = new Store(selection);
+    expect(restored.bot(bot.id)?.pinned).toBe(true);
+    expect(restored.bot(bot.id)?.section).toBeUndefined();
+    expect(restored.groups.find(group => group.id === room.id)?.section).toBeUndefined();
   });
 
   it("adds and removes members together without replacing unrelated concurrent additions", () => {
