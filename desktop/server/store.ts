@@ -803,6 +803,14 @@ export class Store {
     return undefined;
   }
 
+  private removeVacatedSections(names: (string | undefined)[]) {
+    for (const name of new Set(names.map(sectionKey))) {
+      if (!name || !this.sections.includes(name)) continue;
+      if ([...this.bots, ...this.groups].some(record => sectionKey(record.section) === name)) continue;
+      this.changeEmptySection(name, null);
+    }
+  }
+
   deleteSection(name: string): string | undefined {
     if (!name || !this.sections.includes(name)) return "No such department";
     const members = this.bots.filter(bot => sectionKey(bot.section) === name);
@@ -1531,12 +1539,14 @@ export class Store {
     removeBotFolder(id);
     this.emit({ type: "bot.deleted", botId: id });
     for (const g of rooms) this.emit({ type: "group", groupId: g.id });
+    this.removeVacatedSections([bot.section]);
     return true;
   }
 
   patchBot(id: string, patch: Partial<BotRecord>): BotRecord | null {
     const bot = this.bot(id);
     if (!bot) return null;
+    const previousSection = bot.section;
     if (patch.connectorTools !== undefined) {
       const parsed = parseConnectorTools(patch.connectorTools);
       if (!parsed.ok) throw new Error(parsed.error);
@@ -1573,6 +1583,7 @@ export class Store {
       bot.toolScope = nextToolScope;
     } else this.saveBots();
     this.emit({ type: "bot", botId: id });
+    if (sectionKey(previousSection) !== sectionKey(bot.section)) this.removeVacatedSections([previousSection]);
     return bot;
   }
 
@@ -1622,6 +1633,7 @@ export class Store {
 
     const targetSection = sectionKey(section);
     const selected = targets as BotRecord[];
+    const previousSections = selected.map(bot => bot.section);
     const patches = new Map<string, Partial<BotRecord>>();
     for (const bot of selected) {
       patches.set(bot.id, { section: targetSection || undefined });
@@ -1645,6 +1657,7 @@ export class Store {
       for (const botId of changedIds) this.emit({ type: "bot", botId });
     }
     this.rememberSections([targetSection]);
+    this.removeVacatedSections(previousSections);
     return { ok: true, bots: ids.map((id) => this.bot(id)!) };
   }
 
@@ -1660,6 +1673,7 @@ export class Store {
       if (adds.has(id) && removes.has(id)) return { ok: false, reason: "membership-changed" };
       if (removes.has(id) && sectionKey(bot.section) !== key) return { ok: false, reason: "membership-changed" };
     }
+    const previousSections = this.bots.filter(bot => ids.has(bot.id)).map(bot => bot.section);
     const next = this.bots.map(bot => ids.has(bot.id)
       ? { ...bot, section: adds.has(bot.id) ? key : undefined } : bot);
     if (chiefConflict(next)) return { ok: false, reason: "chief-conflict" };
@@ -1668,6 +1682,7 @@ export class Store {
       for (let i = 0; i < next.length; i++) if (ids.has(next[i].id)) Object.assign(this.bots[i], next[i]);
       for (const botId of ids) this.emit({ type: "bot", botId });
     }
+    this.removeVacatedSections(previousSections);
     return { ok: true, bots: this.bots.filter(bot => ids.has(bot.id)) };
   }
 

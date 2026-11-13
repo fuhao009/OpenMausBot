@@ -128,6 +128,22 @@ the page's own drag events, and exits.
 7. Switch to Advanced: the same departments and order show, and rows drag the
    same way.
 
+Moving or deleting the last bot automatically removes its vacated department
+from persisted sidebar sections and broadcasts the change. Single-bot moves,
+batch moves and membership editing share this behavior. Archived bots and group
+chats still count as members; a department containing either is retained.
+Unrelated pre-existing empty departments are not swept. Removed department
+authority is revoked before its name can be reused.
+
+The vacated-section and membership regression selection passes nine isolated
+Store tests, including reload persistence, authority revocation, archived bots,
+group chats and failed membership writes. Server TypeScript compilation passes.
+The complete Store file also reports two unrelated locale failures (`es-MX`
+setup choices and `pt-PT` greeting); those are not hidden by this selection.
+This change has not been installed into the user's running desktop application.
+
+
+
 `desktop/src/lib/sidebar-bot-drop.test.ts` covers where a drop lands,
 `desktop/src/components/Sidebar.departments.test.ts` the sidebar's wiring, and
 `desktop/src/components/SidebarSectionHeader.naming.dom.test.ts` the name field. The

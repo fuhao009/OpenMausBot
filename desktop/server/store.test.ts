@@ -1373,6 +1373,38 @@ describe("Store", () => {
     expect(reloaded.bot(second.id)?.chiefOfStaff).toBe(false);
   });
 
+  it.each(["patch", "batch", "members", "delete"])("removes a vacated department durably through %s", method => {
+    const store = new Store(selection);
+    const bot = store.createBot({ section: "Source" });
+    store.setBotsSection([], "Keep empty");
+    const manager = store.createBot();
+    store.setChiefOfStaff(manager.id);
+    store.patchBot(manager.id, { managedSections: ["Source"] });
+    const changes: StoreChange[] = [];
+    store.onChange(change => changes.push(change));
+    if (method === "patch") store.patchBot(bot.id, { section: undefined, pinned: true });
+    else if (method === "batch") expect(store.setBotsSection([bot.id], "Destination").ok).toBe(true);
+    else if (method === "members") expect(store.updateTeamMembers("Source", [], [bot.id]).ok).toBe(true);
+    else expect(store.deleteBot(bot.id)).toBe(true);
+    const restored = new Store(selection);
+    expect(restored.sections).not.toContain("Source");
+    expect(restored.sections).toContain("Keep empty");
+    expect(restored.bot(manager.id)?.managedSections ?? []).not.toContain("Source");
+    expect(changes.some(change => change.type === "sections")).toBe(true);
+  });
+
+  it("retains departments with archived bots or group chats when a visible bot leaves", () => {
+    const store = new Store(selection);
+    const bot = store.createBot({ section: "Source" });
+    const archived = store.createBot({ section: "Source" });
+    store.patchBot(archived.id, { hidden: true });
+    store.patchBot(bot.id, { section: undefined });
+    expect(store.sections).toContain("Source");
+    store.createGroup("Room", [bot.id], false, "Source");
+    store.deleteBot(archived.id);
+    expect(new Store(selection).sections).toContain("Source");
+  });
+
   it("adds and removes members together without replacing unrelated concurrent additions", () => {
     const store = new Store(selection);
     const outgoing = store.createBot({ section: "Delivery" });
