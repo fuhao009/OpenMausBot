@@ -1,15 +1,41 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
+import { createWorker } from "../src/index";
 import { readAiConfig } from "../src/ai-config";
 import { getCostTariffs, parseCostDecimal, resolveCostTariff } from "../src/cost-tariffs";
 import { applyBillingCatalog, calculateTaskCharge, calculateTaskReservation, DEFAULT_BILLING_POLICY, estimateTaskMicroPoints, getBillingMetrics, inputReservationTokens, loadBillingPolicy, planTaskBilling, refreshBillingController, saveBillingPolicy, type TaskBillingSnapshot } from "../src/task-billing";
 
 it("reserves padded text estimates, caps context and keeps full image capacity", () => {
   const body = { messages: [{ role: "user", content: "hello" }] };
-  const estimate = new TextEncoder().encode(JSON.stringify(body)).length;
+  const estimate = Math.ceil(JSON.stringify(body).length / 4);
   expect(inputReservationTokens(body, 500000, 100)).toBe(Math.ceil(estimate * 1.5) + 2048);
-  expect(inputReservationTokens(body, 2200, 100)).toBe(2100);
+  expect(inputReservationTokens(body, 2100, 100)).toBe(2000);
   expect(inputReservationTokens({ messages: [{ content: [{ type: "image_url", image_url: { url: "https://example.test/a.png" } }] }] }, 500000, 100)).toBe(499900);
+});
+
+it.each([
+  ["English prompt ".repeat(100), 0.25],
+  ["éàüß".repeat(100), 0.5],
+  ["请解释这段代码".repeat(100), 1.5],
+  ["日本語の説明".repeat(100), 1.5],
+  ["🙂🚀".repeat(100), 2],
+] as const)("accounts for multilingual text %s", (input, tokensPerCharacter) => {
+  const body = { input };
+  const framing = JSON.stringify({ input: "" }).length / 4;
+  const estimate = Math.ceil(framing + [...input].length * tokensPerCharacter);
+  expect(inputReservationTokens(body, 500000, 100)).toBe(Math.ceil(estimate * 1.5) + 2048);
+});
+
+it("includes instructions, tool schemas and tool results in the shared reserve", () => {
+  const base = { input: "hello" };
+  const instructed = { ...base, instructions: "Follow the supplied policy. ".repeat(1000) };
+  const tools = { ...instructed, tools: [{ type: "function", name: "search", description: "Search reference material. ".repeat(1000), parameters: { type: "object", properties: { query: { type: "string" } } } }] };
+  const result = { ...tools, input: [{ type: "function_call_output", call_id: "call_1", output: "检索结果".repeat(1000) }] };
+  const reserve = (body: Record<string, unknown>) => inputReservationTokens(body, 500000, 100);
+  expect(reserve(instructed)).toBeGreaterThan(reserve(base));
+  expect(reserve(tools)).toBeGreaterThan(reserve(instructed));
+  expect(reserve(result)).toBeGreaterThan(reserve(tools));
 });
 function snapshot(id = "gpt-6-luna"): TaskBillingSnapshot {
   const tariff = resolveCostTariff(id, "default", Date.UTC(2026, 10, 9, 0))!;
@@ -82,14 +108,37 @@ describe("exact immutable task arithmetic", () => {
     const s = snapshot(); s.rates.cached = 900000; s.longRates = null; Object.assign(s, calculateTaskReservation(s));
     expect(calculateTaskCharge(s, { inputTokens: 100, outputTokens: 0, cacheWriteTokens: 0, cacheWriteHourTokens: 0 }).costMicroCurrency).toBe(90);
   });
-  it("rejects invalid and over-bound usage; reservation covers all partitions", () => {
+  it("rejects malformed usage and output-cap overruns, not input estimate overruns", () => {
     const s = snapshot();
     for (const bad of [-1, .5, NaN, Number.MAX_SAFE_INTEGER + 1]) expect(() => calculateTaskCharge(s, { inputTokens: bad, outputTokens: 0 })).toThrow();
-    expect(() => calculateTaskCharge(s, { inputTokens: s.maxInputTokens + 1, outputTokens: 0 })).toThrow();
+    expect(calculateTaskCharge(s, { inputTokens: s.maxInputTokens + 1, outputTokens: 0 }).chargedMicroPoints).toBeGreaterThan(0);
     expect(() => calculateTaskCharge(s, { inputTokens: 0, outputTokens: s.maxOutputTokens + 1 })).toThrow();
     const bound = calculateTaskCharge(s, { inputTokens: s.maxInputTokens, outputTokens: s.maxOutputTokens });
     expect(bound.chargedMicroPoints).toBeLessThanOrEqual(s.reservedMicroPoints);
     expect(estimateTaskMicroPoints(s)).toBeLessThanOrEqual(s.reservedMicroPoints);
+  });
+  it("charges provider-injected context and cached input beyond the admission estimate", () => {
+    const s = snapshot("gpt-6-astra");
+    s.maxInputTokens = 2050;
+    s.maxOutputTokens = 5;
+    Object.assign(s, calculateTaskReservation(s));
+    const usage = { inputTokens: 4123, cachedInputTokens: 3968, outputTokens: 5, cacheWriteTokens: 0, cacheWriteHourTokens: 0 };
+    const charge = calculateTaskCharge(s, usage);
+    expect(charge.costMicroCurrency).toBe(5768);
+    const withoutEstimate = { ...s, maxInputTokens: 500000 };
+    Object.assign(withoutEstimate, calculateTaskReservation(withoutEstimate));
+    expect(charge).toEqual(calculateTaskCharge(withoutEstimate, usage));
+    const uncached = calculateTaskCharge(s, { ...usage, cachedInputTokens: 0 });
+    expect(uncached.chargedMicroPoints).toBeGreaterThan(s.reservedMicroPoints);
+    expect(uncached.costMicroCurrency).toBeGreaterThan(s.maxCostMicroCurrency);
+  });
+  it("selects actual long-context tariffs after an input estimate overrun", () => {
+    const s = snapshot();
+    s.maxInputTokens = 2100;
+    Object.assign(s, calculateTaskReservation(s));
+    const charge = calculateTaskCharge(s, { inputTokens: 272000, outputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0, cacheWriteHourTokens: 0 });
+    expect(charge.costMicroCurrency).toBe(54400);
+    expect(charge.chargedMicroPoints).toBeGreaterThan(s.reservedMicroPoints);
   });
 });
 describe("policy CAS and routing", () => {
@@ -126,7 +175,7 @@ describe("policy CAS and routing", () => {
     await saveBillingPolicy(env, "operator", { revision: v.revision, reason: "disable tools", policy: { ...v.policy, profiles: [{ modelId: "luna", capacity: "simple", tools: false, vision: false }] } });
     await expect(planTaskBilling(env, config(), "chat", { model: "auto-chat", tools: [{ type: "function" }] })).rejects.toMatchObject({ status: 400 });
     await expect(planTaskBilling(env, config(), "responses", { model: "auto-responses" })).rejects.toMatchObject({ status: 400 });
-    await expect(planTaskBilling(env, config(), "chat", { model: "luna", messages: [{ content: "x".repeat(500001) }] })).rejects.toMatchObject({ status: 400 });
+    await expect(planTaskBilling(env, config(), "chat", { model: "luna", messages: [{ content: "x".repeat(2000001) }] })).rejects.toMatchObject({ status: 400 });
   });
   it("does not claim profit for an empty ledger or adjust without samples", async () => {
     const v = await enable();
@@ -172,6 +221,66 @@ describe("bounded controller and known-cost valuation", () => {
 });
 
 describe("admission boundaries", () => {
+  it("quotes and reserves a measured 35k-token prompt within a 30-point consumer budget", async () => {
+    await enable();
+    await env.DB.prepare("UPDATE ai_billing_policy SET multiplier_bps=25000 WHERE id=1").run();
+    const origin = "https://billing-estimate.example.test";
+    const target = { ...env, BETTER_AUTH_URL: origin, AUTH_EMAIL_VERIFICATION: "off", EMAIL_FROM: "", EMAIL: undefined,
+      AI_OPERATOR_USER_IDS: "[]", AI_UPSTREAM_BASE_URL: "https://upstream.example.test/v1", AI_UPSTREAM_API_KEY: "test-key",
+      AI_DEFAULT_MODEL: "luna", AI_MODELS: JSON.stringify(config().models) } as unknown as Env;
+    let upstreamCalls = 0;
+    const worker = createWorker(undefined, undefined, undefined, (async () => {
+      upstreamCalls++;
+      return Response.json({ id: "chat-estimate", object: "chat.completion", model: "gpt-6-luna",
+        choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 35012, completion_tokens: 1, total_tokens: 35013,
+          prompt_tokens_details: { cached_tokens: 0, cache_write_tokens: 0, cache_write_1h_tokens: 0 } } });
+    }) as typeof fetch);
+    async function call(path: string, body: unknown, token?: string) {
+      const ctx = createExecutionContext();
+      const response = await worker.fetch(new Request(origin + path, { method: "POST", headers: {
+        origin, "content-type": "application/json", "cf-connecting-ip": "203.0.113.179",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      }, body: JSON.stringify(body) }), target, ctx);
+      await waitOnExecutionContext(ctx);
+      return response;
+    }
+    const registration = await call("/api/auth/sign-up/email", { email: `${crypto.randomUUID()}@example.test`, name: "Token estimate", password: "test-estimate-password" });
+    expect(registration.status).toBe(200);
+    const { user } = await registration.json<{ user: { id: string } }>();
+    const now = Date.now();
+    await env.DB.prepare("INSERT INTO account_ai_balances (owner_user_id,enabled,activated_at,available_micro_points,reserved_micro_points,updated_at) VALUES (?,1,?,30000000,0,?)").bind(user.id, now, now).run();
+    const issued = await call("/v1/account/ai/tokens", { deviceId: crypto.randomUUID() }, registration.headers.get("set-auth-token")!);
+    expect(issued.status).toBe(201);
+    const { token } = await issued.json<{ token: string }>();
+    const request = { model: "luna", messages: [{ role: "user", content: "x ".repeat(35000) }], max_tokens: 100, billing: { maxMicroPoints: 30000000 } };
+    const quote = await call("/v1/ai/quote", { endpoint: "chat", request }, token);
+    expect(quote.status).toBe(200);
+    const quoted = await quote.json<{ estimatedInputTokens: number; estimatedMicroPoints: number; reservedMicroPoints: number }>();
+    expect(quoted.estimatedInputTokens).toBeLessThan(30000);
+    expect(quoted.estimatedMicroPoints).toBeLessThan(quoted.reservedMicroPoints);
+    expect(quoted.reservedMicroPoints).toBeLessThanOrEqual(30000000);
+    for (const extra of [
+      { messages: [{ role: "user", content: "请解释代码🙂".repeat(1000) }] },
+      { messages: [{ role: "system", content: "Respect these instructions. ".repeat(1000) }, { role: "user", content: "hello" }], tools: [{ type: "function", function: { name: "search", description: "Search the supplied references. ".repeat(1000), parameters: { type: "object", properties: { query: { type: "string" } } } } }] },
+    ]) {
+      const multilingualRequest = { ...request, ...extra };
+      const multilingualQuote = await call("/v1/ai/quote", { endpoint: "chat", request: multilingualRequest }, token);
+      expect(multilingualQuote.status).toBe(200);
+      const value = await multilingualQuote.json<{ estimatedInputTokens: number; reservedMicroPoints: number }>();
+      const planned = (await planTaskBilling(env, config(), "chat", multilingualRequest))!;
+      expect(value.estimatedInputTokens).toBe(planned.snapshot.estimatedInputTokens);
+      expect(value.reservedMicroPoints).toBe(planned.snapshot.reservedMicroPoints);
+      expect(planned.snapshot.maxInputTokens).toBe(inputReservationTokens(multilingualRequest, 500000, 100));
+    }
+    expect(upstreamCalls).toBe(0);
+    const completion = await call("/v1/ai/chat/completions", request, token);
+    expect(completion.status).toBe(200);
+    expect(upstreamCalls).toBe(1);
+    const row = await env.DB.prepare("SELECT reserved_micro_points, billing_snapshot FROM account_ai_requests WHERE id=?").bind(completion.headers.get("x-ai-request-id")).first<{ reserved_micro_points: number; billing_snapshot: string }>();
+    expect(row!.reserved_micro_points).toBe(quoted.reservedMicroPoints);
+    expect(JSON.parse(row!.billing_snapshot).estimatedInputTokens).toBe(quoted.estimatedInputTokens);
+  });
   it("does not count base64 image bytes as text tokens", async () => {
     await enable();
     const planned = await planTaskBilling(env, config(), "chat", { model: "auto-chat", messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: `data:image/png;base64,${"A".repeat(600000)}` } }] }], max_tokens: 100 });

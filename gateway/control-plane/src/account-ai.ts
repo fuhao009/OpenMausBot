@@ -12,7 +12,6 @@ import {
   listLedger,
   listRequests,
   listReviewRequests,
-  reservationMicroPoints,
   type Balance,
 } from "./ai-wallet";
 import { accountSession, type AuthPolicy, type ControlPlaneAuth } from "./auth";
@@ -102,15 +101,6 @@ interface TokenRow {
   session_expires_at: string;
 }
 
-/**
- * The account's published AI state, in the fixed product order: never enabled
- * is pending, disabled after activation is suspended, an enabled account on an
- * unusable deployment is unavailable, a balance below one full reservation is
- * insufficient, and only then ready.
- *
- * The catalog is published only where it can be used: a pending, suspended, or
- * unavailable account sees no fallback models.
- */
 function aiStatus(balance: Balance | null, config: AiConfig): ProductAiStatus {
   const status = (state: ProductAiStatus["state"], models: ProductModel[] = [], defaultModel: string | null = null) => ({
     state,
@@ -127,16 +117,10 @@ function aiStatus(balance: Balance | null, config: AiConfig): ProductAiStatus {
 
   const model = config.defaultModel === null ? null : findModel(config, config.defaultModel);
   if (!model) return status("unavailable");
-  let reservation: number;
-  try {
-    reservation = reservationMicroPoints(model);
-  } catch {
-    // A reservation beyond safe-integer range means the deployment cannot
-    // price this model at all: the account cannot use AI here.
-    return status("unavailable");
-  }
   const catalog = publicModels(config);
-  if (balance.availableMicroPoints < reservation) {
+  const free = catalog.some((entry) => entry.inputMicroPointsPerMillion === 0
+    && entry.cachedInputMicroPointsPerMillion === 0 && entry.outputMicroPointsPerMillion === 0);
+  if (balance.availableMicroPoints === 0 && !free) {
     return status("insufficient_balance", catalog, config.defaultModel);
   }
   return status("ready", catalog, config.defaultModel);

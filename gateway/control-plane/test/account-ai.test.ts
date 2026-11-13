@@ -235,12 +235,12 @@ describe("account AI status and credentials", () => {
     expect((await call("/v1/account/ai")).status).toBe(401);
   });
 
-  it("reports an enabled account below one reservation as insufficient balance", async () => {
+  it("issues credentials below a full-context reservation and leaves affordability to each request", async () => {
     const account = await signIn("short@example.com");
     const operator = await enableAndGrant(account.userId, 2_399);
     const status = await call("/v1/account/ai", { token: account.token, env: operator.env });
     const body = await status.json<{ state: string; unit: string; availableMicroPoints: number; defaultModel: string | null }>();
-    expect(body.state).toBe("insufficient_balance");
+    expect(body.state).toBe("ready");
     // Published amounts are the product's own points, never a currency.
     expect(body.unit).toBe("points");
     expect(body).not.toHaveProperty("currency");
@@ -254,8 +254,8 @@ describe("account AI status and credentials", () => {
       env: operator.env,
       body: { deviceId: DEVICE_A },
     });
-    expect(issue.status).toBe(402);
-    await expect(issue.json()).resolves.toEqual({ error: "insufficient_balance" });
+    expect(issue.status).toBe(201);
+    await expect(issue.json()).resolves.toMatchObject({ token: expect.stringMatching(/^omb_product_ai_/) });
   });
 
   it("moves to ready once the balance covers one reservation and issues a device credential", async () => {

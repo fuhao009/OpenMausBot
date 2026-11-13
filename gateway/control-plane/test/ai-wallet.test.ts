@@ -462,6 +462,17 @@ describe("task billing ledger", () => {
   const measured = { inputTokens: 1000, cachedInputTokens: 200, outputTokens: 100,
     cacheWriteTokens: 100, cacheWriteHourTokens: 50 };
 
+  it("settles provider-added input beyond the task estimate and collects dynamic overages", async () => {
+    const account = await fundedAccount({ availableMicroPoints: 20000000 });
+    const id = await dynamicId(account);
+    expect(await settleRequest(env, id, { inputTokens: 4123, cachedInputTokens: 3968, cacheWriteTokens: 0, cacheWriteHourTokens: 0, outputTokens: 5 }))
+      .toEqual({ status: "settled", chargedMicroPoints: 1235960 });
+    const over = await dynamicId(account);
+    expect(await settleRequest(env, over, { inputTokens: 4123, cachedInputTokens: 0, cacheWriteTokens: 0, cacheWriteHourTokens: 0, outputTokens: 5 }))
+      .toEqual({ status: "settled", chargedMicroPoints: 9092600 });
+    expect(await balanceOf(account.userId)).toMatchObject({ availableMicroPoints: 9671440, reservedMicroPoints: 0 });
+    expect(await getRequest(env, over)).toMatchObject({ inputTokens: 4123, costMicroCurrency: 4133 });
+  });
   it("settles disjoint cache partitions and cost atomically, preserving the immutable snapshot", async () => {
     const account = await fundedAccount({ availableMicroPoints: 10000000 });
     const billing = snapshot();

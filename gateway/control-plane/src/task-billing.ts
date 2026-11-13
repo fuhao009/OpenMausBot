@@ -50,7 +50,7 @@ export function calculateTaskReservation(s: TaskBillingSnapshot): { reservedMicr
 }
 export function calculateTaskCharge(s: TaskBillingSnapshot, usage: BillingUsage): { chargedMicroPoints: number; costMicroCurrency: number; costStatus: "estimated" | "conservative" } {
   const input = count(usage.inputTokens), output = count(usage.outputTokens);
-  if (input > count(s.maxInputTokens) || output > count(s.maxOutputTokens)) throw new HTTPError(400, "billing_usage_overrun");
+  if (output > count(s.maxOutputTokens)) throw new HTTPError(400, "billing_usage_overrun");
   const long = s.longThreshold !== null && (s.longInclusive ? usage.inputTokens >= s.longThreshold : usage.inputTokens > s.longThreshold);
   const r = long && s.longRates ? s.longRates : s.rates;
   for (const v of Object.values(r)) if (v !== null) count(v);
@@ -63,7 +63,6 @@ export function calculateTaskCharge(s: TaskBillingSnapshot, usage: BillingUsage)
   if (usage.cacheWriteHourTokens == null && r.writeHour !== null && r.writeHour > remainingRate) { remainingRate = r.writeHour; conservative = true; }
   const numerator = (input - cached - write - hour) * count(remainingRate) + cached * count(r.cached) + write * count(r.write ?? 0) + hour * count(r.writeHour ?? 0) + output * count(r.output);
   const result = amounts(s, numerator);
-  if (result.chargedMicroPoints > s.reservedMicroPoints || result.costMicroCurrency > s.maxCostMicroCurrency) throw new HTTPError(400, "billing_reservation_overrun");
   return { ...result, costStatus: conservative ? "conservative" : "estimated" };
 }
 export function estimateTaskMicroPoints(s: TaskBillingSnapshot): number {
@@ -101,8 +100,8 @@ export async function saveBillingPolicy(env: Env, actorId: string, input: unknow
 
 function active(config: AiConfig, m: AiModelConfig): boolean { return m.enabled && (config.routes ? config.routes.has(m.id) : !!config.upstreamBaseURL && !!config.upstreamApiKey); }
 const rank: Record<Complexity, number> = { simple: 0, standard: 1, complex: 2 };
-const INPUT_RESERVATION_MULTIPLIER = 1.5;
-const INPUT_RESERVATION_PADDING_TOKENS = 2048;
+const INPUT_RESERVE_FACTOR = 1.5;
+const INPUT_RESERVE_MARGIN = 2048;
 
 /** Shared admission estimate for fixed pricing, task pricing and quotes. */
 export function inputReservationTokens(body: Record<string, unknown>, context: number, output: number): number {
@@ -113,17 +112,23 @@ export function inputReservationTokens(body: Record<string, unknown>, context: n
 function boundedInputReservation(assessment: { vision: boolean; estimatedInputTokens: number }, context: number, output: number): number {
   const remaining = context - output;
   return assessment.vision ? remaining : Math.min(remaining,
-    Math.ceil(assessment.estimatedInputTokens * INPUT_RESERVATION_MULTIPLIER) + INPUT_RESERVATION_PADDING_TOKENS);
+    Math.ceil(assessment.estimatedInputTokens * INPUT_RESERVE_FACTOR) + INPUT_RESERVE_MARGIN);
+}
+
+function estimateTextTokens(text: string): number {
+  let tokens = 0;
+  for (const character of text) {
+    const point = character.codePointAt(0)!;
+    tokens += point <= 0x7f ? 0.25 : point <= 0x7ff ? 0.5 : point <= 0xffff ? 1.5 : 2;
+  }
+  return Math.max(1, Math.ceil(tokens));
 }
 /** Local structural heuristic only. Request text is inspected transiently, never stored. */
 function assess(body: Record<string, unknown>) {
   const content = body.messages ?? body.input ?? "";
   const text = JSON.stringify(content);
-  // UTF-8 bytes are a conservative text-token estimate, not a tokenizer.
-  // Image bytes/URLs do not represent text tokens; image capacity is reserved
-  // via the full remaining context and constrained by upstream usage bounds.
   const estimatedText = JSON.stringify(body, (key, value: unknown) => key === "image_url" || key === "image" || typeof value === "string" && value.startsWith("data:image/") ? "[image]" : value);
-  const estimatedInputTokens = Math.max(1, new TextEncoder().encode(estimatedText).length);
+  const estimatedInputTokens = estimateTextTokens(estimatedText);
   const turns = Array.isArray(content) ? content.length : 1;
   const tools = Array.isArray(body.tools) && body.tools.length > 0;
   const vision = /"(?:image_url|input_image|image)"\s*:/.test(text) || /"type"\s*:\s*"(?:input_image|image_url)"/.test(text);
