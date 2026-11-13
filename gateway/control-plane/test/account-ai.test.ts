@@ -639,6 +639,38 @@ describe("operator administration", () => {
       body: { operationId: crypto.randomUUID(), chargedMicroPoints: 0, reason: "ghost" },
     })).status).toBe(404);
   });
+  it("lists global reviews only for operators and settles three accounts idempotently", async () => {
+    const operator = await operatorSession();
+    const targets = [];
+    for (let i = 0; i < 3; i++) {
+      const target = await signIn(`global-review-${i}@example.com`);
+      await enableAndGrant(target.userId, 10_000);
+      const credential = await call("/v1/account/ai/tokens", { method: "POST", token: target.token, env: operator.env, body: { deviceId: DEVICE_A } });
+      const { id: tokenId } = await credential.json<{ id: string }>();
+      const reserved = await reserveRequest(operator.env, {
+        endpoint: "chat", model: MODEL.id, ownerUserId: target.userId, tokenId,
+        pricing: { cachedRate: 500_000, inputRate: 2_000_000, outputRate: 4_000_000, maxInputTokens: 1000, maxOutputTokens: 100, pricingVersion: MODEL.pricingVersion },
+      });
+      if (!reserved.ok) throw new Error(reserved.reason);
+      await reviewRequest(operator.env, reserved.id, "client_disconnected");
+      targets.push({ ...target, requestId: reserved.id });
+    }
+    const path = "/v1/operator/ai/requests?state=review";
+    expect((await call(path, { token: targets[0].token, env: operator.env })).status).toBe(403);
+    const response = await call(path, { token: operator.token, env: operator.env });
+    expect(response.status).toBe(200);
+    const page = await response.json<{ requests: Array<{ id: string; email: string }> }>();
+    expect(page.requests.map((item) => item.email).sort()).toEqual(targets.map((item) => item.email).sort());
+    for (const target of targets) {
+      const options = { method: "POST", token: operator.token, env: operator.env, body: { operationId: crypto.randomUUID(), reason: "batch review", chargedMicroPoints: 0 } };
+      const endpoint = `/v1/operator/ai/requests/${target.requestId}/settle`;
+      expect((await call(endpoint, options)).status).toBe(200);
+      await expect((await call(endpoint, options)).json()).resolves.toMatchObject({ replayed: true });
+      await expect((await call("/v1/account/ai", { token: target.token, env: operator.env })).json()).resolves.toMatchObject({ availableMicroPoints: 10_000, reservedMicroPoints: 0 });
+    }
+    const audit = await env.DB.prepare("SELECT COUNT(*) AS total FROM account_ai_adjustments WHERE kind = 'settle'").first<{ total: number }>();
+    expect(audit?.total).toBe(3);
+  });
 });
 
 /**

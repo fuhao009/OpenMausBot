@@ -212,7 +212,7 @@ curl --cacert "$CA" "$BASE/v1/ai/quote" \
 | `complexity,score,reasons` | 结构启发式评估结果；不含原始 prompt |
 | `estimatedInputTokens` | 本地保守文本估计，不是模型 tokenizer 或供应商 usage |
 | `estimatedMicroPoints` | 估计输入及请求输出上限对应费用，不是最终扣费或硬上限 |
-| `reservedMicroPoints` | 在模型剩余上下文、输出上限及最高适用输入费率下计算的预占上限 |
+| `reservedMicroPoints` | 文本输入按 `min(剩余上下文, ceil(estimatedInputTokens × 1.5) + 2048)` 预占，图片输入按全部剩余上下文预占；再计入请求输出上限 |
 | `policyRevision` | 报价读取的运营策略版本；不单独锁住控制器倍率 |
 | `currency,pointsPerCurrency` | USD 与积分估值关系，不是现金兑换 |
 | `rateSnapshot` | 输入、缓存输入、输出的整数微积分/百万 token 展示费率；不含采购成本 |
@@ -222,11 +222,13 @@ curl --cacert "$CA" "$BASE/v1/ai/quote" \
 
 ### 预算与服务档位
 
-两种推理请求均可携带网关字段 `billing: {"maxMicroPoints": 1000000}`；值为非负安全整数微积分。服务端将**实际预占上限**与预算比较，超出返回 402 `budget_exceeded`，不预占、不调用上游。该字段不会转发给上游，也可约束原固定计费模型。预算不是要求固定扣满；完整可信 usage 按锁定快照结算，退回预占余量。
+两种推理请求均可携带网关字段 `billing: {"maxMicroPoints": 1000000}`；值为非负安全整数微积分。服务端将**实际预占额**与预算比较，超出返回 402 `budget_exceeded`，不预占、不调用上游。该字段不会转发给上游，也可约束原固定计费模型。它仅限制准入预占，**不是最终扣费硬上限**：可信实际用量超过预占时，会在同一事务中补扣可用余额；余额不足时收取预占与全部可用余额，并进入 `review`，原始用量完整保留。客户端不得把该字段展示为最终花费上限。
 
 `service_tier` 仅在该请求采用任务计费时允许：默认省略；已支持的 GPT 费率可选择 `default|priority|fast|ultrafast`，但具体模型必须有对应费率（例如 Luna 不支持 ultrafast）。非 GPT 采购表只接受 default。独立 `-ultrafast` 模型已包含快速档倍率，不会重复加倍。无对应费率或非字符串档位返回 400 `invalid_request`，不会当免费、猜测价格或静默降级。
 
 正常分发返回 `x-ai-model`（实际公开模型）和 `x-ai-pricing-version`，以及原 `x-ai-request-id`；网络异常响应可能只有账本 ID。JSON/SSE 的模型映射仍使用公开 ID。最终费用以账号流水为准，预占不是收入；usage 缺失或不合法、缓存写入费率缺失、用量越界仍可能进入 review。运营者成本和毛利只在管理 API 返回，不向普通客户端公开。
+
+客户端中途断开后，网关继续读取上游，最多等待 120 秒。拿到可信用量后按实际费用结算（`client_disconnected_settled`）；超时或上游出错仍进入复核（`client_disconnected`）。进程退出无法保证后台读取继续，遗留请求仍由陈旧预占恢复处理。超过预占且余额不足的复核原因为 `usage_exceeds_reservation`，此时余额预占已归零，历史请求预占字段仍保留准入金额。
 
 报价仅对采用任务计费的请求有效；显式模型没有启用该路径时返回 503 `dynamic_billing_disabled`。未发布的自动 ID、能力/上下文不匹配、档位不支持应刷新目录或修改请求，不透明重试。任务计费关闭时不要继续发送缓存的自动 ID。
 

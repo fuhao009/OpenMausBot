@@ -11,6 +11,7 @@ import {
   getRequest,
   listLedger,
   listRequests,
+  listReviewRequests,
   reservationMicroPoints,
   type Balance,
 } from "./ai-wallet";
@@ -168,7 +169,9 @@ export async function authenticateModelToken(
             s."expiresAt" AS session_expires_at
        FROM account_ai_tokens t
        JOIN "session" s ON s.id = t.session_id AND s."userId" = t.owner_user_id
-      WHERE t.lookup_id = ? AND t.revoked_at IS NULL AND t.expires_at > ?`,
+      WHERE t.lookup_id = ? AND t.revoked_at IS NULL AND t.expires_at > ?
+        AND NOT EXISTS (SELECT 1 FROM account_lifecycle l WHERE l.user_id = t.owner_user_id
+          AND (l.disabled = 1 OR l.deleted = 1 OR l.password_change_required = 1))`,
   ).bind(parsed[1], now).first<TokenRow>();
   // Better Auth stores session dates as ISO-8601 text.
   const sessionExpiry = row === null ? Number.NaN : Date.parse(row.session_expires_at);
@@ -348,7 +351,7 @@ async function operatorAccountView(
   userId: string,
   config: AiConfig,
 ) {
-  const user = await env.DB.prepare('SELECT id, email, "emailVerified" AS emailVerified FROM "user" WHERE id = ?')
+  const user = await env.DB.prepare('SELECT id, email, "emailVerified" AS emailVerified FROM "user" WHERE id = ? AND NOT EXISTS (SELECT 1 FROM account_lifecycle l WHERE l.user_id = "user".id AND l.deleted = 1)')
     .bind(userId).first<{ id: string; email: string; emailVerified: number | string | boolean }>();
   if (!user) throw new HTTPError(404, "not_found");
   const balance = await getBalance(env, userId);
@@ -464,8 +467,14 @@ async function operatorListAccountRequests(
 ): Promise<Response> {
   await requireOperator(request, auth, config);
   const url = new URL(request.url);
-  const userId = userIdSchema.safeParse(url.searchParams.get("userId") ?? "");
-  if (!userId.success) throw new HTTPError(400, "invalid_request");
+  const state = url.searchParams.get("state");
+  const rawUserId = url.searchParams.get("userId");
+  if (rawUserId === null && state === "review") {
+    const page = await listReviewRequests(env, url.searchParams.get("cursor") ?? undefined);
+    return wireJSON({ requests: page.items, nextCursor: page.nextCursor });
+  }
+  const userId = userIdSchema.safeParse(rawUserId ?? "");
+  if (!userId.success || state !== null) throw new HTTPError(400, "invalid_request");
   const page = await listRequests(env, userId.data, url.searchParams.get("cursor") ?? undefined);
   return wireJSON({ requests: page.items, nextCursor: page.nextCursor });
 }

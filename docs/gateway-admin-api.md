@@ -36,8 +36,16 @@
 | POST | `/v1/operator/ai/balance` | `{operationId,userId,amountMicroPoints,reason}`，增加积分 |
 | GET | `/v1/operator/ai/requests?userId=…&cursor=…` | 当前账号请求与游标分页 |
 | POST | `/v1/operator/ai/requests/:id/settle` | `{operationId,chargedMicroPoints,reason}`，人工结算 |
+| GET | `/v1/operator/ai/requests?state=review&cursor=…` | 所有账号待复核请求，创建时间倒序；每条新增 `email` |
+| POST | `/v1/operator/accounts/:userId/disable` | `{operationId,reason}`，停用整个账号并撤销会话和模型令牌 |
+| POST | `/v1/operator/accounts/:userId/delete` | `{operationId,reason}`，保留匿名账本；有预占或待复核时 409 |
+| POST | `/v1/operator/accounts/:userId/reset-password` | `{operationId,reason}`，撤销会话并返回一次性 `temporaryPassword` |
 
-所有金额内部为安全整数微积分，1 积分 = 1,000,000 微积分。增加积分不是覆盖余额；未知结果重试必须保留原操作 ID 和原始请求。结算不允许超出预占或重复结算。
+所有金额内部为安全整数微积分，1 积分 = 1,000,000 微积分。增加积分不是覆盖余额；未知结果重试必须保留原操作 ID 和原始请求。普通复核结算不允许超出预占；`usage_exceeds_reservation` 复核已收取费用且不再冻结余额，人工结算不得超过已收取的 `chargedMicroPoints`，差额退款。重复使用同一操作 ID 返回已有结果，不重复记账。待复核页批量零结算逐笔调用单笔接口，每笔独立 UUID 与审计；允许部分成功，重试保留各笔原 ID。
+
+账号生命周期操作响应含 `operationId,userId,kind,replayed`。重置密码的明文只在首次成功响应出现，幂等重放不会再次返回；丢失响应时先以同 ID 确认，再明确发起新的重置。审计不包含密码明文。删除不可恢复，历史流水不物理删除，原邮箱替换为匿名标识。
+
+临时密码登录响应含 `requiresPasswordChange: true`；受限会话不能访问普通账号和模型功能。客户端以账号 Bearer 调用 `POST /v1/account/change-password`，提交 `{currentPassword,newPassword}`，新密码遵守注册规则（10–128 字符）且不得与临时密码相同。成功 `{changed:true,requiresSignIn:true}`，所有会话撤销，使用新密码重新登录。
 
 ## 渠道与模型
 
