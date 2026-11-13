@@ -2,10 +2,10 @@
 
 ## 版本与部署
 
-- 分支：`backend/gateway-v1-lan`，已推送 personal。
-- 功能提交及 193 deployed-commit：`c911aefce`。
+- T1–T4 分支：`backend/gateway-v1-lan`；任务计费增量分支：`backend/task-aware-billing`。
+- T1–T4 基线功能提交：`c911aefce`；当前部署以 [193 部署记录](gateway-deployment-193.md) 为准。
 - 管理后台：`https://192.168.66.193:18487/admin`。
-- 本次仅改网关和交接文档，无桌面/手机/共享类型改动，无新 migration。
+- T1–T4 基线仅改网关和交接文档，无桌面/手机/共享类型改动。下方任务计费增量新增迁移 `0015_task_billing.sql` 与 `0016_billing_policy.sql`。
 
 ## T1–T4
 
@@ -57,3 +57,33 @@ T1/T2 回归名称（参数化覆盖多个场景）：
 ## 客户端对接
 
 拉取本分支后读 [客户端错误契约](gateway-client-api.md#错误与重试)。普通账号仍需管理员开通并补充积分；模型协议为 Responses，不能把该 ID 发送到 Chat 端点。生产未验证项：桌面真实请求、SSE、工具授权/拒绝、主动停止、账户并发与限流提示。不得将隔离通过写成三端生产联调完成。
+
+## 任务感知计费增量（2026-11-13）
+
+### 能力与兼容边界
+
+- `auto-chat` / `auto-responses` 根据可解释的结构启发式复杂度，筛选协议、能力、工具/图片支持和上下文后选估算低价模型；显式模型保持选择，不自动失败重放。
+- `POST /v1/ai/quote` 不调用上游、不预占、不扣积分；返回估计与预占上限但不承诺价格。实际请求的 `billing.maxMicroPoints` 限制准入预占。请求开始即锁定成本费率、积分换算、倍率、模型、档位和时间条件。
+- 用户扣费微积分与采购估算微 USD 分开存储；完整缓存分区不重复计费，缺失细项作带标记的保守估算，未知采购成本不填零。流式、在途改价、人工结算、拒绝释放沿用原账本原子性。
+- 成本表来自运营者提供的价格，不是账单。长上下文、北京时间工作日时段、priority/fast/ultrafast 规则按快照结算；Sonnet 浮点尾数规范为十进制 `122.816`。
+- 控制器按新终态样本、窗口、最少样本、冷却、倍率上下限和最大步长调整；审计保存原因，没新证据不重复涨价。只报告已知成本样本的估算毛利，不能保证实际盈利。
+- 管理后台增加“智能计费”：策略保存、能力档案、按模型与请求查看费用/耗时/成本证据、手动刷新和只读采购价。普通账号拿不到采购成本或毛利。
+- 迁移保持旧请求成本元数据为 NULL，既有显式模型和原积分费率路径可继续使用。新安装策略默认关闭，不能把部署代码等同于授权生产改价。
+
+### 本次已观察到的验收
+
+```sh
+pnpm exec tsc --noEmit -p gateway/control-plane/tsconfig.json
+pnpm --dir gateway/control-plane exec vitest run \
+  test/task-billing.test.ts test/task-billing-api.test.ts test/ai-wallet.test.ts \
+  test/admin.test.ts test/channel-management.test.ts test/ai-gateway.test.ts \
+  test/control-plane.test.ts test/account-ai.test.ts
+node scripts/verify-gateway-admin.mjs --task-billing --smoke
+```
+
+- TypeScript 检查退出 0；8 个测试文件、195 项测试通过。覆盖缓存分区、阈值/时段/档位、快照锁价、预算拒绝、自动选模、SSE 结算、未知成本、控制器冷却/CAS 和普通账号数据隔离。
+- 真实网关 CLI、一次性数据库与 TLS 假上游 smoke 通过；16 项迁移全部应用，简单任务选 `task-economy`、复杂任务选 `task-expert`，两次结算的成本指标可读取，重启后策略版本 1 保留。
+- 浏览器通过一次性运营者账号读取两条真实隔离结算记录，修改目标毛利后保存成功，服务端返回策略版本 2。1440px 与 390px 实际页面已观察；390px 整页宽度仍为 390px，无页面错误，localStorage/sessionStorage 为空。完成后停止 fixture 并关闭浏览器。
+- 这些证据不代表真实供应商费用、三端联调或生产动态定价已启用；没有使用真实账号测试扣费。生产启用状态单独记录于部署文档。
+
+客户端按 [报价与预算契约](gateway-client-api.md#任务计费报价与预算) 接入；运营者按 [策略与指标契约](gateway-admin-api.md#智能计费) 配置。

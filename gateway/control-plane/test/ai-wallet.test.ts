@@ -21,6 +21,7 @@ import {
   type ReserveResult,
 } from "../src/ai-wallet";
 import { HTTPError } from "../src/http";
+import type { TaskBillingSnapshot } from "../src/task-billing";
 
 /** The plan's worked example: R = ceil((1000×2_000_000 + 100×4_000_000)/1e6). */
 const MODEL = {
@@ -432,6 +433,166 @@ describe("reservation and settlement", () => {
     expect(await releaseRequest(env, id, "client_aborted_before_response")).toBe(false);
     expect(await settleRequest(env, id, USAGE)).toEqual({ chargedMicroPoints: 0, status: "settled" });
     expect((await balanceOf(account.userId)).availableMicroPoints).toBe(3_000);
+  });
+});
+
+describe("task billing ledger", () => {
+  function snapshot(now = Date.now()): TaskBillingSnapshot {
+    return {
+      version: 1, policyRevision: 1, currency: "USD", pointsPerCurrency: 1000,
+      multiplierBps: 22000, tariffId: "test", requestedModel: "auto-chat", selectedModel: "m1",
+      channelId: null, serviceTier: "standard", startedAt: now,
+      complexity: "standard", score: 3, reasons: ["test workload"], estimatedInputTokens: 100,
+      maxInputTokens: 1000, maxOutputTokens: 100,
+      rates: { input: 1000000, cached: 100000, output: 2000000, write: 1250000, writeHour: 2000000 },
+      longRates: null, longThreshold: null, longInclusive: false,
+      reservedMicroPoints: 4840000, maxCostMicroCurrency: 2200,
+    };
+  }
+
+  function dynamic(billing = snapshot()): Partial<ReserveInput> {
+    return { billing, pricing: { ...PRICING, inputRate: 4400000000, cachedRate: 4400000000,
+      outputRate: 4400000000 } };
+  }
+
+  async function dynamicId(account: TestAccount, billing = snapshot()): Promise<string> {
+    const result = await reserve(account, dynamic(billing), billing.startedAt);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.reservedMicroPoints).toBe(4840000);
+    return result.id;
+  }
+
+  const measured = { inputTokens: 1000, cachedInputTokens: 200, outputTokens: 100,
+    cacheWriteTokens: 100, cacheWriteHourTokens: 50 };
+
+  it("settles disjoint cache partitions and cost atomically, preserving the immutable snapshot", async () => {
+    const account = await fundedAccount({ availableMicroPoints: 10000000 });
+    const billing = snapshot();
+    const id = await dynamicId(account, billing);
+    billing.rates.input = 1;
+    await expect(env.DB.prepare("UPDATE account_ai_requests SET billing_snapshot = NULL WHERE id = ?")
+      .bind(id).run()).rejects.toThrow(/ai_request_immutable/);
+    expect(await settleRequest(env, id, measured, billing.startedAt + 125))
+      .toEqual({ status: "settled", chargedMicroPoints: 2409000 });
+    expect(await getRequest(env, id)).toMatchObject({ costMicroCurrency: 1095, costStatus: "estimated",
+      cacheWriteTokens: 100, cacheWriteHourTokens: 50, latencyMs: 125, requestedModel: "auto-chat" });
+    expect(await settleRequest(env, id, { ...measured, outputTokens: 9999 }, billing.startedAt + 999))
+      .toEqual({ status: "settled", chargedMicroPoints: 2409000 });
+    expect(await getRequest(env, id)).toMatchObject({ costMicroCurrency: 1095, latencyMs: 125 });
+    expect(await balanceOf(account.userId)).toMatchObject({ availableMicroPoints: 7591000, reservedMicroPoints: 0 });
+    await expect(env.DB.prepare("UPDATE account_ai_requests SET cost_micro_currency = 0 WHERE id = ?")
+      .bind(id).run()).rejects.toThrow(/ai_request_immutable/);
+    const entry = (await listLedger(env, account.userId)).items.find((item) => item.id === id);
+    expect(entry).not.toHaveProperty("costMicroCurrency");
+  });
+
+  it("uses a conservative write ceiling rather than inventing missing cache discounts", async () => {
+    const account = await fundedAccount({ availableMicroPoints: 10000000 });
+    const id = await dynamicId(account);
+    expect(await settleRequest(env, id, { inputTokens: 1000, outputTokens: 100 }))
+      .toEqual({ status: "settled", chargedMicroPoints: 4840000 });
+    expect(await getRequest(env, id)).toMatchObject({ costMicroCurrency: 2200, costStatus: "conservative",
+      cacheWriteTokens: null, cacheWriteHourTokens: null, cachedInputTokens: null });
+  });
+
+  it("keeps unknown costs for overrun, invalid partitions, release and manual settlement", async () => {
+    const account = await fundedAccount({ availableMicroPoints: 30000000 });
+    const billing = snapshot();
+    const over = await dynamicId(account, billing);
+    expect(await settleRequest(env, over, { ...measured, inputTokens: 1001 }, billing.startedAt + 50))
+      .toEqual({ status: "review", reason: "usage_over_reservation" });
+    expect(await getRequest(env, over)).toMatchObject({ costMicroCurrency: null, costStatus: "unknown", latencyMs: 50 });
+    await applyAdjustment(env, { operationId: crypto.randomUUID(), operatorUserId: account.operatorUserId,
+      ownerUserId: account.userId, kind: "settle", requestId: over, amountMicroPoints: 10,
+      reason: "usage could not be reconciled", now: billing.startedAt + 70 });
+    expect(await getRequest(env, over)).toMatchObject({ costMicroCurrency: null, costStatus: "unknown",
+      chargedMicroPoints: 10, latencyMs: 70 });
+    const invalid = await dynamicId(account);
+    expect(await settleRequest(env, invalid, { ...measured, cacheWriteTokens: 900 }))
+      .toMatchObject({ status: "review" });
+    const released = await dynamicId(account, billing);
+    expect(await releaseRequest(env, released, "not_sent", billing.startedAt + 100)).toBe(true);
+    expect(await getRequest(env, released)).toMatchObject({ chargedMicroPoints: 0,
+      costMicroCurrency: null, costStatus: "unknown", latencyMs: 100 });
+    expect(await releaseRequest(env, released, "duplicate")).toBe(false);
+  });
+
+  it("never double charges concurrent terminal usage, or mismatches cost and charge", async () => {
+    const account = await fundedAccount({ availableMicroPoints: 10000000 });
+    const id = await dynamicId(account);
+    const zero = { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0, cacheWriteHourTokens: 0 };
+    const results = await Promise.all([settleRequest(env, id, measured), settleRequest(env, id, zero)]);
+    expect(results[0]).toEqual(results[1]);
+    const row = await getRequest(env, id);
+    expect([0, 2409000]).toContain(row?.chargedMicroPoints);
+    expect(row?.costMicroCurrency).toBe(row?.chargedMicroPoints === 0 ? 0 : 1095);
+    expect((await balanceOf(account.userId)).availableMicroPoints).toBe(10000000 - row!.chargedMicroPoints!);
+  });
+
+  it("reserves from exact tariff arithmetic instead of rounded public sale hints", async () => {
+    const account = await fundedAccount();
+    const billing: TaskBillingSnapshot = { ...snapshot(), pointsPerCurrency: 1, multiplierBps: 10001,
+      maxInputTokens: 1000000, maxOutputTokens: 1000000,
+      rates: { input: 1, cached: 1, output: 1, write: null, writeHour: null },
+      reservedMicroPoints: 3, maxCostMicroCurrency: 2 };
+    const result = await reserve(account, { billing, pricing: { ...PRICING,
+      maxInputTokens: 1000000, maxOutputTokens: 1000000, inputRate: 2, cachedRate: 2, outputRate: 2 } });
+    expect(result).toMatchObject({ ok: true, reservedMicroPoints: 3 });
+    if (!result.ok) throw new Error(result.reason);
+    expect(await settleRequest(env, result.id, { inputTokens: 1000000, outputTokens: 1000000,
+      cachedInputTokens: 0, cacheWriteTokens: 0, cacheWriteHourTokens: 0 }))
+      .toEqual({ status: "settled", chargedMicroPoints: 3 });
+    expect(await getRequest(env, result.id)).toMatchObject({ costMicroCurrency: 2 });
+  });
+
+  it("rejects mismatched bounds, model, sale rates and forged reservation before any money moves", async () => {
+    const account = await fundedAccount({ availableMicroPoints: 10000000 });
+    const billing = snapshot();
+    await expect(reserve(account, dynamic({ ...billing, reservedMicroPoints: 1 }))).rejects.toThrow();
+    await expect(reserve(account, dynamic({ ...billing, maxCostMicroCurrency: 1 }))).rejects.toThrow();
+    await expect(reserve(account, dynamic({ ...billing, selectedModel: "other" }))).rejects.toThrow();
+    await expect(reserve(account, dynamic({ ...billing, maxInputTokens: 999 }))).rejects.toThrow();
+    await expect(reserve(account, { ...dynamic(), pricing: PRICING })).rejects.toThrow();
+    expect(await balanceOf(account.userId)).toMatchObject({ availableMicroPoints: 10000000, reservedMicroPoints: 0 });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS total FROM account_ai_requests WHERE owner_user_id = ?")
+      .bind(account.userId).first()).toEqual({ total: 0 });
+  });
+
+  it("reviews reported cache writes without a matching tariff, never pricing them at zero", async () => {
+    const account = await fundedAccount({ availableMicroPoints: 10000000 });
+    const billing = snapshot();
+    billing.rates.write = null;
+    const id = await dynamicId(account, billing);
+    expect(await settleRequest(env, id, measured)).toMatchObject({ status: "review" });
+    expect(await getRequest(env, id)).toMatchObject({ costMicroCurrency: null, costStatus: "unknown",
+      chargedMicroPoints: null, reservedMicroPoints: 4840000 });
+  });
+
+  it("records stale dynamic requests as unknown without releasing held points", async () => {
+    const account = await fundedAccount({ availableMicroPoints: 10000000 });
+    const billing = snapshot();
+    const id = await dynamicId(account, billing);
+    await recoverStaleRequests(env, billing.startedAt + 600001);
+    expect(await getRequest(env, id)).toMatchObject({ state: "review", costMicroCurrency: null,
+      costStatus: "unknown", latencyMs: 600001, chargedMicroPoints: null });
+    expect(await balanceOf(account.userId)).toMatchObject({ availableMicroPoints: 5160000, reservedMicroPoints: 4840000 });
+  });
+
+  it("atomically admits only one dynamic request when funds cover one snapshot", async () => {
+    const account = await fundedAccount({ availableMicroPoints: 5000000 });
+    const result = await Promise.all([reserve(account, dynamic()), reserve(account, dynamic())]);
+    expect(result.filter((item) => item.ok)).toHaveLength(1);
+    expect(result.filter((item) => !item.ok)).toEqual([{ ok: false, reason: "insufficient_balance" }]);
+    expect(await balanceOf(account.userId)).toMatchObject({ availableMicroPoints: 160000, reservedMicroPoints: 4840000 });
+  });
+
+  it("leaves legacy rows on the old arithmetic with no fabricated cost metadata", async () => {
+    const account = await fundedAccount();
+    const id = await admittedId(account);
+    expect(await settleRequest(env, id, USAGE)).toEqual({ status: "settled", chargedMicroPoints: 2100 });
+    expect(await getRequest(env, id)).not.toHaveProperty("costMicroCurrency");
+    expect(await env.DB.prepare("SELECT billing_snapshot, cost_micro_currency, cost_status, latency_ms FROM account_ai_requests WHERE id = ?")
+      .bind(id).first()).toEqual({ billing_snapshot: null, cost_micro_currency: null, cost_status: null, latency_ms: null });
   });
 });
 

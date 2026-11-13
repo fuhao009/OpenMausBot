@@ -18,6 +18,16 @@ select:focus-visible { outline: 3px solid #a2cebc; outline-offset: 2px; }
 .catalog-item p { margin: 4px 0; overflow-wrap: anywhere; }
 .catalog-item > span { overflow-wrap: anywhere; min-width: 0; flex: 1; }
 .catalog-list { max-height: 420px; overflow: auto; }
+#billing-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+#billing-view .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px 20px; }
+#billing-view label { display: block; min-width: 0; }
+#billing-view input:not([type="checkbox"]) { width: 100%; }
+#billing-view input[type="checkbox"] { width: auto; margin-right: 8px; }
+#billing-profiles .catalog-item > label:first-child { flex: 1 1 260px; }
+#billing-reason { margin-bottom: 14px; }
+#billing-view table { min-width: 720px; }
+#billing-revision { white-space: normal; overflow-wrap: anywhere; }
+#billing-view caption { text-align: left; padding: 16px 0 8px; font-weight: 600; }
 @media (max-width: 1000px) { .catalog-grid { grid-template-columns: 1fr; gap: 0; } }
 @media (max-width: 720px) { .sidebar nav { flex-wrap: wrap; } #channels-view .search-row { flex-wrap: wrap; } #channels-view .search-row .grow { flex-basis: 100%; } }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}

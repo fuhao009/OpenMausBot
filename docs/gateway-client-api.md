@@ -4,14 +4,14 @@
 
 ## Git 与部署
 
-- 后端分支：`backend/gateway-deploy-admin-193`，远端 `personal`（`github.com/fuhao009/OpenMausBot`）。
-- 当前渠道实现部署提交：`64b453286`；后续文档提交不代表新的服务端版本。部署状态以 [部署记录](gateway-deployment-193.md) 为准。
+- 任务计费分支：`backend/task-aware-billing`，基于 `backend/gateway-v1-lan`；远端 `personal`（`github.com/fuhao009/OpenMausBot`）。
+- 实际部署提交、迁移与生产启用状态以 [部署记录](gateway-deployment-193.md) 为准；文档或隔离测试通过不代表生产已开启任务计费。
 - 联调 base：`https://192.168.66.193:18487`；仅内网可达，不是公网地址。
 - 注册账号不自动获得 AI 权限、积分或管理员权限。真实上游未配置时，不能用健康接口 200 宣称模型可用。
 - 客户端只提交公开模型 ID，不持有渠道上游 key，不修改渠道配置。
 
 ```sh
-git fetch personal backend/gateway-deploy-admin-193
+git fetch personal backend/task-aware-billing
 ```
 
 不要在其他开发者的工作目录切分支；使用独立 clone/worktree。客户端无需整体合并后端，只需对齐本文协议及必要共享类型。
@@ -35,7 +35,7 @@ git fetch personal backend/gateway-deploy-admin-193
 | 凭据 | 获取位置 | 用途 |
 | --- | --- | --- |
 | 账号会话 Bearer | 认证响应头 `set-auth-token`，签名后的原值 | `/v1/me`、账号 AI、安装管理、手机中继 |
-| 模型令牌 | `POST /v1/account/ai/tokens` 返回 `token` | `/v1/ai/models`、Chat/Responses；15 分钟 |
+| 模型令牌 | `POST /v1/account/ai/tokens` 返回 `token` | `/v1/ai/models`、`/v1/ai/quote`、Chat/Responses；15 分钟 |
 | 安装凭据 | 创建/轮换桌面安装的响应 | `/v1/installations/self`、桌面中继隧道、端点与推送；90 天 |
 
 三者不可互换。上游 API key 不是任何客户端凭据。桌面安全进程和手机安全存储持有会话；不要把会话/model token 传入不可信 renderer、URL query、日志或 Git。客户端传 UUID `deviceId`，每台设备稳定保存，不要每次请求生成新设备身份。
@@ -162,7 +162,7 @@ curl --cacert "$CA" "$BASE/v1/ai/chat/completions" \
 
 非流式成功 200，兼容上游 Chat completion JSON，模型名按网关公开映射处理。`choices`、工具调用、`usage` 随模型能力变化，不能把文档示例当固定输出。
 
-允许顶层字段：`model,messages,tools,tool_choice,parallel_tool_calls,stream,stream_options,max_tokens,max_completion_tokens,temperature,top_p,stop,seed,presence_penalty,frequency_penalty,response_format,reasoning_effort,n`。未知字段拒绝；`messages` 必须非空；`n` 仅能为 1；两个 max 字段不能同时提供；输出上限为正整数并被服务器模型上限限制。仅支持 `type:function` 工具，不执行工具本身。
+允许顶层字段：`model,messages,tools,tool_choice,parallel_tool_calls,stream,stream_options,max_tokens,max_completion_tokens,temperature,top_p,stop,seed,presence_penalty,frequency_penalty,response_format,reasoning_effort,n,service_tier,billing`。未知字段拒绝；`messages` 必须非空；`n` 仅能为 1；两个 max 字段不能同时提供；输出上限为正整数并被服务器模型上限限制。仅支持 `type:function` 工具，不执行工具本身。`service_tier` 和 `billing` 规则见下方任务计费契约。
 
 ### SSE
 
@@ -184,9 +184,52 @@ curl --cacert "$CA" "$BASE/v1/ai/responses" \
   --data '{"model":"team-responses","input":"你好","max_output_tokens":64,"store":false,"stream":false}'
 ```
 
-允许顶层字段：`model,input,instructions,tools,tool_choice,parallel_tool_calls,stream,max_output_tokens,temperature,top_p,reasoning,text,include,store,background`。`input` 为非空字符串或非空数组；`store`/`background` 只能省略或 false；`include` 仅接受 `reasoning.encrypted_content`；工具仅 function。不支持服务器远端存储、后台运行、`previous_response_id` 等未列出字段。流式设置 `stream:true`，按 Responses 事件处理 `response.completed`、`response.incomplete`、`response.failed` 及 `event:error`，不是只等 Chat 的 `[DONE]`。
+允许顶层字段：`model,input,instructions,tools,tool_choice,parallel_tool_calls,stream,max_output_tokens,temperature,top_p,reasoning,text,include,store,background,service_tier,billing`。`input` 为非空字符串或非空数组；`store`/`background` 只能省略或 false；`include` 仅接受 `reasoning.encrypted_content`；工具仅 function。不支持服务器远端存储、后台运行、`previous_response_id` 等未列出字段。流式设置 `stream:true`，按 Responses 事件处理 `response.completed`、`response.incomplete`、`response.failed` 及 `event:error`，不是只等 Chat 的 `[DONE]`。`service_tier` 和 `billing` 规则见下方任务计费契约。
 
 两种推理端点不自动互相转换；选错协议返回 403 `model_not_allowed`。请求体最大 48 MiB；上游单次交换超时 300 秒。服务端只转发一次，不保证失败代表上游未计费。
+
+## 任务计费报价与预算
+
+任务计费需要运营者显式开启、配置模型能力档案和已知采购费率。客户端只在最新模型目录出现时使用 `auto-chat` / `auto-responses`，分别发送至匹配协议的端点；不在客户端硬编码可用性。自动模型目录中的单价仅为目录展示提示，不是本次任务承诺价。
+
+服务端用输入规模、轮次、工具、图片、推理要求和任务标记作结构启发式评估，返回 `simple|standard|complex` 及原因；不宣称准确理解任务难度。满足档位、协议、上下文及工具/图像能力后，按估算费用选模型。显式模型 ID 不会被替换；未配置任务档案或没有采购价的显式模型保留原固定积分计费。无可用模型直接拒绝，不自动跨协议、跨模型重放。
+
+### 报价
+
+`POST /v1/ai/quote`，模型令牌，请求体仅含 `endpoint: "chat"|"responses"` 与完整推理 `request`：
+
+```sh
+curl --cacert "$CA" "$BASE/v1/ai/quote" \
+  -H "Authorization: Bearer $MODEL_TOKEN" -H 'Content-Type: application/json' \
+  --data '{"endpoint":"responses","request":{"model":"auto-responses","input":"你好","max_output_tokens":64}}'
+```
+
+成功返回以下字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| `selectedModel` | 本次报价选择的公开实际模型 ID |
+| `complexity,score,reasons` | 结构启发式评估结果；不含原始 prompt |
+| `estimatedInputTokens` | 本地保守文本估计，不是模型 tokenizer 或供应商 usage |
+| `estimatedMicroPoints` | 估计输入及请求输出上限对应费用，不是最终扣费或硬上限 |
+| `reservedMicroPoints` | 在模型剩余上下文、输出上限及最高适用输入费率下计算的预占上限 |
+| `policyRevision` | 报价读取的运营策略版本；不单独锁住控制器倍率 |
+| `currency,pointsPerCurrency` | USD 与积分估值关系，不是现金兑换 |
+| `rateSnapshot` | 输入、缓存输入、输出的整数微积分/百万 token 展示费率；不含采购成本 |
+| `noPriceCommitment` | 恒为 true：报价不承诺后续请求价格 |
+
+报价不发上游请求、不预占、不扣积分、不创建推理账本 ID，也不持久化 prompt。实际请求重新评估并在准入时锁定策略、费率、模型、渠道、服务档位、时间条件与预占；之后不追溯改价。必须通过下面的预算上限约束用户授权，不能将报价 token 数或三项展示费率重新计算为权威价格。
+
+### 预算与服务档位
+
+两种推理请求均可携带网关字段 `billing: {"maxMicroPoints": 1000000}`；值为非负安全整数微积分。服务端将**实际预占上限**与预算比较，超出返回 402 `budget_exceeded`，不预占、不调用上游。该字段不会转发给上游，也可约束原固定计费模型。预算不是要求固定扣满；完整可信 usage 按锁定快照结算，退回预占余量。
+
+`service_tier` 仅在该请求采用任务计费时允许：默认省略；已支持的 GPT 费率可选择 `default|priority|fast|ultrafast`，但具体模型必须有对应费率（例如 Luna 不支持 ultrafast）。非 GPT 采购表只接受 default。独立 `-ultrafast` 模型已包含快速档倍率，不会重复加倍。无对应费率或非字符串档位返回 400 `invalid_request`，不会当免费、猜测价格或静默降级。
+
+正常分发返回 `x-ai-model`（实际公开模型）和 `x-ai-pricing-version`，以及原 `x-ai-request-id`；网络异常响应可能只有账本 ID。JSON/SSE 的模型映射仍使用公开 ID。最终费用以账号流水为准，预占不是收入；usage 缺失或不合法、缓存写入费率缺失、用量越界仍可能进入 review。运营者成本和毛利只在管理 API 返回，不向普通客户端公开。
+
+报价仅对采用任务计费的请求有效；显式模型没有启用该路径时返回 503 `dynamic_billing_disabled`。未发布的自动 ID、能力/上下文不匹配、档位不支持应刷新目录或修改请求，不透明重试。任务计费关闭时不要继续发送缓存的自动 ID。
+
 
 ## 账号积分流水
 
@@ -216,10 +259,12 @@ curl --cacert "$CA" --get "$BASE/v1/account/ai/ledger" \
 | 403 `ai_not_enabled` / `ai_suspended` | 联系管理员，停止自动请求 |
 | 403 `model_not_allowed` | 刷新账号模型目录，检查协议、模型或渠道是否停用 |
 | 402 `insufficient_balance` | 显示余额/预占，停止自动重试 |
+| 402 `budget_exceeded` | 预占上限超过用户授权预算；重新报价或调整输出/模型，由用户决定是否提高预算 |
 | 429 `ai_busy` | 账号并发已满，尚未预占；固定 `Retry-After: 2`，可排队等待再发送 |
 | 503 `ai_temporarily_busy` | 上游 429，按内测策略释放预占，用户积分未扣；稍后可以重新发送 |
 | 503 `ai_temporarily_unavailable` | 指定上游拒绝状态按内测策略释放预占，用户积分未扣；服务恢复后可以重新发送 |
 | 503 `ai_unavailable` | 配置/运行时不可用，不假装模型正常 |
+| 503 `dynamic_billing_disabled` | 报价请求没有使用任务计费；刷新能力，保留显式模型原调用路径 |
 | 400 `invalid_request` | 修正字段，不重试相同错误请求 |
 | 413 `request_too_large` | 缩小请求，48 MiB 上限 |
 | 502 `upstream_error` / 流中断 | 结果可能已计费，刷新流水并提示复核，禁止透明重放 |
@@ -237,4 +282,4 @@ curl --cacert "$CA" --get "$BASE/v1/account/ai/ledger" \
 - 桌面注册/轮换，手机只查询所属安装并经中继访问；断线、离线和跨账号拒绝按设备文档处理。
 - 提交问题时附客户端 SHA、后端部署 SHA、脱敏路径、HTTP/error code、时间和 request ID；不要附真实密码/token。
 
-本文档不是“所有功能已在生产打通”的声明：生产渠道仍需运营者配置，邮件/APNS/Cloudflare 托管端点按部署能力启用。通过隔离 fixture 验证的范围详见部署记录。
+本文档不是“所有功能已在生产打通”的声明：生产模型、任务计费策略、邮件/APNS/Cloudflare 托管端点按部署能力启用。通过隔离 fixture 验证的范围详见部署记录；未对生产账号注入测试积分或发起测试推理。

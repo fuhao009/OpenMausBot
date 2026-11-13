@@ -9,6 +9,7 @@ import { routeAccountAi } from "./account-ai";
 import { routeAdminAssets } from "./admin-assets";
 import { routeAiGateway } from "./ai-gateway";
 import { recoverStaleRequests } from "./ai-wallet";
+import { refreshBillingController } from "./task-billing";
 import {
   cleanupEndpointForInstallation,
   deleteManagedEndpoint,
@@ -292,7 +293,7 @@ export function createWorker(
           return secureResponse(response ?? routeError(url.pathname, 404, "not_found"), request, config, requestId);
         }
         const ownsBody = url.pathname.startsWith("/v1/account/ai") || url.pathname.startsWith("/v1/operator/ai/")
-          || url.pathname === "/v1/operator/channels";
+          || url.pathname === "/v1/operator/channels" || url.pathname === "/v1/operator/billing";
         const boundedRequest = ownsBody ? request : await withBoundedRequestBody(request);
         return secureResponse(
           await route(boundedRequest, env, ctx, config, requestId, cloudflareFetch, apnsFetch, highLevelFetch, aiFetch),
@@ -311,6 +312,9 @@ export function createWorker(
     },
     scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
       const requestId = crypto.randomUUID();
+      ctx.waitUntil(refreshBillingController(env).catch(() => {
+        console.error(JSON.stringify({ message: "billing controller refresh failed", requestId, errorCode: "billing_internal" }));
+      }));
       ctx.waitUntil(recoverStaleRequests(env).catch(() => {
         console.error(JSON.stringify({ message: "AI reservation recovery failed", requestId, errorCode: "ai_internal" }));
       }));

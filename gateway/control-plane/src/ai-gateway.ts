@@ -1,8 +1,9 @@
 import { authenticateModelToken } from "./account-ai";
 import { findModel, publicModels, type AiConfig, type AiModelConfig } from "./ai-config";
 import { loadRuntimeAiConfig } from "./channel-store";
-import { markRequestStreaming, releaseRequest, reserveRequest, reviewRequest, settleRequest } from "./ai-wallet";
+import { markRequestStreaming, releaseRequest, reservationMicroPoints, reserveRequest, reviewRequest, settleRequest } from "./ai-wallet";
 import { HTTPError, JSON_HEADERS, json, readBoundedJSON } from "./http";
+import { applyBillingCatalog, estimateTaskMicroPoints, planTaskBilling, refreshBillingController, type TaskBillingSnapshot } from "./task-billing";
 
 /** Screenshots and tool context ride in this body; still bounded. */
 export const AI_REQUEST_LIMIT_BYTES = 48 * 1024 * 1024;
@@ -17,6 +18,7 @@ export const AI_UPSTREAM_TIMEOUT_MS = 300_000;
 const MODELS_PATH = "/v1/ai/models";
 const CHAT_PATH = "/v1/ai/chat/completions";
 const RESPONSES_PATH = "/v1/ai/responses";
+const QUOTE_PATH = "/v1/ai/quote";
 const UPSTREAM_REFUSAL_STATUSES = new Set([400, 401, 403, 404, 408, 409, 413, 422, 429]);
 const AI_BUSY_RETRY_AFTER_SECONDS = 2;
 
@@ -39,6 +41,7 @@ const CHAT_FIELDS = new Set([
   "response_format",
   "reasoning_effort",
   "n",
+  "service_tier",
 ]);
 
 const RESPONSES_FIELDS = new Set([
@@ -57,6 +60,7 @@ const RESPONSES_FIELDS = new Set([
   "include",
   "store",
   "background",
+  "service_tier",
 ]);
 
 type InferenceMode = "chat" | "responses";
@@ -65,6 +69,8 @@ interface UsageCandidate {
   cached: unknown;
   input: unknown;
   output: unknown;
+  write: unknown;
+  writeHour: unknown;
 }
 
 interface PreparedRequest {
@@ -72,6 +78,7 @@ interface PreparedRequest {
   outputCap: number;
   stream: boolean;
   upstream: Record<string, unknown>;
+  billing?: TaskBillingSnapshot;
 }
 
 interface UpstreamControl {
@@ -115,6 +122,7 @@ function failure(error: unknown): Response {
   if (error.status === 413) return inferenceError(413, "request_too_large", "The request body is too large.");
   if (error.status === 401) return inferenceError(401, "ai_token_invalid", "The AI token is invalid or expired.");
   if (error.status === 402) {
+    if (error.code === "budget_exceeded") return inferenceError(402, "budget_exceeded", "The request exceeds the authorized points budget.");
     return inferenceError(402, "insufficient_balance", "Available points cannot cover another request.");
   }
   if (error.status === 429) {
@@ -131,7 +139,9 @@ function failure(error: unknown): Response {
     }
     return inferenceError(403, "ai_not_enabled", "AI access for this account is not enabled.");
   }
-  if (error.status === 503) return inferenceError(503, "ai_unavailable", "The AI service is not available.");
+  if (error.status === 503) return error.code === "dynamic_billing_disabled"
+    ? inferenceError(503, "dynamic_billing_disabled", "Task pricing is not enabled.")
+    : inferenceError(503, "ai_unavailable", "The AI service is not available.");
   return inferenceError(400, "invalid_request", "The request was rejected.");
 }
 
@@ -256,12 +266,26 @@ function prepareResponses(body: Record<string, unknown>, model: AiModelConfig): 
   return { model, outputCap, stream, upstream };
 }
 
-function preparedRequest(body: Record<string, unknown>, aiConfig: AiConfig, mode: InferenceMode): PreparedRequest {
+async function preparedRequest(env: Env, body: Record<string, unknown>, aiConfig: AiConfig, mode: InferenceMode): Promise<PreparedRequest> {
   const modelId = body.model;
   if (!isString(modelId) || modelId.length === 0) throw invalid();
-  const model = findModel(aiConfig, modelId);
+  const budget = body.billing;
+  if (budget !== undefined && (!isRecord(budget) || Object.keys(budget).some((key) => key !== "maxMicroPoints") || !isCount(budget.maxMicroPoints))) throw invalid();
+  const plan = await planTaskBilling(env, aiConfig, mode, body);
+  const model = plan?.model ?? findModel(aiConfig, modelId);
   if (!model || !model.enabled || model.protocol !== mode) throw new HTTPError(403, "model_not_allowed");
-  return mode === "chat" ? prepareChat(body, model) : prepareResponses(body, model);
+  if (!plan && body.service_tier !== undefined) throw invalid();
+  const wire: Record<string, unknown> = { ...body, model: model.id };
+  delete wire.billing;
+  if (plan) {
+    if (plan.snapshot.serviceTier === "default") delete wire.service_tier;
+    else wire.service_tier = plan.snapshot.serviceTier;
+  }
+  const prepared = mode === "chat" ? prepareChat(wire, model) : prepareResponses(wire, model);
+  if (plan) prepared.billing = plan.snapshot;
+  const reserved = plan?.snapshot.reservedMicroPoints ?? reservationMicroPoints({ ...model, maxOutputTokens: prepared.outputCap });
+  if (isRecord(budget) && reserved > (budget.maxMicroPoints as number)) throw new HTTPError(402, "budget_exceeded");
+  return prepared;
 }
 
 /** A completion body may carry token counts either directly or under `usage`. */
@@ -269,6 +293,17 @@ function usageSource(record: Record<string, unknown>, keys: readonly string[]): 
   const nested = isRecord(record.usage) ? record.usage : null;
   if (nested && keys.some((key) => key in nested)) return nested;
   return keys.some((key) => key in record) ? record : null;
+}
+
+function cacheWrites(source: Record<string, unknown>, details: Record<string, unknown> | null): { write: unknown; writeHour: unknown } {
+  const split = isRecord(source.cache_creation) ? source.cache_creation : null;
+  const hour = split?.ephemeral_1h_input_tokens ?? details?.cache_write_1h_tokens ?? source.cache_write_1h_tokens;
+  const ordinary = split?.ephemeral_5m_input_tokens ?? details?.cache_write_tokens ?? source.cache_write_tokens;
+  const total = source.cache_creation_input_tokens ?? details?.cache_creation_tokens;
+  if (ordinary !== undefined) return { write: ordinary, writeHour: hour ?? null };
+  if (isCount(total) && isCount(hour) && hour <= total) return { write: total - hour, writeHour: hour };
+  if (total !== undefined) return { write: null, writeHour: null };
+  return { write: null, writeHour: hour ?? null };
 }
 
 function chatUsageCandidate(record: Record<string, unknown>): UsageCandidate | null {
@@ -280,6 +315,7 @@ function chatUsageCandidate(record: Record<string, unknown>): UsageCandidate | n
     cached: typeof details?.cached_tokens === "number" ? details.cached_tokens : null,
     input: source.prompt_tokens,
     output: source.completion_tokens,
+    ...cacheWrites(source, details),
   };
 }
 
@@ -291,6 +327,7 @@ function responsesUsageCandidate(record: Record<string, unknown>): UsageCandidat
     cached: typeof details?.cached_tokens === "number" ? details.cached_tokens : null,
     input: source.input_tokens,
     output: source.output_tokens,
+    ...cacheWrites(source, details),
   };
 }
 
@@ -315,8 +352,10 @@ async function settleOutcome(env: Env, requestId: string, candidate: UsageCandid
     await markReview(env, requestId, "usage_missing");
     return "usage_missing";
   }
-  const { cached, input, output } = candidate;
-  if (!isCount(input) || !isCount(output) || (cached !== null && (!isCount(cached) || cached > input))) {
+  const { cached, input, output, write, writeHour } = candidate;
+  if (!isCount(input) || !isCount(output) || (cached !== null && (!isCount(cached) || cached > input))
+      || (write !== null && !isCount(write)) || (writeHour !== null && !isCount(writeHour))
+      || Number(cached ?? 0) + Number(write ?? 0) + Number(writeHour ?? 0) > Number(input)) {
     await markReview(env, requestId, "usage_invalid");
     return "usage_invalid";
   }
@@ -325,6 +364,11 @@ async function settleOutcome(env: Env, requestId: string, candidate: UsageCandid
       cachedInputTokens: cached === null ? null : cached,
       inputTokens: input,
       outputTokens: output,
+      cacheWriteTokens: write === null ? null : write as number,
+      cacheWriteHourTokens: writeHour === null ? null : writeHour as number,
+    });
+    await refreshBillingController(env).catch(() => {
+      console.error(JSON.stringify({ message: "billing controller refresh failed", requestId }));
     });
     return result.status === "settled" ? null : "settle_failed";
   } catch {
@@ -810,12 +854,13 @@ async function reserve(options: {
     pricing: {
       cachedRate: model.cachedInputMicroPointsPerMillion,
       inputRate: model.inputMicroPointsPerMillion,
-      maxInputTokens: model.maxContextTokens,
+      maxInputTokens: prepared.billing?.maxInputTokens ?? model.maxContextTokens,
       maxOutputTokens: prepared.outputCap,
       outputRate: model.outputMicroPointsPerMillion,
       pricingVersion: model.pricingVersion,
     },
     tokenId,
+    ...(prepared.billing ? { billing: prepared.billing } : {}),
   });
   if (result.ok) return result.id;
   if (result.reason === "insufficient_balance") throw new HTTPError(402, "insufficient_balance");
@@ -925,7 +970,7 @@ export async function routeAiGateway(
   fetcher: typeof fetch = fetch,
 ): Promise<Response | null> {
   const { pathname } = new URL(request.url);
-  if (pathname !== MODELS_PATH && pathname !== CHAT_PATH && pathname !== RESPONSES_PATH) return null;
+  if (pathname !== MODELS_PATH && pathname !== CHAT_PATH && pathname !== RESPONSES_PATH && pathname !== QUOTE_PATH) return null;
 
   let requestId: string | undefined;
   try {
@@ -935,8 +980,9 @@ export async function routeAiGateway(
 
     if (pathname === MODELS_PATH) {
       if (request.method !== "GET") throw invalid();
+      const catalog = await applyBillingCatalog(env, aiConfig);
       return json({
-        data: publicModels(aiConfig).map((model) => ({
+        data: publicModels(catalog).map((model) => ({
           created: 0,
           id: model.id,
           object: "model",
@@ -946,10 +992,28 @@ export async function routeAiGateway(
       });
     }
     if (request.method !== "POST") throw invalid();
+    if (pathname === QUOTE_PATH) {
+      const body = await readInferenceBody(request);
+      if ((body.endpoint !== "chat" && body.endpoint !== "responses") || !isRecord(body.request)
+          || Object.keys(body).some((key) => key !== "endpoint" && key !== "request")) throw invalid();
+      const prepared = await preparedRequest(env, body.request, aiConfig, body.endpoint);
+      const snapshot = prepared.billing;
+      if (!snapshot) throw new HTTPError(503, "dynamic_billing_disabled");
+      return json({
+        selectedModel: prepared.model.id, complexity: snapshot.complexity, score: snapshot.score,
+        reasons: snapshot.reasons, estimatedInputTokens: snapshot.estimatedInputTokens,
+        estimatedMicroPoints: estimateTaskMicroPoints(snapshot), reservedMicroPoints: snapshot.reservedMicroPoints,
+        policyRevision: snapshot.policyRevision, currency: snapshot.currency, pointsPerCurrency: snapshot.pointsPerCurrency,
+        rateSnapshot: { inputMicroPointsPerMillion: prepared.model.inputMicroPointsPerMillion,
+          cachedInputMicroPointsPerMillion: prepared.model.cachedInputMicroPointsPerMillion,
+          outputMicroPointsPerMillion: prepared.model.outputMicroPointsPerMillion },
+        noPriceCommitment: true,
+      });
+    }
 
     const mode: InferenceMode = pathname === CHAT_PATH ? "chat" : "responses";
     const body = await readInferenceBody(request);
-    const prepared = preparedRequest(body, aiConfig, mode);
+    const prepared = await preparedRequest(env, body, aiConfig, mode);
     if (!aiConfig.ready || (aiConfig.routes ? !aiConfig.routes.has(prepared.model.id) : !aiConfig.upstreamBaseURL || !aiConfig.upstreamApiKey)) {
       throw new HTTPError(503, "ai_unavailable");
     }
@@ -962,6 +1026,8 @@ export async function routeAiGateway(
     });
     const response = await dispatch({ aiConfig, env, fetcher, mode, prepared, request, requestId });
     response.headers.set("x-ai-request-id", requestId);
+    response.headers.set("x-ai-model", prepared.model.id);
+    response.headers.set("x-ai-pricing-version", prepared.model.pricingVersion);
     return response;
   } catch (error) {
     if (requestId) {

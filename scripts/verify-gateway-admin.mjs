@@ -19,6 +19,11 @@ const HOST = "127.0.0.1";
 const STARTUP_MS = 90_000;
 const model = MODELS[0];
 const smoke = process.argv.includes("--smoke");
+const taskBilling = process.argv.includes("--task-billing");
+const taskModels = [
+  { id: "task-economy", label: "Task Economy", upstreamModel: "gpt-6-luna", capacity: "simple" },
+  { id: "task-expert", label: "Task Expert", upstreamModel: "gpt-6-astra", capacity: "complex" },
+];
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -146,7 +151,7 @@ async function run() {
       if (request.method === "GET" && path === "/v1/models") {
         request.resume();
         response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({
-          data: [{ id: model.upstreamModel }, { id: "fixture-browser-model" }],
+          data: [{ id: model.upstreamModel }, { id: "fixture-browser-model" }, ...taskModels.map(value => ({ id: value.upstreamModel }))],
         }));
         return;
       }
@@ -158,7 +163,7 @@ async function run() {
       let raw = "";
       for await (const chunk of request) raw += chunk;
       const body = JSON.parse(raw);
-      if (![model.upstreamModel, "fixture-browser-model"].includes(body.model)) {
+      if (![model.upstreamModel, "fixture-browser-model", ...taskModels.map(value => value.upstreamModel)].includes(body.model)) {
         response.writeHead(400).end();
         return;
       }
@@ -167,7 +172,7 @@ async function run() {
       const review = body.messages?.some(message => message.content === "Seed one request for operator review.");
       response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({
         model: body.model, choices: [{ message: { role: "assistant", content: "Disposable fixture reply" } }],
-        ...(review ? {} : { usage: { prompt_tokens: 12, completion_tokens: 3, prompt_tokens_details: { cached_tokens: 2 } } }),
+        ...(review ? {} : { usage: { prompt_tokens: 12, completion_tokens: 3, prompt_tokens_details: { cached_tokens: 2, cache_write_tokens: 0, cache_write_1h_tokens: 0 } } }),
       }));
     });
     const upstreamPort = await listen(upstream);
@@ -219,7 +224,7 @@ async function run() {
     const initialPublication = {
       revision: 0, reason: "Publish disposable admin fixture",
       channels: [{ id: "fixture", name: "Disposable fixture", baseURL: `https://${HOST}:${upstreamPort}/v1`, enabled: true, apiKey: upstreamKey }],
-      models: MODELS.map(value => ({ ...value, channelId: "fixture" })), defaultModel: model.id,
+      models: [...MODELS.map(value => ({ ...value, channelId: "fixture" })), ...(taskBilling ? taskModels.map(({ capacity, ...value }) => ({ ...model, ...value, maxContextTokens: 2048, maxOutputTokens: 128, channelId: "fixture" })) : [])], defaultModel: model.id,
     };
     await (await request("/v1/operator/channels", 200, operatorToken, initialPublication)).json();
     const discovery = await (await request("/v1/operator/channels/fixture/probe", 200, operatorToken, {})).json();
@@ -237,7 +242,7 @@ async function run() {
       userId, operationId: randomUUID(), reason: "Seed disposable admin fixture", ...payload,
     })).json();
     await adjust("/v1/operator/ai/account", { enabled: true });
-    await adjust("/v1/operator/ai/balance", { amountMicroPoints: 5_000_000 });
+    await adjust("/v1/operator/ai/balance", { amountMicroPoints: taskBilling ? 1_000_000_000 : 5_000_000 });
     const { token } = await (await request("/v1/account/ai/tokens", 201, ordinarySession.accountToken, { deviceId: randomUUID() })).json();
     await (await request("/v1/ai/chat/completions", 502, token, {
       model: model.id, messages: [{ role: "user", content: "Seed one request for operator review." }],
@@ -251,6 +256,30 @@ async function run() {
 
     const browserChannel = { id: "browser", name: "Browser disposable upstream", baseURL: `https://${HOST}:${upstreamPort}/browser/v1`, enabled: true, apiKey: upstreamKey };
     const browserModel = { ...model, id: "browser-model", label: "Browser published model", upstreamModel: "fixture-browser-model", channelId: "browser" };
+    if (taskBilling) {
+      const initial = await (await request("/v1/operator/billing", 200, operatorToken)).json();
+      await (await request("/v1/operator/billing", 200, operatorToken, {
+        revision: initial.revision, reason: "Enable isolated task pricing", policy: { ...initial.policy, enabled: true,
+          profiles: taskModels.map(value => ({ modelId: value.id, capacity: value.capacity, tools: true, vision: true })) },
+      })).json();
+      const inference = { model: "auto-chat", messages: [{ role: "user", content: "hello" }], max_tokens: 10 };
+      const quote = await (await request("/v1/ai/quote", 200, token, { endpoint: "chat", request: inference })).json();
+      if (quote.selectedModel !== "task-economy") throw new Error("Task routing did not select the economy profile");
+      await (await request("/v1/ai/chat/completions", 200, token, inference)).json();
+      const complex = { ...inference, messages: [{ role: "user", content: "Audit architecture and prove correctness" }], reasoning_effort: "high" };
+      const complexQuote = await (await request("/v1/ai/quote", 200, token, { endpoint: "chat", request: complex })).json();
+      if (complexQuote.selectedModel !== "task-expert") throw new Error("Complex routing did not enforce capacity");
+      await (await request("/v1/ai/chat/completions", 200, token, complex)).json();
+      const metrics = await (await request("/v1/operator/billing/metrics", 200, operatorToken)).json();
+      if (metrics.sampleCount !== 2 || metrics.unknownCostCount !== 0 || metrics.estimatedCostMicroCurrency <= 0) throw new Error("Cost metrics did not reflect actual fixture settlement");
+      await stopCommand(command); command = undefined; await startGateway(origin);
+      const restored = await (await request("/v1/operator/billing", 200, operatorToken)).json();
+      if (!restored.policy.enabled || restored.revision !== 1) throw new Error("Task pricing policy did not persist");
+      if (smoke) {
+        console.log(JSON.stringify({ smoke: "passed", taskBilling: true, simpleModel: quote.selectedModel, complexModel: complexQuote.selectedModel, metricsSamples: metrics.sampleCount, url: `${origin}/admin` }));
+        return;
+      }
+    }
     if (smoke) {
       const published = await (await request("/v1/operator/channels", 200, operatorToken, {
         revision: persisted.revision, reason: "Smoke browser channel publication",

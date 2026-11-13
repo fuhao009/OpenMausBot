@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { ProductAiStatus, ProductModel } from "../../../packages/shared/product-account";
 import { aiConfigFrom, findModel, publicModels, type AiConfig } from "./ai-config";
 import { loadChannelCatalog, loadRuntimeAiConfig, probeChannel, saveChannelCatalog } from "./channel-store";
+import { applyBillingCatalog, getBillingMetrics, loadBillingPolicy, saveBillingPolicy } from "./task-billing";
 import {
   applyAdjustment,
   getBalance,
@@ -519,6 +520,15 @@ export async function routeAccountAi(
   const { method } = request;
   const tokenRoute = pathname.match(ACCOUNT_ROUTE);
   const settleRoute = pathname.match(SETTLE_ROUTE);
+  if (pathname === "/v1/operator/billing" || pathname === "/v1/operator/billing/metrics") {
+    const operator = await requireOperator(request, auth, aiConfigFrom(env));
+    if (pathname.endsWith("/metrics") && method === "GET") return wireJSON(await getBillingMetrics(env));
+    if (pathname === "/v1/operator/billing" && method === "GET") return wireJSON(await loadBillingPolicy(env));
+    if (pathname === "/v1/operator/billing" && method === "POST") {
+      return wireJSON(await saveBillingPolicy(env, operator.user.id, await readBoundedJSON(request, 64 * 1024)));
+    }
+    throw new HTTPError(405, "method_not_allowed");
+  }
   const channelProbe = pathname.match(/^\/v1\/operator\/channels\/([A-Za-z0-9_-]+)\/probe$/);
   if (pathname === "/v1/operator/channels" || channelProbe) {
     const operator = await requireOperator(request, auth, aiConfigFrom(env));
@@ -539,7 +549,7 @@ export async function routeAccountAi(
     || (pathname === "/v1/operator/ai/requests" && method === "GET")
     || (settleRoute !== null && method === "POST");
   if (!matched) return null;
-  const config = await loadRuntimeAiConfig(env);
+  const config = await applyBillingCatalog(env, await loadRuntimeAiConfig(env));
   if (pathname === "/v1/operator/me") {
     const session = await requireOperator(request, auth, config);
     return wireJSON({
