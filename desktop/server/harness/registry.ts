@@ -12,6 +12,7 @@ export { engineMemory } from "../engine-memory.ts";
 import { clientInstall } from "../contracts.ts";
 import type {
   AnyProviderDriver,
+  RequestCredentialValue,
   EngineAccess,
   InstanceConfigMap,
   InstanceId,
@@ -49,7 +50,7 @@ type InstallStandalone = (release: StandaloneRelease, options: { baseDir?: strin
 /** Runtime inputs of a load that must never be stored in an instance config: a short-lived model credential, read by
  * the driver immediately before each request and bound to the instance being created. */
 export interface RegistryRuntime {
-  requestCredential?: (instanceId: InstanceId) => { apiKey: string; expiresAt: number };
+  requestCredential?: (instanceId: InstanceId) => RequestCredentialValue;
   /** A parent-pinned certificate for the instance's own origin (the managed product gateway). */
   requestTrust?: (instanceId: InstanceId) => { origin: string; ca: string } | undefined;
 }

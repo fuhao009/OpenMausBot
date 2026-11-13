@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DATA_DIR } from "./config.ts";
 import { isPickedBotName } from "./names.ts";
 import { hasSetupChoices, setupChoices } from "./initial-greeting.ts";
-import { aboutMeExcerpt, createSetupSuggestions, parseSetupSuggestions, RENAME_SETTLE_MS, SETUP_SUGGESTIONS_DEADLINE_MS, setupSuggestionPrompt,
+import { aboutMeExcerpt, createSetupSuggestions, parseSetupSuggestions, RENAME_SETTLE_MS, SETUP_SUGGESTIONS_DEADLINE_MS, setupSuggestionPrompt, setupSuggestionsFor,
   suggestionBasis, worthAsking, type SuggestionApps, type SuggestionBasis } from "./setup-suggestions.ts";
 import type { BotRecord, Message } from "./store.ts";
 import { cancelSetupRequest } from "./setup-request.ts";
@@ -237,6 +237,25 @@ describe("renaming a new bot before its card is answered", () => {
   });
   afterEach(() => vi.useRealTimers());
 
+  it("keeps managed greetings local on creation and rename even when smart suggestions are enabled", async () => {
+    const store = new Store(() => ({ instanceId: "claude", model: "claude-sonnet-5" }), undefined, undefined, "en");
+    const writer = vi.fn();
+    const connected = vi.fn();
+    const suggestions = setupSuggestionsFor({
+      store, enabled: () => false, config: () => ({ features: { smartSetupChoices: true } }), shared: () => false,
+      languageCode: () => "en", engine: () => ({ agentsMcp: true }), browserOn: () => true,
+      withinBudget: () => true, writer, apps: { configured: () => true, mode: () => "test", connected },
+    });
+    const bot = store.createBot({ name: "Bookkeeper" });
+    suggestions.personalise(bot.id);
+    store.patchBotProfile(bot.id, { name: "Recruiter" });
+    await vi.advanceTimersByTimeAsync(RENAME_SETTLE_MS);
+    expect(writer).not.toHaveBeenCalled();
+    expect(connected).not.toHaveBeenCalled();
+    expect(store.messagesFor(bot.threadId)[0]).toMatchObject({ setupChoices: setupChoices("en") });
+    expect(store.messagesFor(bot.threadId)[0]?.setupChoicesPending).toBeUndefined();
+    expect(store.messagesFor(bot.threadId)[0]?.setupChoicesUpdating).toBeUndefined();
+  });
   const FIXED = setupChoices("en");
   const RECRUITER = ["Screen my new candidates", "Draft a job post", "Schedule my interviews", "Find candidates on job sites", "Remind me to follow up"];
   const GARDENER = ["Find plants for my balcony", "Remind me to water plants", "Check the weekly frost forecast", "Draft a planting plan", "Compare garden tools"];

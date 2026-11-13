@@ -88,7 +88,7 @@ test("the account bridge sends only text and returns no other capability", async
     ["product-account:verify-code", "person@example.test", ""],
     ["product-account:ledger", ""],
     ["product-account:sign-in-password", "person@example.test", ""],
-    ["product-account:sign-up", "person@example.test", "x".repeat(128)],
+    ["product-account:sign-up", "person@example.test", "x".repeat(129)],
   ]);
   assert.equal(account.close, undefined, "only the account window may close itself");
 });

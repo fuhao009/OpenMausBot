@@ -59,7 +59,7 @@ function normalizeOrigin(value: unknown, allowLoopback: boolean): string {
 
 const MODEL_KEYS = ["id", "label", "protocol", "pricingVersion", "inputMicroPointsPerMillion", "cachedInputMicroPointsPerMillion",
   "outputMicroPointsPerMillion", "maxContextTokens", "maxOutputTokens"] as const;
-const CONNECTION_KEYS = ["origin", "userId", "tokenId", "token", "expiresAt", "defaultModel", "models", "ca"] as const;
+const CONNECTION_KEYS = ["origin", "userId", "tokenId", "token", "expiresAt", "defaultModel", "models", "ca", "availableMicroPoints"] as const;
 
 function exactKeys(value: Record<string, unknown>, keys: readonly string[], what: string) {
   for (const key of Object.keys(value)) if (!keys.includes(key)) throw invalid(what);
@@ -99,6 +99,7 @@ function readConnection(value: unknown, now: number, allowLoopback: boolean): Pr
   if (!text(tokenId, 128) || /\p{Cc}/u.test(tokenId)) throw invalid("token_id");
   if (typeof token !== "string" || !TOKEN.test(token)) throw invalid("token");
   if (!count(expiresAt) || expiresAt < 1 || expiresAt <= now) throw invalid("expiry");
+  if (value.availableMicroPoints !== undefined && !count(value.availableMicroPoints)) throw invalid("balance");
   const catalog = readModels(models);
   if (!text(defaultModel, 128) || !catalog.some(model => model.id === defaultModel)) throw invalid("default_model");
   const normalizedOrigin = normalizeOrigin(origin, allowLoopback);
@@ -111,6 +112,7 @@ function readConnection(value: unknown, now: number, allowLoopback: boolean): Pr
     userId, tokenId, token, expiresAt,
     defaultModel,
     models: catalog,
+    availableMicroPoints: value.availableMicroPoints as number | undefined,
     ...(ca ? { ca } : {}),
   });
 }
@@ -124,6 +126,7 @@ export interface ProductAiConnection {
   expiresAt: number;
   defaultModel: string;
   models: readonly ProductModel[];
+  availableMicroPoints?: number;
   /** The pinned certificate of exactly this origin, when the deployment ships one. */
   ca?: string;
 }
@@ -193,6 +196,7 @@ interface Session {
   expiresAt: number;
   /** The pinned certificate this deployment shipped, when any; applied to the engine's own origin only. */
   ca?: string;
+  availableMicroPoints?: number;
 }
 
 interface Epoch { id: number; fenced: boolean }
@@ -208,6 +212,7 @@ export interface ProductAiOptions {
   /** State, catalog, token or default changed: the host broadcasts config status and forgets snapshots. */
   onState?: () => void;
   log?: (line: string) => void;
+  renewToken?: () => Promise<boolean>;
 }
 
 // Protocol is compiled into the runtime's routes, so it belongs to this identity alongside endpoint and account.
@@ -230,6 +235,17 @@ export class ProductAiProviders {
   private revision = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private tail: Promise<void> = Promise.resolve();
+  private draining = false;
+  private activeTurns = new Set<string>();
+  private activeHelpers = 0;
+
+  async drain(timeoutMs: number): Promise<void> {
+    this.draining = true;
+    const until = Date.now() + timeoutMs;
+    while ((this.activeTurns.size || this.activeHelpers) && Date.now() < until) {
+      await new Promise<void>(resolve => setTimeout(resolve, 25));
+    }
+  }
 
   constructor(options: ProductAiOptions) {
     this.options = options;
@@ -253,9 +269,9 @@ export class ProductAiProviders {
 
   select(previous?: ModelSelection): ModelSelection {
     if (previous && this.allows(previous)) return { ...previous };
-    const model = this.catalogDefault && this.catalogModels.some(entry => entry.id === this.catalogDefault)
-      ? this.catalogDefault
-      : this.catalogModels[0]?.id;
+    const model = this.catalogModels.find(entry => entry.id === "auto-responses")?.id
+      ?? this.catalogModels.find(entry => entry.id === "auto-chat")?.id
+      ?? this.catalogDefault ?? this.catalogModels[0]?.id;
     return model ? { instanceId: PRODUCT_AI_INSTANCE_ID, model } : { instanceId: "", model: "" };
   }
 
@@ -283,6 +299,7 @@ export class ProductAiProviders {
       this.session = {
         origin: connection.origin, userId: connection.userId, tokenId: connection.tokenId,
         token: connection.token, expiresAt: connection.expiresAt,
+        availableMicroPoints: connection.availableMicroPoints,
         ...(connection.ca ? { ca: connection.ca } : {}),
       };
       this.catalogModels = connection.models;
@@ -371,12 +388,17 @@ export class ProductAiProviders {
     return null;
   }
 
-  private credentialFor(instanceId: string, epoch: Epoch): { apiKey: string; expiresAt: number } {
+  private credentialFor(instanceId: string, epoch: Epoch) {
     if (instanceId !== PRODUCT_AI_INSTANCE_ID) throw new Error("Account AI credentials were requested for an unknown engine.");
     const refusal = this.refusal(epoch);
     if (refusal) throw new Error(refusal);
     const session = this.session!;
-    return { apiKey: session.token, expiresAt: session.expiresAt };
+    return { apiKey: session.token, expiresAt: session.expiresAt, billing: {
+      availableMicroPoints: session.availableMicroPoints ?? 0,
+      renewToken: this.options.renewToken,
+      quoteProtocols: this.catalogModels.filter(model => model.id === `auto-${model.protocol}`).map(model => model.protocol),
+      fallbackModels: this.catalogModels.filter(model => !model.id.startsWith("auto-")).sort((a, b) => Number(b.id === this.catalogDefault) - Number(a.id === this.catalogDefault)),
+    } };
   }
 
   private scheduleExpiry(revision: number): void {
@@ -454,6 +476,7 @@ export class ProductAiProviders {
   }
 
   private admit(epoch: Epoch, model?: string): void {
+    if (this.draining) throw new Error(PRODUCT_AI_UNAVAILABLE_MESSAGE);
     const refusal = this.refusal(epoch);
     if (refusal) throw new Error(refusal);
     if (model !== undefined && !this.catalogModels.some(entry => entry.id === model)) throw new Error(PRODUCT_AI_MODEL_MESSAGE);
@@ -461,12 +484,17 @@ export class ProductAiProviders {
 
   private decorateFor(epoch: Epoch): (instance: ProviderInstance) => ProviderInstance {
     return instance => {
+      instance.adapter.onEvent(event => {
+        if (event.type === "turn.started") this.activeTurns.add(event.threadId);
+        if (event.type === "turn.completed") this.activeTurns.delete(event.threadId);
+      });
       const catalog = (): ModelCatalog => ({
-        default: this.catalogDefault ?? this.catalogModels[0]?.id ?? "",
+        default: this.select().model,
         options: this.catalogModels.map(model => ({ id: model.id, label: model.label, contextWindow: model.maxContextTokens })),
       });
       return {
         ...instance,
+        quickModelsUsable: () => false,
         get models() { return catalog(); },
         refreshModels: async () => {},
         installRuntime: undefined,
@@ -497,7 +525,9 @@ export class ProductAiProviders {
         ...(instance.generateText ? {
           generateText: async (prompt: string, options?: TextGenerationOptions) => {
             this.admit(epoch, options?.model);
-            return instance.generateText!(prompt, options);
+            this.activeHelpers++;
+            try { return await instance.generateText!(prompt, options); }
+            finally { this.activeHelpers--; }
           },
         } : {}),
       } satisfies ProviderInstance;

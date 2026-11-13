@@ -32,7 +32,7 @@ export function agentsToolBridgeEnabled(cfg: BridgeConfig, env: NodeJS.ProcessEn
   const override = env[TOOL_BRIDGE_ENV];
   if (override === "1") return true;
   if (override === "0") return false;
-  return cfg.features?.agentsToolBridge === true;
+  return cfg.features?.agentsToolBridge === true || (env.OMB_DESKTOP_PARENT === "1" && env.OMB_PRODUCT_MANAGED === "1");
 }
 
 /** A model on this machine or network reads the whole list on every turn, out of a small window and at laptop speed:

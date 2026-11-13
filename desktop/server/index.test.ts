@@ -13575,7 +13575,8 @@ describe("bot memory API", () => {
         id: "persona",
         label: "Identity",
         text: "You are Kiwi, a personal bot in Hezuo. Role: Tracker. About: Files bugs.",
-        bytes: 78,
+        bytes: Buffer.byteLength("You are Kiwi, a personal bot in Hezuo. Role: Tracker. About: Files bugs."),
+        approxTokens: Math.ceil(Buffer.byteLength("You are Kiwi, a personal bot in Hezuo. Role: Tracker. About: Files bugs.") / 4),
       });
       expect(before.body.sections.map((s: { id: string }) => s.id)).not.toContain("soul");
       expect(before.body.sections.map((s: { id: string }) => s.id)).toContain("memory");

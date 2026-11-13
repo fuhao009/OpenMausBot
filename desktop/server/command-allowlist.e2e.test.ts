@@ -68,7 +68,7 @@ it("remembers real permission requests, scopes and revokes grants, and preserves
     const rulesPath = `/api/bots/${bot.id}/command-allowlist`;
     expect((await api("GET", rulesPath)).rules).toEqual([]);
     const socket = await start(bot);
-    const command = "printf 'allowlist fixture'";
+    const command = "date '+%Y-%m-%d %H:%M:%S %Z'";
     const first = await ask(socket, command);
     await expect.poll(async () => Boolean((await card(bot.threadId, first.id))?.commandAllowlist)).toBe(true);
     const candidate = (await card(bot.threadId, first.id)).commandAllowlist;
@@ -92,6 +92,12 @@ it("remembers real permission requests, scopes and revokes grants, and preserves
     expect(await card(bot.threadId, repeated.id)).toBeUndefined();
     await expect.poll(async () => (await api("GET", "/api/decisions")).decisions.some((row: any) => row.requestId === repeated.id && row.source === "command-allowlist")).toBe(true);
 
+
+    const deniedTime = await ask(socket, "date -u");
+    await expect.poll(async () => Boolean(await card(bot.threadId, deniedTime.id))).toBe(true);
+    await api("POST", `/api/threads/${bot.threadId}/respond`, { requestId: deniedTime.id, behavior: "deny" });
+    expect(await deniedTime.reply).toMatchObject({ id: deniedTime.id, behavior: "deny" });
+    expect((await api("GET", rulesPath)).rules).toHaveLength(1);
     for (const [text, input, tool] of [
       [command + " && pwd", {}, "Bash"],
       [command, { dangerouslyDisableSandbox: true }, "Bash"],

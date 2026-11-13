@@ -33,6 +33,9 @@ import { requestTooLargeMessage } from "../../../packages/shared/request-too-lar
 import { toolSchemaProfileFor } from "../tool-schema-profile.ts";
 import { classifyContinuable, writeTurnHandoff } from "../turn-continuation.ts";
 import { KEY_REJECTED_REASON, keyRejected, noteKeyAccepted, noteKeyRejected, rejectsKey } from "../key-rejections.ts";
+import { billedFetch, MAX_TURN_POINTS } from "./product-billing.ts";
+import { conversationLanguage, serverLine } from "../server-lines.ts";
+import { reportRequestTokens } from "./request-token-diagnostics.ts";
 
 export interface OpenAIChatMessage {
   role: "system" | "user" | "assistant" | "tool";
@@ -59,6 +62,7 @@ export interface Completion {
   protocolReasoningDetails: Record<string, unknown>[];
   /** Every output item of a Responses API reply, encrypted reasoning included, for the next round of this turn only. */
   responseOutput?: ResponseItem[];
+  actualModel?: string;
 }
 
 interface CompletionJson extends ProviderBody {
@@ -180,14 +184,15 @@ const TEXT_ONLY_SCREENSHOT_NOTE = "[Screenshot not shown: this model cannot see 
 
 export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>): ProviderInstance {
   const { input } = options;
+  let managedBilling = false;
   const listeners = new Set<RuntimeEventListener>();
   /** The keys this runtime has sent, newest last: a rotating credential is masked from a reply whichever one it used. */
   const recentKeys: string[] = [];
   /** Immediately before each request: a managed credential may refuse a new call at any time, so a throw here fails that
    * request (and its turn) rather than falling back to a key the account no longer authorizes. The getter is
    * authoritative: an empty answer is a refusal, never a reason to read the static key or the environment. */
-  const readKey = (): string => {
-    const key = options.requestCredential ? options.requestCredential().apiKey : options.apiKey;
+  const readKey = (provided?: string): string => {
+    const key = provided ?? (options.requestCredential ? options.requestCredential().apiKey : options.apiKey);
     if (!key) throw new Error(options.missingKeyError);
     const seen = recentKeys.indexOf(key);
     if (seen !== -1) recentKeys.splice(seen, 1);
@@ -262,7 +267,9 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     onDelta?: (delta: string, kind: "assistant_text" | "reasoning_text") => void,
     tools: ChatToolDefinition[] = [],
     onUsage?: TextGenerationOptions["onUsage"],
+    confirmBudget?: () => Promise<boolean>,
   ): Promise<Completion> => {
+    let requestId: string | null = null;
     const timeoutController = new AbortController();
     let idleTimer: NodeJS.Timeout | null = null;
     const resetIdleTimer = () => {
@@ -289,17 +296,36 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
           ...(tools.length ? { tools } : {}),
         });
       // A pinned transport has no undici headers/body limit of its own, so it needs no long-reply fallback.
-      const send = options.fetchImpl ?? (options.timeoutMs > FETCH_LIMIT_MS ? fetchPastLimit : fetch);
+      const transport = options.fetchImpl ?? (options.timeoutMs > FETCH_LIMIT_MS ? fetchPastLimit : fetch);
+      const send = (url: string, init: RequestInit) => {
+        reportRequestTokens(url, init);
+        return transport(url, init);
+      };
       // One read per request: the header and the rejection/accepted attribution below are the same token, so a rotation
       // between them can never mark the new one as refused.
-      const apiKey = readKey();
-      const response = await send(`${options.apiUrl}/${route === "responses" ? "responses" : "chat/completions"}`, {
+      const credential = options.requestCredential?.();
+      const apiKey = readKey(credential?.apiKey);
+      managedBilling = Boolean(credential?.billing);
+      let initialCredential = credential;
+      const response = await (credential?.billing ?
+        ((url: string, init: RequestInit) => billedFetch(send, url, init, () => {
+          const value = initialCredential ?? options.requestCredential!();
+          initialCredential = undefined;
+          readKey(value.apiKey);
+          return value;
+        }, confirmBudget ? async () => {
+          if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+          try { return await confirmBudget(); }
+          finally { resetIdleTimer(); }
+        } : undefined)) : send)(`${options.apiUrl}/${route === "responses" ? "responses" : "chat/completions"}`, {
         method: "POST",
         ...(messages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === "image_url")) ? { redirect: "error" as const } : {}),
         headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
         body: payload,
         signal: activeSignal,
       });
+      requestId = response.headers.get("x-ai-request-id");
+      const actualModel = response.headers.get("x-ai-model") ?? undefined;
       const failure = (status: number, body: string): Error => {
         const message = `${options.httpErrorLabel} HTTP ${status}${body ? `: ${httpErrorDetail(body)}` : ""}`;
         // A pinned model's only route can refuse a tool-less call too (a summary, a helper): read that answer as well.
@@ -320,7 +346,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
       if (route === "responses") {
         const reply = await readResponsesStream(response.body, { reasoning: Boolean(options.reasoning), onBytes: resetIdleTimer, onDelta: (text, kind) => onDelta?.(text, kind), fail: failure });
         activeSignal.throwIfAborted();
-        return reply;
+        return { ...reply, actualModel };
       }
 
       if (!stream || response.headers.get("content-type")?.includes("application/json")) {
@@ -352,6 +378,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         const finishReason = json.choices?.[0]?.finish_reason ?? null;
         activeSignal.throwIfAborted();
         return {
+          actualModel,
           text: options.contentText ? options.contentText(message?.content) : typeof message?.content === "string" ? message.content : "",
           reasoning: options.reasoning && typeof reasoning === "string"
             ? reasoning
@@ -451,7 +478,10 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
       }
       activeSignal.throwIfAborted();
       if (!sawChoice) throw new ChatProtocolError("provider returned no streaming completion choice");
-      return { text, reasoning, usage, toolCalls: calls.finish(finishReason, malformedFrame), finishReason, protocolReasoning, protocolReasoningDetails: details.blocks };
+      return { text, reasoning, usage, toolCalls: calls.finish(finishReason, malformedFrame), finishReason, protocolReasoning, protocolReasoningDetails: details.blocks, actualModel };
+    } catch (error) {
+      if (requestId && error instanceof Error) error.message += ` [x-ai-request-id: ${requestId}]`;
+      throw error;
     } finally {
       if (idleTimer) clearTimeout(idleTimer);
       if (liveness) clearInterval(liveness);
@@ -467,6 +497,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     tools: ChatToolDefinition[] = [],
     onUsage?: TextGenerationOptions["onUsage"],
     onWait?: (reason: "account_busy", attempt: number, delayMs: number) => void,
+    confirmBudget?: () => Promise<boolean>,
   ): Promise<Completion> => {
     let slotAttempts = 0;
     let slotWaited = 0;
@@ -476,7 +507,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         return await completeOn(routes.routeFor(model, tools.length > 0), messages, model, stream, signal, onDelta && ((text, kind) => {
           replied = true;
           onDelta(text, kind);
-        }), tools, onUsage);
+        }), tools, onUsage, confirmBudget);
       } catch (error) {
         const wait = options.accountSlotWait;
         if (wait && !replied && !signal?.aborted && error instanceof Error && ACCOUNT_BUSY.test(error.message) && slotWaited < wait.maxMs) {
@@ -598,6 +629,13 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         behavior: answered ? "answer" : "deny", source,
       }),
     });
+    const confirmBudget = async () => {
+      const language = conversationLanguage(turn.threadId);
+      const send = serverLine(language, "server.billing.sendAnyway");
+      const question = serverLine(language, "server.billing.budgetExceeded", { n: MAX_TURN_POINTS });
+      const answer = await approval.question("billing", question, [{ question, options: [{ label: send }, { label: serverLine(language, "server.billing.cancel") }], custom: false }]);
+      return answer?.includes(send) === true;
+    };
     let resolveDone!: () => void;
     const done = new Promise<void>((resolve) => { resolveDone = resolve; });
     const turnEntry = { abort, turnId, done, approval, asides: [] as string[], ending: false };
@@ -674,7 +712,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
                 if (shown) delta(shown, streamKind);
               }, tools.definitions, undefined, (reason, waitAttempt, delayMs) => {
                 emit({ ...base(turn.threadId, turnId), type: "turn.retrying", attempt: waitAttempt, delayMs: Math.round(delayMs), reason });
-              });
+              }, confirmBudget);
               // A reply cut off at the token limit may be a call cut short; running half of one is worse than saying so.
               const written = holdback && !completion.toolCalls.length && completion.finishReason !== "length" ? textToolCalls(completion.text, tools.definitions) : null;
               unreadable = written?.kind === "unreadable" && !askedAgain;
@@ -694,6 +732,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
             } catch (value) {
               const error = asError(value);
               const verdict = classifyError(error);
+              if (managedBilling) throw error;
               // A rejected reasoning echo executed nothing upstream, so the stripped resend repeats nothing.
               if (error instanceof UnsupportedReasoningReplayError && !streamed && !abort.signal.aborted) {
                 reasoningReplayRejected.add(model);
@@ -737,6 +776,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
             }
           }
           native("in", options.nativeLog.incoming(completion));
+          if (completion.actualModel) emit({ ...base(turn.threadId, turnId), type: "session.started", sessionId: null, model: completion.actualModel });
           unread = [];
           if (completion.usage) {
             usage.input += completion.usage.input;

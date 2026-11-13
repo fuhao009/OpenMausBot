@@ -142,6 +142,25 @@ afterEach(async () => {
   for (const registry of registries.splice(0)) await registry.disposeAll();
   vi.restoreAllMocks();
 });
+
+it.each([
+  [[model(), model("auto-responses", "responses"), model("auto-chat")], "auto-responses"],
+  [[model(), model("auto-chat")], "auto-chat"],
+  [[model()], "hezuo-default"],
+])("selects only an advertised automatic model", async (models, expected) => {
+  const { provider, fixture } = setup();
+  await provider.apply(ready({ models }));
+  expect(provider.select().model).toBe(expected);
+  expect(fixture.inputs[0]!.requestCredential?.().billing?.quoteProtocols).toEqual(models.filter(entry => entry.id === `auto-${entry.protocol}`).map(entry => entry.protocol));
+});
+
+it("keeps the current engine alive when a token or balance is refreshed", async () => {
+  const { provider, fixture } = setup();
+  await provider.apply(ready({ availableMicroPoints: 100 }));
+  await provider.apply(ready({ token: NEXT_TOKEN, availableMicroPoints: 200 }));
+  expect(fixture.inputs).toHaveLength(1);
+  expect(fixture.inputs[0]!.requestCredential?.()).toMatchObject({ apiKey: NEXT_TOKEN, billing: { availableMicroPoints: 200 } });
+});
 const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(resolve => setImmediate(resolve)); };
 
 describe("the private capability parser", () => {

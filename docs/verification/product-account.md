@@ -78,6 +78,96 @@ contents, screenshot paths, and the app's exit. A failed run also records the
 last account state, whether the login record was written, and the app's log
 tail.
 
+## Product prompt and tool budget
+
+Managed desktop requests default to the existing tool-discovery bridge. Core and permission-sensitive outbound tools stay advertised; other enabled capabilities are discovered through `find_tool` and loaded with their exact schema when needed. Explicit tool selections and engine permission policies still disable bridging when names must remain visible. The operator's explicit `OMB_AGENTS_TOOL_BRIDGE=0` remains authoritative.
+
+Product prompts omit the developer skill-authoring paragraph and replace the long credential, automation, profile and shell guidance with compact product instructions. Custom standing instructions, active task context, security boundaries and enabled computer/browser instructions remain intact. The system-prompt preview includes a byte count and a per-section `approxTokens` value.
+
+`desktop/server/prompt-token-breakdown.ts` provides per-section and per-tool byte counts with `approxTokens = ceil(UTF-8 bytes / 4)`. This is an estimate, not the model's tokenizer; history and provider framing add input tokens. The helper returns identifiers and counts only, never raw prompts or credentials. For a before/after comparison, call it with the full prompt/catalog and then the product prompt/discovery catalog from the same isolated bot settings. Include every row, not only totals. The compact-prompt regression lives in `system-prompt.test.ts`; bridge defaults and permission exclusions live in `agents-bridge-switch.test.ts`.
+
+Only a gateway ledger entry for a new default bot's `你好` request can prove the 8,000-input-token acceptance limit. Record its request ID, measured input usage and the corresponding before/after estimated tables; a passing synthetic upstream fixture does not establish the real provider's token count.
+
+Set `OMB_REQUEST_TOKEN_DIAGNOSTICS=1` on the Electron main process to emit
+`[request-token-diagnostics]` from the actual inference dispatch. The opt-in
+report counts system messages, history, every serialized tool, framing and
+parameters; it excludes quote requests and never prints prompt content or
+headers. The existing account fixture's environment allowlist does not forward
+this variable, so setting it on that verifier alone does not enable diagnostics.
+The loopback transport regression checks total bytes against the received body.
+
+On 2026-11-13, an isolated TokenProbe reconstruction estimated 17,998 tokens
+before and 7,554 after for prompt sections plus the agents catalog. The full
+per-section/per-tool count output was saved to `/tmp/hezuo-beta-token-breakdown.json`.
+Both are UTF-8/4 estimates, not captured old/new product requests; other MCP
+definitions, history and framing are excluded. This does not establish the
+8,000-token requirement, which remains pending real gateway usage.
+
+
+
+### Isolated reconstructed breakdown (estimated tokens)
+
+| Kind / identifier | Before | After |
+| --- | ---: | ---: |
+| sections / `persona` | 11 | 11 |
+| sections / `shell` | 273 | 52 |
+| sections / `browser` | 1040 | 1040 |
+| sections / `coordination` | 613 | 613 |
+| sections / `credential` | 257 | 42 |
+| sections / `routine` | 842 | 76 |
+| sections / `profile` | 253 | 57 |
+| sections / `team-memory` | 72 | 72 |
+| sections / `availability` | 12 | 12 |
+| sections / `memory` | 579 | 579 |
+| sections / `reply-habits` | 714 | 714 |
+| sections / `learn` | 190 | 0 |
+| sections / `tool-bridge` | 0 | 147 |
+| tools / `execution_connector` | 147 | 0 |
+| tools / `tool_result_read` | 206 | 206 |
+| tools / `list_room_targets` | 115 | 115 |
+| tools / `coordinate_bots` | 948 | 948 |
+| tools / `assignment_status` | 268 | 0 |
+| tools / `list_bots` | 101 | 101 |
+| tools / `usage_limits` | 88 | 0 |
+| tools / `list_rooms` | 136 | 136 |
+| tools / `select_computer` | 300 | 300 |
+| tools / `list_threads` | 183 | 0 |
+| tools / `close_thread` | 180 | 0 |
+| tools / `start_thread` | 500 | 0 |
+| tools / `vm_exec` | 232 | 0 |
+| tools / `attach_file` | 282 | 282 |
+| tools / `show_widget` | 712 | 0 |
+| tools / `show_html` | 605 | 0 |
+| tools / `publish_page` | 203 | 203 |
+| tools / `unpublish_page` | 96 | 0 |
+| tools / `post_to_room` | 270 | 270 |
+| tools / `request_credential` | 269 | 269 |
+| tools / `request_sign_in` | 244 | 244 |
+| tools / `fill_login` | 198 | 198 |
+| tools / `decide` | 156 | 0 |
+| tools / `extract` | 142 | 0 |
+| tools / `report_bug` | 146 | 0 |
+| tools / `memory_update` | 454 | 454 |
+| tools / `memory_log` | 169 | 0 |
+| tools / `session_search` | 489 | 0 |
+| tools / `trigger_info` | 376 | 0 |
+| tools / `trigger` | 2020 | 0 |
+| tools / `delete_trigger` | 125 | 0 |
+| tools / `wait_until` | 268 | 0 |
+| tools / `list_waits` | 85 | 0 |
+| tools / `cancel_wait` | 58 | 0 |
+| tools / `propose_profile` | 432 | 0 |
+| tools / `propose_model` | 377 | 0 |
+| tools / `propose_team_memory` | 221 | 0 |
+| tools / `skills_list` | 108 | 0 |
+| tools / `skill_manage` | 597 | 0 |
+| tools / `mcp_server` | 636 | 0 |
+| tools / `find_tool` | 0 | 235 |
+| tools / `use_tool` | 0 | 178 |
+| **Total** | **17998** | **7554** |
+
+Zero means omitted from that reconstructed request, not an unavailable capability.
+
 ## What it does not prove
 
 * No operator-owned public domain, Cloudflare deployment, or real upstream

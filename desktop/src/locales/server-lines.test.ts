@@ -16,9 +16,12 @@ import { describe, expect, it } from "vitest";
 
 import de from "./de.json";
 import en from "./en.json";
+import zh from "./zh.json";
+import zhTw from "./zh-tw.json";
+import ko from "./ko.json";
 
-const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
-const SCANNED = ["server", "shared"];
+const ROOT = fileURLToPath(new URL("../../", import.meta.url));
+const SCANNED = ["server", "../packages/shared"];
 const SKIPPED_DIRS = new Set(["node_modules", "testing", "dist", "resources"]);
 const isSource = (name: string) => name.endsWith(".ts") && !/\.test\.|\.d\.ts$/.test(name);
 
@@ -328,7 +331,7 @@ const readTree = (path: string) => (existsSync(path) ? readFileSync(path, "utf8"
 /** English on purpose: what reaches a line here is not words a person reads in it. */
 const ALLOWED: ReadonlyArray<{ file: string; snippet: string; why: string }> = [
   { file: "server/host/helper-suggestion.ts", snippet: "Want me to sort your email for free?", why: "the app draws this suggestion in its own words (setupSuggestion)" },
-  { file: "shared/client-cancel.ts", snippet: "You stopped this.", why: "a stopped turn's marker: the app says it in the reader's language (chat.turnStopped)" },
+  { file: "../packages/shared/client-cancel.ts", snippet: "You stopped this.", why: "a stopped turn's marker: the app says it in the reader's language (chat.turnStopped)" },
 ];
 
 /** Lines written before this guard, by area: a file and the line's words (" … " where a value goes). Only shrinks. */
@@ -377,7 +380,7 @@ const PENDING: Readonly<Record<string, ReadonlyArray<readonly [file: string, sni
     ["server/routine-requests.ts", "Runs only on its schedule"],
     ["server/webhook-requests.ts", "When another app sends something … ,  …   …"],
     ["server/webhook-requests.ts", "does what it is asked"],
-    ["shared/plain-time-zone.ts", "every day"],
+    ["../packages/shared/plain-time-zone.ts", "every day"],
   ],
   "rooms and teammates": [
     ["server/escalations.ts", "in the room \" … \""],
@@ -470,8 +473,6 @@ const PENDING: Readonly<Record<string, ReadonlyArray<readonly [file: string, sni
     ["server/auto-approve.ts", "the saved tool permission"],
     ["server/auto-approve.ts", "Full access"],
     ["server/auto-approve.ts", "The provider rejected this action despite  … ."],
-    ["server/default-bot.ts", "Hey! I'm  … . I'm new here."],
-    ["server/default-bot.ts", "Hi! I'm  … , your helper for everything here."],
     ["server/host/ask-cards.ts", "Waiting on your  …  in @ …"],
     ["server/host/ask-cards.ts", "Your bot has a question"],
     ["server/host/ask-cards.ts", "…  needs your input:  …"],
@@ -505,13 +506,13 @@ const PENDING: Readonly<Record<string, ReadonlyArray<readonly [file: string, sni
     ["server/index.ts", "generated image could not be attached —  …"],
     ["server/index.ts", "invalid image"],
     ["server/index.ts", "Queued follow-up interrupted by restart or restore — it may have alrea"],
-    ["shared/first-reply-rescue.ts", "notice:  …  hasn't heard back from  …  yet."],
+    ["../packages/shared/first-reply-rescue.ts", "notice:  …  hasn't heard back from  …  yet."],
   ],
   "moves to the Cloud": [
     ["server/cloud-send-arrived.ts", "I'm back on this computer, so my webhook \" … \" has an address here aga"],
   ],
   "calls": [
-    ["shared/live-call.ts", "Call with  …  ·  …"],
+    ["../packages/shared/live-call.ts", "Call with  …  ·  …"],
   ],
 };
 
@@ -520,6 +521,14 @@ const listed = (finding: Finding, file: string, snippet: string) => finding.file
 describe("lines the server writes for a person", () => {
   const findings = findServerLines(SCANNED.flatMap((top) => [...sources(join(ROOT, top))]), readTree, ROOT);
   const pending = Object.values(PENDING).flat();
+
+  it("has local welcome and setup lines in all four interface languages", () => {
+    const keys = Object.keys(en).filter((key) => /^server\.(greeting\.|setup\.|helper\.)/.test(key) || key === "server.product.welcome");
+    expect(keys.length).toBeGreaterThan(0);
+    for (const pack of [en, zh, zhTw, ko]) {
+      expect(keys.filter((key) => !Object.hasOwn(pack, key))).toEqual([]);
+    }
+  });
 
   it("come from the language packs, never as English written into the code", () => {
     const offending = findings

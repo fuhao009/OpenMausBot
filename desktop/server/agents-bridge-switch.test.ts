@@ -72,6 +72,16 @@ describe("the agents tool bridge switch", () => {
     expect(TOOL_BRIDGE_ENV).toBe("OMB_AGENTS_TOOL_BRIDGE");
   });
 
+  it("defaults managed product requests to discovery without bypassing tool selection", () => {
+    const env = { OMB_DESKTOP_PARENT: "1", OMB_PRODUCT_MANAGED: "1" };
+    const engine = { driverKind: "openai-compat", config: { url: "https://api.example.test/v1" } };
+    expect(agentsToolBridgeEnabled({}, env)).toBe(true);
+    expect(agentsToolBridgeEnabled({}, { OMB_PRODUCT_MANAGED: "1" })).toBe(false);
+    expect(agentsToolBridgeEnabled({}, { ...env, OMB_AGENTS_TOOL_BRIDGE: "0" })).toBe(false);
+    expect(refusal({}, {}, engine, env)).toBeNull();
+    expect(refusal({}, { toolScope: {} }, engine, env)).not.toBeNull();
+  });
+
   it("lets the environment override the saved setting either way, and ignores any other value", () => {
     expect(agentsToolBridgeEnabled(ON, { OMB_AGENTS_TOOL_BRIDGE: "0" })).toBe(false);
     expect(agentsToolBridgeEnabled({ features: { agentsToolBridge: false } }, { OMB_AGENTS_TOOL_BRIDGE: "1" })).toBe(true);

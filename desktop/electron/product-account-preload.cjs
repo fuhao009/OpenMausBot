@@ -19,13 +19,13 @@ contextBridge.exposeInMainWorld("ogb", {
     verifyCode: (email, code) => ipcRenderer.invoke("product-account:verify-code", text(email, 254), text(code, 8)),
     methods: () => ipcRenderer.invoke("product-account:methods"),
     signInWithPassword: (email, password) =>
-      ipcRenderer.invoke("product-account:sign-in-password", text(email, 254), text(password, 128)),
-    signUp: (email, password) => ipcRenderer.invoke("product-account:sign-up", text(email, 254), text(password, 128)),
+      ipcRenderer.invoke("product-account:sign-in-password", text(email, 254), text(password, 129)),
+    signUp: (email, password) => ipcRenderer.invoke("product-account:sign-up", text(email, 254), text(password, 129)),
     confirmEmail: (email, code, password) =>
-      ipcRenderer.invoke("product-account:confirm-email", text(email, 254), text(code, 8), text(password, 128)),
+      ipcRenderer.invoke("product-account:confirm-email", text(email, 254), text(code, 8), text(password, 129)),
     requestPasswordReset: (email) => ipcRenderer.invoke("product-account:request-password-reset", text(email, 254)),
     resetPassword: (email, code, password) =>
-      ipcRenderer.invoke("product-account:reset-password", text(email, 254), text(code, 8), text(password, 128)),
+      ipcRenderer.invoke("product-account:reset-password", text(email, 254), text(code, 8), text(password, 129)),
     refresh: () => ipcRenderer.invoke("product-account:refresh"),
     operatorStatus: () => ipcRenderer.invoke("product-account:operator-status"),
     grantMaximum: () => ipcRenderer.invoke("product-account:grant-maximum"),

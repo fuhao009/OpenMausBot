@@ -70,6 +70,10 @@ describe("conversational replies", () => {
     expect(document.querySelector("[data-quick-model]")?.textContent).toBe("Quick reply with Claude Haiku 4.5");
   });
 
+  it("shows actual gateway model and usage below the assistant reply", async () => {
+    await draw(profile({ messages: messages.map(message => message.role === "bot" ? { ...message, aiModel: "selected-model", aiUsage: { input: 123, output: 45 } } : message) }));
+    expect(document.querySelector("[data-ai-model]")?.textContent).toBe("Model: selected-model · 123 / 45");
+  });
   it("shows history bubbles at once, each part its own Simple bubble stacked close under the last", async () => {
     await draw(profile({ replyStyle: "conversational" }));
     const bubbles = [...document.querySelectorAll<HTMLElement>("[data-reply-segment]")];

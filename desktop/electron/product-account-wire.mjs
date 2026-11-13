@@ -180,6 +180,7 @@ function sanitizeConnection(value) {
   // the same exact origin main does. It must cover that host; nothing else rides.
   const ca = value.ca === undefined ? null : normalizeProductCa(value.ca);
   if (value.ca !== undefined && (ca === null || !productCaBindsOrigin(ca, origin))) throw invalid("product_ai_connection");
+  if (value.availableMicroPoints !== undefined && !count(value.availableMicroPoints)) throw invalid("product_ai_connection");
   return {
     origin,
     userId: value.userId,
@@ -187,6 +188,7 @@ function sanitizeConnection(value) {
     token: value.token,
     expiresAt: value.expiresAt,
     defaultModel,
+    ...(value.availableMicroPoints !== undefined ? { availableMicroPoints: value.availableMicroPoints } : {}),
     models,
     ...(ca ? { ca } : {}),
   };

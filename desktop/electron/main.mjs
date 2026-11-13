@@ -4,6 +4,7 @@ import { showContextMenu } from "./window-context-menu.mjs";
 import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, Tray, WebContentsView, clipboard, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, powerSaveBlocker, safeStorage, screen, session, shell, systemPreferences, utilityProcess, nativeTheme } from "electron";
 import { createRequire } from "node:module";
 import { randomBytes, randomUUID } from "node:crypto";
+import { createProductRuntimeDrain } from "./product-runtime-drain.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -742,6 +743,8 @@ async function startProductPhoneGateway() {
         ca: productService.ca,
         root: productAccountRoot,
         client: createControlPlaneClient({ baseURL: productService.origin, ca: productService.ca }),
+        useAccount: callback => productAccount.useAccount(callback),
+        onChange: status => productAccount.reportInstallation(status.errorCode),
         identity: {
           name: installationDisplayName(),
           platform: process.platform === "win32" ? "windows" : process.platform === "darwin" ? "darwin" : "linux",
@@ -1287,6 +1290,13 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
   proc.on("message", (message) => {
     if (!serverSupervisor.isCurrent(proc)) return;
     try {
+      if (productService && message?.type === "hezuo:renew-ai-token" && typeof message.requestId === "string") {
+        void productAccount?.renewAiToken().then(ok => {
+          if (serverProc === proc) proc.postMessage({ type: "hezuo:renew-ai-token-result", requestId: message.requestId, ok });
+        });
+        return;
+      }
+      if (productRuntimeDrain.receive(proc, message)) return;
       if (trustedApprovalMode.receive(proc, message)) return;
       if (managedDesktopRelay.receive(proc, message)) return;
       if (orgLibrary?.receive(message)) return;
@@ -2029,6 +2039,11 @@ function createWindow({ deferNavigation = false } = {}) {
   win.on("show", () => desktopTray?.windowShown(win));
   win.on("focus", () => { if (cloudAccount?.checkoutPending()) void cloudAccount.refresh().catch(() => {}); });
   win.on("close", (event) => {
+    if (productAccount && !desktopShutdownStarted) {
+      event.preventDefault();
+      app.quit();
+      return;
+    }
     if (process.platform === "win32" && !desktopShutdownStarted && desktopTray) {
       event.preventDefault();
       desktopTray.hide(win);
@@ -2790,6 +2805,9 @@ setCuaStateListener((connection) => {
   });
 });
 
+const productRuntimeDrain = createProductRuntimeDrain();
+const drainProductRuntime = () => productRuntimeDrain.drain(serverProc);
+
 async function startProductDesktop() {
   configureCompanionStorage();
   serverReady = false;
@@ -2824,6 +2842,10 @@ async function startProductDesktop() {
     ca: productService.ca,
     client: createControlPlaneClient({ baseURL: productService.origin, ca: productService.ca }),
     store: createEncryptedRecordStore({ file: path.join(app.getPath("userData"), "product-account.bin"), encryption }),
+    recoverInstallation: async account => {
+      const result = await productGatewayHost?.continueHere(account);
+      if (result?.endpoint) await reconcileCompanionAdvertisement(result.endpoint);
+    },
     startRuntime: async ({ generation, accountKey }) => {
       if (serverProc || desktopDataDirLease) throw new Error("product_runtime_owned");
       productRuntimeGeneration = generation;
@@ -2862,6 +2884,7 @@ async function startProductDesktop() {
       if (generation !== productRuntimeGeneration) return;
       serverSupervisor.pause();
       routineWake.stop();
+      await drainProductRuntime();
       mainWindow?.destroy(); mainWindow = null;
       await productGatewayHost?.stop();
       productGatewayHost = null;
@@ -2887,6 +2910,7 @@ async function startProductDesktop() {
       await managedDesktopRelay.sendProductAi(serverProc, { state, connection });
     },
     onState: state => {
+      if (state.errorCode === "sign_out_draining") openAuth();
       accountIpc?.publish(state);
       if (state.auth === "signed_out") {
         serverSupervisor.pause(); routineWake.stop();
@@ -3208,10 +3232,22 @@ const requestSignalQuit = () => {
 process.once("SIGINT", requestSignalQuit);
 process.once("SIGTERM", requestSignalQuit);
 
-app.on("before-quit", (e) => {
+let productQuitPending = false;
+app.on("before-quit", async (e) => {
   talk.close();
   desktopShutdownStarted = true;
-  void productAccount?.dispose();
+  if (cuaCleanedUp) return;
+  e.preventDefault();
+  if (productQuitPending) return;
+  productQuitPending = true;
+  if (productAccount) {
+    try { await productAccount.dispose(); }
+    catch (error) {
+      productQuitPending = false;
+      slog(`product shutdown failed: ${error?.message ?? error}`);
+      return;
+    }
+  }
   startupScreen?.dispose();
   companyBackupSchedule?.close();
   orgLibrary?.close();
@@ -3244,10 +3280,9 @@ app.on("before-quit", (e) => {
       if (!stopped) slog("server child did not stop before desktop exit; retaining the data-directory lease");
     }),
   ]);
-  cleanup.then(() => {
-    cuaCleanedUp = true;
-    app.quit();
-  });
+  await cleanup;
+  cuaCleanedUp = true;
+  app.quit();
 });
 
 function releaseDesktopDataDirLease() {

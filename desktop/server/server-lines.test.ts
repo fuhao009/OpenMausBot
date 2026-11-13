@@ -5,8 +5,8 @@ import { serverLine } from "./server-lines.ts";
 
 describe("serverLine", () => {
   it("writes the line in the language given, with its values filled in", () => {
-    expect(serverLine("de", "server.reports.sent", { report: "r-1" })).toBe("An das Hezuo-Team gesendet (Bericht r-1). Milind und Omkar bekommen ihn per E-Mail.");
-    expect(serverLine(undefined, "server.reports.sent", { report: "r-1" })).toBe("Sent to the Hezuo team (report r-1). Milind and Omkar get it by email.");
+    expect(serverLine("de", "server.reports.sent", { report: "r-1" })).toBe("An das MausBot (externer Dienst)-Team gesendet (Bericht r-1). Milind und Omkar bekommen ihn per E-Mail.");
+    expect(serverLine(undefined, "server.reports.sent", { report: "r-1" })).toBe("Sent to the MausBot (external service) team (report r-1). Milind and Omkar get it by email.");
     expect(serverLine("en", "server.reports.when.minutes", { count: 5 })).toBe("in about 5 minutes");
   });
 
@@ -18,6 +18,17 @@ describe("serverLine", () => {
   });
 
   it("leaves a {name} it was given no value for as it is", () => {
-    expect(serverLine("en", "server.reports.refused", {})).toBe("The Hezuo team's server refused this bug report, so nothing was sent: {detail}.");
+    expect(serverLine("en", "server.reports.refused", {})).toBe("The MausBot (external service) team's server refused this bug report, so nothing was sent: {detail}.");
+  });
+
+  it.each(["zh", "zh-Hant", "en", "ko"])("writes welcome and setup lines in %s", (language) => {
+    expect(serverLine(language, "server.greeting.hello", { name: "Scout" })).toContain("Scout");
+    expect(serverLine(language, "server.helper.hello", { name: "Scout" })).toContain("Scout");
+    expect(serverLine(language, "server.setup.choice.research")).not.toContain("server.");
+    expect(serverLine(language, "server.product.welcome")).not.toContain("server.");
+    if (language !== "en") {
+      expect(serverLine(language, "server.setup.choice.research")).not.toBe(serverLine("en", "server.setup.choice.research"));
+      expect(serverLine(language, "server.product.welcome")).not.toBe(serverLine("en", "server.product.welcome"));
+    }
   });
 });

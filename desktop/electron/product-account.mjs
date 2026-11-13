@@ -102,6 +102,7 @@ export function createProductAccountService({
   startRuntime,
   stopRuntime,
   applyCapability,
+  recoverInstallation,
   onState = () => {},
   now = Date.now,
   statusPollMs = 60_000,
@@ -237,6 +238,7 @@ export function createProductAccountService({
     token: current.token,
     expiresAt: current.expiresAt,
     defaultModel: ai.defaultModel,
+    availableMicroPoints: ai.availableMicroPoints,
     models: ai.models.map((model) => ({ ...model })),
     ...(serviceCa ? { ca: serviceCa } : {}),
   });
@@ -245,6 +247,7 @@ export function createProductAccountService({
    * catalogue change re-applies even while the credential is unchanged. */
   const catalogSignature = () => JSON.stringify([
     ai?.defaultModel ?? null,
+    ai?.availableMicroPoints ?? 0,
     ...(ai?.models ?? []).map((model) => [model.id, model.protocol, model.pricingVersion,
       model.inputMicroPointsPerMillion, model.cachedInputMicroPointsPerMillion, model.outputMicroPointsPerMillion,
       model.maxContextTokens, model.maxOutputTokens]),
@@ -292,6 +295,8 @@ export function createProductAccountService({
     }
     const entry = { generation: runtimeGeneration, startWasSettled: startSettled, ok: true, promise: null };
     const input = { generation: runtimeGeneration, accountKey: runtimeKey };
+    errorCode = "sign_out_draining";
+    publish();
     entry.promise = (async () => {
       try {
         await stopRuntime(input);
@@ -522,6 +527,7 @@ export function createProductAccountService({
     if (hadWorkspace) {
       stopPending = true;
       stop = beginStop();
+      await stop?.promise;
     }
     auth = "signed_out";
     user = null;
@@ -598,12 +604,15 @@ export function createProductAccountService({
   async function retryCleanup() {
     if (!cleanupBlocked) return true;
     if (!await stopWorkspace()) {
+      errorCode = "sign_out_blocked";
       publish();
       return false;
     }
     try {
       await store.write(null);
     } catch {
+      cleanupBlocked = true;
+      errorCode = "sign_out_blocked";
       publish();
       return false;
     }
@@ -777,6 +786,10 @@ export function createProductAccountService({
   async function refreshNow() {
     if (cleanupBlocked && !await retryCleanup()) return snapshot();
     if (auth !== "signed_in") return restoreNow();
+    if (errorCode === "installation_replaced" && recoverInstallation) {
+      await recoverInstallation({ token: accountToken, user: { ...user } });
+      errorCode = "";
+    }
     if (workspace === "error" || workspace === "stopped") {
       if (!await stopWorkspace()) {
         errorCode = "workspace_stop_failed";
@@ -890,6 +903,31 @@ export function createProductAccountService({
       return serial(() => refreshNow());
     },
 
+    async renewAiToken() {
+      return serial(async () => {
+        if (closed || auth !== "signed_in" || !accountToken || !ai || ai.state !== "ready") return false;
+        const stamp = generation;
+        const previous = credential;
+        try {
+          const next = await client.createAiToken(accountToken, deviceId);
+          if (stale(stamp)) return false;
+          credential = next;
+          if (!await pushCapability("ready", connectionFor(next), stamp)) {
+            if (!stale(stamp)) { errorCode = "session_expired"; publish(); }
+            return false;
+          }
+          if (previous && previous.id !== next.id) await revokeCredential(previous);
+          errorCode = "";
+          publish();
+          schedule();
+          return true;
+        } catch {
+          if (!stale(stamp)) { errorCode = "session_expired"; publish(); }
+          return false;
+        }
+      });
+    },
+
     operatorStatus() {
       const stamp = generation;
       return serial(() => operatorStatusNow(stamp));
@@ -963,19 +1001,23 @@ export function createProductAccountService({
       return () => { subscribers.delete(callback); };
     },
 
-    dispose() {
+    reportInstallation(error) {
+      if (auth !== "signed_in") return;
+      if (error === "installation_replaced" || error === "installation_renewal_failed") errorCode = error;
+      else if (errorCode === "installation_renewal_failed") errorCode = "";
+      publish();
+    },
+
+    async dispose() {
+      clearScheduled();
       closed = true;
       generation += 1;
-      clearScheduled();
+      stopPending = startAttempted;
+      const stop = beginStop();
+      await stop?.promise;
+      await queue;
+      if (!await stopWorkspace()) throw new Error("product_runtime_stop_failed");
       subscribers.clear();
-      if ((workspace === "ready" || workspace === "starting") && capability.state !== null) {
-        const key = runtimeKey ?? accountKey;
-        const previousUser = user;
-        const runtimeStamp = runtimeGeneration;
-        Promise.resolve()
-          .then(() => applyCapability({ generation: runtimeStamp, accountKey: key, user: previousUser, state: "unavailable", connection: null }))
-          .catch(() => {});
-      }
     },
   };
 }

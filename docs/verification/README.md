@@ -384,6 +384,32 @@ Keep the JSON from `wait` and `messages`, the exact command sequence, and the
 fixture's printed log path. Evidence must show both the action and the resulting
 state. A green unit test alone does not prove a user workflow.
 
+## Product account lifecycle regressions
+
+The desktop account lifecycle uses a private main/utility-process channel for
+model-token renewal and shutdown drain. Only a complete gateway
+`401 ai_token_invalid` response permits one model-request replay; interrupted
+responses and other failures must not be replayed. Closing a product window or
+signing out keeps its runtime alive for at most `SIGN_OUT_DRAIN_MS` (15 seconds)
+while admitted work finishes.
+
+Installation credentials are rotated seven days before expiry, with exponential
+retry delays after failure. A relay close code 4000 stops automatic reconnects;
+the account page's continue action creates a fresh installation identity.
+Gateway password discovery currently specifies 10–128 characters. Registration
+conflict recovery handles only `409 installation_exists`, once, by looking up
+and rotating that installation; other conflicts are not replayed.
+
+Run the focused isolated regressions from `desktop/`:
+
+```sh
+npx vitest run --root .. --config desktop/vite.config.ts desktop/electron/product-account.test.mjs desktop/electron/control-plane-client.test.mjs desktop/electron/product-gateway-host.test.mjs desktop/electron/gateway-companion-tunnel.test.mjs desktop/electron/product-runtime-drain.test.mjs
+node --test electron/product-account-ipc.node-test.mjs electron/product-preload.node-test.mjs
+```
+
+Unit regressions are not evidence of production settlement. Use only disposable
+fixture accounts when separately checking drain and ledger settlement.
+
 ## Cleanup
 
 Interrupt the `launch` process with Ctrl-C. It stops the exact child it owns and

@@ -58,7 +58,11 @@ const STATUS_PREFIX = /^(?:[\w-]+ ){0,2}(?:API Error|HTTP|status(?: code)?)[:\s]
 const REASON_PHRASE = /^(?:[A-Z][a-z]+ ?){1,4}\.?$/;
 
 export function plainErrorLine(raw: string): string | undefined {
-  if (raw.trim() === PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE) return t("product.insufficient_balance");
+  const balance = /product_insufficient_balance:(\d+)/.exec(raw);
+  if (balance || raw.trim() === PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE || /\b402\b.*insufficient_balance/.test(raw)) return t("product.billing.insufficient", { n: Number(balance?.[1] ?? 0) / 1_000_000 });
+  const budget = /product_budget_exceeded:(\d+)/.exec(raw);
+  if (budget) return t("product.billing.limit", { n: budget[1]! });
+  if (raw.includes("product_ai_session_expired")) return t("product.billing.expired");
   const tooLargeFor = requestTooLargeModel(raw);
   if (tooLargeFor) return t("chat.error.requestTooLarge", { model: tooLargeFor });
   if (!isTechnicalError(raw)) return undefined;

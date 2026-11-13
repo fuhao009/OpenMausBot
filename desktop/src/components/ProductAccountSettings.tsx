@@ -21,14 +21,14 @@ export function ProductAccountSettings() {
           {notice && (
             <p data-product-account-notice={notice.tone} role={notice.tone === "error" ? "alert" : "status"}
               className="text-[13px] leading-[18px] text-ink-secondary">
-              {t(notice.key)}
+              {t(notice.key, notice.params)}
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" className="ui-button" disabled={!window.ogb?.productAccount}
               onClick={() => { void window.ogb?.productAccount?.refresh().finally(ledger.reload); }}>
               <RefreshCw size={14} aria-hidden="true" className="mr-1.5 inline align-[-2px]" />
-              {t("product.refresh")}
+              {t(state.errorCode === "installation_replaced" ? "product.lifecycle.continueHere" : "product.refresh")}
             </button>
             <button type="button" className="ui-button" disabled={!window.ogb?.productAccount}
               onClick={() => { void window.ogb?.productAccount?.signOut(); }}>

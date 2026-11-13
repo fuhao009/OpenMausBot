@@ -218,9 +218,16 @@ export function createGatewayCompanionTunnel({
         }
       }
     });
-    ws.on("close", () => {
+    ws.on("close", (code) => {
       if (socket === ws) socket = null;
       dropStreams();
+      if (code === 4000 && ownedGeneration === generation) {
+        desired = false;
+        clearTimeout(retryTimer);
+        retryTimer = null;
+        publish({ status: "replaced", ready: false, error: "installation_replaced" });
+        return;
+      }
       if (desired && ownedGeneration === generation) {
         scheduleRetry("The secure connection stopped unexpectedly.", ownedGeneration);
       }
