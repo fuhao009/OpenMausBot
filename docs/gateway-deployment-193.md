@@ -8,6 +8,8 @@
 
 外发模块记录目标 host、方法、字节数、耗时和嵌套 cause/AggregateError 的错误码，不记录请求头、正文、路径、查询串或自由格式异常消息。不改变超时、重试、502 响应或待复核结算策略。两项 Node 回归测试通过，覆盖超时/重置/TLS、脱敏、单次请求及响应透传；隔离假上游 `verify-gateway-admin.mjs --smoke` 通过发布、推理与重启。历史根因仍未知，需下一次失败的底层错误码；不能将诊断改进记为连接故障已修复。
 
+已部署运行文件补丁 `4cdf0144d`，基线仍为 `8e54c107d`，服务器 `deployed-commit` 明确记录两者，没有整分支替换。部署前账本为 10 review、109 settled，无处理中请求；停服完整备份到 `/opt/hezuo-gateway/backups/pre-egress-4cdf0144d-{data,code}.tgz` 后更新两个运行文件。systemd 为 active，开发机通过 CA 校验 `/healthz` 返回 `ok:true`。没有发送真实付费测试、重放历史请求或修改 review 账本。
+
 ### 2026-11-13 内测修复部署
 
 当前实际部署 `8e54c107d`，分支 `backend/gateway-beta`。18项迁移已应用、0待应用，HTTPS健康与后台200。渠道revision3、任务计费策略revision3，新增 Luna Chat 和 auto-chat。每次部署均停服并完整备份数据/源码；备份 `pre-beta-<SHA>-{data,code}.tgz` 位于root私有backups目录。
