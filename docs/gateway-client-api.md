@@ -107,8 +107,8 @@ curl --cacert "$CA" "$BASE/v1/account/ai" -H "Authorization: Bearer $ACCOUNT_TOK
 | `pending` | 尚未开通，提示联系管理员；不尝试推理 |
 | `suspended` | 已被停用，停止续签与发送 |
 | `unavailable` | 网关没有可用默认模型/上游配置，显示不可用 |
-| `insufficient_balance` | 积分不足以覆盖默认模型预占；展示余额并提示联系管理员 |
-| `ready` | 可申请模型令牌；具体请求仍可能因限流、模型停用等失败 |
+| `insufficient_balance` | 可用余额为零且无免费模型；展示余额并提示联系管理员 |
+| `ready` | 可申请模型令牌；不要求余额覆盖整个模型上下文，具体请求仍独立验证实际预占及并发限额 |
 
 上述状态有优先级：pending → suspended → unavailable → insufficient_balance → ready。前面三种通常 `models: []`、`defaultModel: null`。`insufficient_balance` 可包含模型目录。金额为整数微积分，1 积分 = 1,000,000 微积分；避免浮点累计。
 
@@ -229,6 +229,8 @@ curl --cacert "$CA" "$BASE/v1/ai/quote" \
 正常分发返回 `x-ai-model`（实际公开模型）和 `x-ai-pricing-version`，以及原 `x-ai-request-id`；网络异常响应可能只有账本 ID。JSON/SSE 的模型映射仍使用公开 ID。最终费用以账号流水为准，预占不是收入；usage 缺失或不合法、缓存写入费率缺失、用量越界仍可能进入 review。运营者成本和毛利只在管理 API 返回，不向普通客户端公开。
 
 客户端中途断开后，网关继续读取上游，最多等待 120 秒。拿到可信用量后按实际费用结算（`client_disconnected_settled`）；超时或上游出错仍进入复核（`client_disconnected`）。进程退出无法保证后台读取继续，遗留请求仍由陈旧预占恢复处理。超过预占且余额不足的复核原因为 `usage_exceeds_reservation`，此时余额预占已归零，历史请求预占字段仍保留准入金额。
+
+文本 token 数按脚本类别作近似估计（ASCII 每四字符约一个 token，非 ASCII 按字符类别增加权重），包含工具定义和 instructions；不是供应商 tokenizer。上游注入的上下文可能使实际输入高于估计，动态计费同样按可信 usage 补扣。193 的本地 HTTPS 前端通过可信 dispatch 元数据和私有 service binding 传递断线事件，并继续读取 Worker 响应；不取消 Miniflare 的响应传输。
 
 报价仅对采用任务计费的请求有效；显式模型没有启用该路径时返回 503 `dynamic_billing_disabled`。未发布的自动 ID、能力/上下文不匹配、档位不支持应刷新目录或修改请求，不透明重试。任务计费关闭时不要继续发送缓存的自动 ID。
 

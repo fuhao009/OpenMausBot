@@ -2,6 +2,13 @@
 
 ## 部署记录
 
+### 2026-11-13 内测修复部署
+
+当前实际部署 `8e54c107d`，分支 `backend/gateway-beta`。18项迁移已应用、0待应用，HTTPS健康与后台200。渠道revision3、任务计费策略revision3，新增 Luna Chat 和 auto-chat。每次部署均停服并完整备份数据/源码；备份 `pre-beta-<SHA>-{data,code}.tgz` 位于root私有backups目录。
+
+35,012输入tokens预占20.6074积分；客户端断开后可信usage结算、reserved归零。最终真实模型矩阵22条全部settled且成本非unknown。供应商后台独立对照及遗留复核账号清理尚未完成，详细提交、请求ID、失败历史和验收边界见 [内测交付](gateway-beta-delivery.md)。下方任务计费部署信息为此前历史记录。
+
+
 - 地址：`https://192.168.66.193:18487`，仅绑定该内网地址。
 - 服务：`hezuo-gateway.service`，已启用开机启动，运行账号 `hezuo-gateway`。
 - 源码：`/opt/hezuo-gateway/app`。
@@ -12,7 +19,7 @@
 
 全新部署，未迁移原电脑用户数据库。管理员 `fuhaoliang@admin.com` 已显式授权。按用户授权使用 OMP 上游渠道；当前目录 revision 2，发布 `gpt-6-luna`、`gpt-6.1-sol`、`gpt-6-astra`（均 Responses），保留默认 `gpt-6-luna`。任务计费策略 revision 2 已启用，目录同时提供 `auto-responses`。模型发现成功；真实客户端推理仍待联调。邮件未配置，没有修改 nginx 或其他服务。
 
-管理网页：`https://192.168.66.193:18487/admin`。当前部署代码提交 `89e3991c6`，分支 `backend/task-aware-billing`，远端记录在 `/opt/hezuo-gateway/deployed-commit`。任务计费、错误契约、195 项测试及生产参数见 [LAN 内测交付](gateway-v1-delivery.md)。下方初次后台和渠道发布记录是历史证据，最新状态以本节为准。随机管理员初始密码保存在服务器 `/root/hezuo-admin-initial-credentials.json`（root，0600），不进入 Git。
+管理网页：`https://192.168.66.193:18487/admin`。此前任务计费部署为 `89e3991c6`；当前提交以上方内测记录与 `/opt/hezuo-gateway/deployed-commit` 为准。随机管理员初始密码保存在服务器 `/root/hezuo-admin-initial-credentials.json`（root，0600），不进入 Git。
 
 ### 2026-11-13 任务计费上线
 
