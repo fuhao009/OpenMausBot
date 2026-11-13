@@ -38,6 +38,7 @@ vi.mock("./DesktopCapabilities", async () => {
 vi.mock("@/lib/thread-preferences", () => ({ useShowThreads: () => fixture.advanced }));
 vi.mock("@/lib/interface-mode", () => ({ useAdvancedMode: () => fixture.advanced, setAdvancedMode: () => {} }));
 vi.mock("@/lib/use-owner-or-admin", () => ({ useOwnerOrAdmin: () => fixture.admin }));
+vi.mock("@/lib/default-bot", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/default-bot")>(), useViewerEmail: () => null }));
 vi.mock("@/state/store", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/state/store")>();
   return { ...original, useStore: () => ({ state: fixture.state, dispatch: fixture.dispatch }) };
@@ -45,9 +46,11 @@ vi.mock("@/state/store", async (importOriginal) => {
 
 import { initialState } from "@/state/store";
 import { BOTS_SECTION_ID, CHANNELS_SECTION_ID, userSectionId } from "@/lib/sidebar-layout";
+import { PINNED_CIRCLE_ORDER_KEY } from "@/lib/sidebar-preferences";
 import { PHONE_LAYOUT } from "@/lib/use-media-query";
 import { BotContextMenu, BotListItem, Sidebar, TeamMenuItems } from "./Sidebar";
 import { NEW_DEPARTMENT } from "./SidebarBotDrag";
+import { SidebarTileGrid } from "./SidebarTiles";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 import { GlassScroller } from "./GlassScrollFrame";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -78,6 +81,12 @@ function render() {
 }
 const rows = () => render().filter((node) => node.type === BotListItem).map((node) => node.props as unknown as RowProps);
 const row = (id: string) => rows().find((props) => props.bot.id === id)!;
+const tiles = () => {
+  const found = render().find((node) => node.type === SidebarTileGrid);
+  if (!found) return [] as RowProps[];
+  const { primary, pinned, row: rowFor } = found.props as unknown as Parameters<typeof SidebarTileGrid>[0];
+  return [...(primary ? [primary] : []), ...pinned].map(rowFor);
+};
 const listed = () => rows().map((props) => props.bot.id);
 const sections = () => render().map((node) => node.props["data-sidebar-section-id"]).filter(Boolean);
 const section = (id: string) => render().find((node) => node.props["data-sidebar-section-id"] === id)!.props as unknown as {
@@ -105,7 +114,8 @@ const at = (offset = 27) => ({
 });
 function drag(id: string) {
   carried = transfer();
-  row(id).botDrag!.row(id).onDragStart(at() as never);
+  const props = rows().find((candidate) => candidate.bot.id === id) ?? tiles().find((candidate) => candidate.bot.id === id)!;
+  props.botDrag!.row(id).onDragStart(at() as never);
   vi.runOnlyPendingTimers();
 }
 
@@ -318,6 +328,94 @@ describe("dragging a bot", () => {
     drag("dodo");
     row("atlas").botDrag!.row("atlas").onDrop(at() as never);
     expect(header(NEW_DEPARTMENT).naming!.value).toBe("New department");
+  });
+});
+
+describe("dragging between the pinned tiles and the departments", () => {
+  beforeEach(() => {
+    fixture.state = {
+      ...fixture.state,
+      bots: [bot("hezuo", { defaultBot: {} }), bot("pia", { pinned: true }), bot("quin", { pinned: true }), bot("atlas"), bot("bea"), bot("dodo", { section: "Work" }), bot("echo", { section: "Work" })],
+      groups: [],
+    };
+  });
+  const grid = () => render().find((node) => node.type === SidebarTileGrid)!.props as unknown as Parameters<typeof SidebarTileGrid>[0];
+  const tile = (id: string) => grid().row(grid().pinned.find((candidate) => candidate.id === id)!);
+  const tileEvent = (side: "left" | "right") => ({
+    dataTransfer: carried, clientX: side === "left" ? 5 : 70, clientY: 40,
+    currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 0, width: 78, height: 92 }) },
+    preventDefault: vi.fn(), stopPropagation: vi.fn(),
+  });
+  const gridEvent = () => ({ dataTransfer: carried, preventDefault: vi.fn(), stopPropagation: vi.fn(), relatedTarget: null, currentTarget: { contains: () => false } });
+
+  it("lists the default bot as the first tile and the pinned bots after it, and makes only the pinned ones draggable", () => {
+    expect(grid().primary?.id).toBe("hezuo");
+    expect(grid().pinned.map((candidate) => candidate.id)).toEqual(["pia", "quin"]);
+    expect(grid().row(grid().primary!).botDrag).toBeUndefined();
+    expect(tile("pia").botDrag).toBeDefined();
+  });
+
+  it("pins a bot dropped on the tile grid, at its end, keeping its department", () => {
+    drag("dodo");
+    const over = gridEvent();
+    grid().drop!.handlers.onDragOver!(over as never);
+    expect(over.preventDefault).toHaveBeenCalled();
+    expect(grid().drop!.over).toBe(true);
+    grid().drop!.handlers.onDrop!(gridEvent() as never);
+    expect(actions()).toEqual([{ type: "updateBot", botId: "dodo", patch: { pinned: true } }]);
+    expect(JSON.parse(fixture.storage.get(PINNED_CIRCLE_ORDER_KEY)!)).toEqual(["pia", "quin", "dodo"]);
+    expect(grid().drop!.over).toBe(false);
+  });
+
+  it("pins a bot dropped before or after a tile, in that place among the tiles", () => {
+    drag("atlas");
+    tile("quin").botDrag!.row("quin").onDragOver(tileEvent("left") as never);
+    expect(tile("quin").botDrop).toBe("before");
+    tile("quin").botDrag!.row("quin").onDrop(tileEvent("left") as never);
+    expect(actions()).toEqual([{ type: "updateBot", botId: "atlas", patch: { pinned: true } }]);
+    expect(JSON.parse(fixture.storage.get(PINNED_CIRCLE_ORDER_KEY)!)).toEqual(["pia", "atlas", "quin"]);
+  });
+
+  it("unpins a tile dropped on a department's heading, into that department, in one patch", () => {
+    drag("pia");
+    laidOut("dodo", "echo");
+    section(userSectionId("Work")).onDragOver(at(10) as never);
+    expect(header("Work").dropInto).toBe(true);
+    section(userSectionId("Work")).onDrop(at(10) as never);
+    expect(actions()).toEqual([{ type: "updateBot", botId: "pia", patch: { pinned: false, section: "Work" } }, { type: "botsOrdered", botIds: ["dodo", "echo", "pia"] }]);
+  });
+
+  it("unpins a tile dropped among the bots in no department, in that place", () => {
+    drag("quin");
+    row("bea").botDrag!.row("bea").onDrop(at(50) as never);
+    expect(actions()).toEqual([{ type: "updateBot", botId: "quin", patch: { pinned: false, section: "" } }, { type: "botsOrdered", botIds: ["atlas", "bea", "quin"] }]);
+  });
+
+  it("reorders the tiles by the side of a tile it is dropped on, saving only the tile order", () => {
+    drag("quin");
+    tile("pia").botDrag!.row("pia").onDragOver(tileEvent("left") as never);
+    tile("pia").botDrag!.row("pia").onDrop(tileEvent("left") as never);
+    expect(actions()).toEqual([]);
+    expect(JSON.parse(fixture.storage.get(PINNED_CIRCLE_ORDER_KEY)!)).toEqual(["quin", "pia"]);
+    expect(fixture.requests).toEqual([]);
+  });
+
+  it("starts a department with a tile dropped on the middle of a bot in none, and unpins it once named", () => {
+    drag("pia");
+    row("atlas").botDrag!.row("atlas").onDrop(at(27) as never);
+    expect(actions()).toEqual([]);
+    header(NEW_DEPARTMENT).naming!.onCommit("Clients");
+    expect(actions()).toEqual([
+      { type: "updateBot", botId: "pia", patch: { pinned: false } },
+      { type: "updateBot", botId: "atlas", patch: { section: "Clients" } },
+      { type: "updateBot", botId: "pia", patch: { section: "Clients" } },
+    ]);
+  });
+
+  it("offers the place to drop a tile out, and gives the default tile no drag of its own", () => {
+    drag("pia");
+    expect(render().find((node) => node.props["data-bot-drop-slot"] !== undefined)).toBeDefined();
+    expect(grid().row(grid().primary!).botDrag).toBeUndefined();
   });
 });
 

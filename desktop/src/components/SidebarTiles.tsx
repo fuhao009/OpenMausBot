@@ -12,21 +12,27 @@ import { useChiefStepOpen } from "@/lib/default-bot";
 import { BotAvatar } from "./Avatar";
 import { botTooltip } from "./BotModelBadge";
 import { liveBadgeFor } from "./LiveCallPill";
-import { circleHandlers, pinnedCircleDragClass, usePinnedCircleDrag, type PinnedCircleDragProps } from "./PinnedCircleThreads";
+import { stepKey, type BotDropPlace } from "@/lib/sidebar-bot-drop";
 import { useLongPress } from "@/hooks/use-long-press";
-import { FILE_DROP_RING, useBotFileDrop } from "./sidebar-drop";
+import { FILE_DROP_RING, botChatDragStart, chainDragHandlers, useBotFileDrop } from "./sidebar-drop";
 import { RenameTitle } from "./RenameTitle";
 import { openBotContextMenu, useVisibleMessages, type BotRowProps } from "./Sidebar";
 import { sidebarBotStatus } from "./SidebarBotActivity";
+import type { SidebarBotDragApi } from "./SidebarBotDrag";
 import { SIMPLE_ROW_FOCUS } from "./SidebarSimpleTop";
 import { useBotUnread } from "./unread-notice";
 
 const RING = "ring-2 ring-[var(--tile)]";
 
-type TileProps = BotRowProps & PinnedCircleDragProps & { primary?: boolean };
+type TileProps = BotRowProps & { primary?: boolean };
 
-export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, drag, dragging, drop, prevId, nextId, ...row }: TileProps) {
-  const { bot, selected, deleting, mascotMotion, pendingQueued, instances, liveCall, dispatch, onMenu, renameRequest } = row;
+/** A tile takes a dragged bot before it or after it, by the pointer's side of the middle. */
+function tileDropClass(place: BotDropPlace | null | undefined, dragging: boolean | undefined): string {
+  return cn(dragging && "opacity-40", place === "before" && "shadow-[-2px_0_var(--color-accent)]", place === "after" && "shadow-[2px_0_var(--color-accent)]");
+}
+
+export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, ...row }: TileProps) {
+  const { bot, selected, deleting, mascotMotion, pendingQueued, instances, liveCall, dispatch, onMenu, renameRequest, botDrag: drag, botDrop: drop, botDragging: dragging } = row;
   const showThreads = useShowThreads();
   const liveMedia = useLiveMedia();
   const remoteClient = typeof window !== "undefined" && window.ogb?.remoteClient?.active === true;
@@ -40,7 +46,7 @@ export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, dr
   const label = [bot.name, bot.chiefOfStaff ? t("sidebar.bot.chiefOfStaff") : "", onLiveCall ? t("call.live.badge") : "", status, unread ? t("task.unread") : ""].filter(Boolean).join(" · ");
   const fileDrop = useBotFileDrop({ bot, dispatch, instances: row.allInstances ?? instances, enabled: !deleting });
   const longPress = useLongPress((point) => onMenu({ botId: bot.id, ...point }));
-  const reorder = circleHandlers(bot.id, { drag, dragging, prevId, nextId }, fileDrop.handlers);
+  const handlers = chainDragHandlers(drag && !renaming ? drag.row(bot.id) : undefined, renaming ? undefined : { onDragStart: botChatDragStart(bot.id) }, fileDrop.handlers);
   const open = () => openBot(dispatch, bot, showThreads);
   const rename = (name: string) => {
     if (!remoteClient) return dispatch({ type: "updateBot", botId: bot.id, patch: { name } });
@@ -57,8 +63,9 @@ export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, dr
       event.preventDefault();
       const rect = event.currentTarget.getBoundingClientRect();
       onMenu({ botId: bot.id, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
-    } else {
-      reorder.onKeyDown?.(event);
+    } else if (drag && stepKey(event)) {
+      event.preventDefault();
+      drag.step(bot.id, stepKey(event)!);
     }
   };
   const dot = (testId: string, tone: string) => <span data-testid={testId} aria-hidden="true" className={cn("absolute -right-0.5 -top-0.5 size-3 rounded-full", tone, RING)} />;
@@ -75,7 +82,7 @@ export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, dr
       aria-busy={deleting || undefined}
       aria-keyshortcuts={drag ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
       title={tooltip}
-      {...reorder}
+      {...handlers}
       {...(renaming ? {} : longPress)}
       onClick={(event: MouseEvent) => { if (!renaming && !(event.target instanceof HTMLInputElement)) open(); }}
       onKeyDown={onKeyDown}
@@ -83,7 +90,8 @@ export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, dr
       className={cn(
         "flex h-[92px] w-[78px] shrink-0 cursor-default flex-col items-center rounded-[10px] bg-[var(--tile)] px-1 pt-2 transition-colors duration-150", SIMPLE_ROW_FOCUS,
         selected ? "[--tile:var(--color-raised)]" : "[--tile:var(--color-panel)] hover:[--tile:color-mix(in_srgb,var(--color-raised)_50%,var(--color-panel))]",
-        pinnedCircleDragClass({ drag, dragging, drop }),
+        drag && "cursor-grab select-none active:cursor-grabbing",
+        tileDropClass(drop, dragging),
         fileDrop.over && FILE_DROP_RING,
       )}
     >
@@ -172,16 +180,17 @@ function useBesideCorner(corner: boolean, count: number) {
   return { ref, beside };
 }
 
-export function SidebarTileGrid({ primary, pinned, row, corner = false }: { primary: Bot | null; pinned: Bot[]; row: (bot: Bot) => BotRowProps; corner?: boolean }) {
-  const order = usePinnedCircleDrag(pinned);
-  const besideCorner = useBesideCorner(corner, (primary ? 1 : 0) + order.ranked.length);
-  if (!primary && order.ranked.length === 0) return null;
+/** The default bot first, then the pinned bots in the order shown. The grid takes a bot dragged onto it, at its end. */
+export function SidebarTileGrid({ primary, pinned, row, corner = false, drop }: {
+  primary: Bot | null; pinned: Bot[]; row: (bot: Bot) => BotRowProps; corner?: boolean; drop?: SidebarBotDragApi["tiles"];
+}) {
+  const besideCorner = useBesideCorner(corner, (primary ? 1 : 0) + pinned.length);
+  if (!primary && pinned.length === 0) return null;
   return (
-    <div ref={besideCorner.ref} data-sidebar-tiles="" data-beside-corner={besideCorner.beside ? "" : undefined}
-      className="flex max-h-[40vh] flex-wrap justify-center gap-1 overflow-y-auto px-3 pb-4 pt-2.5" {...order.frameProps}>
+    <div ref={besideCorner.ref} data-sidebar-tiles="" data-beside-corner={besideCorner.beside ? "" : undefined} data-bot-drop={drop?.over ? "end" : undefined}
+      className={cn("flex max-h-[40vh] flex-wrap justify-center gap-1 overflow-y-auto px-3 pb-4 pt-2.5", drop?.over && "rounded-[10px] bg-accent/10 outline outline-2 -outline-offset-2 outline-accent/70")} {...drop?.handlers}>
       {primary && <SidebarBotTile {...row(primary)} primary />}
-      {order.ranked.map((bot) => <SidebarBotTile key={bot.id} {...row(bot)} {...order.dragProps(bot)} />)}
-      <span role="status" className="sr-only">{order.moved}</span>
+      {pinned.map((bot) => <SidebarBotTile key={bot.id} {...row(bot)} />)}
     </div>
   );
 }

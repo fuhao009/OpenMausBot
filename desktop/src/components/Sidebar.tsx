@@ -42,7 +42,8 @@ import { draggedFolder, FOLDER_DRAG_TYPE, moveFolder, placeFolder } from "@/lib/
 import { activeThreadDrag, draggedThread, endThreadDrag, FOLDER_OPEN_DELAY_MS, THREAD_ROW_DRAG_TYPE, threadFolderMove, useThreadDrag } from "@/lib/thread-folder-drop";
 import { folderUnreadThreadIds, markFolderRead } from "@/lib/folder-read";
 import { HelperThreadGroup, orderedThreadList, partitionHelperThreads, SidebarThreadRow, stampClock, threadRecency, threadRowActions, useRelativeNow, useRevealedThreadRow, useSnoozeExpiry, visibleSidebarThreads } from "./SidebarThreadRow";
-import { loadSidebarAttentionPinned, saveSidebarAttentionPinned, setSidebarDensity, useSidebarDensity, usePinnedCircles, useUniversalPins, type SidebarDensity } from "@/lib/sidebar-preferences";
+import { loadSidebarAttentionPinned, saveSidebarAttentionPinned, setSidebarDensity, useSidebarDensity, usePinnedCircleOrder, usePinnedCircles, useUniversalPins, type SidebarDensity } from "@/lib/sidebar-preferences";
+import { rankPinnedCircles } from "@/lib/pinned-circle-order";
 import {
   ATTENTION_SECTION_ID,
   BOT_CHATS_SECTION_ID,
@@ -1091,7 +1092,9 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
   for (const group of sectionedRooms) {
     if (!sectionNames.includes(group.section!)) sectionNames.push(group.section!);
   }
-  const drops = botDrag.arrange({ enabled: sections.interactive && !phone, main: unsectionedBots, sectioned: sectionedBots, departments: sectionNames, bots: state.bots, taken: departmentNames(state) });
+  const pinnedOrder = usePinnedCircleOrder();
+  const tileBots = simpleDesk ? rankPinnedCircles(pinnedBots, pinnedOrder) : undefined;
+  const drops = botDrag.arrange({ enabled: sections.interactive && !phone, main: unsectionedBots, sectioned: sectionedBots, pinned: tileBots, departments: sectionNames, bots: state.bots, taken: departmentNames(state) });
   const naturalSectionIds = [
     ...(pinnedBots.length > 0 && !universalPins && !simpleDesk ? [PINNED_SECTION_ID] : []),
     ...(unsectionedRooms.length > 0 ? [CHANNELS_SECTION_ID] : []),
@@ -1415,7 +1418,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
           onToggle={layoutInteractive ? () => toggleSection(PINNED_THREADS_SECTION_ID) : undefined}
         />
       )}
-      {tiles && <SidebarTileGrid primary={primary} pinned={pinnedBots} row={botRow} corner={corner} />}
+      {tiles && <SidebarTileGrid primary={primary} pinned={tileBots ?? pinnedBots} row={botRow} corner={corner} drop={drops.tiles} />}
       {simpleDesk && !tiles && <SidebarNoBots />}
       </GlassBar>
 

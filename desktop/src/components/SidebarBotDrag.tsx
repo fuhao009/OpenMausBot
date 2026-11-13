@@ -3,7 +3,8 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { nextRename } from "@/lib/rename";
 import { BOTS_SECTION_ID, userSectionName } from "@/lib/sidebar-layout";
-import { BOT_ROW_DRAG_TYPE, botDropPlace, botListOf, planBotDrop, sameBotDrop, stepBot, unusedName, type BotDrop, type BotDropPlace, type BotMove } from "@/lib/sidebar-bot-drop";
+import { setPinnedCircleOrder } from "@/lib/sidebar-preferences";
+import { BOT_ROW_DRAG_TYPE, PINNED_LIST, botDropPlace, botListOf, planBotDrop, sameBotDrop, stepBot, unusedName, type BotDrop, type BotDropPlace, type BotMove } from "@/lib/sidebar-bot-drop";
 import type { Action, Bot } from "@/state/store";
 import { moveBotsToSection, renameDepartment, saveBotOrder, useMayMoveBots } from "./bot-sections";
 
@@ -16,6 +17,8 @@ export type BotRowDrag = {
   row(botId: string): DropHandlers & { draggable: true; onDragStart: (event: DragEvent<HTMLElement>) => void; onDragEnd: () => void };
   step(botId: string, direction: -1 | 1): void;
 };
+
+export type SidebarBotDragApi = { tiles: { over: boolean; handlers: DropHandlers } };
 
 export type SectionNaming = { value: string; label: string; onCommit: (name: string) => void; onCancel: () => void };
 
@@ -35,8 +38,8 @@ export function BotDropLine({ place }: { place: BotDropPlace | null | undefined 
   return <span aria-hidden="true" className={cn("pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full bg-accent", place === "before" ? "-top-[2px]" : "-bottom-[2px]")} />;
 }
 
-/** Dragging bots between the rows outside any department and each department's, onto a bot to start a department,
- * Alt+Up/Down, and the name field a new or renamed department shows in its heading. */
+/** Dragging bots between the pinned tiles, the rows outside any department and each department's, onto a bot to start
+ * a department, Alt+Up/Down, and the name field a new or renamed department shows in its heading. */
 export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onError, onCancelled }: {
   dispatch: Dispatch<Action>;
   announce: (text: string) => void;
@@ -69,8 +72,15 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
   const apply = (botId: string, move: BotMove, keyboard: boolean) => {
     if (move.kind === "group") return startNew(move.botIds);
     const { lists, bots } = latest.current;
-    if (botListOf(lists, botId) !== move.section) moveBotsToSection(actions.current.dispatch, [botId], move.section);
-    saveBotOrder(actions.current.dispatch, bots, move.order);
+    const from = botListOf(lists, botId);
+    if (move.section === PINNED_LIST) {
+      if (from !== PINNED_LIST) actions.current.dispatch({ type: "updateBot", botId, patch: { pinned: true } });
+      setPinnedCircleOrder(move.order);
+    } else {
+      if (from === PINNED_LIST) actions.current.dispatch({ type: "updateBot", botId, patch: { pinned: false, section: move.section } });
+      else if (from !== move.section) moveBotsToSection(actions.current.dispatch, [botId], move.section);
+      saveBotOrder(actions.current.dispatch, bots, move.order);
+    }
     if (!keyboard) return;
     const name = bots.find((bot) => bot.id === botId)?.name ?? "";
     actions.current.announce(t("sidebar.section.moved", { name, position: move.order.indexOf(botId) + 1, count: move.order.length }));
@@ -84,7 +94,12 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
   };
   const rowDrop = (event: DragEvent<HTMLElement>, botId: string): BotDrop => {
     const box = event.currentTarget.getBoundingClientRect();
-    return { kind: "row", botId, place: botDropPlace(event.clientY - box.top, box.height, botListOf(latest.current.lists, botId) === "") };
+    const list = botListOf(latest.current.lists, botId);
+    if (list === PINNED_LIST) {
+      const rtl = typeof document !== "undefined" && document.documentElement?.dir === "rtl";
+      return { kind: "row", botId, place: (event.clientX < box.left + box.width / 2) !== rtl ? "before" : "after" };
+    }
+    return { kind: "row", botId, place: botDropPlace(event.clientY - box.top, box.height, list === "") };
   };
 
   controller.current ??= {
@@ -124,7 +139,9 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
     setNaming(null);
     if (current.kind === "new") {
       const name = draft.trim() || current.name;
-      moveBotsToSection(dispatch, current.botIds.filter((id) => latest.current.bots.some((bot) => bot.id === id && !bot.hidden)), name);
+      const ids = current.botIds.filter((id) => latest.current.bots.some((bot) => bot.id === id && !bot.hidden));
+      for (const id of ids) if (latest.current.bots.some((bot) => bot.id === id && bot.pinned)) dispatch({ type: "updateBot", botId: id, patch: { pinned: false } });
+      moveBotsToSection(dispatch, ids, name);
       onNamed(name);
       return;
     }
@@ -134,14 +151,15 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
 
   return {
     pending: naming?.kind === "new" ? [NEW_DEPARTMENT] : [],
-    preview: <T extends Bot>(bots: T[]): T[] => naming?.kind === "new" ? bots.map((bot) => (naming.botIds.includes(bot.id) ? { ...bot, section: NEW_DEPARTMENT } : bot)) : bots,
+    preview: <T extends Bot>(bots: T[]): T[] => naming?.kind === "new" ? bots.map((bot) => (naming.botIds.includes(bot.id) ? { ...bot, section: NEW_DEPARTMENT, pinned: false } : bot)) : bots,
     startNew: (botIds: string[]) => startNew(botIds),
     startRename: (section: string) => setNaming({ kind: "rename", section }),
-    arrange({ enabled, main, sectioned, departments, bots, taken }: {
-      enabled: boolean; main: Bot[]; sectioned: Bot[]; departments: string[]; bots: Bot[]; taken: string[];
+    arrange({ enabled, main, sectioned, pinned, departments, bots, taken }: {
+      enabled: boolean; main: Bot[]; sectioned: Bot[]; /** The tiles in the order shown, when the tile grid is drawn. */ pinned?: Bot[]; departments: string[]; bots: Bot[]; taken: string[];
     }) {
       const movable = enabled && mayMove;
       const lists = new Map<string, string[]>([["", main.map((bot) => bot.id)]]);
+      if (pinned) lists.set(PINNED_LIST, pinned.map((bot) => bot.id));
       for (const name of departments) if (name !== NEW_DEPARTMENT) lists.set(name, sectioned.filter((bot) => bot.section === name).map((bot) => bot.id));
       latest.current = { enabled: movable, lists, bots, taken };
       const active = movable && dragging !== null && botListOf(lists, dragging) !== undefined ? dragging : null;
@@ -180,6 +198,27 @@ export function useSidebarBotDrag({ dispatch, announce, onNamed, onRenamed, onEr
           return { botDrag: controller.current!, botDrop: place, botDragging: active === botId };
         },
         into: (name: string | null) => shown?.kind === "end" && name !== null && name !== "" && shown.list === name,
+        tiles: {
+          over: shown?.kind === "end" && shown.list === PINNED_LIST,
+          handlers: {
+            onDragOver: (event: DragEvent<HTMLElement>) => {
+              if (!carries(event) || !moving.current.botId || !movable || !lists.has(PINNED_LIST)) return;
+              event.preventDefault();
+              event.stopPropagation();
+              event.dataTransfer.dropEffect = "move";
+              show({ kind: "end", list: PINNED_LIST });
+            },
+            onDrop: (event: DragEvent<HTMLElement>) => {
+              if (!carries(event) || !moving.current.botId || !movable || !lists.has(PINNED_LIST)) return;
+              event.preventDefault();
+              event.stopPropagation();
+              finish({ kind: "end", list: PINNED_LIST });
+            },
+            onDragLeave: (event: DragEvent<HTMLElement>) => {
+              if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) show(null);
+            },
+          },
+        },
         zone: (sectionId: string, fallback: DropHandlers): DropHandlers => ({
           onDragOver: (event) => {
             if (!carries(event)) return fallback.onDragOver(event);
