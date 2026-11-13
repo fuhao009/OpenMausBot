@@ -530,7 +530,45 @@ function appendHeader(headers, name, value) {
   }
 }
 
-export async function dispatchIncoming(dispatchFetch, origin, req) {
+// Only dispatchFetch's trusted cf metadata carries these unguessable IDs. No
+// public route or client-supplied header can signal another request.
+export function createDisconnectBridge() {
+  const requests = new Map();
+  return {
+    open(res) {
+      const id = crypto.randomUUID();
+      let resolve;
+      const closed = new Promise(done => { resolve = done; });
+      // Includes the upstream deadline and the post-disconnect drain window;
+      // even a broken Worker cannot retain a registry entry indefinitely.
+      const expiry = setTimeout(() => {
+        resolve(205);
+        requests.delete(id);
+        res.off("close", disconnect);
+      }, 420_000);
+      expiry.unref();
+      const disconnect = () => resolve(204);
+      requests.set(id, closed);
+      res.once("close", disconnect);
+      if (res.destroyed) disconnect();
+      return {
+        id,
+        dispose() {
+          clearTimeout(expiry);
+          res.off("close", disconnect);
+          resolve(205);
+          requests.delete(id);
+        },
+      };
+    },
+    async fetch(request) {
+      const pending = requests.get(new URL(request.url).pathname.slice(1));
+      return new Response(null, { status: pending ? await pending : 404 });
+    },
+  };
+}
+
+export async function dispatchIncoming(dispatchFetch, origin, req, disconnectId) {
   const target = new URL(req.url ?? "/", origin);
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
@@ -550,6 +588,7 @@ export async function dispatchIncoming(dispatchFetch, origin, req) {
     body: hasBody ? Readable.toWeb(req) : undefined,
     duplex: hasBody ? "half" : undefined,
     redirect: "manual",
+    ...(disconnectId ? { cf: { localGatewayDisconnectId: disconnectId } } : {}),
   });
 }
 
@@ -600,6 +639,7 @@ export function createGatewayFront({
   key,
   dispatchFetch,
   relay,
+  disconnectBridge,
 }) {
   if (typeof dispatchFetch !== "function") throw new Error("dispatchFetch is required");
   const server = createHttpsServer({
@@ -608,15 +648,19 @@ export function createGatewayFront({
     minVersion: "TLSv1.2",
   }, (req, res) => {
     void (async () => {
+      let lifecycle;
       try {
         if (await relay.handleRequest(req, res)) return;
-        const response = await dispatchIncoming(dispatchFetch, origin, req);
+        lifecycle = disconnectBridge?.open(res);
+        const response = await dispatchIncoming(dispatchFetch, origin, req, lifecycle?.id);
         await writeFetchResponse(res, response);
       } catch {
         if (!res.headersSent) {
           res.writeHead(502, { "content-type": "application/json; charset=utf-8" });
         }
         res.end(JSON.stringify({ error: { code: "gateway_unavailable", message: "gateway_unavailable" } }));
+      } finally {
+        lifecycle?.dispose();
       }
     })();
   });

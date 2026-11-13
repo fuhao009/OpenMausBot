@@ -382,6 +382,28 @@ async function settleOutcome(env: Env, requestId: string, candidate: UsageCandid
   }
 }
 
+function localDisconnectSignal(request: Request, env: Env, waitUntil: (work: Promise<unknown>) => void) {
+  const id = (request.cf as { localGatewayDisconnectId?: unknown } | undefined)?.localGatewayDisconnectId;
+  if (!env.LOCAL_GATEWAY_DISCONNECT || typeof id !== "string" || !/^[\da-f-]{36}$/i.test(id)) {
+    return { signal: request.signal, dispose() {} };
+  }
+  const disconnected = new AbortController();
+  const lifetime = new AbortController();
+  const abort = () => disconnected.abort();
+  request.signal.addEventListener("abort", abort, { once: true });
+  if (request.signal.aborted) abort();
+  waitUntil(env.LOCAL_GATEWAY_DISCONNECT.fetch(`https://disconnect.local/${id}`, { signal: lifetime.signal })
+    .then(response => { if (response.status === 204) abort(); })
+    .catch(() => { /* Teardown cancels only this notification, never the AI stream. */ }));
+  return {
+    signal: disconnected.signal,
+    dispose() {
+      request.signal.removeEventListener("abort", abort);
+      lifetime.abort();
+    },
+  };
+}
+
 function createUpstreamControl(requestSignal: AbortSignal): UpstreamControl {
   const controller = new AbortController();
   let timedOut = false;
@@ -571,6 +593,7 @@ interface StreamOptions {
   upstream: Response;
   waitUntil: (promise: Promise<unknown>) => void;
   requestSignal: AbortSignal;
+  disposeDisconnect: () => void;
 }
 
 /** Relays upstream SSE with backpressure while connected. After disconnect,
@@ -581,6 +604,7 @@ function forwardStream(options: StreamOptions): Response {
   if (!reader) {
     void markReview(env, requestId, "upstream_body_missing");
     control.abort();
+    options.disposeDisconnect();
     control.dispose();
     return inferenceError(502, "upstream_error", "The upstream response could not be read.");
   }
@@ -597,6 +621,8 @@ function forwardStream(options: StreamOptions): Response {
   let drainTimer: NodeJS.Timeout | undefined;
   const completion = Promise.withResolvers<void>();
   waitUntil(completion.promise);
+  let output: ReadableStreamDefaultController<Uint8Array>;
+  let outputCancelled = false;
 
   async function shutdown() {
     if (finished) return;
@@ -610,6 +636,8 @@ function forwardStream(options: StreamOptions): Response {
     }
     control.abort();
     control.dispose();
+    options.disposeDisconnect();
+    if (!outputCancelled) output.close();
     completion.resolve();
   }
 
@@ -687,7 +715,6 @@ function forwardStream(options: StreamOptions): Response {
       }
       if (terminal) {
         await shutdown();
-        if (!disconnected) controller?.close();
         return;
       }
       if (!disconnected && (!controller || (controller.desiredSize ?? 0) <= 0)) return;
@@ -730,11 +757,12 @@ function forwardStream(options: StreamOptions): Response {
     waitUntil(runPump().then(() => finished ? undefined : runPump()));
   }
   return new Response(new ReadableStream<Uint8Array>({
-    start() {
+    start(controller) {
+      output = controller;
       options.requestSignal.addEventListener("abort", disconnect, { once: true });
       if (disconnected || options.requestSignal.aborted) disconnect();
     },
-    cancel() { disconnect(); },
+    cancel() { outputCancelled = true; disconnect(); },
     pull(controller) { return runPump(controller); },
   }), {
     headers: { "content-type": "text/event-stream; charset=utf-8" },
@@ -905,7 +933,8 @@ async function dispatch(options: {
     await markReview(env, requestId, "ai_unavailable");
     return inferenceError(503, "ai_unavailable", "The AI service is not available.");
   }
-  const control = createUpstreamControl(request.signal);
+  const disconnect = localDisconnectSignal(request, env, waitUntil);
+  const control = createUpstreamControl(disconnect.signal);
   // A relayed stream owns the control until it closes.
   let streamOwned = false;
 
@@ -957,7 +986,7 @@ async function dispatch(options: {
         else await markReview(env, requestId, "upstream_unexpected_stream");
         return inferenceError(502, "upstream_error", "The upstream returned an unexpected stream.");
       }
-      const response = forwardStream({ control, env, mode, model: prepared.model, requestId, upstream, waitUntil, requestSignal: request.signal });
+      const response = forwardStream({ control, env, mode, model: prepared.model, requestId, upstream, waitUntil, requestSignal: disconnect.signal, disposeDisconnect: disconnect.dispose });
       streamOwned = true;
       return response;
     }
@@ -976,7 +1005,10 @@ async function dispatch(options: {
     await markReview(env, requestId, control.disconnected() ? "client_disconnected" : control.timedOut() ? "upstream_timeout" : "upstream_unreachable");
     return inferenceError(502, "upstream_error", "The upstream request failed.");
   } finally {
-    if (!streamOwned) control.dispose();
+    if (!streamOwned) {
+      control.dispose();
+      disconnect.dispose();
+    }
   }
 }
 

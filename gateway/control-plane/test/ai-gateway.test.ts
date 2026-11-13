@@ -1199,6 +1199,40 @@ describe("ai gateway chat", () => {
     expect(await balance(userId)).toEqual({ available_micro_points: 7900, reserved_micro_points: 0 });
   });
 
+  it.each([false, true])("handles trusted local disconnect without cancelling the response transport (timeout=%s)", async (timeout) => {
+    const { sessionId, userId } = await signIn(`local-disconnect-${timeout}@example.com`);
+    const token = await seedAccount({ availableMicroPoints: 10000, sessionId, userId });
+    const notification = Promise.withResolvers<Response>();
+    let source!: ReadableStreamDefaultController<Uint8Array>;
+    const stream = new ReadableStream<Uint8Array>({ start(controller) { source = controller; } });
+    const context = createExecutionContext();
+    const { fetcher } = recorder(() => new Response(stream, { headers: { "content-type": "text/event-stream" } }));
+    const request = inferenceRequest("/v1/ai/chat/completions", chatBody({ stream: true }), token);
+    Object.defineProperty(request, "cf", { value: { localGatewayDisconnectId: "00000000-0000-4000-8000-000000000001" } });
+    const localFetch = vi.fn(() => notification.promise);
+    vi.useFakeTimers();
+    const response = await routeAiGateway(request, testEnv({ LOCAL_GATEWAY_DISCONNECT: { fetch: localFetch } }), fetcher,
+      promise => context.waitUntil(promise));
+    const drained = response!.text();
+    notification.resolve(new Response(null, { status: 204 }));
+    await vi.advanceTimersByTimeAsync(0);
+    if (timeout) {
+      await vi.advanceTimersByTimeAsync(DISCONNECT_DRAIN_MS);
+    } else {
+      source.enqueue(new TextEncoder().encode(`data: {"choices":[],"usage":${JSON.stringify(CHAT_USAGE)}}\n\ndata: [DONE]\n\n`));
+      source.close();
+    }
+    await drained;
+    await waitOnExecutionContext(context);
+    expect(localFetch).toHaveBeenCalledOnce();
+    expect((await requests())[0]).toMatchObject(timeout
+      ? { state: "review", settlement_reason: "client_disconnected", charged_micro_points: null }
+      : { state: "settled", settlement_reason: "client_disconnected_settled", charged_micro_points: 2100 });
+    expect(await balance(userId)).toEqual(timeout
+      ? { available_micro_points: 7800, reserved_micro_points: 2200 }
+      : { available_micro_points: 7900, reserved_micro_points: 0 });
+  });
+
   it("bills unknown cache detail at the higher rate when cached input costs more", async () => {
     const { sessionId, userId } = await signIn("chat-unknown-cache-high@example.com");
     const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
