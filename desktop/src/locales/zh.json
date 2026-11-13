@@ -1,12 +1,8 @@
 {
   "server.retry.accountBusy": "等待账户空闲名额 — {seconds} 秒后第 {attempt} 次重试",
   "server.retry.upstreamStream": "上游连接暂时中断 — {seconds} 秒后第 {attempt} 次重试",
-  "server.billing.budgetExceeded": "这次任务预计较贵，超过单次上限 {n} 积分",
-  "server.billing.sendAnyway": "仍然发送",
-  "server.billing.cancel": "取消",
   "product.billing.insufficient": "积分不足，暂时无法发送。当前可用 {n} 积分，请联系管理员充值。",
   "product.billing.expired": "登录已过期，请重新登录",
-  "product.billing.limit": "这次任务预计较贵，超过单次上限 {n} 积分",
   "product.billing.requestId": "请求编号",
   "product.billing.model": "实际模型：{model}",
   "server.helper.ask.overview": "我的机器人在忙什么？",

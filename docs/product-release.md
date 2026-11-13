@@ -98,10 +98,31 @@ Account balances and settled charges remain authoritative in Account history.
 The default model follows the live catalog: `auto-responses`, then `auto-chat`,
 otherwise the catalog default. Only protocols with a published automatic model
 use task quotes; explicit fixed-model requests retain the direct inference path.
-Every inference request carries a budget capped by the known available balance
-and `MAX_TURN_POINTS` (50 points). A budget rejection requires the person's
-**Send anyway** answer before raising that request's cap to available balance.
+Every inference request carries a budget equal to the latest known available
+account balance. There is no fixed per-request point cap or raise-budget
+confirmation. A reservation exceeding that balance is reported as insufficient points.
 Unknown outcomes and stream failures are never transparently replayed.
+
+The installed desktop's fixed 50-point cap and raise-budget question were removed
+at the user's request. Billing/managed transport, error and server-line tests
+passed (80 tests across the final targeted results); server/UI builds passed.
+The unsigned package was installed directly into `/Applications/Hezuo.app`.
+The user authorized a 1,000,000-point grant to `beta-a@hezuo.test`, recorded as
+operation `e454ca12-5e4f-4ea6-b52f-d20dfc31efd5`; this is application credit,
+not upstream provider funding.
+
+Pure desktop bot acceptance on the current account did not pass end to end:
+browser reading failed after desktop consent with `upstream_error`, ledger ID
+`80d0a44d-7bfc-4d01-a942-bb3aaae87abf`. A separate date task claimed no usable
+consent flow without opening iTerm. The OMP task did obtain consent and visibly
+opened Spotlight, typed `iTerm`, and activated iTerm2, but selected an existing
+work terminal. It was stopped before observed `omp --version`/`--help` output.
+Evidence: `/tmp/hezuo-omp-pure-desktop-progress.png`,
+`/tmp/hezuo-omp-terminal-stage.png`, `/tmp/hezuo-omp-current-output.png`.
+Desktop input works; browser completion, terminal command output and OMP
+interaction are not certified by these results. No executor/API substitute was
+used to claim the desktop tasks succeeded.
+
 The managed sidebar omits its top-level add/new menu and inline add-bot rows.
 Existing bots and conversations remain accessible; server-side bot and team
 creation capabilities are unchanged.

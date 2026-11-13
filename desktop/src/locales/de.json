@@ -1,9 +1,6 @@
 {
   "server.retry.accountBusy": "Warte auf einen freien Kontoplatz — Wiederholung {attempt} in {seconds} s",
   "server.retry.upstreamStream": "Kurze Störung beim Anbieter — Wiederholung {attempt} in {seconds} s",
-  "server.billing.budgetExceeded": "Diese Aufgabe könnte das Limit von {n} Punkten pro Anfrage überschreiten.",
-  "server.billing.sendAnyway": "Trotzdem senden",
-  "server.billing.cancel": "Abbrechen",
   "server.helper.ask.overview": "Woran arbeiten meine Bots?",
   "server.helper.ask.inbox": "Richte einen Bot für mein Postfach ein",
   "server.helper.ask.routine": "Mach mir eine Morgenroutine",

@@ -1,12 +1,8 @@
 {
   "server.retry.accountBusy": "waiting for a free account slot — retry {attempt} in {seconds}s",
   "server.retry.upstreamStream": "upstream hiccup — retry {attempt} in {seconds}s",
-  "server.billing.budgetExceeded": "This task may cost more than the per-turn limit of {n} points.",
-  "server.billing.sendAnyway": "Send anyway",
-  "server.billing.cancel": "Cancel",
   "product.billing.insufficient": "Not enough points to send right now. Available: {n} points. Contact your administrator to top up.",
   "product.billing.expired": "Your login has expired. Please sign in again.",
-  "product.billing.limit": "This task may cost more than the per-turn limit of {n} points.",
   "product.billing.requestId": "Request ID",
   "product.billing.model": "Model: {model}",
   "server.helper.ask.overview": "What are my bots up to?",

@@ -206,7 +206,7 @@ describe("gateway response metadata", () => {
     expect(events.find(event => event.type === "turn.completed")).toMatchObject({ ok: true });
     expect(f.calls).toHaveLength(1);
     expect(f.calls[0]!.path).toBe("/v1/chat/completions");
-    expect(f.calls[0]!.body.billing).toEqual({ maxMicroPoints: 50_000_000 });
+    expect(f.calls[0]!.body.billing).toEqual({ maxMicroPoints: 80_000_000 });
   });
 
   it("measures the actual request sent to the isolated gateway", async () => {

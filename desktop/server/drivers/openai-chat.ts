@@ -33,8 +33,7 @@ import { requestTooLargeMessage } from "../../../packages/shared/request-too-lar
 import { toolSchemaProfileFor } from "../tool-schema-profile.ts";
 import { classifyContinuable, writeTurnHandoff } from "../turn-continuation.ts";
 import { KEY_REJECTED_REASON, keyRejected, noteKeyAccepted, noteKeyRejected, rejectsKey } from "../key-rejections.ts";
-import { billedFetch, MAX_TURN_POINTS } from "./product-billing.ts";
-import { conversationLanguage, serverLine } from "../server-lines.ts";
+import { billedFetch } from "./product-billing.ts";
 import { reportRequestTokens } from "./request-token-diagnostics.ts";
 
 export interface OpenAIChatMessage {
@@ -271,7 +270,6 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     onDelta?: (delta: string, kind: "assistant_text" | "reasoning_text") => void,
     tools: ChatToolDefinition[] = [],
     onUsage?: TextGenerationOptions["onUsage"],
-    confirmBudget?: () => Promise<boolean>,
   ): Promise<Completion> => {
     let requestId: string | null = null;
     const timeoutController = new AbortController();
@@ -317,11 +315,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
           initialCredential = undefined;
           readKey(value.apiKey);
           return value;
-        }, confirmBudget ? async () => {
-          if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
-          try { return await confirmBudget(); }
-          finally { resetIdleTimer(); }
-        } : undefined)) : send)(`${options.apiUrl}/${route === "responses" ? "responses" : "chat/completions"}`, {
+        })) : send)(`${options.apiUrl}/${route === "responses" ? "responses" : "chat/completions"}`, {
         method: "POST",
         ...(messages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === "image_url")) ? { redirect: "error" as const } : {}),
         headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
@@ -501,7 +495,6 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     tools: ChatToolDefinition[] = [],
     onUsage?: TextGenerationOptions["onUsage"],
     onWait?: (reason: "account_busy" | "upstream_stream", attempt: number, delayMs: number) => void,
-    confirmBudget?: () => Promise<boolean>,
   ): Promise<Completion> => {
     let slotAttempts = 0;
     let slotWaited = 0;
@@ -512,7 +505,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         return await completeOn(routes.routeFor(model, tools.length > 0), messages, model, stream, signal, onDelta && ((text, kind) => {
           replied = true;
           onDelta(text, kind);
-        }), tools, onUsage, confirmBudget);
+        }), tools, onUsage);
       } catch (error) {
         const wait = options.accountSlotWait;
         if (wait && !replied && !signal?.aborted && error instanceof Error && ACCOUNT_BUSY.test(error.message) && slotWaited < wait.maxMs) {
@@ -642,13 +635,6 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         behavior: answered ? "answer" : "deny", source,
       }),
     });
-    const confirmBudget = async () => {
-      const language = conversationLanguage(turn.threadId);
-      const send = serverLine(language, "server.billing.sendAnyway");
-      const question = serverLine(language, "server.billing.budgetExceeded", { n: MAX_TURN_POINTS });
-      const answer = await approval.question("billing", question, [{ question, options: [{ label: send }, { label: serverLine(language, "server.billing.cancel") }], custom: false }]);
-      return answer?.includes(send) === true;
-    };
     let resolveDone!: () => void;
     const done = new Promise<void>((resolve) => { resolveDone = resolve; });
     const turnEntry = { abort, turnId, done, approval, asides: [] as string[], ending: false };
@@ -725,7 +711,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
                 if (shown) delta(shown, streamKind);
               }, tools.definitions, undefined, (reason, waitAttempt, delayMs) => {
                 emit({ ...base(turn.threadId, turnId), type: "turn.retrying", attempt: waitAttempt, delayMs: Math.round(delayMs), reason });
-              }, confirmBudget);
+              });
               // A reply cut off at the token limit may be a call cut short; running half of one is worse than saying so.
               const written = holdback && !completion.toolCalls.length && completion.finishReason !== "length" ? textToolCalls(completion.text, tools.definitions) : null;
               unreadable = written?.kind === "unreadable" && !askedAgain;

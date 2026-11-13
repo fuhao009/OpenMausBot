@@ -1,13 +1,9 @@
 import type { RequestCredential } from "../contracts.ts";
 
-export const MAX_TURN_POINTS = 50;
-export const turnBudget = (available: number, confirmed = false) => Math.min(available, confirmed ? available : MAX_TURN_POINTS * 1_000_000);
 export const balanceFailure = (available: number) => `product_insufficient_balance:${available}`;
 
-export async function billedFetch(send: (url: string, init: RequestInit) => Promise<Response>, url: string, init: RequestInit, credential: RequestCredential,
-  confirm?: () => Promise<boolean>): Promise<Response> {
+export async function billedFetch(send: (url: string, init: RequestInit) => Promise<Response>, url: string, init: RequestInit, credential: RequestCredential): Promise<Response> {
   let renewed = false;
-  let confirmed = false;
   let fallback = false;
   for (;;) {
     const current = credential();
@@ -15,7 +11,7 @@ export async function billedFetch(send: (url: string, init: RequestInit) => Prom
     if (!billing) return send(url, init);
     const request = JSON.parse(String(init.body)) as Record<string, unknown>;
     if (billing.availableMicroPoints <= 0) throw new Error(balanceFailure(billing.availableMicroPoints));
-    request.billing = { maxMicroPoints: turnBudget(billing.availableMicroPoints, confirmed) };
+    request.billing = { maxMicroPoints: billing.availableMicroPoints };
     const endpoint = url.endsWith("/responses") ? "responses" : "chat";
     const fallbackModel = typeof request.model === "string" && !request.model.startsWith("auto-") ? request.model
       : billing.fallbackModels?.find(model => model.protocol === endpoint)?.id;
@@ -48,11 +44,7 @@ export async function billedFetch(send: (url: string, init: RequestInit) => Prom
       await response.body?.cancel();
       continue;
     }
-    if (response.status === 402 && code === "budget_exceeded" && !confirmed && confirm) {
-      await response.body?.cancel();
-      if (await confirm()) { confirmed = true; continue; }
-      throw new Error(`product_budget_exceeded:${MAX_TURN_POINTS}`);
-    }
+    if (response.status === 402 && code === "budget_exceeded") throw new Error(balanceFailure(billing.availableMicroPoints));
     if (response.status === 402 && code === "insufficient_balance") throw new Error(balanceFailure(billing.availableMicroPoints));
     return response;
   }
