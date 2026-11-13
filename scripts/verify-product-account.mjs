@@ -330,11 +330,11 @@ async function main() {
 
     // The workspace model catalog must be the account's, and the default bot is there.
     await closeSettings(page);
-    await page.until("document.querySelectorAll('[data-sidebar-product-default]').length > 0", { label: "the default Hezuo", timeoutMs: 90_000 });
+    await page.until("document.querySelectorAll('[data-sidebar-bot-row]').length > 0", { label: "the default Hezuo", timeoutMs: 90_000 });
     await page.until("Boolean(document.querySelector('textarea[aria-label]'))", { label: "the composer" });
     assert.equal(await page.evaluate("document.querySelectorAll('[data-tour=model], [data-testid=model-badge]').length"), 0, "managed chat has no model picker or provider badge");
     const botId = await page.evaluate(`(() => {
-      const row = document.querySelector('[data-sidebar-product-default] [data-sidebar-bot-row]');
+      const row = document.querySelector('[data-sidebar-bot-row]');
       return row?.getAttribute('data-sidebar-bot-row') ?? '';
     })()`);
     assert.ok(botId, "the default bot's id");

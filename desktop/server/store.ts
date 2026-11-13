@@ -6,7 +6,7 @@ import { commitRegistryChange, keptRevocation, saveRegistryFor, touchesPermissio
 import { parseToolScope, toolScopeWidens } from "../../packages/shared/tool-scope.ts"; import { grantScopedApps } from "../../packages/shared/connector-scopes.ts";
 import { reorderStable } from "../../packages/shared/bot-order.ts";
 import { botOwner, chiefConflict, chiefScope, ownerEmail } from "../../packages/shared/bot-owner.ts";
-import { ensureSections, readSections, changeEmptySection } from "./section-context.ts";
+import { ensureSections, readSections, changeEmptySection, reorderSections } from "./section-context.ts";
 import type { TeamComputers } from "./team-computers.ts";
 import { removeBotFolder, soulFile, soulHash, writeSoulMirror } from "./bot-folder.ts";
 import type { BotProfilePatch } from "./bot-profile.ts";
@@ -772,6 +772,13 @@ export class Store {
     for (const room of rooms) this.emit({ type: "group", groupId: room.id });
     this.emit({ type: "sections" });
     return undefined;
+  }
+
+  /** Shows the departments in `order`, one entry for each; false (and nothing changes) when it is not that. */
+  reorderSections(order: readonly string[]): boolean {
+    if (!reorderSections(order)) return false;
+    this.emit({ type: "sections" });
+    return true;
   }
 
   changeEmptySection(name: string, nextName: string | null): string | undefined {

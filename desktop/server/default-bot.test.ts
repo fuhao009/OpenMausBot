@@ -51,7 +51,7 @@ describe("Hezuo, every person's helper", () => {
     boot(again);
     expect(again.bots).toHaveLength(1);
     const hezuo = placeHezuos(again)[0]!;
-    expect(hezuo).toMatchObject({ name: "Hezuo", color: "chrome", chiefOfStaff: true, defaultBot: {} });
+    expect(hezuo).toMatchObject({ name: "Hezuo", color: "chrome", chiefOfStaff: true, defaultBot: {}, pinned: true });
     expect(intros(again, hezuo)).toHaveLength(1);
   });
 

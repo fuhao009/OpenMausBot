@@ -104,6 +104,15 @@ export function ensureSections(names: (string | undefined)[]): boolean {
   return true;
 }
 
+/** Puts the departments in `order`, which must name each current department exactly once. */
+export function reorderSections(order: readonly string[]): boolean {
+  const data = loadFile(true);
+  if (order.length !== data.sections.length || new Set(order).size !== order.length || !order.every((name) => data.sections.includes(name))) return false;
+  if (order.every((name, index) => name === data.sections[index])) return true;
+  saveFile({ ...data, sections: [...order] });
+  return true;
+}
+
 export function changeEmptySection(name: string, nextName: string | null): void {
   const data = loadFile(true);
   const index = data.sections.indexOf(name);

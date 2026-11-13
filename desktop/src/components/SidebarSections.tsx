@@ -9,36 +9,36 @@ import {
   sameSectionOrder,
   sidebarLayoutInteractive,
   sidebarSectionCollapsed,
-  simpleOrderedSections,
+  simpleSidebarSections,
   userSectionId,
+  userSectionName,
   type SectionDropPlace,
 } from "@/lib/sidebar-layout";
 import {
   loadCollapsedSections,
   loadSectionOrder,
-  loadSimpleSectionOrder,
   saveCollapsedSections,
   saveSectionOrder,
-  saveSimpleSectionOrder,
   toggleCollapsedSection,
   type SidebarDensity,
 } from "@/lib/sidebar-preferences";
 
 const SECTION_DRAG_TYPE = "application/x-hezuo-sidebar-section";
 
-/** The sidebar's sections on this device: which are collapsed, their saved order, and dragging or Alt+Up/Down a
- * heading to reorder them. Simple and Advanced each keep their own order, so a move in one leaves the other as it was. */
-export function useSidebarSections({ simple, rail, density, query, label, sidebarRef }: {
+/** The sidebar's sections: which are collapsed on this device, and dragging or Alt+Up/Down a heading to reorder them.
+ * Advanced keeps its own saved order on this device. Simple shows the departments in the workspace's order, so moving
+ * one there asks `reorderDepartments` for every department's new place; the built-in sections stay where they are. */
+export function useSidebarSections({ simple, rail, density, query, label, sidebarRef, reorderDepartments }: {
   simple: boolean;
   rail: boolean;
   density: SidebarDensity;
   query: string;
   label: (id: string) => string;
   sidebarRef: RefObject<HTMLElement | null>;
+  reorderDepartments?: (names: string[]) => void;
 }) {
   const [collapsedIds, setCollapsedIds] = useState<string[]>(() => loadCollapsedSections());
   const [savedOrder, setSavedOrder] = useState<string[]>(() => loadSectionOrder());
-  const [simpleOrder, setSimpleOrder] = useState<string[]>(() => loadSimpleSectionOrder());
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: string; place: SectionDropPlace } | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -72,28 +72,33 @@ export function useSidebarSections({ simple, rail, density, query, label, sideba
       const replace = (ids: string[]) => [...new Set(ids.map((id) => (id === userSectionId(from) ? userSectionId(to) : id)))];
       setCollapsedIds((current) => { const next = replace(current); saveCollapsedSections(next); return next; });
       setSavedOrder((current) => { const next = replace(current); saveSectionOrder(next); return next; });
-      setSimpleOrder((current) => { const next = replace(current); saveSimpleSectionOrder(next); return next; });
       focusHeader(to);
     },
     arrange(natural: string[]) {
       const orderedIds = orderedSidebarSections(natural, savedOrder);
-      const ownOrder = simple || rail;
-      const sectionIds = ownOrder ? simpleOrderedSections(orderedIds, simpleOrder) : orderedIds;
+      const workspaceOrder = simple || rail;
+      const sectionIds = workspaceOrder ? simpleSidebarSections(natural) : orderedIds;
+      const departments = sectionIds.filter((id) => userSectionName(id) !== null);
       const reorder = (id: string, next: string[]) => {
         if (sameSectionOrder(next, sectionIds)) return;
-        const saved = ownOrder ? simpleOrder : savedOrder;
-        const merged = mergeSectionOrder(saved, next);
-        if (interactive && !sameSectionOrder(merged, saved)) {
-          (ownOrder ? setSimpleOrder : setSavedOrder)(merged);
-          (ownOrder ? saveSimpleSectionOrder : saveSectionOrder)(merged);
+        if (workspaceOrder) {
+          const names = next.map(userSectionName).filter((name): name is string => name !== null);
+          if (interactive && reorderDepartments && !sameSectionOrder(names, departments.map((department) => userSectionName(department)!))) reorderDepartments(names);
+        } else {
+          const merged = mergeSectionOrder(savedOrder, next);
+          if (interactive && !sameSectionOrder(merged, savedOrder)) {
+            setSavedOrder(merged);
+            saveSectionOrder(merged);
+          }
         }
         const position = next.indexOf(id);
         if (position >= 0) setAnnouncement(t("sidebar.section.moved", { name: label(id), position: position + 1, count: next.length }));
       };
+      const moves = (id: string) => (workspaceOrder ? reorderDepartments !== undefined && departments.length > 1 && departments.includes(id) : sectionIds.length > 1);
       return {
         sectionIds,
         header: (id: string) => ({
-          reorderable: interactive && sectionIds.length > 1,
+          reorderable: interactive && moves(id),
           dragging: draggingId === id,
           onDragStart: (event: DragEvent<HTMLElement>) => {
             event.dataTransfer.effectAllowed = "move";
@@ -103,7 +108,9 @@ export function useSidebarSections({ simple, rail, density, query, label, sideba
             setDraggingId(id);
           },
           onDragEnd: resetDrag,
-          onMove: (direction: -1 | 1) => reorder(id, moveSection(sectionIds, id, direction)),
+          onMove: (direction: -1 | 1) => reorder(id, workspaceOrder
+            ? simpleSidebarSections([...sectionIds.filter((other) => !departments.includes(other)), ...moveSection(departments, id, direction)])
+            : moveSection(sectionIds, id, direction)),
         }),
         zone: (id: string) => ({
           onDragOver: (event: DragEvent<HTMLElement>) => {

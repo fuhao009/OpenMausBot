@@ -20,7 +20,7 @@ import type { ModelSelection } from "./contracts.ts";
 import * as mdb from "./message-db.ts";
 import { peerAllowKey } from "./peer-approval-key.ts";
 import { hasTeamAuthority } from "./peer-roster.ts";
-import { Store, toWireTask, type BotRecord } from "./store.ts";
+import { Store, toWireTask, type BotRecord, type StoreChange } from "./store.ts";
 import type { TeamSetupRequest } from "../../packages/shared/team-setup.ts";
 import { SECTION_CONTEXTS_FILE, readSectionContext, writeSectionContext } from "./section-context.ts";
 import { TeamComputers } from "./team-computers.ts";
@@ -212,6 +212,24 @@ describe("Store", () => {
     expect(restored.sections).not.toContain("Delivery");
     store.setBotsSection([], "Delivery");
     expect(hasTeamAuthority(manager, "Delivery")).toBe(false);
+  });
+
+  it("keeps the departments in the order they were put in, and tells every client when it changes", () => {
+    const store = new Store(selection);
+    for (const name of ["Alpha", "Beta", "Gamma"]) store.createBot({ section: name });
+    expect(store.sections).toEqual(["Alpha", "Beta", "Gamma"]);
+    const changes: StoreChange[] = [];
+    store.onChange((change) => changes.push(change));
+    expect(store.reorderSections(["Gamma", "Alpha", "Beta"])).toBe(true);
+    expect(changes).toEqual([{ type: "sections" }]);
+    expect(new Store(selection).sections).toEqual(["Gamma", "Alpha", "Beta"]);
+    for (const refused of [["Gamma", "Alpha"], ["Gamma", "Alpha", "Beta", "Delta"], ["Gamma", "Gamma", "Beta"], ["Gamma", "Alpha", "Other"]]) {
+      expect(store.reorderSections(refused)).toBe(false);
+    }
+    expect(changes).toHaveLength(1);
+    expect(store.sections).toEqual(["Gamma", "Alpha", "Beta"]);
+    expect(store.renameSection("Alpha", "Omega")).toBeUndefined();
+    expect(store.sections).toEqual(["Gamma", "Omega", "Beta"]);
   });
 
   it("rejects rename conflicts and active work without changing teams", () => {

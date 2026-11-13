@@ -113,7 +113,7 @@ export function createDefaultBot(store: DefaultBotStore, options: { person?: str
     ...(person ? { visibility: { people: [person] } } : {}),
   }, { seedMessages: false });
   options.chief?.(created.id);
-  const bot = store.patchBot(created.id, { defaultBot: person ? { person } : {} }) ?? created;
+  const bot = store.patchBot(created.id, { defaultBot: person ? { person } : {}, pinned: true }) ?? created;
   store.appendMessage(bot.threadId, options.intro?.(bot) ?? helperIntroMessage(bot, options.team));
   return bot;
 }

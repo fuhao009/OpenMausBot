@@ -42,8 +42,7 @@ import { draggedFolder, FOLDER_DRAG_TYPE, moveFolder, placeFolder } from "@/lib/
 import { activeThreadDrag, draggedThread, endThreadDrag, FOLDER_OPEN_DELAY_MS, THREAD_ROW_DRAG_TYPE, threadFolderMove, useThreadDrag } from "@/lib/thread-folder-drop";
 import { folderUnreadThreadIds, markFolderRead } from "@/lib/folder-read";
 import { HelperThreadGroup, orderedThreadList, partitionHelperThreads, SidebarThreadRow, stampClock, threadRecency, threadRowActions, useRelativeNow, useRevealedThreadRow, useSnoozeExpiry, visibleSidebarThreads } from "./SidebarThreadRow";
-import { loadSidebarAttentionPinned, saveSidebarAttentionPinned, setSidebarDensity, useSidebarDensity, usePinnedCircleOrder, usePinnedCircles, useUniversalPins, type SidebarDensity } from "@/lib/sidebar-preferences";
-import { rankPinnedCircles } from "@/lib/pinned-circle-order";
+import { loadSidebarAttentionPinned, saveSidebarAttentionPinned, setSidebarDensity, useSidebarDensity, usePinnedCircles, useUniversalPins, type SidebarDensity } from "@/lib/sidebar-preferences";
 import {
   ATTENTION_SECTION_ID,
   BOT_CHATS_SECTION_ID,
@@ -58,12 +57,11 @@ import {
   sidebarSectionLabel,
   userSectionId,
   userSectionName,
-  withPrimaryTile,
 } from "@/lib/sidebar-layout";
 import { stepKey, type BotDropPlace } from "@/lib/sidebar-bot-drop";
 import { BotDropLine, botRowDropClass, useSidebarBotDrag, type BotRowDrag } from "./SidebarBotDrag";
 import { useSidebarSections } from "./SidebarSections";
-import { departmentNames, moveBotsToSection } from "./bot-sections";
+import { departmentNames, moveBotsToSection, reorderDepartments, useMayMoveBots } from "./bot-sections";
 import { sidebarSectionAttention } from "@/lib/sidebar-attention";
 import { botListItemPointerIntent } from "@/lib/sidebar-selection";
 import { SidebarFooter } from "./SidebarFooter";
@@ -110,7 +108,7 @@ import { useLongPress } from "@/hooks/use-long-press";
 import { opensRowMenuFromKey } from "@/lib/bulk-select";
 import { FILE_DROP_RING, botChatDragStart, chainDragHandlers, useBotFileDrop } from "./sidebar-drop";
 import { useAdvancedMode } from "@/lib/interface-mode";
-import { myDefaultBot, useViewerEmail, useWelcomingBot } from "@/lib/default-bot";
+import { useViewerEmail, useWelcomingBot } from "@/lib/default-bot";
 import { PinnedBotRoster, PinnedCircleThreadSection } from "./PinnedCircleThreads";
 import { archiveBotWithNotice, onArchiveNotice } from "./bot-archive";
 import { ArchivedBotsPanel, botConfirmProps, type BotConfirmKind } from "./ArchivedBotsPanel"; import { MovedBotRows } from "./MoveToTeam";
@@ -1054,7 +1052,13 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
     : undefined;
 
   const q = query.trim().toLowerCase();
-  const sections = useSidebarSections({ simple, rail, density, query: q, label: sectionLabel, sidebarRef });
+  const mayMoveBots = useMayMoveBots();
+  const sections = useSidebarSections({ simple, rail, density, query: q, label: sectionLabel, sidebarRef,
+    reorderDepartments: mayMoveBots ? (names) => {
+      const saved = state.sections ?? [];
+      const shown = names.filter((name) => saved.includes(name));
+      void reorderDepartments(dispatch, saved, [...shown, ...saved.filter((name) => !shown.includes(name))]);
+    } : undefined });
   const botDrag = useSidebarBotDrag({ dispatch, announce: sections.announce, onNamed: sections.focusHeader, onRenamed: sections.renamed,
     onError: (text) => setTeamFeedback({ error: true, text }), onCancelled: () => sidebarRef.current?.focus() });
 
@@ -1071,15 +1075,13 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
     );
   const visibleGroups = state.groups.filter((g) => !q || g.name.toLowerCase().includes(q) || g.tasks?.some((task) => task.title.toLowerCase().includes(q)));
   const viewerEmail = useViewerEmail();
-  const parts = partitionSidebarBots(botDrag.preview(matchingBots), { universalPins, viewerEmail, welcoming: useWelcomingBot() });
   const {
-    primary,
     unsectionedChief,
     pinnedBots,
     sectionChiefs,
     sectionedBots,
     unsectionedBots,
-  } = simpleDesk ? withPrimaryTile(parts, myDefaultBot(state.bots, viewerEmail)?.id) : { ...parts, primary: null };
+  } = partitionSidebarBots(botDrag.preview(matchingBots), { universalPins, viewerEmail, welcoming: useWelcomingBot(), chiefsAsBots: simpleDesk });
   const { botChats, sectionedRooms, unsectionedRooms } = partitionSidebarGroups(visibleGroups);
 
   const sectionNames: string[] = [...(state.sections ?? []).filter((name) => !q || name.toLowerCase().includes(q.toLowerCase())), ...botDrag.pending];
@@ -1092,9 +1094,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
   for (const group of sectionedRooms) {
     if (!sectionNames.includes(group.section!)) sectionNames.push(group.section!);
   }
-  const pinnedOrder = usePinnedCircleOrder();
-  const tileBots = simpleDesk ? rankPinnedCircles(pinnedBots, pinnedOrder) : undefined;
-  const drops = botDrag.arrange({ enabled: sections.interactive && !phone, main: unsectionedBots, sectioned: sectionedBots, pinned: tileBots, departments: sectionNames, bots: state.bots, taken: departmentNames(state) });
+  const drops = botDrag.arrange({ enabled: sections.interactive && !phone, main: unsectionedBots, sectioned: sectionedBots, pinned: simpleDesk ? pinnedBots : undefined, departments: sectionNames, bots: state.bots, taken: departmentNames(state) });
   const naturalSectionIds = [
     ...(pinnedBots.length > 0 && !universalPins && !simpleDesk ? [PINNED_SECTION_ID] : []),
     ...(unsectionedRooms.length > 0 ? [CHANNELS_SECTION_ID] : []),
@@ -1105,7 +1105,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
   const layout = sections.arrange(naturalSectionIds);
   const sectionIds = layout.sectionIds;
   const showPinnedCircleThreads = !simpleDesk && pinnedCircleThreadListVisible(pinnedCircles, density, pinnedBots.length);
-  const tiles = simpleDesk && (primary !== null || pinnedBots.length > 0);
+  const tiles = simpleDesk && (pinnedBots.length > 0 || drops.dragging);
   const { interactive: layoutInteractive, collapsed: sectionCollapsed, toggle: toggleSection } = sections;
   const archivedBots = state.bots.filter((bot) => bot.hidden && !bot.movedTo);
   const archivedEntry = remoteClient ? undefined : { count: archivedBots.length, open: () => setArchivedBotsOpen(true) };
@@ -1418,8 +1418,8 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
           onToggle={layoutInteractive ? () => toggleSection(PINNED_THREADS_SECTION_ID) : undefined}
         />
       )}
-      {tiles && <SidebarTileGrid primary={primary} pinned={tileBots ?? pinnedBots} row={botRow} corner={corner} drop={drops.tiles} />}
-      {simpleDesk && !tiles && <SidebarNoBots />}
+      {tiles && <SidebarTileGrid pinned={pinnedBots} row={botRow} corner={corner} drop={drops.tiles} />}
+      {simpleDesk && !tiles && pinnedBots.length + sectionedBots.length + unsectionedBots.length === 0 && <SidebarNoBots />}
       </GlassBar>
 
       {!product && !collapseToIcons && !phone && <SidebarResizeHandle sizing={sizing} sidebarRef={sidebarRef} avatars={density === "icons"} avatarsWidth={rail ? 92 : 80}
