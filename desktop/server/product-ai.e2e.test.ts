@@ -107,7 +107,7 @@ async function launchHarness(options: {
     connection: {
       origin: upstream.origin, userId: "user-1", tokenId: "token-1", token: TOKEN,
       expiresAt: (options.now ?? (() => Date.now()))() + 15 * 60_000,
-      defaultModel: options.defaultModel ?? models[0]!.id, models,
+      defaultModel: options.defaultModel ?? models[0]!.id, models, availableMicroPoints: Number.MAX_SAFE_INTEGER,
     },
   });
   const instance = registry.get(PRODUCT_AI_INSTANCE_ID);
@@ -219,6 +219,7 @@ describe("the account engine over the real driver and registry", () => {
       connection: {
         origin: harness.origin, userId: "user-1", tokenId: "token-2", token: NEXT_TOKEN,
         expiresAt: Date.now() + 15 * 60_000, defaultModel: "hezuo-default", models: [model("hezuo-default")],
+        availableMicroPoints: Number.MAX_SAFE_INTEGER,
       },
     });
     expect(harness.registry.get(PRODUCT_AI_INSTANCE_ID)).toBe(harness.instance);
@@ -261,8 +262,7 @@ describe("the account engine over the real driver and registry", () => {
     const turns = recordEvents(harness.instance.adapter);
     await harness.instance.adapter.sendTurn({ threadId: "broke", text: "hello" });
     const error = await turns.until(event => event.type === "runtime.error");
-    expect((error as { message: string }).message).toContain("Available points cannot cover another request.");
-    expect((error as { message: string }).message).toContain("insufficient_balance");
+    expect((error as { message: string }).message).toContain("product_insufficient_balance");
     await turns.until(event => event.type === "turn.completed");
     const chat = harness.calls.filter(call => call.path === "/v1/ai/chat/completions");
     expect(chat).toHaveLength(1);
