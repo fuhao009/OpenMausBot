@@ -2,6 +2,12 @@
 
 ## 部署记录
 
+### 2026-11-13 外发失败诊断
+
+20:17:36 的 `egress failed: fetch failed` 来自本地 Node 外发层，不是已证实的上游 HTTP 502；旧日志未保留 cause，不能追溯确定连接超时、TLS 或重置。服务账号随后用独立 Node 进程访问无凭据 `/v1/models`，8 次均为 401，耗时 611–3493 ms；仅证明当时连通，不证明付费推理或大请求成功。
+
+外发模块记录目标 host、方法、字节数、耗时和嵌套 cause/AggregateError 的错误码，不记录请求头、正文、路径、查询串或自由格式异常消息。不改变超时、重试、502 响应或待复核结算策略。两项 Node 回归测试通过，覆盖超时/重置/TLS、脱敏、单次请求及响应透传；隔离假上游 `verify-gateway-admin.mjs --smoke` 通过发布、推理与重启。历史根因仍未知，需下一次失败的底层错误码；不能将诊断改进记为连接故障已修复。
+
 ### 2026-11-13 内测修复部署
 
 当前实际部署 `8e54c107d`，分支 `backend/gateway-beta`。18项迁移已应用、0待应用，HTTPS健康与后台200。渠道revision3、任务计费策略revision3，新增 Luna Chat 和 auto-chat。每次部署均停服并完整备份数据/源码；备份 `pre-beta-<SHA>-{data,code}.tgz` 位于root私有backups目录。
