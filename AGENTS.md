@@ -33,3 +33,8 @@ On this machine `~/.local/bin/node` is a broken link. Put
 `pnpm`. `pnpm typecheck` and `pnpm lint` already fail at HEAD in `desktop/companion/`,
 `desktop/electron/gateway-companion-tunnel.mjs` and `gateway/local/local-gateway/`; check
 `npx tsc -b` and `npx oxlint --deny-warnings src` for front-end changes.
+
+Fetching from GitHub over HTTPS fails here with an HTTP/2 framing error. Go through
+the local proxy over HTTP/1.1, per command, without changing git config:
+`git -c http.proxy=http://127.0.0.1:7890 -c http.version=HTTP/1.1 fetch personal`.
+Unset the proxy variables for anything that talks to the LAN gateway at 192.168.66.193.
