@@ -37,13 +37,22 @@ describe("a managed account's points", () => {
     expect(productAccountNotice({ auth: "unavailable", runtime: "stopped", errorCode: "network_unavailable" }))
       .toEqual({ tone: "error", key: "product.serviceUnavailable" });
     expect(productAccountNotice({ auth: "signed_in", runtime: "ready", ai: { ...ai, state: "insufficient_balance" } }))
-      .toEqual({ tone: "warning", key: "product.insufficient_balance" });
+      .toEqual({ tone: "warning", key: "product.billing.insufficient", params: { n: "3" } });
     expect(productAccountNotice({ auth: "signed_in", runtime: "ready", ai }))
       .toEqual({ tone: "success", key: "product.ready" });
     expect(productAccountNotice({ auth: "signed_in", runtime: "starting" })).toEqual({ tone: "info", key: "product.starting" });
     // An account still loading is not a failure, and a stopped one says how to start it again.
     expect(productAccountNotice({ auth: "signed_in", runtime: "stopped" })).toEqual({ tone: "info", key: "product.runtimeStopped" });
     expect(productAccountNotice({ auth: "signed_out", runtime: "stopped" })).toBeNull();
+  });
+
+  it.each([
+    ["sign_out_draining", "info", "product.lifecycle.draining"],
+    ["installation_replaced", "error", "product.lifecycle.replaced"],
+    ["installation_renewal_failed", "warning", "product.lifecycle.renewalFailed"],
+    ["session_expired", "error", "product.error.expired"],
+  ] as const)("shows %s rather than a healthy AI status", (errorCode, tone, key) => {
+    expect(productAccountNotice({ auth: "signed_in", runtime: "ready", ai, errorCode })).toEqual({ tone, key });
   });
 
   it("reads one ledger entry as a person would", () => {

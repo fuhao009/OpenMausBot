@@ -28,6 +28,12 @@ users install the app and sign in with an email code, and the app's default
 bot runs on the operator's account AI gateway. Nothing in this flow asks a
 user for a model key, an engine CLI, or a service address.
 
+Managed default-bot and new-bot welcomes are local messages, not AI requests.
+Their greetings and setup choices follow the interface language, including
+Simplified Chinese, Traditional Chinese, English and Korean. Managed mode
+does not generate setup suggestions on creation or rename, even when smart
+setup choices are enabled; the standard profile retains that feature.
+
 Owned product names, localized interface text, CLI examples and new export
 filenames use Hezuo (`hezuo` in commands and file prefixes). Locale keys remain
 stable during the symbol migration. `desktop/src/locales/source-hashes.json` is generated
@@ -85,11 +91,17 @@ retains at least 420px while resizing. Focus an edge and use Left/Right for
 keyboard sizing; Escape during a drag restores its starting width. Narrow
 screens retain the existing overlay drawers rather than draggable columns.
 
-Managed workspaces present bots and tasks rather than execution models. Chat
-headers, bot badges, team cards, bot creation/settings and account history do
-not expose a model selector or model identity. Account balances and request
-charges remain visible. The server-side catalog and execution contracts remain
-unchanged; hiding model controls does not implement automatic team routing.
+Managed workspaces present bots and tasks rather than a model picker. Chat
+headers, bot badges and bot creation/settings keep model controls hidden;
+completed reply usage shows the actual public model from `x-ai-model`.
+Account balances and settled charges remain authoritative in Account history.
+The default model follows the live catalog: `auto-responses`, then `auto-chat`,
+otherwise the catalog default. Only protocols with a published automatic model
+use task quotes; explicit fixed-model requests retain the direct inference path.
+Every inference request carries a budget capped by the known available balance
+and `MAX_TURN_POINTS` (50 points). A budget rejection requires the person's
+**Send anyway** answer before raising that request's cap to available balance.
+Unknown outcomes and stream failures are never transparently replayed.
 The managed sidebar omits its top-level add/new menu and inline add-bot rows.
 Existing bots and conversations remain accessible; server-side bot and team
 creation capabilities are unchanged.
@@ -112,6 +124,41 @@ and computes maximum headroom including held reservations in its main process.
 No account bearer crosses the preload bridge. A grant is sent once with a unique
 operation id; an uncertain response requires ledger review rather than an
 automatic retry. Application points do not fund the upstream provider account.
+
+Sign-out and app quit drain active AI work for at most `SIGN_OUT_DRAIN_MS`
+(15 seconds) before closing the owned runtime. A rejected model token can be
+renewed and replayed once only for `401 ai_token_invalid`, before reservation;
+an expired account session still requires sign-in. Installation credentials
+renew seven days before expiry. A replaced tunnel (close 4000) stops reconnecting
+until the person explicitly registers a new installation identity on this computer.
+Error details preserve `x-ai-request-id` with a copy control for operator lookup.
+
+
+### macOS 内测安装与签名验收
+
+未签名内测包仅用于受邀测试。先向发布者核对下载来源、版本及 SHA-256，
+将 app 拖入“应用程序”；不要覆盖正在使用的 app 或删除账号数据。
+首次打开若被 Gatekeeper 拦截，关闭提示，在“系统设置 → 隐私与安全性”中
+找到此次被阻止的应用，选择“仍要打开”，按系统要求认证，再确认打开。
+不同 macOS 版本的按钮名称可能不同；只对核对过来源的 Hezuo 执行此操作。
+若系统报告恶意软件、签名损坏或文件被修改，停止安装并联系发布者，
+不要通过关闭 Gatekeeper、递归删除 quarantine 或禁用 SIP 绕过该警告。
+
+正式交付须由负责人提供 Developer ID Application 证书及公证凭据，
+通过既有 [发布流程](releasing.md) 完成签名、公证和 staple；不得将私钥、
+`.p12`、证书密码或 App Store Connect 私钥提交到仓库。
+在产物安装位置运行（路径按实际 app 名称调整）：
+
+```sh
+codesign --verify --deep --strict --verbose=2 "/Applications/Hezuo.app"
+spctl -a -vv "/Applications/Hezuo.app"
+xcrun stapler validate "/Applications/Hezuo.app"
+```
+
+`spctl` 必须显示 `accepted`；还需在未安装过该应用的 Mac 上从正式下载的
+DMG 安装并双击打开，确认没有系统拦截。仅本机可以打开不构成签名验收。
+当前开发机检查 `security find-identity -v -p codesigning` 返回
+`0 valid identities found`；在负责人提供身份前，不能交付或宣称已通过签名公证。
 
 ### Local acceptance coverage
 

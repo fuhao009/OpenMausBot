@@ -28,6 +28,7 @@ export interface ProductAiConnection {
   token: string;
   expiresAt: number;
   defaultModel: string | null;
+  availableMicroPoints?: number;
   models: ProductModel[];
   /** The pinned public certificate of exactly `origin` (bundled resource v2).
    * Main passes it with the capability; it never reaches a renderer. */
@@ -77,6 +78,7 @@ export interface ProductAccountServiceOptions {
   stopRuntime: (stop: ProductRuntimeStop) => Promise<void>;
   /** Resolves only after the runtime acknowledged (or removed) the capability. */
   applyCapability: (update: ProductCapabilityUpdate) => Promise<void>;
+  recoverInstallation?: (account: { token: string; user: ProductAccountUser }) => Promise<unknown>;
   onState?: (state: ProductAccountState) => void;
   now?: () => number;
   statusPollMs?: number;
@@ -102,6 +104,7 @@ export interface ProductAccountService {
   /** The sign-in ways this deployment offers, read once and published on state. */
   methods(): Promise<ProductAccountState>;
   refresh(): Promise<ProductAccountState>;
+  renewAiToken(): Promise<boolean>;
   operatorStatus(): Promise<import("../../packages/shared/product-account.ts").ProductOperatorStatus>;
   grantMaximum(): Promise<import("../../packages/shared/product-account.ts").ProductMaximumGrantResult>;
   /** Throws ControlPlaneError("signed_out") when nobody is signed in and
@@ -111,9 +114,10 @@ export interface ProductAccountService {
   /** Reads the saved login, re-verifies it with /v1/me, then starts the
    * account workspace. Never deletes a record it cannot read. */
   restore(): Promise<ProductAccountState>;
-  /** Cancels timers and clears the runtime capability. */
-  dispose(): void;
+  /** Fences new work and resolves after draining and stopping the owned runtime. */
+  dispose(): Promise<void>;
   onState(callback: (state: ProductAccountState) => void): () => void;
+  reportInstallation(error: string): void;
 }
 
 export declare function productAccountKey(origin: string, userId: string): string;

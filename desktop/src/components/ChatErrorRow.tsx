@@ -10,6 +10,7 @@ import { ClaudeUpdatePrompt } from "./ClaudeUpdatePrompt";
 import { isProviderSafetyBlock, PROVIDER_SAFETY_GUIDANCE, PROVIDER_SAFETY_HELP_URL } from "../../../packages/shared/provider-safety";
 import { EngineSetup } from "./EngineSetup";
 import { t } from "@/lib/i18n";
+import { copyText } from "@/lib/copy-text";
 
 export function ErrorRow({
   message,
@@ -39,6 +40,7 @@ export function ErrorRow({
     ? macCuaPermissionMessage(currentPermissions)
     : null;
   const headline = macCuaReason ?? plainHeadline ?? message;
+  const requestId = /\[x-ai-request-id: ([^\]\r\n]+)\]/.exec(message)?.[1];
   const usageUrl = action || managed ? null : message.includes("subscription_sharing_usage_limit_exceeded") ? CHATGPT_USAGE_URL : codexUsageLimitReached(message) ? CODEX_USAGE_URL : null;
   return (
     <div className="flex justify-start">
@@ -47,7 +49,7 @@ export function ErrorRow({
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
           <span className="min-w-0 break-words">{headline}</span>
         </div>
-        {headline !== message && <details className="mt-2 text-[12px] text-ink-secondary"><summary className="cursor-pointer">{macCuaReason ? t("computer.mac.permission.driverDetail") : t("chat.error.details")}</summary><p className="mt-1 break-words">{message}</p></details>}
+        {(headline !== message || requestId) && <details className="mt-2 text-[12px] text-ink-secondary"><summary className="cursor-pointer">{macCuaReason ? t("computer.mac.permission.driverDetail") : t("chat.error.details")}</summary><p className="mt-1 break-words">{message}</p>{requestId && <button type="button" className="mt-1 underline" onClick={() => void copyText(requestId)}>{t("product.billing.requestId")}: {requestId} · {t("chat.copyMessage")}</button>}</details>}
         {macCuaReason &&
           <MacCuaRecoveryActions reason={message} />}
         {usageUrl ? (

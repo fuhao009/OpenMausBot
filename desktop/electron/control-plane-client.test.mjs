@@ -46,6 +46,40 @@ const jsonResponse = (body, init = {}) =>
   });
 
 describe("control-plane desktop client", () => {
+  it.each([9, 129])("rejects a %i-character password before transport", async length => {
+    const fetchImpl = vi.fn();
+    const client = createControlPlaneClient({ baseURL: "https://accounts.openmausbot.com", fetchImpl });
+    for (const method of ["signUpWithPassword", "signInWithPassword"]) {
+      await expect(client[method]("ada@example.com", "x".repeat(length))).rejects.toMatchObject({ code: "invalid_password" });
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it.each([10, 128])("sends a %i-character password unchanged", async length => {
+    const fetchImpl = vi.fn(async (_url, init) => {
+      expect(JSON.parse(init.body).password).toBe("x".repeat(length));
+      return jsonResponse({ user: { id: "user-1", email: "ada@example.com" }, token: null });
+    });
+    const client = createControlPlaneClient({ baseURL: "https://accounts.openmausbot.com", fetchImpl });
+    await client.signUpWithPassword("ada@example.com", "x".repeat(length));
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it("recovers one installation registration conflict without replaying creation", async () => {
+    let listings = 0;
+    const fetchImpl = vi.fn(async (url, init) => {
+      if (url.endsWith("/v1/installations") && init.method !== "POST") {
+        return jsonResponse({ installations: listings++ === 0 ? [] : [{ id: INSTALL_ID, clientInstanceId: "client-1", name: "Mac", platform: "darwin" }] });
+      }
+      if (url.endsWith("/v1/installations")) return jsonResponse({ error: "installation_exists" }, { status: 409 });
+      return jsonResponse({ credential: INSTALL, credentialExpiresAt: Date.now() + 100_000 }, { status: 201 });
+    });
+    const client = createControlPlaneClient({ baseURL: "https://accounts.openmausbot.com", fetchImpl });
+    await expect(client.ensureInstallation({ accountToken: ACCOUNT, clientInstanceId: "client-1", name: "Mac", platform: "darwin" })).resolves.toMatchObject({ credential: INSTALL });
+    expect(fetchImpl.mock.calls.filter(([url, init]) => url.endsWith("/v1/installations") && init.method === "POST")).toHaveLength(1);
+    expect(fetchImpl.mock.calls.filter(([url]) => url.endsWith("/credentials/rotate"))).toHaveLength(1);
+  });
+
   it("accepts exact HTTPS and loopback development origins only", () => {
     expect(normalizeControlPlaneURL("https://accounts.openmausbot.com/")).toBe(
       "https://accounts.openmausbot.com",

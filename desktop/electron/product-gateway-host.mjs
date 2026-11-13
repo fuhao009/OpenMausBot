@@ -90,17 +90,67 @@ export function createProductGatewayHost({
   identity,
   originTarget,
   log = () => {},
+  useAccount,
+  onChange = () => {},
+  now = Date.now,
+  setTimer = setTimeout,
+  clearTimer = clearTimeout,
+  createTunnel = createGatewayCompanionTunnel,
 } = {}) {
   if (!origin || !ca || !root || !client) throw new Error("product_gateway_host_invalid");
   let tunnel = null;
   let started = false;
+  let renewalTimer = null;
+  let renewalAttempt = 0;
+  let renewalError = null;
+  let activeTarget = originTarget;
+  const scheduleRenewal = () => {
+    clearTimer(renewalTimer);
+    renewalTimer = null;
+    const expiry = storedHost(root)?.credentialExpiresAt;
+    if (!started || !useAccount || !Number.isSafeInteger(expiry)) return;
+    const delay = renewalError ? Math.min(60_000 * 2 ** Math.min(renewalAttempt, 6), 3_600_000)
+      : Math.max(1_000, expiry - now() - 7 * 86_400_000);
+    renewalTimer = setTimer(() => {
+      renewalTimer = null;
+      void useAccount(async account => {
+        if (!started) return;
+        try {
+          const host = await ensure(account, true);
+          if (!started) return;
+          await connect(host, activeTarget);
+          renewalError = null;
+          renewalAttempt = 0;
+          onChange({ errorCode: "" });
+        } catch {
+          renewalError = "installation_renewal_failed";
+          renewalAttempt += 1;
+          onChange({ errorCode: renewalError });
+        }
+        scheduleRenewal();
+      }).catch(() => { if (started) { renewalError = "installation_renewal_failed"; renewalAttempt += 1; onChange({ errorCode: renewalError }); scheduleRenewal(); } });
+    }, delay);
+    renewalTimer?.unref?.();
+  };
+  const connect = async (host, target) => {
+    await tunnel?.stop();
+    tunnel = createTunnel({ origin, ca, installationId: host.installationId, credential: host.credential,
+      originTarget: target, log, onChange: status => {
+        if (status.status === "replaced") {
+          started = false;
+          clearTimer(renewalTimer);
+          onChange({ errorCode: "installation_replaced" });
+        }
+      } });
+    return tunnel.start(target);
+  };
 
-  const ensure = async ({ token, user }) => {
+  const ensure = async ({ token, user }, rotate = false) => {
     const clientId = storedHost(root)?.clientInstanceId || clientInstanceId(root);
     const current = storedHost(root);
     const result = await client.ensureInstallation({
       accountToken: token,
-      currentCredential: current?.credential,
+      currentCredential: rotate ? undefined : current?.credential,
       clientInstanceId: clientId,
       name: identity?.name || "This computer",
       platform: identity?.platform || "darwin",
@@ -128,22 +178,22 @@ export function createProductGatewayHost({
     async start({ token, user, originTarget: target = originTarget } = {}) {
       const host = await ensure({ token, user });
       if (!target) return host;
-      if (!tunnel) {
-        tunnel = createGatewayCompanionTunnel({
-          origin,
-          ca,
-          installationId: host.installationId,
-          credential: host.credential,
-          originTarget: target,
-          log,
-        });
-      }
+      activeTarget = target;
       started = true;
-      const status = await tunnel.start(target);
+      const status = await connect(host, target);
+      scheduleRenewal();
       return { ...host, connection: status };
+    },
+    async continueHere(account) {
+      await tunnel?.stop();
+      writePrivate(path.join(root, CLIENT_ID_FILE), `${randomUUID()}\n`);
+      fs.rmSync(path.join(root, STATE_FILE), { force: true });
+      return this.start(account);
     },
     async stop() {
       started = false;
+      clearTimer(renewalTimer);
+      renewalTimer = null;
       await tunnel?.stop();
     },
     status() {

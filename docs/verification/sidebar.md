@@ -110,10 +110,12 @@ the page's own drag events, and exits.
 1. With no department, Simple's sidebar is unchanged.
 2. Drag a bot over the top or bottom quarter of another: a line shows where it
    lands, and dropping saves the order (`PUT /api/bots/order`) for every client.
-3. Drag it over the middle of a bot in no department: that row is ringed.
-   Dropping shows a new department with both bots and its name field focused,
-   "New department" selected. Enter keeps the typed name, or the default when
-   it is empty; Escape puts the bots back.
+3. Drag a bot over the middle of a bot in no department: that row is ringed.
+   Dropping immediately creates **Untitled group**, then **Untitled group 2**
+   when that name already exists. The target bot precedes the dragged bot.
+   Dragging between pinned tiles also creates a group and unpins both bots.
+   The context-menu **New department…** action still opens the name input;
+   Escape cancels that pending creation.
 4. Drag a bot over a department's heading to put it at its end, between its
    rows to place it there, and between the rows outside any department to take
    it out. With every bot in a department, a "Remove from department" place
@@ -131,6 +133,17 @@ the page's own drag events, and exits.
 `desktop/src/components/SidebarSectionHeader.naming.dom.test.ts` the name field. The
 headless pictures cannot prove the operating system's own drag image or a drag
 between two windows.
+
+The 2026-11-13 isolated browser check exercised both ungrouped rows and the
+right half of a pinned tile through actual page DragEvents. Both groups survived
+reload, retained target-first order, and the pinned pair left the pinned area.
+The context-menu action opened a selected **New department** name input.
+Alt+Up and Alt+Down reordered a group, survived reload, and updated a second
+browser client without a reload. This does not prove native OS dragging,
+packaged Electron, paired remote authentication, or a phone's gateway connection.
+The screenshot script's `naming-simple` and `named-simple` scenarios still expect
+the old drag-to-name flow; use the interactions above for the current contract.
+
 
 ## Fewer buttons, more dragging
 

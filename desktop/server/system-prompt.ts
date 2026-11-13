@@ -57,13 +57,28 @@ export function botPersona(bot: { name: string; title?: string; description?: st
     .filter(Boolean)
     .join(" ");
 }
+const PRODUCT_SECTION_TEXT: Record<string, string> = {
+  credential: " Never request secrets in chat. Use request_credential or request_sign_in when access is missing; follow their secure handoff and stop until the person completes it.",
+  routine: " For scheduled or event-driven work, use the automation tools (discover them with find_tool when available) and follow their schemas. Execute a one-time request now, not as an automation. Confirm the schedule, timezone and destination; keep standing automations and pause completed temporary monitors.",
+  profile: " Use propose_profile for requested changes to your identity or instructions. Use authorized team tools for bot setup, never click through Hezuo. Follow the applied or pending tool result; never claim success before it applies.",
+  shell: " Run commands with the shell tool, not by typing into a terminal window. Set an appropriate timeout for long work; never rerun a timed-out command unchanged. Check long-running jobs once rather than polling.",
+};
+
+const PRODUCT_OMITTED_SECTIONS: Record<string, true> = { learn: true };
+
+function productPromptParts(parts: PromptPart[]): PromptPart[] {
+  return parts.filter(part => !PRODUCT_OMITTED_SECTIONS[part.id]).map(part =>
+    part.text && PRODUCT_SECTION_TEXT[part.id] ? { ...part, text: PRODUCT_SECTION_TEXT[part.id]! } : part);
+}
+
+
 
 export function buildSystemPrompt(
   persona: string,
   soul: string,
   parts: PromptPart[],
   agents?: { env?: Record<string, string | undefined> },
-  opts?: { replyStyle?: ReplyStyle },
+  opts?: { replyStyle?: ReplyStyle; product?: boolean },
 ): { text: string; sections: PromptSection[]; stable: string; volatile: string } {
   const ordered: PromptPart[] = [
     { id: "persona", label: "Identity", text: persona },
@@ -71,7 +86,7 @@ export function buildSystemPrompt(
     // Right after the soul: on a direct turn, ahead of every section that names a tool.
     { id: "tool-bridge", label: "Tool search", text: agentsToolBridged(agents) ? AGENTS_TOOL_BRIDGE_PROMPT : "" },
     { id: "reply-style", label: "Reply style", text: replyStylePrompt(opts?.replyStyle) },
-    ...parts,
+    ...(opts?.product ? productPromptParts(parts) : parts),
     { id: "reply-habits", label: "How to reply", text: REPLY_HABITS_PROMPT },
   ];
   const sections = ordered
@@ -117,7 +132,7 @@ const COMPUTER_PARAGRAPH: Record<ComputerPromptKind, string> = {
   vps:
     " You have your own self-hosted remote Linux computer through the official Cua tools. This is the user's own VPS; using it does not require a Boat API key. Its filesystem is disposable: everything on it is wiped whenever its container is recreated, so keep long-lived work somewhere durable — push it to a remote, or hand the results back in chat — instead of leaving it only on that computer. Inspect the desktop state before acting, prefer accessibility targets over raw coordinates, and act carefully." + SANDBOX_DESKTOP_INPUT,
   local:
-    " You can act on the user's computer through the computer tools. Discover the target app/window and inspect its state first. Prefer window-targeted accessibility actions with background delivery so the user can keep working in another app; do not bring Hezuo or another app to the front just to inspect it. Use the dedicated browser tools for browser work when available, keeping the user's intended browser profile/account, and Hezuo's configuration/proposal tools for supported bot setup rather than clicking through this app. Full-desktop input, app activation, and foreground delivery can move the real cursor, change focus, or switch desktops: use them only when the user asked for foreground control or agrees after background control reports it cannot perform the action. Do not silently retry a background refusal as foreground input, including through shell scripts, AppleScript/System Events, or another automation tool. If a background action unexpectedly changes focus, report it and stop that route rather than continuing to interrupt the user. Never promise that arbitrary desktop actions can run in the background.",
+    " You can act on the user's computer through the computer tools. For shell commands, use the shell execution tool directly in the background and return its output; never type commands into a terminal window. An authorized shell command needs no app/window inspection, terminal activation or extra foreground confirmation. Reuse the granted authorization scope; if authorization is denied, do not execute or retry another way and say 未授权，无法执行 in Chinese, or the equivalent in the person's language. For graphical actions only, discover the target app/window and inspect its state first. Prefer window-targeted accessibility actions with background delivery so the user can keep working in another app; do not bring Hezuo or another app to the front just to inspect it. Use the dedicated browser tools for browser work when available, keeping the user's intended browser profile/account, and Hezuo's configuration/proposal tools for supported bot setup rather than clicking through this app. Full-desktop input, app activation, and foreground delivery can move the real cursor, change focus, or switch desktops: use them only when the user asked for foreground control or agrees after background control reports it cannot perform the action. Do not silently retry a background refusal as foreground input, including through shell scripts, AppleScript/System Events, or another automation tool. If a background action unexpectedly changes focus, report it and stop that route rather than continuing to interrupt the user. Never promise that arbitrary desktop actions can run in the background.",
 };
 
 export function savedLoginsPrompt(logins: ReadonlyArray<LoginPlace & { username: string }>): string {

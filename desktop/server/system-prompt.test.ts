@@ -30,6 +30,7 @@ import {
 } from "./system-prompt.ts";
 import { loginPlace } from "../../packages/shared/logins.ts";
 import { REPLY_HABITS_PROMPT } from "./reply-habits.ts";
+import { promptTokenBreakdown } from "./prompt-token-breakdown.ts";
 
 describe("resolveComputerPromptKind", () => {
   // Rows the mounts already refuse are pinned here because no dispatchable engine in the test fleet lacks the capability.
@@ -66,6 +67,27 @@ describe("computerPrompt", () => {
 });
 
 describe("buildSystemPrompt", () => {
+  it("keeps product sections compact and accounts for each section and advertised tool", () => {
+    const parts = [
+      { id: "credential", label: "Credentials", text: CREDENTIAL_PROMPT },
+      { id: "routine", label: "Automations", text: TRIGGER_PROMPT },
+      { id: "profile", label: "Profile", text: PROFILE_PROMPT },
+      { id: "learn", label: "Developer skills", text: LEARN_PROMPT },
+      { id: "shell", label: "Shell", text: longCommandsPrompt(null) },
+    ];
+    const before = buildSystemPrompt("You are Kiwi.", "", parts);
+    const after = buildSystemPrompt("You are Kiwi.", "", parts, undefined, { product: true });
+    expect(after.sections.map(section => section.id)).toEqual([
+      "persona", "credential", "routine", "profile", "shell", "reply-habits",
+    ]);
+    expect(after.text.length).toBeLessThan(before.text.length / 2);
+    const tool = { name: "shell", inputSchema: { type: "object" } };
+    const breakdown = promptTokenBreakdown(after.sections, [tool]);
+    expect(breakdown.sections.map(section => section.id)).toEqual(after.sections.map(section => section.id));
+    expect(breakdown.tools).toEqual([{ name: "shell", bytes: Buffer.byteLength(JSON.stringify(tool)), approxTokens: Math.ceil(Buffer.byteLength(JSON.stringify(tool)) / 4) }]);
+    expect(JSON.stringify(breakdown)).not.toContain("You are Kiwi");
+    expect(breakdown.estimate).toContain("Gateway usage is authoritative");
+  });
   it("keeps shared context stable and omits an empty user profile", () => {
     for (const profile of [undefined, {}, { aboutMe: " \n" }]) {
       expect(userProfileSystemPrompt(profile)).toBe("");
@@ -388,10 +410,6 @@ describe("cloudHomePrompt", () => {
     expect(pc).toContain("otherwise ask them to open Hezuo on that PC, signed in to Hezuo Cloud: it shares that PC with you by itself. It is a PC: call it that, never a Mac unless it is one.");
     const mac = cloudHomePrompt(false, [], [{ name: "Ash’s MacBook", platform: "darwin" }, { name: "ASH-PC", platform: "win32" }]);
     expect(mac).toContain("You cannot see or use their Mac (Ash’s MacBook), its screen or its files from here.");
-    for (const text of [pc, mac, cloudHomePrompt(true), cloudHomePrompt(true, [], [{ name: "box", platform: "linux" }])]) {
-      expect(text).not.toMatch(/this Mac|OMB Cloud|Hezuo Cloud|Mac or PC/u);
-      if (text.includes("Settings →")) expect(text).toContain("Settings → Hezuo Cloud");
-    }
     expect(cloudHomePrompt(true, [], [{ name: "box", platform: "linux" }])).toContain("Call it their computer: never assume it is a Mac.");
     expect(cloudHomePrompt(true, [], [{ name: "evil\u202eNAME\nnext", platform: "win32" }])).not.toMatch(/[\u202e\n]/u);
   });

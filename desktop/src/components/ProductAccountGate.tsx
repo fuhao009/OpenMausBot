@@ -200,12 +200,12 @@ export function ProductAccountGate() {
         )}
         {notice && notice.key !== "product.starting" && (
           <p data-product-notice={notice.tone} role={notice.tone === "error" ? "alert" : "status"} className="text-[14px] leading-relaxed text-ink-secondary">
-            {t(notice.key)}
+            {t(notice.key, notice.params)}
           </p>
         )}
         <div className="flex flex-wrap gap-2">
           <button type="button" className="ui-button" disabled={busy} onClick={() => { setBusy(true); void bridge.refresh().catch(() => {}).finally(() => setBusy(false)); }}>
-            {busy ? t("common.checking") : t("product.refresh")}
+            {busy ? t("common.checking") : t(state.errorCode === "installation_replaced" ? "product.lifecycle.continueHere" : "product.refresh")}
           </button>
           <button type="button" className="ui-button" disabled={busy} onClick={() => { setBusy(true); void bridge.signOut().catch(() => {}).finally(() => setBusy(false)); }}>
             {t("product.signOut")}
@@ -379,7 +379,7 @@ export function ProductAccountGate() {
       )}
       {failure && <p role="alert" className="text-[13px] leading-[18px] text-ink-secondary">{failure}</p>}
       {!failure && notice && (notice.tone === "error" || notice.key === "product.serviceUnavailable") && (
-        <p role="alert" className="text-[13px] leading-[18px] text-ink-secondary">{t(notice.key)}</p>
+        <p role="alert" className="text-[13px] leading-[18px] text-ink-secondary">{t(notice.key, notice.params)}</p>
       )}
       <p className="text-[13px] leading-[18px] text-ink-secondary">{t("product.permissions")}</p>
     </main>

@@ -544,7 +544,7 @@ export function createControlPlaneClient({
       const email = normalizeAccountEmail(rawEmail);
       const password = stringValue(rawPassword);
       if (!email) throw new ControlPlaneError("invalid_email");
-      if (password === null || password.length < 8 || password.length > 256) {
+      if (password === null || password.length < 10 || password.length > 128) {
         throw new ControlPlaneError("invalid_password");
       }
       const { response, payload } = await request("/api/auth/sign-up/email", {
@@ -560,7 +560,7 @@ export function createControlPlaneClient({
       const email = normalizeAccountEmail(rawEmail);
       const password = stringValue(rawPassword);
       if (!email) throw new ControlPlaneError("invalid_email");
-      if (password === null || password.length < 1 || password.length > 256) {
+      if (password === null || password.length < 10 || password.length > 128) {
         throw new ControlPlaneError("invalid_password");
       }
       const { response, payload } = await request("/api/auth/sign-in/email", {
@@ -596,7 +596,7 @@ export function createControlPlaneClient({
       const password = stringValue(rawPassword);
       if (!email) throw new ControlPlaneError("invalid_email");
       if (!otp) throw new ControlPlaneError("invalid_otp");
-      if (password === null || password.length < 1 || password.length > 256) {
+      if (password === null || password.length < 10 || password.length > 128) {
         throw new ControlPlaneError("invalid_password");
       }
       await request("/api/auth/email-otp/reset-password", { method: "POST", body: { email, otp, password } });
@@ -710,17 +710,26 @@ export function createControlPlaneClient({
 
       if (!boundedSecret(accountToken)) throw new ControlPlaneError("signed_out", 401);
       const installations = await accountInstallations(accountToken);
-      const existing = installations.find((item) => item.clientInstanceId === clientInstanceId);
-      const result = existing
-        ? await request(`/v1/installations/${encodeURIComponent(existing.id)}/credentials/rotate`, {
-            method: "POST",
-            token: accountToken,
-          })
-        : await request("/v1/installations", {
-            method: "POST",
-            token: accountToken,
-            body: { clientInstanceId, name, platform, appVersion },
+      let existing = installations.find((item) => item.clientInstanceId === clientInstanceId);
+      let result;
+      if (existing) {
+        result = await request(`/v1/installations/${encodeURIComponent(existing.id)}/credentials/rotate`, {
+          method: "POST", token: accountToken,
+        });
+      } else {
+        try {
+          result = await request("/v1/installations", {
+            method: "POST", token: accountToken, body: { clientInstanceId, name, platform, appVersion },
           });
+        } catch (error) {
+          if (!(error instanceof ControlPlaneError) || error.status !== 409 || error.code !== "installation_exists") throw error;
+          existing = (await accountInstallations(accountToken)).find(item => item.clientInstanceId === clientInstanceId);
+          if (!existing) throw error;
+          result = await request(`/v1/installations/${encodeURIComponent(existing.id)}/credentials/rotate`, {
+            method: "POST", token: accountToken,
+          });
+        }
+      }
       const installation = existing ?? validatedInstallation(result.payload.installation);
       const credential = stringValue(result.payload.credential);
       if (!installation || credential === null || !INSTALLATION_CREDENTIAL.test(credential)) {

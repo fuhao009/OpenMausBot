@@ -494,7 +494,12 @@ export function qualifiedModelLabel(
 
 /** A model credential read immediately before each request, so a rotated token is used by the next request and no
  * driver keeps a copy. Throws when the account may not make a new model call; never serialized into AppConfig or wire. */
-export type RequestCredential = () => { apiKey: string; expiresAt: number };
+export interface RequestCredentialValue {
+  apiKey: string;
+  expiresAt: number;
+  billing?: { availableMicroPoints: number; renewToken?: () => Promise<boolean>; quoteProtocols?: readonly ("chat" | "responses")[]; fallbackModels?: readonly { id: string; protocol: "chat" | "responses" }[] };
+}
+export type RequestCredential = () => RequestCredentialValue;
 
 /** A deployment's own public certificate, pinned to the exact origin its parent talks to (the managed product
  * gateway). Supplied by that parent at create time only: it is never part of AppConfig, an environment variable or

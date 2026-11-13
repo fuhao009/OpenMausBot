@@ -1,6 +1,7 @@
 // Import first: it reads a Cloud home's secrets off the launcher's pipe before any module can start a process.
 import { BOOT_CLOUD_SECRETS } from "./cloud-secrets-boot.ts";
 import { createAdminAudit } from "./host/admin-audit.ts";
+import type { ProductAiMessageMetadata } from "../src/lib/product-ai-message.ts";
 import { decisionActorFor } from "./request-decision-actor.ts";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { existsSync, realpathSync, rmSync } from "node:fs";
@@ -1458,8 +1459,24 @@ const managedDesktop = new ManagedDesktopProviders({
     resyncOpenCodeProviderKeys();
   },
 });
+const productTokenRenewals = new Map<string, (ok: boolean) => void>();
+utilityParentPort?.on("message", event => {
+  const message = event.data as { type?: unknown; requestId?: unknown; ok?: unknown } | undefined;
+  if (message?.type !== "hezuo:renew-ai-token-result" || typeof message.requestId !== "string") return;
+  productTokenRenewals.get(message.requestId)?.(message.ok === true);
+  productTokenRenewals.delete(message.requestId);
+});
 const productAi = new ProductAiProviders({
   registry,
+  renewToken: () => {
+    if (!utilityParentPort) return Promise.resolve(false);
+    return new Promise<boolean>(resolve => {
+      const requestId = randomUUID();
+      const timer = setTimeout(() => { productTokenRenewals.delete(requestId); resolve(false); }, 30_000);
+      productTokenRenewals.set(requestId, ok => { clearTimeout(timer); resolve(ok); });
+      utilityParentPort.postMessage({ type: "hezuo:renew-ai-token", requestId });
+    });
+  },
   allowLoopbackOrigin: PRODUCT_MANAGED && process.env.OMB_PRODUCT_FIXTURE === "1",
   beforeReplace: stopCompanyInstances,
   afterReplace: ids => {
@@ -1468,6 +1485,13 @@ const productAi = new ProductAiProviders({
     broadcast({ kind: "config", ...configStatus() });
   },
   onState: () => { registry.forgetSnapshots(); broadcast({ kind: "config", ...configStatus() }); },
+});
+utilityParentPort?.on("message", event => {
+  const message = event.data as { type?: unknown; requestId?: unknown } | undefined;
+  if (!PRODUCT_MANAGED || message?.type !== "hezuo:drain" || typeof message.requestId !== "string") return;
+  void productAi.drain(15_000).finally(() => {
+    utilityParentPort.postMessage({ type: "hezuo:drain-result", requestId: message.requestId });
+  });
 });
 if (PRODUCT_MANAGED) setProductHelperState({
   generateText: async (prompt, options) => {
@@ -2969,10 +2993,10 @@ function previewSystemPrompt(bot: BotRecord) {
     teamAvailabilityPart(agentsMounted && coordination ? peers : []),
     { id: "memory", label: "Memory", text: memorySystemPrompt(bot.id, { managedWrites: agentsMounted, fileTools: Boolean(privateWorkspace), enabled: bot.memoryEnabled !== false }) },
     { id: "skills", label: "Skills index", text: privateWorkspace ? skillsHost.skillsIndex(bot, undefined, instance) : "" },
-  ], agentsMounted ? { env: agentsToolBridgeEnv(cfg, bot, instance && turnEngine(instance, providerConfigs(), registry.lastSnapshot(instance.instanceId), bot.cwd ?? undefined)) } : undefined, { replyStyle: bot.replyStyle });
+  ], agentsMounted ? { env: agentsToolBridgeEnv(cfg, bot, instance && turnEngine(instance, providerConfigs(), registry.lastSnapshot(instance.instanceId), bot.cwd ?? undefined)) } : undefined, { replyStyle: bot.replyStyle, product: PRODUCT_MANAGED });
   const totalBytes = built.sections.reduce((n, s) => n + s.bytes, 0);
   return {
-    sections: built.sections,
+    sections: built.sections.map(section => ({ ...section, approxTokens: Math.ceil(section.bytes / 4) })),
     totalBytes,
     approxTokens: Math.ceil(totalBytes / 4),
     note:
@@ -5148,7 +5172,7 @@ const sideJobs = createSideJobs({
 const aboutMeFacts = createAboutMe({ read: () => cfg.profile?.aboutMe ?? "", write: (aboutMe) => { saveConfig({ profile: { ...cfg.profile, aboutMe } }); Object.assign(cfg, loadConfig()); },
   changed: () => broadcast({ kind: "config", ...configStatus() }), today: () => memoryDate(), ...(CLOUD_TEAM ? { person: (layer: string, plan: Parameters<typeof teamHost.learnAbout>[1]) => teamHost.learnAbout(layer, plan) } : {}) });
 const personPreference = createPersonPreference<InternalCapability>({ team: Boolean(CLOUD_TEAM), aboutMe: aboutMeFacts, requester: actingPeople.requester, userStarted: (turn) => turnOrigin(turn).kind === "user", personName: teamHost.personName });
-const setupSuggestions = setupSuggestionsFor({ store, config: () => cfg, shared: sharedMembership, languageCode: () => appLanguage() ?? Intl.DateTimeFormat().resolvedOptions().locale, engine: (bot) => registry.get(bot.modelSelection.instanceId)?.adapter.capabilities, browserOn: () => builtInBrowserEnabled(cfg),
+const setupSuggestions = setupSuggestionsFor({ store, enabled: () => !PRODUCT_MANAGED, config: () => cfg, shared: sharedMembership, languageCode: () => appLanguage() ?? Intl.DateTimeFormat().resolvedOptions().locale, engine: (bot) => registry.get(bot.modelSelection.instanceId)?.adapter.capabilities, browserOn: () => builtInBrowserEnabled(cfg),
   withinBudget: () => { try { assertWithinBudget(cfg, DATA_DIR); return true; } catch { return false; } }, writer: (botId) => sideJobs.text("setup-suggestions", botId), apps: { configured: () => composio.configured(cfg), mode: () => composio.connectionMode(cfg), connected: () => composio.connectedServices(cfg) }, log: (line) => console.log(line) });
 
 const memoryUpkeep = createMemoryUpkeep({
@@ -6704,9 +6728,9 @@ bus.subscribe((event: RuntimeEvent) => {
         role: "bot",
         kind: "activity",
         tool: { name: event.reason === "account_busy"
-          ? `waiting for a free account slot — retry ${event.attempt} in ${Math.round(event.delayMs / 1000)}s`
+          ? serverLine(threadLanguage(event.threadId), "server.retry.accountBusy", { attempt: event.attempt, seconds: Math.round(event.delayMs / 1000) })
           : event.reason === "upstream_stream"
-          ? `upstream hiccup — retry ${event.attempt} in ${Math.round(event.delayMs / 1000)}s`
+          ? serverLine(threadLanguage(event.threadId), "server.retry.upstreamStream", { attempt: event.attempt, seconds: Math.round(event.delayMs / 1000) })
           : `retrying — attempt ${event.attempt + 1}/${RETRY_MAX_ATTEMPTS} in ${Math.round(event.delayMs / 1000)}s — ${event.reason}`, ok: true },
       });
       break;
@@ -6818,6 +6842,14 @@ bus.subscribe((event: RuntimeEvent) => {
       if (bot && event.ok && !stopped && completedTurnId && !routineRun && !coordinator.assignerOf(event.threadId)) askCards.ownQuestion(bot.id, event.threadId, completedTurnId);
       const lastReported = turnUsage.get(event.threadId);
       turnUsage.delete(event.threadId);
+      if (event.providerInstanceId && productAi.owns(event.providerInstanceId)) {
+        const reply = store.messagesFor(event.threadId).findLast(message => message.role === "bot" && message.kind === "text" && message.turnId === event.turnId);
+        const aiModel = sessionModelByThread.get(event.threadId);
+        if (reply && aiModel) {
+          const patch: Partial<Message> & ProductAiMessageMetadata = { aiModel, ...(lastReported ? { aiUsage: { input: lastReported.input, output: lastReported.output } } : {}) };
+          store.patchMessage(event.threadId, reply.id, patch);
+        }
+      }
       const lastContext = turnContext.get(event.threadId);
       turnContext.delete(event.threadId);
       if (bot) {
@@ -8501,7 +8533,7 @@ async function beginTurn(
         { id: "webhook", label: "Webhook provenance", text: opts?.automationSource === "webhook" ? WEBHOOK_PROMPT : "" },
         { id: "automation-reply", label: "Automation reply", text: opts?.automationSource && automationReports.reportsElsewhere(threadId) ? AUTOMATION_REPLY_PROMPT : "" },
         { id: "mentions", label: "Mentions", text: (tagged.length ? `The user named these existing teammates: ${tagged.map(b => `${peerName(b.name)} (${b.id})`).join(", ")}. Use coordinate_bots when their contribution is needed; do not substitute native helper agents for these bots.` : "") + placesElsewhere.mentioned(providerText, store.bots) },
-      ].filter((part) => !confined || READ_AND_DRAFT_PARTS.has(part.id)), integrations.agents, { replyStyle: liveBot?.replyStyle ?? bot.replyStyle });
+      ].filter((part) => !confined || READ_AND_DRAFT_PARTS.has(part.id)), integrations.agents, { replyStyle: liveBot?.replyStyle ?? bot.replyStyle, product: PRODUCT_MANAGED });
       turnPromptBytes.set(threadId, { stable: Buffer.byteLength(prompt.stable), volatile: Buffer.byteLength(prompt.volatile) });
       // Recall rides in front of this turn's message, never the system prompt, whose volatile half is re-sent whole on any change.
       const recalled = autoRecallPrompt(bot, threadId, resolvedImages.text, {
@@ -10304,7 +10336,7 @@ async function runClaimedGroupMemberTurn(
     { id: "skills", label: "Skills index", text: workspace ? skillsHost.skillsIndex(bot, threadId, instance) : "" },
     { id: "skill-instructions", label: "Skill instructions", text: renderSkillInstructions(selectedSkills, { includeRoot: Boolean(workspace) }) },
     { id: "playbooks", label: "Playbooks", text: installedPlaybookInstructions(text, bot.playbooks) },
-  ], integrations.agents);
+  ], integrations.agents, { product: PRODUCT_MANAGED });
 
   // Claim /learn only after setup succeeded, so a failed first responder does not consume it.
   if (skillAuthoring) skillAuthoringClaim.claimed = true;

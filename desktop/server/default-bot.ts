@@ -7,7 +7,7 @@ import { takeImportName } from "../../packages/shared/import-name.ts";
 import type { BotRecord, Message, Store } from "./store.ts";
 import { serverLine } from "./server-lines.ts";
 
-export type DefaultBotStore = Pick<Store, "bots" | "bot" | "createBot" | "patchBot" | "appendMessage" | "messagesFor" | "createTask" | "setChiefOfStaff">;
+export type DefaultBotStore = Pick<Store, "bots" | "bot" | "createBot" | "patchBot" | "appendMessage" | "messagesFor" | "createTask" | "setChiefOfStaff"> & { greetingLanguage?(): string };
 
 /** Where each place (key "") and Team Cloud member (their email) is recorded as having had its Hezuo, so one that is
  * gone is never made twice. */
@@ -16,7 +16,8 @@ const LEDGER = "default-bot.json";
 /** The colour a new install gave its Hezuo before Chrome, which an adopted Hezuo trades for Chrome. */
 const STARTER_COLOR = "silver";
 
-export const HELPER_ASKS = ["What are my bots up to?", "Set up a bot for my inbox", "Make me a morning routine", "How do I connect my email?"];
+const HELPER_ASK_KEYS = ["server.helper.ask.overview", "server.helper.ask.inbox", "server.helper.ask.routine", "server.helper.ask.howto"] as const;
+export const HELPER_ASKS = HELPER_ASK_KEYS.map((key) => serverLine("en", key));
 
 export function defaultBotRefusal(name: string): string {
   return `${name} can't be deleted or archived. To take it off the sidebar, choose Hide in its menu, or turn off "Show ${name} in the sidebar" in Settings → General.`;
@@ -33,20 +34,14 @@ export function ownsDefaultBot(bot: BotRecord | null | undefined, email: string 
   return Boolean(email && bot?.defaultBot && defaultBotPerson(bot) === email.trim().toLowerCase());
 }
 
-/** The English intro: who Hezuo is, what it does here, and that it is looking around (its follow-up comes after, from
- * helper-followup.ts). Clients that know `helperIntro` say it in the viewer's own language. */
-export function helperIntroMessage(bot: Pick<BotRecord, "name" | "chiefOfStaff">, team?: string | null): Omit<Message, "id" | "at"> {
-  const title = bot.chiefOfStaff ? `Hey! I'm ${bot.name}. I'm new here.` : `Hi! I'm ${bot.name}, your helper for everything here.`;
+export function helperIntroMessage(bot: Pick<BotRecord, "name" | "chiefOfStaff">, team?: string | null, language?: string): Omit<Message, "id" | "at"> {
+  const title = serverLine(language, bot.chiefOfStaff ? "server.helper.hello" : "server.helper.hi.helper", { name: bot.name });
   const subtitle = [
-    bot.chiefOfStaff
-      ? "I'm here to be your Chief of Staff. I can manage your other bots. Task me with anything. I'll make sure it gets to the right bot."
-      : team
-        ? "Ask me how to do anything here. I can set up bots, apps and routines with you."
-        : "Ask me how to do anything here. I can set up bots, apps and routines with you, and keep an eye on your day.",
-    team ? `On ${team}, I'm here for you and look after your own bots.` : "",
-    "I'm taking a look around to see if there's anything I can pick up for you. I'll follow up in a moment.",
+    serverLine(language, bot.chiefOfStaff ? "server.helper.lead.chiefOfStaff" : team ? "server.helper.lead.member" : "server.helper.lead.helper"),
+    team ? serverLine(language, "server.helper.team", { team }) : "",
+    serverLine(language, "server.helper.lookingAround"),
   ].filter(Boolean).join(" ");
-  return { role: "bot", kind: "options", text: `${title} ${subtitle}`, helperIntro: true, card: { title, subtitle, options: [...HELPER_ASKS], fixedOptions: true } };
+  return { role: "bot", kind: "options", text: `${title} ${subtitle}`, helperIntro: true, card: { title, subtitle, options: HELPER_ASK_KEYS.map((key) => serverLine(language, key)), fixedOptions: true } };
 }
 
 function ledger(dataDir: string): Record<string, string> {
@@ -88,7 +83,7 @@ export function seededHezuo(bots: readonly BotRecord[]): BotRecord | undefined {
 function introduce(store: DefaultBotStore, bot: BotRecord, team?: string | null, intro?: DefaultBotIntro): void {
   const untouched = !store.messagesFor(bot.threadId).some((message) => message.role === "user");
   const threadId = untouched ? bot.threadId : store.createTask(bot.id, `What ${bot.name} can do`)?.threadId;
-  if (threadId) store.appendMessage(threadId, intro?.(bot) ?? helperIntroMessage(bot, team));
+  if (threadId) store.appendMessage(threadId, intro?.(bot) ?? helperIntroMessage(bot, team, store.greetingLanguage?.()));
 }
 
 /** The first message a new Hezuo says instead of its intro. */
@@ -114,7 +109,7 @@ export function createDefaultBot(store: DefaultBotStore, options: { person?: str
   }, { seedMessages: false });
   options.chief?.(created.id);
   const bot = store.patchBot(created.id, { defaultBot: person ? { person } : {}, pinned: true }) ?? created;
-  store.appendMessage(bot.threadId, options.intro?.(bot) ?? helperIntroMessage(bot, options.team));
+  store.appendMessage(bot.threadId, options.intro?.(bot) ?? helperIntroMessage(bot, options.team, store.greetingLanguage?.()));
   return bot;
 }
 

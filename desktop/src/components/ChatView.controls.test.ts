@@ -399,6 +399,13 @@ describe("thread control placement", () => {
     expect(fixture.dispatch).not.toHaveBeenCalled();
   });
 
+  it.each(["upstream HTTP 503", "upstream HTTP 502", "Stream ended before completion"])("shows a copyable request ID for %s", cause => {
+    const markup = renderToStaticMarkup(createElement(ErrorRow, { message: `${cause} [x-ai-request-id: ledger-fixture]`, managed: true }));
+    expect(markup).toContain("<details");
+    expect(markup).toContain("Request ID");
+    expect(markup).toContain("ledger-fixture");
+    expect(markup).toContain("<button");
+  });
   it("explains provider safety errors without offering an ineffective Retry", () => {
     const markup = renderToStaticMarkup(createElement(ErrorRow, { message: "Blocked by our safety systems", onRetry: () => {} }));
     expect(markup).toContain("Full access controls tool approvals, not provider safety checks");

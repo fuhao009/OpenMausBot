@@ -75,9 +75,10 @@ describe("an account refusing a request reservation", () => {
 
   it("uses the account balance notice in the reader's language", () => {
     setLocale("en");
-    expect(plainErrorLine(PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE)).toBe(PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE);
+    expect(plainErrorLine(PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE)).toBe("Not enough points to send right now. Available: 0 points. Contact your administrator to top up.");
     setLocale("zh");
     expect(plainErrorLine(`  ${PRODUCT_AI_INSUFFICIENT_BALANCE_MESSAGE}\n`))
-      .toBe("可用点数不足以预留本次请求，请联系管理员");
+      .toBe("积分不足，暂时无法发送。当前可用 0 积分，请联系管理员充值。");
+    expect(plainErrorLine("product_insufficient_balance:1500000")).toBe("积分不足，暂时无法发送。当前可用 1.5 积分，请联系管理员充值。");
   });
 });

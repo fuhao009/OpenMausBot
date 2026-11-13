@@ -1393,6 +1393,10 @@ export class Store {
     return bot;
   }
 
+  greetingLanguage(): string {
+    return typeof this.initialLanguage === "function" ? this.initialLanguage() : this.initialLanguage;
+  }
+
   applyTeamSetup(request: TeamSetupRequest): TeamSetupResult {
     const chief = this.bot(request.botId);
     if (!chief) throw new Error("The requesting Chief no longer exists");

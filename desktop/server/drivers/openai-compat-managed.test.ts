@@ -174,6 +174,58 @@ describe("a managed credential is read per request", () => {
   });
 });
 
+describe("gateway response metadata", () => {
+  it.each([502, 503, 200])("keeps the ledger ID when HTTP %s fails or its stream is interrupted", async status => {
+    const f = await upstream((_call, response) => {
+      response.writeHead(status, { "content-type": status === 200 ? "text/event-stream" : "application/json", "x-ai-request-id": "ledger-fixture" });
+      response.end(status === 200 ? 'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n' : JSON.stringify({ error: { code: "upstream_error" } }));
+    });
+    const instance = await managed({ url: f.url, credential: () => ({ apiKey: "independent-test-token", expiresAt: Date.now() + 60000 }) });
+    const events = await completedTurn(instance, "hello");
+    expect(events.find(event => event.type === "runtime.error")).toMatchObject({ message: expect.stringContaining("[x-ai-request-id: ledger-fixture]") });
+    expect(f.calls).toHaveLength(1);
+  });
+
+  it("publishes the gateway's actual model rather than the requested alias", async () => {
+    const f = await upstream((call, response, nth) => {
+      response.setHeader("x-ai-model", "selected-model");
+      chatText("hello")(call, response, nth);
+    });
+    const instance = await managed({ url: f.url, credential: () => ({ apiKey: "fixture", expiresAt: Date.now() + 60000 }) });
+    const events = await completedTurn(instance, "hello");
+    expect(events.filter(event => event.type === "session.started").at(-1)).toMatchObject({ model: "selected-model" });
+  });
+
+  it("uses the fixed-model gateway without requesting an unadvertised quote endpoint", async () => {
+    const f = await upstream((call, response, nth) => {
+      if (call.path.endsWith("/quote")) { response.writeHead(404); response.end(); return; }
+      chatText("fixed reply")(call, response, nth);
+    });
+    const instance = await managed({ url: f.url, credential: () => ({ apiKey: "fixed-gateway-token", expiresAt: Date.now() + 60000, billing: { availableMicroPoints: 80_000_000, quoteProtocols: [] } }) });
+    const events = await completedTurn(instance, "hello");
+    expect(events.find(event => event.type === "turn.completed")).toMatchObject({ ok: true });
+    expect(f.calls).toHaveLength(1);
+    expect(f.calls[0]!.path).toBe("/v1/chat/completions");
+    expect(f.calls[0]!.body.billing).toEqual({ maxMicroPoints: 50_000_000 });
+  });
+
+  it("measures the actual request sent to the isolated gateway", async () => {
+    vi.stubEnv("OMB_REQUEST_TOKEN_DIAGNOSTICS", "1");
+    const log = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      const f = await upstream(chatText("hello"));
+      const instance = await managed({ url: f.url, credential: () => ({ apiKey: "private-test-token", expiresAt: Date.now() + 60000 }) });
+      await completedTurn(instance, "private test prompt");
+      const report = log.mock.calls.find(call => call[0] === "[request-token-diagnostics]");
+      expect(report).toBeDefined();
+      const data = JSON.parse(String(report![1]));
+      expect(data.total.bytes).toBe(Buffer.byteLength(JSON.stringify(f.calls[0]!.body)));
+      expect(JSON.stringify(report)).not.toContain("private test prompt");
+      expect(JSON.stringify(report)).not.toContain("private-test-token");
+    } finally { log.mockRestore(); vi.unstubAllEnvs(); }
+  });
+});
+
 const REFUSAL_TOOLS_NEED_RESPONSES = JSON.stringify({ error: { message: "Function tools with reasoning_effort are not supported here. To use function tools, use /v1/responses or set reasoning_effort to 'none'." } });
 
 describe("a managed credential and the liveness probe", () => {

@@ -12,6 +12,8 @@ import * as mdb from "./message-db.ts";
 import { Store, type BotRecord } from "./store.ts";
 import { availableTools, catalogProfileFromEnv } from "./drivers/agents-catalog.ts";
 import { createBrief } from "./host/brief.ts";
+import "./server-line-packs.ts";
+import { serverLine, setConversationLanguage } from "./server-lines.ts";
 
 const selection = (): ModelSelection => ({ instanceId: "claude", model: "claude-sonnet-5" });
 const placeHezuos = (store: Store) => store.bots.filter((bot) => bot.defaultBot && !bot.defaultBot.person);
@@ -32,6 +34,21 @@ describe("Hezuo, every person's helper", () => {
   beforeEach(() => rmSync(DATA_DIR, { recursive: true, force: true }));
   afterEach(() => readTeamRolesWith(() => null));
 
+  it("seeds the default welcome from the store language before conversation services exist", () => {
+    setConversationLanguage(() => { throw new ReferenceError("Cannot access routines before initialization"); });
+    let language = "zh";
+    const store = new Store(selection, undefined, undefined, () => language);
+    try {
+      store.seedIfEmpty();
+      const bot = placeHezuos(store)[0]!;
+      expect(intros(store, bot)[0]?.card?.title).toBe(serverLine("zh", "server.helper.hello", { name: bot.name }));
+      language = "ko";
+      expect(store.greetingLanguage()).toBe("ko");
+      expect(boot(store)?.id).toBe(bot.id);
+    } finally {
+      setConversationLanguage(() => undefined);
+    }
+  });
   it("adopts a recoloured historical helper without losing the existing Chief", () => {
     const store = new Store(selection);
     const legacy = seededBefore(store);

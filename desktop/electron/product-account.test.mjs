@@ -12,6 +12,51 @@ import {
 } from "./product-account.mjs";
 import { ControlPlaneError } from "./control-plane-client.mjs";
 
+describe("account lifecycle renewal and drain", () => {
+  it("renews a rejected token immediately and applies it before returning", async () => {
+    const f = fixture({ saved: savedRecord() });
+    await f.service.restore();
+    const count = f.events.filter(event => event.type === "createAiToken").length;
+    expect(await f.service.renewAiToken()).toBe(true);
+    expect(f.events.filter(event => event.type === "createAiToken")).toHaveLength(count + 1);
+    expect(f.events.filter(event => event.type === "applyCapability").at(-1).update.connection.tokenId).toBe(token(2).id);
+  });
+
+  it("reports expired login when immediate renewal fails", async () => {
+    const f = fixture({ saved: savedRecord() });
+    await f.service.restore();
+    f.client.createAiToken = async () => { throw new ControlPlaneError("unauthorized", 401); };
+    expect(await f.service.renewAiToken()).toBe(false);
+    expect(await f.service.state()).toMatchObject({ errorCode: "session_expired" });
+  });
+
+  it("keeps the signed-in window and capability while shutdown drains", async () => {
+    const drain = Promise.withResolvers();
+    const f = fixture({ saved: savedRecord(), stop: () => drain.promise });
+    await f.service.restore();
+    const signOut = f.service.signOut();
+    await settle();
+    expect(await f.service.state()).toMatchObject({ auth: "signed_in", errorCode: "sign_out_draining" });
+    expect(f.events.filter(event => event.type === "signOut")).toHaveLength(0);
+    drain.resolve();
+    await signOut;
+    expect(await f.service.state()).toMatchObject({ auth: "signed_out" });
+  });
+
+  it("publishes installation renewal and replacement failures without leaking credentials", async () => {
+    const f = fixture({ saved: savedRecord() });
+    await f.service.restore();
+    f.service.reportInstallation("installation_renewal_failed");
+    expect(await f.service.state()).toMatchObject({ errorCode: "installation_renewal_failed" });
+    f.service.reportInstallation("");
+    expect(await f.service.state()).not.toHaveProperty("errorCode");
+    f.service.reportInstallation("installation_replaced");
+    expect(await f.service.state()).toMatchObject({ errorCode: "installation_replaced" });
+    expect(JSON.stringify(await f.service.state())).not.toContain(ACCOUNT);
+    await f.service.dispose();
+  });
+});
+
 /** A throwaway certificate for the fixture service host, or null without openssl. */
 function certificate(altName = "DNS:operator.example", commonName = "operator.example") {
   const directory = mkdtempSync(join(tmpdir(), "omb-account-ca-"));
@@ -714,21 +759,22 @@ describe("product account slow start", () => {
 });
 
 describe("product account stop ordering", () => {
-  it("invokes stopRuntime before publishing signed_out", async () => {
-    const f = fixture({ saved: savedRecord() });
+  it("publishes the drain notice before stopping and signs out only after completion", async () => {
+    const gate = Promise.withResolvers();
+    const f = fixture({ saved: savedRecord(), stop: async () => { await gate.promise; f.events.push({ type: "drained" }); } });
     await f.service.restore();
-    const stopsBefore = f.events.filter((event) => event.type === "stopRuntime").length;
-    await f.service.signOut();
-
-    const sequence = f.events.slice();
-    const stopAt = sequence.findIndex((event, index) => event.type === "stopRuntime"
-      && sequence.slice(0, index).filter((prior) => prior.type === "stopRuntime").length === stopsBefore);
-    const signedOutAt = sequence.findIndex((event, index) => event.type === "state"
-      && event.state.auth === "signed_out" && index > stopAt);
-    expect(stopAt).toBeGreaterThanOrEqual(0);
-    expect(signedOutAt).toBeGreaterThan(stopAt);
-    const firstSignedOut = sequence[signedOutAt].state;
-    expect(firstSignedOut.runtime).not.toBe("ready");
+    const signingOut = f.service.signOut();
+    await settle();
+    expect(await f.service.state()).toMatchObject({ auth: "signed_in", errorCode: "sign_out_draining" });
+    const drainAt = f.events.findIndex(event => event.type === "state" && event.state.errorCode === "sign_out_draining");
+    const stopAt = f.events.findIndex(event => event.type === "stopRuntime");
+    expect(drainAt).toBeLessThan(stopAt);
+    expect(f.events.some(event => event.type === "signOut")).toBe(false);
+    gate.resolve();
+    await signingOut;
+    const drainedAt = f.events.findIndex(event => event.type === "drained");
+    const signedOutAt = f.events.findIndex((event, index) => index > drainedAt && event.type === "state" && event.state.auth === "signed_out");
+    expect(signedOutAt).toBeGreaterThan(drainedAt);
   });
 
   it("stops the owned runtime even when its start is still running", async () => {
@@ -758,6 +804,21 @@ describe("product account stop ordering", () => {
     expect(await f.service.refresh()).toMatchObject({ auth: "signed_out", errorCode: "sign_out_blocked" });
     expect(await f.service.verifyCode("ada@example.com", "12345678")).toMatchObject({ auth: "signed_out" });
     expect(f.events.filter((event) => event.type === "startRuntime")).toHaveLength(starts);
+  });
+
+  it("restores the blocked error after a failed retry and clears it after recovery", async () => {
+    let failing = true;
+    const f = fixture({ saved: savedRecord(), stop: async () => { if (failing) throw new Error("still running"); } });
+    await f.service.restore();
+    await f.service.signOut();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      expect(await f.service.refresh()).toMatchObject({ auth: "signed_out", runtime: "error", errorCode: "sign_out_blocked" });
+      expect(f.states.at(-1)).toMatchObject({ errorCode: "sign_out_blocked" });
+    }
+    failing = false;
+    expect(await f.service.refresh()).toMatchObject({ auth: "signed_out", runtime: "stopped" });
+    expect(await f.service.state()).not.toHaveProperty("errorCode");
+    await f.service.dispose();
   });
 
   it("uses the owned runtime generation for clears and stops, not the session fence", async () => {
@@ -806,7 +867,27 @@ describe("product account state publication", () => {
     const f = fixture({ saved: savedRecord() });
     await f.service.restore();
     expect(f.timers.size).toBe(1);
-    f.service.dispose();
+    await f.service.dispose();
+    expect(f.timers.size).toBe(0);
+  });
+
+  it("awaits drain and a concurrent startup before disposal completes", async () => {
+    const startup = Promise.withResolvers();
+    const drain = Promise.withResolvers();
+    const f = fixture({ saved: savedRecord(), start: () => startup.promise, stop: () => drain.promise });
+    const restoring = f.service.restore();
+    await settle();
+    let disposed = false;
+    const disposal = f.service.dispose().then(() => { disposed = true; });
+    await settle();
+    expect(disposed).toBe(false);
+    drain.resolve();
+    await settle();
+    expect(disposed).toBe(false);
+    startup.resolve();
+    await Promise.all([restoring, disposal]);
+    expect(disposed).toBe(true);
+    expect(f.events.filter(event => event.type === "stopRuntime")).toHaveLength(2);
     expect(f.timers.size).toBe(0);
   });
 });
@@ -964,7 +1045,7 @@ describe("current-account operator maximum grant", () => {
     expect(JSON.stringify(result)).not.toContain(ACCOUNT);
     expect(await f.service.grantMaximum()).toMatchObject({ outcome: "already_max", amountMicroPoints: 0 });
     expect(f.events.filter(e => e.type === "grant")).toHaveLength(1);
-    f.service.dispose();
+    await f.service.dispose();
   });
 
   it("denies nonoperators without a mutation", async () => {
@@ -974,7 +1055,7 @@ describe("current-account operator maximum grant", () => {
     expect(await f.service.operatorStatus()).toEqual({ eligible: false });
     expect(await f.service.grantMaximum()).toMatchObject({ outcome: "failed", errorCode: "forbidden", amountMicroPoints: 0 });
     expect(f.types()).not.toContain("grant");
-    f.service.dispose();
+    await f.service.dispose();
   });
 
   it.each(["amount_out_of_range", "network_unavailable"])("does not retry %s and refreshes status", async code => {
@@ -986,7 +1067,7 @@ describe("current-account operator maximum grant", () => {
     expect(await f.service.grantMaximum()).toMatchObject({ outcome: "failed", errorCode: code, amountMicroPoints: 0 });
     expect(attempts).toBe(1);
     expect(f.events.filter(e => e.type === "aiStatus").length).toBe(before + 1);
-    f.service.dispose();
+    await f.service.dispose();
   });
 
   it("recomputes after preview and retains confirmed grant when refresh fails", async () => {
@@ -1002,7 +1083,7 @@ describe("current-account operator maximum grant", () => {
     };
     expect(await f.service.grantMaximum()).toMatchObject({ outcome: "granted", amountMicroPoints: 7,
       state: { errorCode: "network_unavailable" } });
-    f.service.dispose();
+    await f.service.dispose();
   });
 
   it("fences an in-flight lookup on sign-out before any grant", async () => {
@@ -1017,7 +1098,7 @@ describe("current-account operator maximum grant", () => {
     expect(await grant).toMatchObject({ outcome: "failed", errorCode: "signed_out" });
     await out;
     expect(f.types()).not.toContain("grant");
-    f.service.dispose();
+    await f.service.dispose();
   });
 });
 
@@ -1033,12 +1114,12 @@ describe("product account useAccount", () => {
       return "ok";
     });
     expect(seen).toBe("ok");
-    f.service.dispose();
+    await f.service.dispose();
   });
 
   it("returns null when signed out", async () => {
     const f = fixture();
     expect(await f.service.useAccount(async () => "no")).toBe(null);
-    f.service.dispose();
+    await f.service.dispose();
   });
 });

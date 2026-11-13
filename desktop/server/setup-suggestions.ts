@@ -383,6 +383,7 @@ type EngineCapabilities = Partial<Pick<ProviderAdapter["capabilities"], "agentsM
 export interface SetupSuggestionsHost extends Pick<SetupSuggestionsDeps, "withinBudget" | "writer" | "log"> {
   store: SetupSuggestionsDeps["store"] & { readonly bots: readonly BotRecord[] };
   config(): Pick<AppConfig, "features" | "profile">;
+  enabled?(): boolean;
   /** Several people share this place. */
   shared(): boolean;
   /** The app's language code ("en", "pt-BR"). */
@@ -416,7 +417,7 @@ export function setupSuggestionsFor(host: SetupSuggestionsHost) {
   };
   return createSetupSuggestions({
     store: host.store,
-    enabled: () => host.config().features?.smartSetupChoices !== false,
+    enabled: () => (host.enabled?.() ?? true) && host.config().features?.smartSetupChoices !== false,
     canSetUp: (bot) => host.engine(bot)?.agentsMcp === true,
     withinBudget: host.withinBudget,
     writer: host.writer,

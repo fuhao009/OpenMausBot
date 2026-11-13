@@ -50,6 +50,7 @@ export function formatPointsMicros(microPoints: number): string {
 export interface ProductAccountNotice {
   tone: "info" | "success" | "warning" | "error";
   key: LocaleKey;
+  params?: { n: string };
 }
 
 const RUNTIME_ERRORS: Readonly<Record<string, LocaleKey>> = {
@@ -97,7 +98,7 @@ const SIGN_IN_ERRORS: Readonly<Record<string, LocaleKey>> = {
 const AI_NOTICES: Readonly<Record<string, LocaleKey>> = {
   pending: "product.pending",
   ready: "product.ready",
-  insufficient_balance: "product.insufficient_balance",
+  insufficient_balance: "product.billing.insufficient",
   suspended: "product.suspended",
   unavailable: "product.unavailable",
 };
@@ -109,6 +110,9 @@ const AI_NOTICES: Readonly<Record<string, LocaleKey>> = {
  */
 export function productAccountNotice(state: ProductAccountState): ProductAccountNotice | null {
   const code = state.errorCode;
+  if (code === "sign_out_draining") return { tone: "info", key: "product.lifecycle.draining" };
+  if (code === "installation_replaced") return { tone: "error", key: "product.lifecycle.replaced" };
+  if (code === "installation_renewal_failed") return { tone: "warning", key: "product.lifecycle.renewalFailed" };
   if (code && RUNTIME_ERRORS[code]) return { tone: "error", key: RUNTIME_ERRORS[code]! };
   if (code && SIGN_IN_ERRORS[code]) return { tone: "error", key: SIGN_IN_ERRORS[code]! };
   if (state.runtime === "error") return { tone: "error", key: "product.runtimeError" };
@@ -119,7 +123,7 @@ export function productAccountNotice(state: ProductAccountState): ProductAccount
   if (state.ai && AI_NOTICES[state.ai.state]) {
     const tone = state.ai.state === "ready" ? "success"
       : state.ai.state === "pending" || state.ai.state === "unavailable" ? "info" : "warning";
-    return { tone, key: AI_NOTICES[state.ai.state]! };
+    return { tone, key: AI_NOTICES[state.ai.state]!, ...(state.ai.state === "insufficient_balance" ? { params: { n: String(state.ai.availableMicroPoints / 1_000_000) } } : {}) };
   }
   if (code) return { tone: "error", key: "product.error" };
   return null;
