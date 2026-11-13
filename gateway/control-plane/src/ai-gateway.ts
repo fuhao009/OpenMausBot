@@ -3,7 +3,7 @@ import { findModel, publicModels, type AiConfig, type AiModelConfig } from "./ai
 import { loadRuntimeAiConfig } from "./channel-store";
 import { markRequestStreaming, releaseRequest, reservationMicroPoints, reserveRequest, reviewRequest, settleRequest } from "./ai-wallet";
 import { HTTPError, JSON_HEADERS, json, readBoundedJSON } from "./http";
-import { applyBillingCatalog, estimateTaskMicroPoints, planTaskBilling, refreshBillingController, type TaskBillingSnapshot } from "./task-billing";
+import { applyBillingCatalog, estimateTaskMicroPoints, inputReservationTokens, planTaskBilling, refreshBillingController, type TaskBillingSnapshot } from "./task-billing";
 
 /** Screenshots and tool context ride in this body; still bounded. */
 export const AI_REQUEST_LIMIT_BYTES = 48 * 1024 * 1024;
@@ -14,6 +14,7 @@ export const AI_JSON_RESPONSE_LIMIT_BYTES = 16 * 1024 * 1024;
 /** One upstream exchange; a tool follow-up is a separate request with its own
  * reservation. */
 export const AI_UPSTREAM_TIMEOUT_MS = 300_000;
+export const DISCONNECT_DRAIN_MS = 120_000;
 
 const MODELS_PATH = "/v1/ai/models";
 const CHAT_PATH = "/v1/ai/chat/completions";
@@ -78,6 +79,7 @@ interface PreparedRequest {
   outputCap: number;
   stream: boolean;
   upstream: Record<string, unknown>;
+  inputReserve?: number;
   billing?: TaskBillingSnapshot;
 }
 
@@ -86,6 +88,7 @@ interface UpstreamControl {
   dispose: () => void;
   signal: AbortSignal;
   timedOut: () => boolean;
+  disconnected: () => boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -283,7 +286,8 @@ async function preparedRequest(env: Env, body: Record<string, unknown>, aiConfig
   }
   const prepared = mode === "chat" ? prepareChat(wire, model) : prepareResponses(wire, model);
   if (plan) prepared.billing = plan.snapshot;
-  const reserved = plan?.snapshot.reservedMicroPoints ?? reservationMicroPoints({ ...model, maxOutputTokens: prepared.outputCap });
+  prepared.inputReserve = plan?.snapshot.maxInputTokens ?? inputReservationTokens(body, model.maxContextTokens, prepared.outputCap);
+  const reserved = plan?.snapshot.reservedMicroPoints ?? reservationMicroPoints({ ...model, maxContextTokens: prepared.inputReserve, maxOutputTokens: prepared.outputCap });
   if (isRecord(budget) && reserved > (budget.maxMicroPoints as number)) throw new HTTPError(402, "budget_exceeded");
   return prepared;
 }
@@ -347,17 +351,19 @@ async function settleUsage(env: Env, requestId: string, candidate: UsageCandidat
 }
 
 /** Null when the usage settled, else why it did not. */
-async function settleOutcome(env: Env, requestId: string, candidate: UsageCandidate | null): Promise<string | null> {
+async function settleOutcome(env: Env, requestId: string, candidate: UsageCandidate | null, reason: string | null = null): Promise<string | null> {
   if (!candidate) {
-    await markReview(env, requestId, "usage_missing");
-    return "usage_missing";
+    const missing = reason === "client_disconnected_settled" ? "client_disconnected" : "usage_missing";
+    await markReview(env, requestId, missing);
+    return missing;
   }
   const { cached, input, output, write, writeHour } = candidate;
   if (!isCount(input) || !isCount(output) || (cached !== null && (!isCount(cached) || cached > input))
       || (write !== null && !isCount(write)) || (writeHour !== null && !isCount(writeHour))
       || Number(cached ?? 0) + Number(write ?? 0) + Number(writeHour ?? 0) > Number(input)) {
-    await markReview(env, requestId, "usage_invalid");
-    return "usage_invalid";
+    const invalidUsage = reason === "client_disconnected_settled" ? "client_disconnected" : "usage_invalid";
+    await markReview(env, requestId, invalidUsage);
+    return invalidUsage;
   }
   try {
     const result = await settleRequest(env, requestId, {
@@ -366,7 +372,7 @@ async function settleOutcome(env: Env, requestId: string, candidate: UsageCandid
       outputTokens: output,
       cacheWriteTokens: write === null ? null : write as number,
       cacheWriteHourTokens: writeHour === null ? null : writeHour as number,
-    });
+    }, Date.now(), reason);
     await refreshBillingController(env).catch(() => {
       console.error(JSON.stringify({ message: "billing controller refresh failed", requestId }));
     });
@@ -379,12 +385,14 @@ async function settleOutcome(env: Env, requestId: string, candidate: UsageCandid
 function createUpstreamControl(requestSignal: AbortSignal): UpstreamControl {
   const controller = new AbortController();
   let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, AI_UPSTREAM_TIMEOUT_MS);
-  const onClientAbort = () => controller.abort();
-  if (requestSignal.aborted) controller.abort();
+  let disconnected = false;
+  let timer = setTimeout(() => { timedOut = true; controller.abort(); }, AI_UPSTREAM_TIMEOUT_MS);
+  const onClientAbort = () => {
+    disconnected = true;
+    clearTimeout(timer);
+    timer = setTimeout(() => { timedOut = true; controller.abort(); }, DISCONNECT_DRAIN_MS);
+  };
+  if (requestSignal.aborted) onClientAbort();
   else requestSignal.addEventListener("abort", onClientAbort, { once: true });
   return {
     abort: () => controller.abort(),
@@ -394,6 +402,7 @@ function createUpstreamControl(requestSignal: AbortSignal): UpstreamControl {
     },
     signal: controller.signal,
     timedOut: () => timedOut,
+    disconnected: () => disconnected,
   };
 }
 
@@ -560,13 +569,14 @@ interface StreamOptions {
   model: AiModelConfig;
   requestId: string;
   upstream: Response;
+  waitUntil: (promise: Promise<unknown>) => void;
+  requestSignal: AbortSignal;
 }
 
-/** Relays upstream SSE with backpressure. The wallet settles before the
- * terminal frame is released; a disconnect or a stream without terminal usage
- * is an unknown outcome and stays a reviewable reservation. */
+/** Relays upstream SSE with backpressure while connected. After disconnect,
+ * draining continues in the execution context until usage or the drain deadline. */
 function forwardStream(options: StreamOptions): Response {
-  const { control, env, mode, model, requestId, upstream } = options;
+  const { control, env, mode, model, requestId, upstream, waitUntil } = options;
   const reader = upstream.body?.getReader();
   if (!reader) {
     void markReview(env, requestId, "upstream_body_missing");
@@ -583,10 +593,16 @@ function forwardStream(options: StreamOptions): Response {
   let chatUsage: UsageCandidate | null = null;
   let finished = false;
   let terminal = false;
+  let disconnected = control.disconnected();
+  let drainTimer: NodeJS.Timeout | undefined;
+  const completion = Promise.withResolvers<void>();
+  waitUntil(completion.promise);
 
   async function shutdown() {
     if (finished) return;
     finished = true;
+    clearTimeout(drainTimer);
+    options.requestSignal.removeEventListener("abort", disconnect);
     try {
       await reader?.cancel();
     } catch {
@@ -594,6 +610,7 @@ function forwardStream(options: StreamOptions): Response {
     }
     control.abort();
     control.dispose();
+    completion.resolve();
   }
 
   async function processFrames(frames: SseFrame[]): Promise<boolean> {
@@ -604,7 +621,7 @@ function forwardStream(options: StreamOptions): Response {
         continue;
       }
       if (mode === "chat" && data === "[DONE]") {
-        if (await settleUsage(env, requestId, chatUsage)) pending.push(renderFrame(frame));
+        if (await settleOutcome(env, requestId, chatUsage, disconnected || control.disconnected() ? "client_disconnected_settled" : null) === null) pending.push(renderFrame(frame));
         else pending.push(renderStreamError("The response could not be settled."));
         return false;
       }
@@ -613,7 +630,7 @@ function forwardStream(options: StreamOptions): Response {
       try {
         parsed = JSON.parse(data);
       } catch {
-        await markReview(env, requestId, "upstream_stream_malformed");
+        await markReview(env, requestId, disconnected ? "client_disconnected" : "upstream_stream_malformed");
         pending.push(renderStreamError("The upstream response was malformed."));
         return false;
       }
@@ -622,7 +639,7 @@ function forwardStream(options: StreamOptions): Response {
         continue;
       }
       if (parsed.error !== undefined && parsed.error !== null) {
-        await markReview(env, requestId, "upstream_stream_error");
+        await markReview(env, requestId, disconnected ? "client_disconnected" : "upstream_stream_error");
         const failure = upstreamFailure(parsed.error, "The upstream request failed.");
         logStreamFailure(requestId, "upstream_stream_error", failure.code, "error-frame");
         pending.push(renderStreamError(failure.message, failure.code));
@@ -641,7 +658,7 @@ function forwardStream(options: StreamOptions): Response {
       const changed = response ? rewriteModel(response, model.upstreamModel, model.id) : false;
       if (isTerminalEvent(parsed.type)) {
         const candidate = response ? responsesUsageCandidate(response) : null;
-        const unsettled = await settleOutcome(env, requestId, candidate);
+        const unsettled = await settleOutcome(env, requestId, candidate, disconnected || control.disconnected() ? "client_disconnected_settled" : null);
         if (unsettled === null) {
           pending.push(changed ? renderData(frame, JSON.stringify(parsed)) : renderFrame(frame));
         } else if (parsed.type === "response.completed") {
@@ -658,68 +675,67 @@ function forwardStream(options: StreamOptions): Response {
     return true;
   }
 
-  return new Response(new ReadableStream<Uint8Array>({
-    async cancel() {
+  let pumping: Promise<void> | undefined;
+  async function pump(controller?: ReadableStreamDefaultController<Uint8Array>): Promise<void> {
+    for (;;) {
       if (finished) return;
-      await markReview(env, requestId, "client_disconnected");
-      await shutdown();
-    },
-    async pull(controller) {
-      for (;;) {
+      if (disconnected) pending.length = 0;
+      if (pending.length) {
+        if (!controller || (controller.desiredSize ?? 0) <= 0) return;
+        controller.enqueue(encoder.encode(pending.shift()!));
+        continue;
+      }
+      if (terminal) {
+        await shutdown();
+        if (!disconnected) controller?.close();
+        return;
+      }
+      if (!disconnected && (!controller || (controller.desiredSize ?? 0) <= 0)) return;
+      try {
+        const chunk = await reader!.read();
         if (finished) return;
-        if (pending.length > 0) {
-          if (controller.desiredSize !== null && controller.desiredSize <= 0) return;
-          const text = pending.shift();
-          if (text !== undefined) controller.enqueue(encoder.encode(text));
-          continue;
-        }
-        if (terminal) {
-          await shutdown();
-          controller.close();
-          return;
-        }
-        if (controller.desiredSize !== null && controller.desiredSize <= 0) return;
-
-        let chunk: ReadableStreamReadResult<Uint8Array>;
-        try {
-          chunk = await reader.read();
-        } catch {
-          await markReview(env, requestId, control.timedOut() ? "upstream_timeout" : "upstream_stream_error");
-          pending.push(renderStreamError("The upstream stream failed."));
-          terminal = true;
-          continue;
-        }
-        if (chunk.done) {
-          let frames: SseFrame[];
-          try {
-            frames = sse.flush();
-          } catch {
-            await markReview(env, requestId, "upstream_frame_too_large");
-            pending.push(renderStreamError("The upstream response was malformed."));
-            terminal = true;
-            continue;
-          }
-          if (await processFrames(frames)) {
-            // A stream that ends without a terminal usage is unknown: keep the
-            // reservation for review, and never fabricate a successful end.
-            await markReview(env, requestId, "stream_ended_without_terminal_usage");
-            pending.push(renderStreamError("The upstream stream ended unexpectedly."));
-          }
-          terminal = true;
-          continue;
-        }
         let frames: SseFrame[];
         try {
-          frames = sse.push(decoder.decode(chunk.value, { stream: true }));
+          frames = chunk.done ? sse.flush() : sse.push(decoder.decode(chunk.value, { stream: true }));
         } catch {
-          await markReview(env, requestId, "upstream_frame_too_large");
+          await markReview(env, requestId, disconnected ? "client_disconnected" : "upstream_frame_too_large");
           pending.push(renderStreamError("The upstream response was malformed."));
           terminal = true;
           continue;
         }
-        if (!(await processFrames(frames))) terminal = true;
+        terminal = !(await processFrames(frames));
+        if (chunk.done && !terminal) {
+          await markReview(env, requestId, disconnected ? "client_disconnected" : "stream_ended_without_terminal_usage");
+          pending.push(renderStreamError("The upstream stream ended unexpectedly."));
+          terminal = true;
+        }
+      } catch {
+        if (finished) return;
+        await markReview(env, requestId, disconnected || control.disconnected() ? "client_disconnected" : control.timedOut() ? "upstream_timeout" : "upstream_stream_error");
+        pending.push(renderStreamError("The upstream stream failed."));
+        terminal = true;
       }
+    }
+  }
+  function runPump(controller?: ReadableStreamDefaultController<Uint8Array>): Promise<void> {
+    if (!pumping) pumping = pump(controller).finally(() => { pumping = undefined; });
+    return pumping;
+  }
+  function disconnect() {
+    if (finished || disconnected && drainTimer !== undefined) return;
+    disconnected = true;
+    drainTimer = setTimeout(() => {
+      waitUntil(markReview(env, requestId, "client_disconnected").then(shutdown));
+    }, DISCONNECT_DRAIN_MS);
+    waitUntil(runPump().then(() => finished ? undefined : runPump()));
+  }
+  return new Response(new ReadableStream<Uint8Array>({
+    start() {
+      options.requestSignal.addEventListener("abort", disconnect, { once: true });
+      if (disconnected || options.requestSignal.aborted) disconnect();
     },
+    cancel() { disconnect(); },
+    pull(controller) { return runPump(controller); },
   }), {
     headers: { "content-type": "text/event-stream; charset=utf-8" },
     status: 200,
@@ -810,6 +826,7 @@ async function forwardJSON(options: {
   model: AiModelConfig;
   requestId: string;
   upstream: Response;
+  control: UpstreamControl;
 }): Promise<Response> {
   const { env, mode, model, requestId, upstream } = options;
   let body: Record<string, unknown>;
@@ -821,17 +838,17 @@ async function forwardJSON(options: {
     if (!isRecord(parsed)) throw new Error("not an object");
     body = parsed;
   } catch {
-    await markReview(env, requestId, "upstream_body_unreadable");
+    await markReview(env, requestId, options.control.disconnected() ? "client_disconnected" : "upstream_body_unreadable");
     return inferenceError(502, "upstream_error", "The upstream response could not be read.");
   }
   if (body.error !== undefined && body.error !== null) {
     const candidate = mode === "chat" ? chatUsageCandidate(body) : responsesUsageCandidate(body);
-    if (candidate) await settleUsage(env, requestId, candidate);
+    if (candidate) await settleOutcome(env, requestId, candidate, options.control.disconnected() ? "client_disconnected_settled" : null);
     else await markReview(env, requestId, "upstream_error_body");
     return inferenceError(502, "upstream_error", "The upstream request failed.");
   }
   const candidate = mode === "chat" ? chatUsageCandidate(body) : responsesUsageCandidate(body);
-  if (!(await settleUsage(env, requestId, candidate))) {
+  if (await settleOutcome(env, requestId, candidate, options.control.disconnected() ? "client_disconnected_settled" : null) !== null) {
     return inferenceError(502, "upstream_error", "The response could not be settled.");
   }
   const relayed = rewriteModel(body, model.upstreamModel, model.id) ? JSON.stringify(body) : text;
@@ -854,7 +871,7 @@ async function reserve(options: {
     pricing: {
       cachedRate: model.cachedInputMicroPointsPerMillion,
       inputRate: model.inputMicroPointsPerMillion,
-      maxInputTokens: prepared.billing?.maxInputTokens ?? model.maxContextTokens,
+      maxInputTokens: prepared.inputReserve ?? model.maxContextTokens,
       maxOutputTokens: prepared.outputCap,
       outputRate: model.outputMicroPointsPerMillion,
       pricingVersion: model.pricingVersion,
@@ -878,8 +895,9 @@ async function dispatch(options: {
   prepared: PreparedRequest;
   request: Request;
   requestId: string;
+  waitUntil: (promise: Promise<unknown>) => void;
 }): Promise<Response> {
-  const { aiConfig, env, fetcher, mode, prepared, request, requestId } = options;
+  const { aiConfig, env, fetcher, mode, prepared, request, requestId, waitUntil } = options;
   const route = aiConfig.routes?.get(prepared.model.id);
   const base = aiConfig.routes ? route?.baseURL : aiConfig.upstreamBaseURL;
   const apiKey = aiConfig.routes ? route?.apiKey : aiConfig.upstreamApiKey;
@@ -939,7 +957,7 @@ async function dispatch(options: {
         else await markReview(env, requestId, "upstream_unexpected_stream");
         return inferenceError(502, "upstream_error", "The upstream returned an unexpected stream.");
       }
-      const response = forwardStream({ control, env, mode, model: prepared.model, requestId, upstream });
+      const response = forwardStream({ control, env, mode, model: prepared.model, requestId, upstream, waitUntil, requestSignal: request.signal });
       streamOwned = true;
       return response;
     }
@@ -952,10 +970,10 @@ async function dispatch(options: {
       else await markReview(env, requestId, "upstream_not_streaming");
       return inferenceError(502, "upstream_error", "The upstream did not stream the response.");
     }
-    return await forwardJSON({ env, mode, model: prepared.model, requestId, upstream });
+    return await forwardJSON({ env, mode, model: prepared.model, requestId, upstream, control });
   } catch {
     // The request may have reached the upstream: never assume it did not.
-    await markReview(env, requestId, control.timedOut() ? "upstream_timeout" : "upstream_unreachable");
+    await markReview(env, requestId, control.disconnected() ? "client_disconnected" : control.timedOut() ? "upstream_timeout" : "upstream_unreachable");
     return inferenceError(502, "upstream_error", "The upstream request failed.");
   } finally {
     if (!streamOwned) control.dispose();
@@ -968,6 +986,7 @@ export async function routeAiGateway(
   request: Request,
   env: Env,
   fetcher: typeof fetch = fetch,
+  waitUntil: (promise: Promise<unknown>) => void = promise => { void promise.catch(() => {}); },
 ): Promise<Response | null> {
   const { pathname } = new URL(request.url);
   if (pathname !== MODELS_PATH && pathname !== CHAT_PATH && pathname !== RESPONSES_PATH && pathname !== QUOTE_PATH) return null;
@@ -1024,7 +1043,9 @@ export async function routeAiGateway(
       prepared,
       tokenId: admission.tokenId,
     });
-    const response = await dispatch({ aiConfig, env, fetcher, mode, prepared, request, requestId });
+    const exchange = dispatch({ aiConfig, env, fetcher, mode, prepared, request, requestId, waitUntil });
+    waitUntil(exchange);
+    const response = await exchange;
     response.headers.set("x-ai-request-id", requestId);
     response.headers.set("x-ai-model", prepared.model.id);
     response.headers.set("x-ai-pricing-version", prepared.model.pricingVersion);

@@ -101,6 +101,20 @@ export async function saveBillingPolicy(env: Env, actorId: string, input: unknow
 
 function active(config: AiConfig, m: AiModelConfig): boolean { return m.enabled && (config.routes ? config.routes.has(m.id) : !!config.upstreamBaseURL && !!config.upstreamApiKey); }
 const rank: Record<Complexity, number> = { simple: 0, standard: 1, complex: 2 };
+const INPUT_RESERVATION_MULTIPLIER = 1.5;
+const INPUT_RESERVATION_PADDING_TOKENS = 2048;
+
+/** Shared admission estimate for fixed pricing, task pricing and quotes. */
+export function inputReservationTokens(body: Record<string, unknown>, context: number, output: number): number {
+  const assessment = assess(body);
+  return boundedInputReservation(assessment, context, output);
+}
+
+function boundedInputReservation(assessment: { vision: boolean; estimatedInputTokens: number }, context: number, output: number): number {
+  const remaining = context - output;
+  return assessment.vision ? remaining : Math.min(remaining,
+    Math.ceil(assessment.estimatedInputTokens * INPUT_RESERVATION_MULTIPLIER) + INPUT_RESERVATION_PADDING_TOKENS);
+}
 /** Local structural heuristic only. Request text is inspected transiently, never stored. */
 function assess(body: Record<string, unknown>) {
   const content = body.messages ?? body.input ?? "";
@@ -156,9 +170,9 @@ export async function planTaskBilling(env: Env, config: AiConfig, mode: "chat" |
     try { tariff = resolveCostTariff(model.upstreamModel, tier, now); } catch { if (!auto) throw new HTTPError(400, "unsupported_service_tier"); continue; }
     if (!tariff) continue;
     const maxOutputTokens = Math.min((outputValue as number | undefined) ?? model.maxOutputTokens, model.maxOutputTokens);
-    const maxInputTokens = model.maxContextTokens - maxOutputTokens;
-    // Images have no reliable local tokenizer; reserve all remaining context.
-    if (maxInputTokens < a.estimatedInputTokens) continue;
+    const remaining = model.maxContextTokens - maxOutputTokens;
+    if (remaining < a.estimatedInputTokens) continue;
+    const maxInputTokens = boundedInputReservation(a, model.maxContextTokens, maxOutputTokens);
     const s: TaskBillingSnapshot = { version: 1, policyRevision: view.revision, currency: "USD", pointsPerCurrency: view.policy.pointsPerCurrency, multiplierBps: view.controller.multiplierBps, tariffId: tariff.id, requestedModel: requested, selectedModel: model.id, channelId: model.channelId ?? null, serviceTier: model.upstreamModel.endsWith("-ultrafast") ? "ultrafast" : tier, startedAt: now, complexity: a.complexity, score: a.score, reasons: a.reasons, estimatedInputTokens: a.estimatedInputTokens, maxInputTokens, maxOutputTokens, rates: tariff.rates, longRates: tariff.longRates, longThreshold: tariff.longThreshold, longInclusive: tariff.longInclusive, reservedMicroPoints: 0, maxCostMicroCurrency: 0 };
     Object.assign(s, calculateTaskReservation(s));
     candidates.push({ model: saleModel(model, s), snapshot: s });

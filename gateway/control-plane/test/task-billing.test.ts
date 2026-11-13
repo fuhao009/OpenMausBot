@@ -2,8 +2,15 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 import { readAiConfig } from "../src/ai-config";
 import { getCostTariffs, parseCostDecimal, resolveCostTariff } from "../src/cost-tariffs";
-import { applyBillingCatalog, calculateTaskCharge, calculateTaskReservation, DEFAULT_BILLING_POLICY, estimateTaskMicroPoints, getBillingMetrics, loadBillingPolicy, planTaskBilling, refreshBillingController, saveBillingPolicy, type TaskBillingSnapshot } from "../src/task-billing";
+import { applyBillingCatalog, calculateTaskCharge, calculateTaskReservation, DEFAULT_BILLING_POLICY, estimateTaskMicroPoints, getBillingMetrics, inputReservationTokens, loadBillingPolicy, planTaskBilling, refreshBillingController, saveBillingPolicy, type TaskBillingSnapshot } from "../src/task-billing";
 
+it("reserves padded text estimates, caps context and keeps full image capacity", () => {
+  const body = { messages: [{ role: "user", content: "hello" }] };
+  const estimate = new TextEncoder().encode(JSON.stringify(body)).length;
+  expect(inputReservationTokens(body, 500000, 100)).toBe(Math.ceil(estimate * 1.5) + 2048);
+  expect(inputReservationTokens(body, 2200, 100)).toBe(2100);
+  expect(inputReservationTokens({ messages: [{ content: [{ type: "image_url", image_url: { url: "https://example.test/a.png" } }] }] }, 500000, 100)).toBe(499900);
+});
 function snapshot(id = "gpt-6-luna"): TaskBillingSnapshot {
   const tariff = resolveCostTariff(id, "default", Date.UTC(2026, 10, 9, 0))!;
   const s: TaskBillingSnapshot = { version: 1, policyRevision: 1, currency: "USD", pointsPerCurrency: 1000, multiplierBps: 22000, tariffId: id, requestedModel: id, selectedModel: id, channelId: "test", serviceTier: "default", startedAt: 0, complexity: "simple", score: 0, reasons: ["test"], estimatedInputTokens: 100, maxInputTokens: 500000, maxOutputTokens: 10000, rates: tariff.rates, longRates: tariff.longRates, longThreshold: tariff.longThreshold, longInclusive: tariff.longInclusive, reservedMicroPoints: 0, maxCostMicroCurrency: 0 };
@@ -106,7 +113,7 @@ describe("policy CAS and routing", () => {
     const selected = await planTaskBilling(env, config(), "chat", { model: "auto-chat", messages: [{ role: "user", content: "hello" }], max_tokens: 100 });
     expect(selected!.model.id).toBe("luna");
     expect(selected!.snapshot.requestedModel).toBe("auto-chat");
-    expect(selected!.snapshot.maxInputTokens).toBe(499900);
+    expect(selected!.snapshot.maxInputTokens).toBe(Math.ceil(selected!.snapshot.estimatedInputTokens * 1.5) + 2048);
     expect(selected!.snapshot.reservedMicroPoints).toBe(calculateTaskReservation(selected!.snapshot).reservedMicroPoints);
     expect(selected!.model.inputMicroPointsPerMillion).toBe(550000000);
     const catalog = await applyBillingCatalog(env, config());

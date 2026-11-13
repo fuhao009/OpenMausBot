@@ -398,31 +398,28 @@ describe("reservation and settlement", () => {
     expect(await settleRequest(env, id, USAGE)).toEqual({ chargedMicroPoints: 2_100, status: "settled" });
   });
 
-  it("moves usage beyond the reservation bounds to review without charging", async () => {
-    const account = await fundedAccount({ availableMicroPoints: 100_000 });
-    const overInput = await admittedId(account);
-    expect(await settleRequest(env, overInput, { ...USAGE, inputTokens: 1_001 }))
-      .toEqual({ reason: "usage_over_reservation", status: "review" });
-    expect(await getRequest(env, overInput)).toMatchObject({
-      state: "review",
-      settlementReason: "usage_over_reservation",
-      chargedMicroPoints: null,
-      reservedMicroPoints: 2_400,
-    });
+  it("settles overages from available funds and preserves insolvent usage for review", async () => {
+    const account = await fundedAccount({ availableMicroPoints: 3000 });
+    const over = await admittedId(account);
+    const results = await Promise.all([
+      settleRequest(env, over, { inputTokens: 1100, outputTokens: 100 }),
+      settleRequest(env, over, { inputTokens: 1100, outputTokens: 100 }),
+    ]);
+    expect(results).toEqual([{ status: "settled", chargedMicroPoints: 2600 }, { status: "settled", chargedMicroPoints: 2600 }]);
+    expect(await balanceOf(account.userId)).toMatchObject({ availableMicroPoints: 400, reservedMicroPoints: 0 });
 
-    const overOutput = await admittedId(account);
-    expect(await settleRequest(env, overOutput, { ...USAGE, outputTokens: 101 }))
-      .toEqual({ reason: "usage_over_reservation", status: "review" });
-
-    const impossibleCached = await admittedId(account);
-    expect(await settleRequest(env, impossibleCached, { ...USAGE, cachedInputTokens: 1_001 }))
-      .toEqual({ reason: "usage_invalid", status: "review" });
-
-    // Every review keeps its own reservation until an operator settles it.
-    expect(await balanceOf(account.userId)).toMatchObject({
-      availableMicroPoints: 100_000 - 3 * 2_400,
-      reservedMicroPoints: 3 * 2_400,
-    });
+    const poorUserId = await seedUser("overage-insufficient@example.com");
+    await enableAccount(account.operatorUserId, poorUserId, 2500);
+    const poor = { operatorUserId: account.operatorUserId, userId: poorUserId, tokenId: await seedToken(poorUserId) };
+    const partial = await admittedId(poor);
+    expect(await settleRequest(env, partial, { inputTokens: 1500, outputTokens: 100 }))
+      .toEqual({ status: "review", reason: "usage_exceeds_reservation" });
+    expect(await getRequest(env, partial)).toMatchObject({ chargedMicroPoints: 2500, inputTokens: 1500, outputTokens: 100 });
+    expect(await balanceOf(poor.userId)).toMatchObject({ availableMicroPoints: 0, reservedMicroPoints: 0 });
+    expect(await settleRequest(env, partial, USAGE)).toEqual({ status: "review", reason: "usage_exceeds_reservation" });
+    await applyAdjustment(env, { operationId: crypto.randomUUID(), operatorUserId: poor.operatorUserId,
+      ownerUserId: poor.userId, kind: "settle", requestId: partial, amountMicroPoints: 2400, reason: "reconciled" });
+    expect(await balanceOf(poor.userId)).toMatchObject({ availableMicroPoints: 100, reservedMicroPoints: 0 });
   });
 
   it("releases a provably unsent request at zero exactly once", async () => {
@@ -499,8 +496,7 @@ describe("task billing ledger", () => {
     const account = await fundedAccount({ availableMicroPoints: 30000000 });
     const billing = snapshot();
     const over = await dynamicId(account, billing);
-    expect(await settleRequest(env, over, { ...measured, inputTokens: 1001 }, billing.startedAt + 50))
-      .toEqual({ status: "review", reason: "usage_over_reservation" });
+    expect(await reviewRequest(env, over, "usage_unknown", billing.startedAt + 50)).toBe(true);
     expect(await getRequest(env, over)).toMatchObject({ costMicroCurrency: null, costStatus: "unknown", latencyMs: 50 });
     await applyAdjustment(env, { operationId: crypto.randomUUID(), operatorUserId: account.operatorUserId,
       ownerUserId: account.userId, kind: "settle", requestId: over, amountMicroPoints: 10,

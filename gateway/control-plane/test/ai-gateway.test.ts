@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { routeAiGateway } from "../src/ai-gateway";
+import { DISCONNECT_DRAIN_MS, routeAiGateway } from "../src/ai-gateway";
 import { createAuth } from "../src/auth";
 import { readAuthConfig } from "../src/config";
 import { sha256 } from "../src/installations";
@@ -576,7 +576,7 @@ describe("ai gateway admission", () => {
 
   it("reports insufficient balance and busy accounts without calling the upstream", async () => {
     const short = await signIn("short@example.com");
-    const shortToken = await seedAccount({ availableMicroPoints: 2399, sessionId: short.sessionId, userId: short.userId });
+    const shortToken = await seedAccount({ availableMicroPoints: 2199, sessionId: short.sessionId, userId: short.userId });
     const first = recorder(() => jsonResponse({}));
     const shortResponse = await routeAiGateway(
       inferenceRequest("/v1/ai/chat/completions", chatBody(), shortToken),
@@ -588,7 +588,7 @@ describe("ai gateway admission", () => {
     await expect(shortResponse?.json()).resolves.toMatchObject({ error: { code: "insufficient_balance", type: "insufficient_quota" } });
     expect(first.calls).toHaveLength(0);
     expect(await requests()).toHaveLength(0);
-    expect(await balance(short.userId)).toEqual({ available_micro_points: 2399, reserved_micro_points: 0 });
+    expect(await balance(short.userId)).toEqual({ available_micro_points: 2199, reserved_micro_points: 0 });
   });
 });
 
@@ -631,7 +631,7 @@ describe("ai gateway chat", () => {
     const rows = await requests();
     expect(rows[0]).toMatchObject({ state: "review", charged_micro_points: null, settlement_reason: `upstream_status_${status}` });
     expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
-    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(await balance(userId)).toEqual({ available_micro_points: 7800, reserved_micro_points: 2200 });
     expect(calls).toHaveLength(1);
   });
 
@@ -668,7 +668,7 @@ describe("ai gateway chat", () => {
     const rows = await requests();
     expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
     expect(rows[0]).toMatchObject({ state: "review", charged_micro_points: null, settlement_reason: "operator_review" });
-    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(await balance(userId)).toEqual({ available_micro_points: 7800, reserved_micro_points: 2200 });
     expect(calls).toHaveLength(1);
   });
 
@@ -690,7 +690,7 @@ describe("ai gateway chat", () => {
     const rows = await requests();
     expect(rows[0]).toMatchObject({ state: "review", charged_micro_points: null });
     expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
-    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(await balance(userId)).toEqual({ available_micro_points: 7800, reserved_micro_points: 2200 });
     expect(calls).toHaveLength(1);
   });
 
@@ -743,13 +743,13 @@ describe("ai gateway chat", () => {
     const rows = await requests();
     expect(rows[0]).toMatchObject({ state: "review", charged_micro_points: null });
     expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
-    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(await balance(userId)).toEqual({ available_micro_points: 7800, reserved_micro_points: 2200 });
     expect(calls).toHaveLength(1);
   });
 
   it.each([
     { completion_tokens: 1, prompt_tokens: -1 },
-    { completion_tokens: 1, prompt_tokens: 5000 },
+    { completion_tokens: 1, prompt_tokens: "invalid" },
     { prompt_tokens: 100 },
   ])("reviews unusable usage on 429 instead of silently releasing it: %j", async (usage) => {
     const { sessionId, userId } = await signIn(`invalid-refusal-${crypto.randomUUID()}@example.com`);
@@ -763,7 +763,7 @@ describe("ai gateway chat", () => {
     const rows = await requests();
     expect(rows[0]).toMatchObject({ state: "review", charged_micro_points: null });
     expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
-    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(await balance(userId)).toEqual({ available_micro_points: 7800, reserved_micro_points: 2200 });
     expect(calls).toHaveLength(1);
   });
 
@@ -808,12 +808,12 @@ describe("ai gateway chat", () => {
       charged_micro_points: 2100,
       endpoint: "chat",
       input_tokens: 1000,
-      max_input_tokens: 1000,
+      max_input_tokens: 900,
       max_output_tokens: 100,
       model: "m1",
       output_tokens: 100,
       pricing_version: "v1",
-      reserved_micro_points: 2400,
+      reserved_micro_points: 2200,
       state: "settled",
     });
     expect(await balance(userId)).toEqual({ available_micro_points: 7900, reserved_micro_points: 0 });
@@ -909,7 +909,7 @@ describe("ai gateway chat", () => {
     expect(response?.headers.get("x-ai-request-id")).toBe(rows[0].id);
     expect(rows[0]).toMatchObject({ charged_micro_points: null, state: "review" });
     expect(rows[0].settlement_reason).toBe("usage_missing");
-    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(await balance(userId)).toEqual({ available_micro_points: 7800, reserved_micro_points: 2200 });
   });
 
   it("treats a stream that ends without terminal usage as review, never a free success", async () => {
@@ -930,13 +930,13 @@ describe("ai gateway chat", () => {
     const rows = await requests();
     expect(rows[0]).toMatchObject({ charged_micro_points: null, state: "review" });
     expect(rows[0].settlement_reason).toBe("stream_ended_without_terminal_usage");
-    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(await balance(userId)).toEqual({ available_micro_points: 7800, reserved_micro_points: 2200 });
   });
 
   it("sends a review signal instead of a silent truncation when settlement fails", async () => {
     const { sessionId, userId } = await signIn("chat-settle-fail@example.com");
     const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
-    // Usage beyond the reserved bounds: the wallet refuses and reviews it.
+    // Insolvent usage consumes available funds and preserves the unpaid outcome.
     const frames = [
       `data: {"choices":[{"delta":{"content":"x"},"index":0}],"model":"upstream-m1"}\n\n`,
       `data: {"choices":[],"model":"upstream-m1","usage":{"completion_tokens":100,"prompt_tokens":5000}}\n\n`,
@@ -954,8 +954,8 @@ describe("ai gateway chat", () => {
     expect(text).toContain("event: error");
 
     const rows = await requests();
-    expect(rows[0]).toMatchObject({ charged_micro_points: null, state: "review" });
-    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(rows[0]).toMatchObject({ charged_micro_points: 10000, state: "review", settlement_reason: "usage_exceeds_reservation", input_tokens: 5000 });
+    expect(await balance(userId)).toEqual({ available_micro_points: 0, reserved_micro_points: 0 });
   });
 
   it("settles usage an error response still reported and never leaks the upstream body", async () => {
@@ -1134,7 +1134,7 @@ describe("ai gateway chat", () => {
     expect(rows[0].settlement_reason).toBe("upstream_frame_too_large");
   }, 60_000);
 
-  it("treats a client disconnect mid-stream as review, never a refund", async () => {
+  it("keeps a disconnected stream draining until its bounded timeout", async () => {
     const { sessionId, userId } = await signIn("chat-disconnect@example.com");
     const token = await seedAccount({ availableMicroPoints: 10_000, sessionId, userId });
     const firstFrame = Promise.withResolvers<void>();
@@ -1159,19 +1159,44 @@ describe("ai gateway chat", () => {
       return new Response(stream, { headers: { "content-type": "text/event-stream" } });
     });
 
+    vi.useFakeTimers();
+    const context = createExecutionContext();
     const response = await routeAiGateway(
       inferenceRequest("/v1/ai/chat/completions", chatBody({ stream: true }), token),
       testEnv(),
       fetcher,
+      promise => context.waitUntil(promise),
     );
     expect(response?.status).toBe(200);
     await firstFrame.promise;
     await response?.body?.cancel();
+    await vi.advanceTimersByTimeAsync(DISCONNECT_DRAIN_MS);
+    await waitOnExecutionContext(context);
 
     const rows = await requests();
     expect(rows[0]).toMatchObject({ charged_micro_points: null, state: "review" });
     expect(rows[0].settlement_reason).toBe("client_disconnected");
-    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(await balance(userId)).toEqual({ available_micro_points: 7800, reserved_micro_points: 2200 });
+  });
+
+  it("drains trusted usage after cancellation and settles exactly once", async () => {
+    const { sessionId, userId } = await signIn("chat-disconnect-settled@example.com");
+    const token = await seedAccount({ availableMicroPoints: 10000, sessionId, userId });
+    let source!: ReadableStreamDefaultController<Uint8Array>;
+    const stream = new ReadableStream<Uint8Array>({ start(controller) { source = controller; } });
+    const context = createExecutionContext();
+    const { fetcher } = recorder(() => new Response(stream, { headers: { "content-type": "text/event-stream" } }));
+    const response = await routeAiGateway(
+      inferenceRequest("/v1/ai/chat/completions", chatBody({ stream: true }), token),
+      testEnv(), fetcher, promise => context.waitUntil(promise),
+    );
+    await response!.body!.cancel();
+    source.enqueue(new TextEncoder().encode(`data: {"choices":[],"usage":${JSON.stringify(CHAT_USAGE)}}\n\ndata: [DONE]\n\n`));
+    source.close();
+    await waitOnExecutionContext(context);
+    expect((await requests())[0]).toMatchObject({ state: "settled", charged_micro_points: 2100,
+      settlement_reason: "client_disconnected_settled", input_tokens: 1000, output_tokens: 100 });
+    expect(await balance(userId)).toEqual({ available_micro_points: 7900, reserved_micro_points: 0 });
   });
 
   it("bills unknown cache detail at the higher rate when cached input costs more", async () => {
@@ -1195,8 +1220,8 @@ describe("ai gateway chat", () => {
     expect(rows[0]).toMatchObject({ input_tokens: 100, output_tokens: 10, state: "settled" });
     expect(rows[0].cached_input_tokens).toBeNull();
     expect(rows[0].charged_micro_points).toBe(340);
-    // The reservation used the higher rate too: 1000 x 3 + 100 x 4 = 3400.
-    expect(rows[0].reserved_micro_points).toBe(3400);
+    // Remaining input context is 900; output cap is 100.
+    expect(rows[0].reserved_micro_points).toBe(3100);
   });
 
   it("bills a reported cache hit at the cached rate when that is higher", async () => {
@@ -1345,7 +1370,7 @@ describe("ai gateway responses", () => {
     ]);
     expect(errorData(text)).toEqual({ code: "server_error", message: "The server had an error while processing your request.", type: "upstream_error" });
     expect((await requests())[0]).toMatchObject({ charged_micro_points: null, state: "review", settlement_reason: "usage_missing" });
-    expect(await balance(userId)).toEqual({ available_micro_points: 7600, reserved_micro_points: 2400 });
+    expect(await balance(userId)).toEqual({ available_micro_points: 7800, reserved_micro_points: 2200 });
     expect(error.mock.calls.map(([line]) => String(line))).toEqual(["[ai-gateway] stream failed request=" + (await requests())[0].id + " reason=usage_missing code=server_error event=response.failed"]);
   });
 

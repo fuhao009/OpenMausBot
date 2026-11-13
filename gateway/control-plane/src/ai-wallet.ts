@@ -157,9 +157,9 @@ function ceilMicroPoints(numerator: bigint): number {
 
 /**
  * The amount a request must hold before it may reach the upstream:
- * `ceil((maxContext × max(inputRate, cachedRate) + effectiveMaxOutput ×
- * outputRate) / 1e6)`. The input ceiling is the model's full context bound,
- * not a guess from the prompt, so an accepted request can never exceed it.
+ * `ceil((inputReservation × max(inputRate, cachedRate) + effectiveMaxOutput ×
+ * outputRate) / 1e6)`. The caller supplies the input reservation estimate;
+ * trusted actual usage can draw additional available funds at settlement.
  */
 export function reservationMicroPoints(model: Pick<
   ProductModel,
@@ -459,6 +459,20 @@ export async function listRequests(
   };
 }
 
+/** Global operator review queue, newest first. */
+export async function listReviewRequests(env: Env, cursor?: string, limit?: number): Promise<{ items: (RequestEntry & { email: string | null })[]; nextCursor: string | null }> {
+  const take = pageLimit(limit);
+  const after = cursor === undefined || cursor === "" ? null : decodeLedgerCursor(cursor);
+  const page = cursorClause("account_ai_requests", "id", after);
+  const rows = await env.DB.prepare(`SELECT ${REQUEST_COLUMNS},
+    (SELECT email FROM user WHERE user.id = account_ai_requests.owner_user_id) AS email
+    FROM account_ai_requests WHERE state = 'review'${page.sql}
+    ORDER BY created_at DESC, id DESC LIMIT ?`).bind(...page.values, take + 1).all<RequestRow & { email: string | null }>();
+  const items = rows.results.slice(0, take).map(row => ({ ...requestEntry(row), email: row.email }));
+  const last = items.at(-1);
+  return { items, nextCursor: rows.results.length > take && last ? encodeCursor({ createdAt: last.createdAt, id: last.id }) : null };
+}
+
 export interface ReserveInput {
   endpoint: "chat" | "responses";
   model: string;
@@ -571,6 +585,8 @@ export async function reserveRequest(
          JOIN "session" s ON s.id = t.session_id AND s."userId" = t.owner_user_id
         WHERE b.owner_user_id = ?
           AND b.enabled = 1
+          AND NOT EXISTS (SELECT 1 FROM account_lifecycle l WHERE l.user_id = b.owner_user_id
+            AND (l.disabled = 1 OR l.deleted = 1 OR l.password_change_required = 1))
           AND b.available_micro_points >= ?`,
     ).bind(
       id,
@@ -659,16 +675,16 @@ export type SettleResult =
   | { status: "missing" };
 
 /**
- * Settles a finished request at its real usage and returns the unused part of
- * the reservation exactly once. Usage outside the snapshot's bounds is never
- * charged at the maximum: the row moves to `review` with the reservation
- * intact for an operator to check.
+ * Settles trusted usage exactly once, collecting any overage from available
+ * funds atomically. An insolvent request records the collected amount and
+ * usage in review with no remaining hold; manual resolution can refund it.
  */
 export async function settleRequest(
   env: Env,
   requestId: string,
   usage: Usage,
   now: number = Date.now(),
+  reason: string | null = null,
 ): Promise<SettleResult> {
   if (!UUID_PATTERN.test(requestId)) return { status: "missing" };
   const row = await env.DB.prepare(
@@ -701,25 +717,26 @@ export async function settleRequest(
   } catch {
     return { status: "review", reason: await reviewOrKeep(env, requestId, "usage_invalid", now) };
   }
-  if (charged > row.reserved_micro_points) {
-    return { status: "review", reason: await reviewOrKeep(env, requestId, "charge_exceeds_reservation", now) };
-  }
 
   const cached = usage.cachedInputTokens === undefined || usage.cachedInputTokens === null
     ? null
     : usage.cachedInputTokens;
-  const result = await env.DB.prepare(
+  await env.DB.prepare(
     `UPDATE account_ai_requests
-        SET state = 'settled', charged_micro_points = ?, input_tokens = ?,
-            cached_input_tokens = ?, output_tokens = ?, settlement_reason = NULL,
+        SET state = CASE WHEN ? <= reserved_micro_points + (SELECT available_micro_points FROM account_ai_balances WHERE owner_user_id = account_ai_requests.owner_user_id) THEN 'settled' ELSE 'review' END,
+            charged_micro_points = min(?, reserved_micro_points + (SELECT available_micro_points FROM account_ai_balances WHERE owner_user_id = account_ai_requests.owner_user_id)), input_tokens = ?,
+            cached_input_tokens = ?, output_tokens = ?, settlement_reason = CASE WHEN ? <= reserved_micro_points + (SELECT available_micro_points FROM account_ai_balances WHERE owner_user_id = account_ai_requests.owner_user_id) THEN ? ELSE 'usage_exceeds_reservation' END,
             settled_at = ?, updated_at = ?, cost_micro_currency = ?, cost_status = ?,
             cache_write_tokens = ?, cache_write_hour_tokens = ?, latency_ms = ?
       WHERE id = ? AND state IN ('reserved', 'streaming') AND charged_micro_points IS NULL`,
   ).bind(
     charged,
+    charged,
     usage.inputTokens,
     cached,
     usage.outputTokens,
+    charged,
+    reason,
     now,
     now,
     costMicroCurrency,
@@ -729,7 +746,6 @@ export async function settleRequest(
     costStatus === null ? null : Math.max(0, now - row.created_at),
     requestId,
   ).run();
-  if ((result.meta.changes ?? 0) > 0) return { chargedMicroPoints: charged, status: "settled" };
 
   // Another writer settled it first (a duplicated terminal frame) or an
   // operator settled it out of review. Report what actually happened.
@@ -753,8 +769,6 @@ function reasonForUnusable(row: RequestRow, usage: Usage): string | null {
     if (typeof cached !== "number" || !Number.isSafeInteger(cached) || cached < 0) return "usage_invalid";
     if (cached > usage.inputTokens) return "usage_invalid";
   }
-  if (usage.inputTokens > row.max_input_tokens) return "usage_over_reservation";
-  if (usage.outputTokens > row.max_output_tokens) return "usage_over_reservation";
   return null;
 }
 
@@ -975,7 +989,7 @@ export async function applyAdjustment(env: Env, input: AdjustmentInput): Promise
       const request = await getRequest(env, input.requestId);
       if (request === null || request.userId !== input.ownerUserId) throw new HTTPError(404, "not_found");
       if (request.state !== "review") throw new HTTPError(409, "request_not_in_review");
-      if (value > request.reservedMicroPoints) throw new HTTPError(400, "invalid_request");
+      if (value > (request.chargedMicroPoints ?? request.reservedMicroPoints)) throw new HTTPError(400, "invalid_request");
       requestId = input.requestId;
       amount = value;
       result = { chargedMicroPoints: value, kind: "settle", requestId: input.requestId };
