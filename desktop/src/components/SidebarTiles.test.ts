@@ -2,7 +2,7 @@ import { Children, createElement, isValidElement, type KeyboardEvent, type MemoE
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { setPinnedCircleOrder } from "@/lib/sidebar-preferences";
+import { rankPinnedCircles } from "@/lib/pinned-circle-order";
 import { initialState, type Bot } from "@/state/store";
 
 vi.mock("@/lib/interface-mode", async (original) => ({
@@ -88,20 +88,22 @@ describe("the sidebar tiles", () => {
 describe("the tile grid", () => {
   const main = bot({ chiefOfStaff: true });
   const pins = (count: number) => Array.from({ length: count }, (_, index) => bot({ id: `pin${index}`, name: `Pin ${index}`, pinned: true }));
-  const grid = (primary: Bot | null, pinned: Bot[]) => {
+  // The default tile drags into a chat only; a pinned one also moves among the tiles and the departments (Alt+Up/Down).
+  const dragApi = { row: () => ({ draggable: true as const }), step: () => {} } as never;
+  const grid = (primary: Bot | null, pinned: Bot[], order: string[] = []) => {
     const bots = [...(primary ? [primary] : []), ...pinned];
-    const row = (candidate: Bot) => botRowProps({ ...initialState, bots, selectedId: "", activeView: "chat" }, dispatch, candidate, { density: "comfortable", query: "", onMenu });
-    return renderToStaticMarkup(createElement(SidebarTileGrid, { primary, pinned, row }));
+    const row = (candidate: Bot) => ({
+      ...botRowProps({ ...initialState, bots, selectedId: "", activeView: "chat" }, dispatch, candidate, { density: "comfortable", query: "", onMenu }),
+      ...(candidate.pinned ? { botDrag: dragApi } : {}),
+    });
+    return renderToStaticMarkup(createElement(SidebarTileGrid, { primary, pinned: rankPinnedCircles(pinned, order), row }));
   };
-  // Every tile drags into a chat; only the pinned ones, among two or more, reorder (Alt+Up/Down).
   const tiles = (html: string) => [...html.matchAll(/<div [^>]*data-sidebar-bot-row="([^"]+)" data-sidebar-tile="([^"]+)" draggable="true"[^>]*>/g)]
     .map(([tag, id, kind]) => `${kind}:${id}${tag.includes('aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"') ? ":drag" : ""}`);
 
-  afterEach(() => setPinnedCircleOrder([]));
-
   it.each([0, 1, 2, 3, 5])("puts the main bot first, then %i pinned bots, as same-size tiles in one centred, wrapping grid", (count) => {
     const html = grid(main, pins(count));
-    const drag = count > 1 ? ":drag" : "";
+    const drag = ":drag";
     expect(tiles(html)).toEqual(["primary:hezuo", ...pins(count).map((pin) => `pinned:${pin.id}${drag}`)]);
     expect(html).toMatch(/^<div data-sidebar-tiles="" class="flex max-h-\[40vh\] flex-wrap justify-center gap-1 overflow-y-auto /);
     expect(html.match(/\bh-\[92px\] w-\[78px\]/g)).toHaveLength(count + 1);
@@ -110,8 +112,7 @@ describe("the tile grid", () => {
   });
 
   it("follows the saved pinned order after the main bot, which never moves", () => {
-    setPinnedCircleOrder(["pin2", "pin0", "hezuo"]);
-    expect(tiles(grid(main, pins(3)))).toEqual(["primary:hezuo", "pinned:pin2:drag", "pinned:pin0:drag", "pinned:pin1:drag"]);
+    expect(tiles(grid(main, pins(3), ["pin2", "pin0", "hezuo"]))).toEqual(["primary:hezuo", "pinned:pin2:drag", "pinned:pin0:drag", "pinned:pin1:drag"]);
   });
 
   it("shows the pinned tiles alone when there is no main bot, and nothing when there is neither", () => {

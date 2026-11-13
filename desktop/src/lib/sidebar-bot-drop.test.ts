@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { botDropPlace, planBotDrop, stepBot, stepKey, unusedName, type BotLists } from "./sidebar-bot-drop";
+import { botDropPlace, PINNED_LIST, planBotDrop, stepBot, stepKey, unusedName, type BotLists } from "./sidebar-bot-drop";
 
 const lists: BotLists = new Map([
   ["", ["atlas", "bea", "cleo"]],
@@ -65,5 +65,46 @@ describe("a new department's name", () => {
   it("is the plain name until a department has it, then the first free number", () => {
     expect(unusedName("New department", ["Work"])).toBe("New department");
     expect(unusedName("New department", ["New department", "New department 2", "New department 4"])).toBe("New department 3");
+  });
+});
+
+describe("the pinned tiles as one more list", () => {
+  const withPins: BotLists = new Map([
+    ["", ["atlas", "bea", "cleo"]],
+    ["Work", ["dodo", "echo"]],
+    [PINNED_LIST, ["pia", "quin", "rex"]],
+  ]);
+
+  it("takes a bot from a department or from no department, before or after a tile, or at the end", () => {
+    expect(planBotDrop(withPins, "dodo", { kind: "row", botId: "quin", place: "before" })).toEqual({ kind: "move", section: PINNED_LIST, order: ["pia", "dodo", "quin", "rex"] });
+    expect(planBotDrop(withPins, "atlas", { kind: "row", botId: "rex", place: "after" })).toEqual({ kind: "move", section: PINNED_LIST, order: ["pia", "quin", "rex", "atlas"] });
+    expect(planBotDrop(withPins, "bea", { kind: "end", list: PINNED_LIST })).toEqual({ kind: "move", section: PINNED_LIST, order: ["pia", "quin", "rex", "bea"] });
+  });
+
+  it("lets a tile go back into a department between its rows, at its end, or out to the bots in none", () => {
+    expect(planBotDrop(withPins, "quin", { kind: "row", botId: "echo", place: "before" })).toEqual({ kind: "move", section: "Work", order: ["dodo", "quin", "echo"] });
+    expect(planBotDrop(withPins, "pia", { kind: "end", list: "Work" })).toEqual({ kind: "move", section: "Work", order: ["dodo", "echo", "pia"] });
+    expect(planBotDrop(withPins, "rex", { kind: "row", botId: "atlas", place: "after" })).toEqual({ kind: "move", section: "", order: ["atlas", "rex", "bea", "cleo"] });
+    expect(planBotDrop(withPins, "pia", { kind: "end", list: "" })).toEqual({ kind: "move", section: "", order: ["atlas", "bea", "cleo", "pia"] });
+  });
+
+  it("reorders the tiles among themselves, and a drop that changes nothing does nothing", () => {
+    expect(planBotDrop(withPins, "rex", { kind: "row", botId: "pia", place: "before" })).toEqual({ kind: "move", section: PINNED_LIST, order: ["rex", "pia", "quin"] });
+    expect(planBotDrop(withPins, "pia", { kind: "row", botId: "quin", place: "after" })).toEqual({ kind: "move", section: PINNED_LIST, order: ["quin", "pia", "rex"] });
+    expect(planBotDrop(withPins, "pia", { kind: "row", botId: "quin", place: "before" })).toBeNull();
+    expect(planBotDrop(withPins, "rex", { kind: "end", list: PINNED_LIST })).toBeNull();
+  });
+
+  it("starts a department from a tile dropped on the middle of a bot in none, and never from a drop on a tile", () => {
+    expect(planBotDrop(withPins, "pia", { kind: "row", botId: "atlas", place: "group" })).toEqual({ kind: "group", botIds: ["atlas", "pia"] });
+    expect(planBotDrop(withPins, "atlas", { kind: "row", botId: "pia", place: "group" })).toBeNull();
+    expect(planBotDrop(withPins, "pia", { kind: "row", botId: "dodo", place: "group" })).toBeNull();
+  });
+
+  it("steps a tile along the tiles with Alt+Arrow, and stops at either end", () => {
+    expect(stepBot(withPins, "quin", -1)).toEqual({ kind: "move", section: PINNED_LIST, order: ["quin", "pia", "rex"] });
+    expect(stepBot(withPins, "quin", 1)).toEqual({ kind: "move", section: PINNED_LIST, order: ["pia", "rex", "quin"] });
+    expect(stepBot(withPins, "pia", -1)).toBeNull();
+    expect(stepBot(withPins, "rex", 1)).toBeNull();
   });
 });

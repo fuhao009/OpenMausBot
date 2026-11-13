@@ -3,8 +3,11 @@ export const BOT_ROW_DRAG_TYPE = "application/x-hezuo-sidebar-bot";
 /** Where a dragged bot lands against the row under the pointer: above it, below it, or with it in a new department. */
 export type BotDropPlace = "before" | "after" | "group";
 
-/** The rows a bot can be dragged among, each in the order shown: the bots in no department under `""`, and each
- * department's under its name. */
+/** The key of the pinned tiles among the lists. It cannot be a department's name: a name never holds a control character. */
+export const PINNED_LIST = "\u0000pinned";
+
+/** The rows a bot can be dragged among, each in the order shown: the bots in no department under `""`, each
+ * department's under its name, and the pinned tiles under `PINNED_LIST`. */
 export type BotLists = ReadonlyMap<string, readonly string[]>;
 
 export type BotDrop =
