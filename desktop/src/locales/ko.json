@@ -1838,6 +1838,7 @@
   "sidebar.section.newContextAria": "새 부서 이름",
   "sidebar.section.removeFromContext": "일반으로 옮기기",
   "sidebar.section.removeFromDepartment": "부서에서 빼기",
+  "sidebar.section.untitledName": "이름 없는 그룹",
   "sidebar.section.newName": "새 부서",
   "sidebar.room.renameAria": "{name} 이름 바꾸기",
   "sidebar.room.saveChatName": "스레드 이름 저장",

@@ -2014,6 +2014,7 @@
   "sidebar.section.dropToRemove": "Drop here to remove from department",
   "sidebar.section.emptyDrop": "Drag a bot here",
   "sidebar.section.removeFromDepartment": "Remove from department",
+  "sidebar.section.untitledName": "Untitled group",
   "sidebar.section.newName": "New department",
   "sidebar.room.renameAria": "Rename {name}",
   "sidebar.room.saveChatName": "Save thread name",

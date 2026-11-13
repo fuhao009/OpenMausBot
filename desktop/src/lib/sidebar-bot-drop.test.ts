@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { botDropPlace, PINNED_LIST, planBotDrop, stepBot, stepKey, unusedName, type BotLists } from "./sidebar-bot-drop";
+import { botDropPlace, PINNED_LIST, planBotDrop, stepBot, stepKey, tileDropPlace, unusedName, type BotLists } from "./sidebar-bot-drop";
 
 const lists: BotLists = new Map([
   ["", ["atlas", "bea", "cleo"]],
@@ -95,10 +95,13 @@ describe("the pinned tiles as one more list", () => {
     expect(planBotDrop(withPins, "rex", { kind: "end", list: PINNED_LIST })).toBeNull();
   });
 
-  it("starts a department from a tile dropped on the middle of a bot in none, and never from a drop on a tile", () => {
+  it("starts a department from a tile dropped on the middle of a bot in none, and from a drop on a tile's middle", () => {
     expect(planBotDrop(withPins, "pia", { kind: "row", botId: "atlas", place: "group" })).toEqual({ kind: "group", botIds: ["atlas", "pia"] });
-    expect(planBotDrop(withPins, "atlas", { kind: "row", botId: "pia", place: "group" })).toBeNull();
+    expect(planBotDrop(withPins, "atlas", { kind: "row", botId: "pia", place: "group" })).toEqual({ kind: "group", botIds: ["pia", "atlas"] });
+    expect(planBotDrop(withPins, "dodo", { kind: "row", botId: "quin", place: "group" })).toEqual({ kind: "group", botIds: ["quin", "dodo"] });
+    expect(planBotDrop(withPins, "rex", { kind: "row", botId: "pia", place: "group" })).toEqual({ kind: "group", botIds: ["pia", "rex"] });
     expect(planBotDrop(withPins, "pia", { kind: "row", botId: "dodo", place: "group" })).toBeNull();
+    expect(planBotDrop(withPins, "pia", { kind: "row", botId: "pia", place: "group" })).toBeNull();
   });
 
   it("steps a tile along the tiles with Alt+Arrow, and stops at either end", () => {
@@ -106,5 +109,19 @@ describe("the pinned tiles as one more list", () => {
     expect(stepBot(withPins, "quin", 1)).toEqual({ kind: "move", section: PINNED_LIST, order: ["pia", "rex", "quin"] });
     expect(stepBot(withPins, "pia", -1)).toBeNull();
     expect(stepBot(withPins, "rex", 1)).toBeNull();
+  });
+});
+
+describe("where a dragged bot lands on a pinned tile", () => {
+  it("starts a department from the middle 40% of its width, and places before or after from either side", () => {
+    expect([0, 20, 30, 31, 39, 50, 69, 70, 80, 100].map((offset) => tileDropPlace(offset, 100))).toEqual(["before", "before", "before", "group", "group", "group", "group", "after", "after", "after"]);
+  });
+
+  it("reads the sides the other way round in a right-to-left sidebar, the middle unchanged", () => {
+    expect([10, 50, 90].map((offset) => tileDropPlace(offset, 100, true))).toEqual(["after", "group", "before"]);
+  });
+
+  it("calls an unmeasured tile a middle", () => {
+    expect(tileDropPlace(0, 0)).toBe("group");
   });
 });

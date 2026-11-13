@@ -1132,6 +1132,7 @@
   "sidebar.section.newContextAria": "新部門名稱",
   "sidebar.section.removeFromContext": "移至一般區域",
   "sidebar.section.removeFromDepartment": "移出部門",
+  "sidebar.section.untitledName": "未命名分組",
   "sidebar.section.newName": "新部門",
   "sidebar.room.renameAria": "重新命名 {name}",
   "sidebar.room.saveChatName": "儲存對話名稱",

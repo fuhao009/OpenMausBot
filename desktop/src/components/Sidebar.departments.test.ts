@@ -183,38 +183,45 @@ describe("dragging a bot", () => {
     expect(rows().every((props) => !props.botDrop && !props.botDragging)).toBe(true);
   });
 
-  it("onto the middle of a bot puts both in a new department, named in place, and Enter keeps the name", () => {
+  it("onto the middle of a bot makes a department of both at once, called Untitled group, with no name field", () => {
     drag("cleo");
     row("atlas").botDrag!.row("atlas").onDragOver(at() as never);
     expect(row("atlas").botDrop).toBe("group");
     row("atlas").botDrag!.row("atlas").onDrop(at() as never);
-    expect(actions()).toEqual([]);
-    expect(sections()).toEqual([CHANNELS_SECTION_ID, userSectionId("Work"), userSectionId(NEW_DEPARTMENT), BOTS_SECTION_ID]);
-    const naming = header(NEW_DEPARTMENT).naming!;
-    expect(naming.value).toBe("New department");
-    expect(naming.label).toBe("New department name");
-    expect(listed()).toEqual(["dodo", "echo", "atlas", "cleo", "bea"]);
-    naming.onCommit("  ");
     expect(actions()).toEqual([
-      { type: "updateBot", botId: "atlas", patch: { section: "New department" } },
-      { type: "updateBot", botId: "cleo", patch: { section: "New department" } },
+      { type: "updateBot", botId: "atlas", patch: { section: "Untitled group" } },
+      { type: "updateBot", botId: "cleo", patch: { section: "Untitled group" } },
     ]);
     expect(sections()).not.toContain(userSectionId(NEW_DEPARTMENT));
+    expect(headers().some((props) => props.naming)).toBe(false);
   });
 
-  it("gives a new department the first free name, and Escape puts the bots back", () => {
-    fixture.state = { ...fixture.state, sections: ["Work", "New department"] };
+  it("keeps the bot dropped on above the one dropped, saving that order when it is not already so", () => {
+    drag("atlas");
+    row("cleo").botDrag!.row("cleo").onDrop(at() as never);
+    expect(actions()).toEqual([
+      { type: "updateBot", botId: "cleo", patch: { section: "Untitled group" } },
+      { type: "updateBot", botId: "atlas", patch: { section: "Untitled group" } },
+      { type: "botsOrdered", botIds: ["cleo", "atlas"] },
+    ]);
+  });
+
+  it("gives the department the first free name", () => {
+    fixture.state = { ...fixture.state, sections: ["Work", "Untitled group"] };
     drag("cleo");
     row("bea").botDrag!.row("bea").onDrop(at() as never);
-    expect(header(NEW_DEPARTMENT).naming!.value).toBe("New department 2");
-    drag("atlas");
-    const over = at();
-    section(userSectionId(NEW_DEPARTMENT)).onDragOver(over as never);
-    expect(over.preventDefault).not.toHaveBeenCalled();
-    expect(header(NEW_DEPARTMENT).dropInto).toBe(false);
-    header(NEW_DEPARTMENT).naming!.onCancel();
-    expect(listed()).toEqual(["dodo", "echo", "atlas", "bea", "cleo"]);
+    expect(actions()[0]).toEqual({ type: "updateBot", botId: "bea", patch: { section: "Untitled group 2" } });
+  });
+
+  it("keeps the naming field for a department started from a bot's menu", () => {
+    const menuElement = () => render().find((node) => node.type === BotContextMenu)!;
+    row("atlas").onMenu({ botId: "atlas", x: 0, y: 0 });
+    (menuElement().props.onNewSection as (botId: string) => void)("atlas");
+    const naming = header(NEW_DEPARTMENT).naming!;
+    expect([naming.value, naming.label]).toEqual(["New department", "New department name"]);
     expect(actions()).toEqual([]);
+    naming.onCommit("  ");
+    expect(actions()).toEqual([{ type: "updateBot", botId: "atlas", patch: { section: "New department" } }]);
   });
 
   it("into a department over its heading, or between its rows", () => {
@@ -327,7 +334,7 @@ describe("dragging a bot", () => {
     fixture.advanced = true;
     drag("dodo");
     row("atlas").botDrag!.row("atlas").onDrop(at() as never);
-    expect(header(NEW_DEPARTMENT).naming!.value).toBe("New department");
+    expect(actions()[0]).toEqual({ type: "updateBot", botId: "atlas", patch: { section: "Untitled group" } });
   });
 });
 
@@ -342,8 +349,8 @@ describe("dragging between the pinned tiles and the departments", () => {
   const gridNode = () => render().find((node) => node.type === SidebarTileGrid);
   const grid = () => gridNode()!.props as unknown as Parameters<typeof SidebarTileGrid>[0];
   const tile = (id: string) => grid().row(grid().pinned.find((candidate) => candidate.id === id)!);
-  const tileEvent = (side: "left" | "right") => ({
-    dataTransfer: carried, clientX: side === "left" ? 5 : 70, clientY: 40,
+  const tileEvent = (side: "left" | "middle" | "right") => ({
+    dataTransfer: carried, clientX: side === "left" ? 5 : side === "middle" ? 39 : 72, clientY: 40,
     currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 0, width: 78, height: 92 }) },
     preventDefault: vi.fn(), stopPropagation: vi.fn(),
   });
@@ -406,16 +413,46 @@ describe("dragging between the pinned tiles and the departments", () => {
     expect(actions()).toEqual([{ type: "updateBot", botId: "pia", patch: { pinned: false, section: "Work" } }, { type: "botsOrdered", botIds: ["dodo", "echo", "pia"] }]);
   });
 
-  it("starts a department with a tile dropped on the middle of a bot in none, and unpins it once named", () => {
+  it("starts a department at once with a tile dropped on the middle of a bot in none, unpinning the tile", () => {
     drag("pia");
     row("atlas").botDrag!.row("atlas").onDrop(at(27) as never);
-    expect(actions()).toEqual([]);
-    header(NEW_DEPARTMENT).naming!.onCommit("Clients");
-    expect(actions()).toEqual([
+    expect(actions().slice(0, 3)).toEqual([
       { type: "updateBot", botId: "pia", patch: { pinned: false } },
-      { type: "updateBot", botId: "atlas", patch: { section: "Clients" } },
-      { type: "updateBot", botId: "pia", patch: { section: "Clients" } },
+      { type: "updateBot", botId: "atlas", patch: { section: "Untitled group" } },
+      { type: "updateBot", botId: "pia", patch: { section: "Untitled group" } },
     ]);
+  });
+
+  it("starts a department from the middle of a tile, unpinning both, the tile dropped on first", () => {
+    drag("atlas");
+    tile("pia").botDrag!.row("pia").onDragOver(tileEvent("middle") as never);
+    expect(tile("pia").botDrop).toBe("group");
+    tile("pia").botDrag!.row("pia").onDrop(tileEvent("middle") as never);
+    expect(actions().slice(0, 3)).toEqual([
+      { type: "updateBot", botId: "pia", patch: { pinned: false } },
+      { type: "updateBot", botId: "pia", patch: { section: "Untitled group" } },
+      { type: "updateBot", botId: "atlas", patch: { section: "Untitled group" } },
+    ]);
+  });
+
+  it("lets one tile be dropped on the middle of another to group them, the default bot as any other", () => {
+    drag("hezuo");
+    tile("quin").botDrag!.row("quin").onDrop(tileEvent("middle") as never);
+    expect(actions().slice(0, 2)).toEqual([
+      { type: "updateBot", botId: "quin", patch: { pinned: false } },
+      { type: "updateBot", botId: "hezuo", patch: { pinned: false } },
+    ]);
+    expect(actions()).toContainEqual({ type: "updateBot", botId: "hezuo", patch: { section: "Untitled group" } });
+  });
+
+  it("a bot dropped on one in a department joins that department, never grouping", () => {
+    drag("atlas");
+    row("dodo").botDrag!.row("dodo").onDragOver(at(10) as never);
+    expect(row("dodo").botDrop).toBe("before");
+    row("dodo").botDrag!.row("dodo").onDragOver(at(44) as never);
+    expect(row("dodo").botDrop).toBe("after");
+    row("dodo").botDrag!.row("dodo").onDragOver(at(27) as never);
+    expect(row("dodo").botDrop).not.toBe("group");
   });
 
   it("offers the place to drop a tile out of the tiles", () => {
@@ -566,10 +603,7 @@ describe("an empty department", () => {
     expect(actions()).toEqual([{ type: "updateBot", botId: "atlas", patch: { section: "Empty" } }]);
   });
 
-  it("is not there while the department is being named, or where the add-bots button already is", () => {
-    drag("cleo");
-    row("atlas").botDrag!.row("atlas").onDrop(at() as never);
-    expect(sectionHas(userSectionId(NEW_DEPARTMENT))).toBe(false);
+  it("is not there where the add-bots button already is", () => {
     fixture.state = { ...fixture.state, config: { ...initialState.config, productManaged: false } as AppState["config"] };
     expect(placeholders()).toHaveLength(0);
   });
