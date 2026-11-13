@@ -45,12 +45,6 @@ export function accountDeviceId(userId) {
   return `account-${compact}`;
 }
 
-function json(status, body) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json; charset=utf-8" },
-  });
-}
 
 async function readJSON(response) {
   try {
