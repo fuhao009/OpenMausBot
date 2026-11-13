@@ -38,7 +38,7 @@ T1/T2 回归名称（参数化覆盖多个场景）：
 
 整仓 pre-push 在已有 desktop/local-gateway 未使用符号及既有 channel-store 控制字符正则 lint 告警处失败。没有掩盖为整仓通过；后端要求的完整验收已通过，发布使用一次性 core.hooksPath 绕过该整仓钩子，不改全局配置或其他端代码。
 
-## 生产渠道
+## T1–T4 生产渠道（历史记录）
 
 按用户授权，从本机 OMP `~/.omp/agent/models.yml` 的 fuhaoliang 供应商读取地址与 key，经 SSH stdin 传输后由管理员 API 保存到加密渠道目录；没有将 key 写入源码、文档、命令参数或日志。OMP 文件中没有 Luna 显式条目，但上游 `/models` 实际确认 `gpt-6-luna` 存在。
 
@@ -59,6 +59,8 @@ T1/T2 回归名称（参数化覆盖多个场景）：
 拉取本分支后读 [客户端错误契约](gateway-client-api.md#错误与重试)。普通账号仍需管理员开通并补充积分；模型协议为 Responses，不能把该 ID 发送到 Chat 端点。生产未验证项：桌面真实请求、SSE、工具授权/拒绝、主动停止、账户并发与限流提示。不得将隔离通过写成三端生产联调完成。
 
 ## 任务感知计费增量（2026-11-13）
+
+功能提交 `89e3991c6` 已推送 `personal/backend/task-aware-billing` 并部署 193。生产渠道 revision 2、策略 revision 2 已启用：Luna/Sol/Astra 三档 Responses 与 `auto-responses`，1000 积分/USD 估值、50% 目标毛利、10% 风险附加、初始 2.2 倍。默认仍为 Luna，不替客户端暗中开启自动选模。生产激活时无新计费样本，真实推理和盈利没有验证；完整备份、迁移与版本记录见 [部署记录](gateway-deployment-193.md#2026-11-13-任务计费上线)。
 
 ### 能力与兼容边界
 
