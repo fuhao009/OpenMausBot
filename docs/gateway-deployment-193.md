@@ -32,6 +32,22 @@
 
 ## 部署记录
 
+### 2026-11-13 外发失败自动释放积分
+
+按用户要求，补丁 `736388b34` 已部署到上述诊断补丁之上：在上游响应到达前的传输失败自动零扣费结算、全额释放预占，不重试、不进入常规人工复核。已收到响应后的异常沿用原有用量处理；免除用户积分不等于供应商成本为零。
+
+验证：3 项外发 Node 测试、73 项网关测试和 TypeScript 检查通过；隔离网关真实 HTTPS 假上游销毁 socket，得到 `UND_ERR_SOCKET`，请求 `6c0f8d14-23d9-49f2-9761-639fd74c551e` 自动 settled、charged=0、钱包恢复原值、上游仅调用一次，完整 smoke 通过。部署前无处理中请求；停服完整备份 `/opt/hezuo-gateway/backups/pre-transport-736388b34-{data,code}.tgz`，只更新外发模块和 AI 网关源码，启动自动重建 Worker。部署后 systemd active、CA 校验健康 `ok:true`。
+
+用户明确指定的历史请求 `80d0a44d-7bfc-4d01-a942-bb3aaae87abf` 已通过运营者接口零扣费结算，释放 50.559 积分，操作 ID `63e04fd5-e600-4300-95c7-7c43a3af301e`；只读账本确认 settled、charged=0。其他历史待复核记录未改动；临时运营者会话已撤销。
+
+### 2026-11-13 外发失败诊断
+
+20:17:36 的 `egress failed: fetch failed` 来自本地 Node 外发层，不是已证实的上游 HTTP 502；旧日志未保留 cause，不能追溯确定连接超时、TLS 或重置。服务账号随后用独立 Node 进程访问无凭据 `/v1/models`，8 次均为 401，耗时 611–3493 ms；仅证明当时连通，不证明付费推理或大请求成功。
+
+外发模块记录目标 host、方法、字节数、耗时和嵌套 cause/AggregateError 的错误码，不记录请求头、正文、路径、查询串或自由格式异常消息。不改变超时、重试、502 响应或待复核结算策略。两项 Node 回归测试通过，覆盖超时/重置/TLS、脱敏、单次请求及响应透传；隔离假上游 `verify-gateway-admin.mjs --smoke` 通过发布、推理与重启。历史根因仍未知，需下一次失败的底层错误码；不能将诊断改进记为连接故障已修复。
+
+已部署运行文件补丁 `4cdf0144d`，基线仍为 `8e54c107d`，服务器 `deployed-commit` 明确记录两者，没有整分支替换。部署前账本为 10 review、109 settled，无处理中请求；停服完整备份到 `/opt/hezuo-gateway/backups/pre-egress-4cdf0144d-{data,code}.tgz` 后更新两个运行文件。systemd 为 active，开发机通过 CA 校验 `/healthz` 返回 `ok:true`。没有发送真实付费测试、重放历史请求或修改 review 账本。
+
 ### 2026-11-13 内测修复部署
 
 当前实际部署 `8e54c107d`，分支 `backend/gateway-beta`。18项迁移已应用、0待应用，HTTPS健康与后台200。渠道revision3、任务计费策略revision3，新增 Luna Chat 和 auto-chat。每次部署均停服并完整备份数据/源码；备份 `pre-beta-<SHA>-{data,code}.tgz` 位于root私有backups目录。

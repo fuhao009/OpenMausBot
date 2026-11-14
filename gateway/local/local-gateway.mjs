@@ -27,6 +27,7 @@ import {
 import { AccountLookupError, d1DatabaseFiles, findAccountByEmail } from "./local-gateway/operator-bootstrap.mjs";
 import { GATEWAY_D1_IDENTITY, assertLegacyGatewayRetired, migrateGatewayIdentity } from "./local-gateway/identity-migration.mjs";
 import { createCompanionRelay, createDisconnectBridge, createGatewayFront } from "./local-gateway/companion-relay.mjs";
+import { directEgress } from "./local-gateway/egress.mjs";
 
 import { DEFAULT_DATA_DIR, DEFAULT_PORT, DEFAULT_MAX_OUTPUT_TOKENS, EMAIL, SECRET_FILES, UsageError, RefusalError, fail, readPrivateFile, writePrivateFile, secretPath, hasSecret, exactHTTPSOrigin, gatewayOrigin, certificateFor, trustGatewayCertificate, readGatewayConfig, writeConfig, envValue, seededModels, resolveGatewayConfig } from "./local-gateway/config.mjs";
 export { UsageError, RefusalError, exactHTTPSOrigin, gatewayOrigin, trustGatewayCertificate, readGatewayConfig, resolveGatewayConfig };
@@ -238,41 +239,6 @@ export async function applyMigrations(db) {
     ran.push(file);
   }
   return { applied: [...applied].sort(), ran, pending: files.filter((file) => !applied.has(file) && !ran.includes(file)) };
-}
-
-/** Headers the Worker sets on its own upstream call, and nothing else. A
- * Worker request carries platform metadata (`host`, `cf-worker`, …) that must
- * never be replayed onto the operator's upstream. */
-const EGRESS_HEADERS = Object.freeze(["accept", "accept-encoding", "authorization", "content-type"]);
-
-/**
- * The Worker's own egress: a genuine outbound request to the configured
- * upstream. Only the Worker's own upstream headers travel, a redirect is
- * returned to the Worker (which asked not to follow one), and a transport
- * failure becomes a 502 instead of an empty response.
- */
-async function directEgress(request) {
-  // Diagnostics name the target and size only: never a header, body, prompt,
-  // or credential.
-  const trace = process.env.OMB_LOCAL_GATEWAY_DEBUG_EGRESS === "1";
-  try {
-    const body = request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer();
-    const headers = new Headers();
-    for (const name of EGRESS_HEADERS) {
-      const value = request.headers.get(name);
-      if (value !== null) headers.set(name, value);
-    }
-    if (trace) console.error(`[local-gateway] egress ${request.method} ${request.url} ${body?.byteLength ?? 0}B`);
-    const response = await fetch(request.url, { method: request.method, headers, body, redirect: "manual" });
-    if (trace) console.error(`[local-gateway] egress reply ${response.status}`);
-    return response;
-  } catch (error) {
-    console.error(`[local-gateway] egress failed: ${error?.message ?? error}`);
-    return new Response(JSON.stringify({ error: "egress_failed" }), {
-      status: 502,
-      headers: { "content-type": "application/json" },
-    });
-  }
 }
 
 function mailTransport(config) {
