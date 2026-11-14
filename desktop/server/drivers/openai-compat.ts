@@ -74,8 +74,6 @@ export interface OpenAICompatConfig {
   modelProtocols?: Record<string, "chat" | "responses">;
   /** When the account gateway refuses a request as busy, wait up to this long for a free slot before failing. */
   accountSlotWaitMs?: number;
-  /** How many more times to ask again when the gateway ends a reply stream with an error before any of the reply arrived. */
-  upstreamStreamRetries?: number;
 }
 
 export const MAX_REPLY_WAIT_MINUTES = 60;
@@ -127,7 +125,6 @@ function decodeConfig(raw: unknown): OpenAICompatConfig {
     if (protocol !== "chat" && protocol !== "responses") throw new Error(`modelProtocols["${model}"] must be "chat" or "responses"`);
   }
   if (config.accountSlotWaitMs !== undefined && !(Number.isSafeInteger(config.accountSlotWaitMs) && (config.accountSlotWaitMs as number) > 0)) throw new Error("accountSlotWaitMs must be a positive whole number of milliseconds");
-  if (config.upstreamStreamRetries !== undefined && !(Number.isSafeInteger(config.upstreamStreamRetries) && (config.upstreamStreamRetries as number) > 0)) throw new Error("upstreamStreamRetries must be a positive whole number");
   const ownKey = typeof config.apiKeyEnv === "string" && OWN_KEY_ENVS.has(config.apiKeyEnv);
   if (config.catalog !== undefined && config.catalog !== "openai" && config.catalog !== "lmstudio") throw new Error("catalog must be \"openai\" or \"lmstudio\"");
   if (config.replyWaitMinutes !== undefined && !isReplyWait(config.replyWaitMinutes)) throw new Error(`replyWaitMinutes must be a whole number from 1 to ${MAX_REPLY_WAIT_MINUTES}`);
@@ -138,7 +135,6 @@ function decodeConfig(raw: unknown): OpenAICompatConfig {
     ...(isReplyWait(config.replyWaitMinutes) ? { replyWaitMinutes: config.replyWaitMinutes } : {}),
     ...(protocols ? { modelProtocols: { ...(protocols as Record<string, "chat" | "responses">) } } : {}),
     ...(config.accountSlotWaitMs !== undefined ? { accountSlotWaitMs: config.accountSlotWaitMs as number } : {}),
-    ...(config.upstreamStreamRetries !== undefined ? { upstreamStreamRetries: config.upstreamStreamRetries as number } : {}),
     url: (typeof config.url === "string" && config.url ? config.url : envUrl || "https://openrouter.ai/api/v1")
       .replace(/\/+$/, ""),
     apiKeyEnv: typeof config.apiKeyEnv === "string" && config.apiKeyEnv
@@ -322,7 +318,6 @@ export const OpenAICompatDriver: ProviderDriver<OpenAICompatConfig> = {
       ...(managed ? { requestCredential: managed } : {}),
       ...(config.modelProtocols ? { modelProtocols: config.modelProtocols } : {}),
       ...(config.accountSlotWaitMs ? { accountSlotWait: { maxMs: config.accountSlotWaitMs } } : {}),
-      ...(config.upstreamStreamRetries ? { upstreamStreamRetry: { attempts: config.upstreamStreamRetries } } : {}),
       apiUrl: config.url,
       tools: config.tools,
       computerUse: true,

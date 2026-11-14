@@ -28,25 +28,28 @@ const hostOf = (url) => url.hostname.replace(/^\[|\]$/g, "");
 
 const isIPHost = (host) => /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes(":");
 
-/** True for a certificate that may stand as a trust anchor beside the host it
- * is pinned to: either a CA root (the handshake's own chain and name checks
- * decide), or the self-signed leaf a local gateway generates, whose subject
- * must name exactly that origin's host. */
-function bindsOrigin(certificate, url) {
-  if (certificate.ca) return true;
-  let selfSigned = false;
-  try {
-    selfSigned = certificate.subject === certificate.issuer && certificate.verify(certificate.publicKey);
-  } catch {
-    return false;
-  }
-  if (!selfSigned) return false;
+const namesHost = (certificate, url) => {
   const host = hostOf(url);
   try {
     return isIPHost(host) ? Boolean(certificate.checkIP(host)) : Boolean(certificate.checkHost(host));
   } catch {
     return false;
   }
+};
+
+/** True for a certificate that may stand as a trust anchor beside the host it
+ * is pinned to: it must name exactly that origin's host, and be either a CA
+ * (the handshake's own chain check decides the rest) or the self-signed leaf a
+ * local gateway generates. */
+function bindsOrigin(certificate, url) {
+  if (certificate.ca) return namesHost(certificate, url);
+  let selfSigned = false;
+  try {
+    selfSigned = certificate.subject === certificate.issuer && certificate.verify(certificate.publicKey);
+  } catch {
+    return false;
+  }
+  return selfSigned && namesHost(certificate, url);
 }
 
 const validNow = (certificate, now) => {

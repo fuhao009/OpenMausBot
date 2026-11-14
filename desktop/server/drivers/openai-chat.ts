@@ -121,8 +121,6 @@ interface RuntimeOptions<Config> {
   /** The gateway admits a few in-flight requests per account and refuses the rest with `ai_busy` before running
    * anything; a request that was refused waits for a free slot and goes again, for at most `maxMs` in all. */
   accountSlotWait?: { maxMs: number };
-  /** A gateway that ends a reply stream with an error before any of the reply arrived is asked again, this many times. */
-  upstreamStreamRetry?: { attempts: number };
   tools?: boolean;
   computerUse?: boolean;
   /** A text-only model keeps the computer and browser tools but never receives a screenshot or attachment. */
@@ -158,8 +156,6 @@ const CORRECTIVE_ROUND = "[Hezuo: a tool call in this turn failed (its result is
 const NUDGE_ANNOUNCED_ACTION = "You said what you would do next but called no tool. Use your tools for only the remaining work, or reply with verified results if nothing is left to do. Never repeat an operation that succeeded, was denied, or may already have taken effect; inspect its state instead. Do not retry a destructive operation.";
 
 const ACCOUNT_BUSY = /\(ai_busy\)/;
-const UPSTREAM_STREAM_FAILURE = /\(upstream_error\)|\(server_error\)|\bHTTP 5\d\d\b|Stream ended before completion|The upstream (?:stream failed|request failed|stream ended unexpectedly)/i;
-const UPSTREAM_STREAM_DELAYS_MS = [2_000, 5_000];
 const withJitter = (ms: number) => ms * (0.75 + Math.random() * 0.5);
 
 /** 1.5s, growing by half each time to a cap of 8s, give or take a quarter so waiting requests do not retry together. */
@@ -494,11 +490,10 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     onDelta?: (delta: string, kind: "assistant_text" | "reasoning_text") => void,
     tools: ChatToolDefinition[] = [],
     onUsage?: TextGenerationOptions["onUsage"],
-    onWait?: (reason: "account_busy" | "upstream_stream", attempt: number, delayMs: number) => void,
+    onWait?: (reason: "account_busy", attempt: number, delayMs: number) => void,
   ): Promise<Completion> => {
     let slotAttempts = 0;
     let slotWaited = 0;
-    let streamRetries = 0;
     for (;;) {
       let replied = false;
       try {
@@ -512,14 +507,6 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
           const delayMs = Math.min(accountSlotDelay(++slotAttempts), wait.maxMs - slotWaited);
           slotWaited += delayMs;
           onWait?.("account_busy", slotAttempts, delayMs);
-          await interruptibleDelay(delayMs, signal).promise;
-          signal?.throwIfAborted();
-          continue;
-        }
-        const again = options.upstreamStreamRetry;
-        if (again && !replied && !signal?.aborted && error instanceof Error && UPSTREAM_STREAM_FAILURE.test(error.message) && streamRetries < again.attempts) {
-          const delayMs = withJitter(UPSTREAM_STREAM_DELAYS_MS[Math.min(streamRetries, UPSTREAM_STREAM_DELAYS_MS.length - 1)]!);
-          onWait?.("upstream_stream", ++streamRetries, delayMs);
           await interruptibleDelay(delayMs, signal).promise;
           signal?.throwIfAborted();
           continue;

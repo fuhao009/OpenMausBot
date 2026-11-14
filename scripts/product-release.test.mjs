@@ -9,6 +9,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  isPrivateLanHost,
   operatorOrigin,
   productServiceDocument,
   readProductServiceResource,
@@ -20,12 +21,12 @@ afterEach(async () => {
 });
 
 /** A throwaway certificate for 127.0.0.1, or null where openssl is absent. */
-async function certificate() {
+async function certificate(address = "127.0.0.1") {
   const directory = await mkdtemp(path.join(tmpdir(), "omb-product-release-"));
   cleanups.push(() => rm(directory, { recursive: true, force: true }));
   const made = spawnSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2",
     "-keyout", path.join(directory, "key.pem"), "-out", path.join(directory, "cert.pem"),
-    "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1"], { stdio: "pipe" });
+    "-subj", `/CN=${address}`, "-addext", `subjectAltName=IP:${address}`], { stdio: "pipe" });
   if (made.status !== 0) return null;
   return { directory, pem: await readFile(path.join(directory, "cert.pem"), "utf8") };
 }
@@ -56,6 +57,29 @@ describe("the bundled product resource", () => {
     await expect(readProductServiceResource(dir)).rejects.toThrow(/product_service_resource_invalid/);
     await write({ version: 1, origin: "https://127.0.0.1:18487", ca: certs.pem });
     await expect(readProductServiceResource(dir)).rejects.toThrow(/product_service_resource_invalid/);
+  });
+
+  it("accepts a private-network IPv4 origin only when asked, and a public address never", () => {
+    for (const host of ["10.0.0.5", "172.16.0.1", "172.31.255.254", "192.168.66.193"]) {
+      expect(operatorOrigin(`https://${host}:18487`, { allowPrivateLan: true })).toBe(`https://${host}:18487`);
+      expect(() => operatorOrigin(`https://${host}:18487`)).toThrow(/product_origin_public_host/);
+    }
+    for (const host of ["8.8.8.8", "172.32.0.1", "172.15.0.1", "192.169.0.1", "11.0.0.1", "100.64.0.1"]) {
+      expect(() => operatorOrigin(`https://${host}:18487`, { allowPrivateLan: true })).toThrow(/product_origin_public_host/);
+    }
+    expect(() => operatorOrigin("https://127.0.0.1:18487", { allowPrivateLan: true })).toThrow(/product_origin_loopback/);
+    expect(isPrivateLanHost("192.168.1.256")).toBe(false);
+    expect(isPrivateLanHost("ai.acme-ai.net")).toBe(false);
+  });
+
+  it("reads a version 2 resource for a private-network origin, and refuses a certificate for another address", async () => {
+    const certs = await certificate("192.168.66.193");
+    if (!certs) return;
+    const write = (value) => writeFile(path.join(certs.directory, "product-service.json"), JSON.stringify(value));
+    await write({ version: 2, origin: "https://192.168.66.193:18487", ca: certs.pem });
+    expect(await readProductServiceResource(certs.directory)).toMatchObject({ origin: "https://192.168.66.193:18487" });
+    await write({ version: 2, origin: "https://192.168.66.194:18487", ca: certs.pem });
+    await expect(readProductServiceResource(certs.directory)).rejects.toThrow(/product_service_resource_invalid_ca/);
   });
 
   it("keeps a loopback origin a deliberate, explicit build input", () => {

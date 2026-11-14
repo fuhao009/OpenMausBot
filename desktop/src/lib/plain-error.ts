@@ -33,6 +33,21 @@ const KINDS: Array<[RegExp, LocaleKey]> = [
   [/\b5\d\d\b|internal server error|bad gateway/i, "error.plain.server"],
 ];
 
+const PRODUCT_GATEWAY_LINES: Array<[RegExp, LocaleKey]> = [
+  [/\b(?:ai_busy|ai_temporarily_busy)\b/, "product.error.ai.busy"],
+  [/\b(?:ai_temporarily_unavailable|ai_unavailable)\b/, "product.error.ai.unavailable"],
+  [/\bupstream_error\b|Stream ended before completion|streaming completion error/i, "product.error.ai.incomplete"],
+  [/\binsufficient_balance\b/, "product.error.ai.noBalance"],
+  [/\b(?:ai_not_enabled|ai_suspended)\b/, "product.error.ai.notEnabled"],
+  [/\bai_token_invalid\b/, "product.error.ai.signIn"],
+];
+
+/** The line a product account reads for a gateway refusal named in a turn's error text; undefined for anything else. */
+export function productGatewayLine(raw: string): string | undefined {
+  const key = PRODUCT_GATEWAY_LINES.find(([pattern]) => pattern.test(raw))?.[1];
+  return key ? t(key) : undefined;
+}
+
 export function isTechnicalError(raw: string): boolean {
   const text = raw.trim();
   return Boolean(text) && TECHNICAL.some((pattern) => pattern.test(text));

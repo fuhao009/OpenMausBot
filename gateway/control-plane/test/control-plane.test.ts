@@ -1,11 +1,11 @@
 import { env } from "cloudflare:workers";
-import { applyD1Migrations, createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
+import { applyD1Migrations, createExecutionContext, createScheduledController, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 
 import { createAuth } from "../src/auth";
 import { readConfig } from "../src/config";
 import { buildOTPEmail, sendOTPEmail } from "../src/email";
-import worker from "../src/index";
+import worker, { createWorker } from "../src/index";
 import { sha256 } from "../src/installations";
 
 const BASE_URL = "https://auth.hezuo.test";
@@ -417,6 +417,91 @@ describe("control-plane migrations and health", () => {
   });
 });
 
+describe("control-plane scheduled maintenance", () => {
+  const endpointSettings = [
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CLOUDFLARE_ZONE_ID",
+    "CLOUDFLARE_API_TOKEN",
+    "COMPANION_HOST_SUFFIX",
+    "CLOUDFLARE_ENDPOINT_ACCOUNTS",
+  ] as const;
+
+  function withoutEndpoints(): Env {
+    const testEnv = { ...env };
+    for (const name of endpointSettings) Reflect.deleteProperty(testEnv, name);
+    return testEnv;
+  }
+
+  async function scheduled(testEnv: Env, testWorker = worker) {
+    const ctx = createExecutionContext();
+    testWorker.scheduled(createScheduledController({ scheduledTime: Date.now() }), testEnv, ctx);
+    await waitOnExecutionContext(ctx);
+  }
+
+  it.each(["absent", "empty"])("skips managed endpoints with %s settings and keeps other sweeps running", async (mode) => {
+    const queries: string[] = [];
+    const testEnv = { ...withoutEndpoints(), DB: tracedDB(queries) };
+    if (mode === "empty") {
+      for (const name of endpointSettings) Object.assign(testEnv, { [name]: "" });
+    }
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await scheduled(testEnv);
+      expect(error.mock.calls.flat().join(" ")).not.toContain("managed endpoint");
+      expect(queries.some((sql) => /installation_endpoints|managed_endpoint/.test(sql))).toBe(false);
+      expect(queries.some((sql) => /UPDATE account_ai_requests/.test(sql))).toBe(true);
+      expect(queries.some((sql) => /delete from "verification"/i.test(sql))).toBe(true);
+      expect(queries.some((sql) => /DELETE FROM highlevel_flows/.test(sql))).toBe(true);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it.each(endpointSettings)("logs partial managed endpoint configuration containing only %s", async (name) => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await scheduled({ ...withoutEndpoints(), [name]: name === "CLOUDFLARE_ENDPOINT_ACCOUNTS" ? "[]" : env[name] });
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('"message":"managed endpoint cleanup sweep failed"'));
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('"errorCode":"misconfigured"'));
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it.each(["invalid", " "])("logs invalid managed endpoint settings instead of treating %j as absent", async (accountId) => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await scheduled({ ...env, CLOUDFLARE_ACCOUNT_ID: accountId } as unknown as Env);
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('"errorCode":"misconfigured"'));
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('"message":"managed endpoint cleanup sweep failed"'));
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("logs configured scan and cleanup failures without blocking the other maintenance sweeps", async () => {
+    const queries: string[] = [];
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const upstream = vi.fn<typeof fetch>().mockRejectedValue(new Error("injected provider failure"));
+    try {
+      await scheduled({
+        ...env,
+        DB: tracedDB(queries, /managed_endpoint_account_capacity|e\.cleanup_attempts/),
+      }, createWorker(upstream));
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('"message":"managed endpoint tunnel scan failed"'));
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('"message":"managed endpoint cleanup sweep failed"'));
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('"errorCode":"endpoint_internal"'));
+      expect(queries.some((sql) => /e\.cleanup_attempts/.test(sql))).toBe(true);
+      expect(queries.some((sql) => /SELECT COUNT\(\*\) AS count FROM installation_endpoints/.test(sql))).toBe(true);
+      expect(queries.some((sql) => /UPDATE account_ai_requests/.test(sql))).toBe(true);
+      expect(queries.some((sql) => /delete from "verification"/i.test(sql))).toBe(true);
+      expect(queries.some((sql) => /DELETE FROM highlevel_flows/.test(sql))).toBe(true);
+    } finally {
+      error.mockRestore();
+    }
+  });
+});
+
 describe("Better Auth email OTP and bearer boundary", () => {
   it("sends enumeration-safe OTP responses and stores only a hash", async () => {
     const response = await call("/api/auth/email-otp/send-verification-otp", {
@@ -617,14 +702,14 @@ describe("email OTP D1 round trips", () => {
     return rows.results.map((row) => row.identifier);
   }
 
-  it("sends a code in at most five round trips with one for the recipient limit", async () => {
+  it("sends a code within six round trips including lifecycle admission", async () => {
     const { response, beforeResponse } = await tracedCall(SEND_PATH, {
       email: "round-trips@example.com",
       type: "sign-in",
     });
     expect(response.status).toBe(200);
     expect(beforeResponse.filter((sql) => sql.includes("otp_recipient_rate_limits"))).toHaveLength(1);
-    expect(beforeResponse.length).toBeLessThanOrEqual(5);
+    expect(beforeResponse.length).toBeLessThanOrEqual(6);
   });
 
   it("keeps the 24-hour recipient retention sweep", async () => {
@@ -646,7 +731,7 @@ describe("email OTP D1 round trips", () => {
     expect(rows.results[0]?.attempts).toBe(1);
   });
 
-  it("signs in within eight round trips and sweeps expired codes after responding", async () => {
+  it("signs in within ten round trips including lifecycle checks and sweeps expired codes after responding", async () => {
     const email = "round-trips-known@example.com";
     await signIn(email);
     const otp = await mintOTP(email);
@@ -662,7 +747,7 @@ describe("email OTP D1 round trips", () => {
     });
     expect(response.status).toBe(200);
     expect(beforeResponse.some((sql) => EXPIRED_SWEEP.test(sql))).toBe(false);
-    expect(beforeResponse.length).toBeLessThanOrEqual(8);
+    expect(beforeResponse.length).toBeLessThanOrEqual(10);
     expect(afterResponse.filter((sql) => EXPIRED_SWEEP.test(sql))).toHaveLength(1);
     // Only the expired row goes; a live code for another address survives.
     expect(await verificationIdentifiers()).toEqual(["sign-in-otp-pending@example.com"]);

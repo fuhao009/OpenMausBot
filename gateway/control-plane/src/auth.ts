@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { bearer, emailOTP } from "better-auth/plugins";
 
 import type { AuthConfig, EmailVerificationMode } from "./config";
@@ -23,6 +24,8 @@ import { sendOTPEmail } from "./email";
 export const PASSWORD_MIN_LENGTH = 10;
 export const PASSWORD_MAX_LENGTH = 128;
 
+const databases = new WeakMap<object, D1Database>();
+
 export function createAuth(
   env: Env,
   ctx: ExecutionContext,
@@ -32,7 +35,7 @@ export function createAuth(
   const mailFrom = config.mailConfigured ? config.emailFrom : null;
   const requireVerification = config.emailVerification === "required";
 
-  return betterAuth({
+  const auth = betterAuth({
     appName: "Hezuo",
     baseURL: config.authBaseURL,
     basePath: "/api/auth",
@@ -40,6 +43,43 @@ export function createAuth(
     database: env.DB,
     trustedOrigins: [...config.allowedOrigins],
     logger: { disabled: true },
+    hooks: {
+      before: createAuthMiddleware(async (context) => {
+        const email = context.body?.email;
+        if (typeof email === "string") {
+          const lifecycle = await env.DB.prepare(`SELECT l.disabled, l.deleted, l.password_change_required FROM account_lifecycle l JOIN "user" u ON u.id=l.user_id WHERE lower(u.email)=lower(?)`).bind(email).first<{ disabled: number; deleted: number; password_change_required: number }>();
+          if (lifecycle?.disabled || lifecycle?.deleted) throw new APIError("UNAUTHORIZED", { message: "unauthorized" });
+          if (!context.path.startsWith("/sign-in/") && context.path !== "/sign-up/email" && lifecycle?.password_change_required) {
+            throw new APIError("FORBIDDEN", { message: "password_change_required" });
+          }
+        }
+        if (context.path === "/get-session" || context.path === "/sign-out") return;
+        const session = await getSessionFromCtx(context);
+        if (!session) return;
+        const state = await env.DB.prepare("SELECT disabled, deleted, password_change_required FROM account_lifecycle WHERE user_id=?").bind(session.user.id).first<{ disabled: number; deleted: number; password_change_required: number }>();
+        if (state?.disabled || state?.deleted) throw new APIError("UNAUTHORIZED", { message: "unauthorized" });
+        if (state?.password_change_required) throw new APIError("FORBIDDEN", { message: "password_change_required" });
+      }),
+      after: createAuthMiddleware(async (context) => {
+        const session = context.context.newSession;
+        if (!session) return;
+        if (context.path === "/sign-in/email" && typeof context.body?.password === "string") {
+          const credential = await env.DB.prepare(`SELECT password FROM "account" WHERE "userId"=? AND "providerId"='credential'`).bind(session.user.id).first<{ password: string }>();
+          if (!credential || !await context.context.password.verify({ hash: credential.password, password: context.body.password })) {
+            await context.context.internalAdapter.deleteSession(session.session.token);
+            throw new APIError("UNAUTHORIZED", { message: "unauthorized" });
+          }
+        }
+        const state = await env.DB.prepare("SELECT disabled, deleted, password_change_required FROM account_lifecycle WHERE user_id=?").bind(session.user.id).first<{ disabled: number; deleted: number; password_change_required: number }>();
+        if (state?.disabled || state?.deleted) {
+          await context.context.internalAdapter.deleteSession(session.session.token);
+          throw new APIError("UNAUTHORIZED", { message: "unauthorized" });
+        }
+        if (context.context.returned && typeof context.context.returned === "object") {
+          context.context.returned = { ...context.context.returned, requiresPasswordChange: Boolean(state?.password_change_required) };
+        }
+      }),
+    },
     emailAndPassword: {
       enabled: true,
       disableSignUp: false,
@@ -112,6 +152,8 @@ export function createAuth(
       bearer({ requireSignature: true }),
     ],
   });
+  databases.set(auth, env.DB);
+  return auth;
 }
 
 /** The instance this module builds. Its API surface is inferred from the exact
@@ -145,7 +187,11 @@ export async function accountSession(request: Request, auth: ControlPlaneAuth) {
   const match = authorization?.match(/^Bearer\s+([^\s]+)$/i);
   if (!match || match[1].startsWith("omb_install_") || match[1].startsWith("omb_product_ai_")) return null;
 
-  return auth.api.getSession({
+  const session = await auth.api.getSession({
     headers: new Headers({ authorization: `Bearer ${match[1]}` }),
   });
+  if (!session) return null;
+  const state = await databases.get(auth)?.prepare("SELECT disabled, deleted, password_change_required FROM account_lifecycle WHERE user_id=?").bind(session.user.id).first<{ disabled: number; deleted: number; password_change_required: number }>();
+  if (state?.disabled || state?.deleted || state?.password_change_required) return null;
+  return session;
 }

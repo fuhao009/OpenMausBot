@@ -62,6 +62,29 @@ test("a version 2 resource pins a certificate bound to its own origin", async ()
   }
 });
 
+test("a version 2 resource for a private-network origin is read, and only with a certificate naming that address", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "omb-product-service-lan-"));
+  try {
+    const key = path.join(dir, "lan-key.pem");
+    const cert = path.join(dir, "lan-cert.pem");
+    const made = spawnSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2", "-keyout", key, "-out", cert,
+      "-subj", "/CN=192.168.66.193", "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "subjectAltName=IP:192.168.66.193"], { stdio: "pipe" });
+    if (made.status !== 0) return;
+    const pem = await readFile(cert, "utf8");
+    await writeFile(path.join(dir, "package.json"), JSON.stringify({ ombProductManaged: true }));
+    const resource = (value) => writeFile(path.join(dir, "product-service.json"), JSON.stringify(value));
+    const resolve = () => resolveProductService({ isPackaged: true, appPath: dir, resourcesPath: dir });
+    await resource({ version: 2, origin: "https://192.168.66.193:18487", ca: pem });
+    assert.deepEqual(await resolve(), { managed: true, origin: "https://192.168.66.193:18487", ca: `${pem.trim()}\n` });
+    await resource({ version: 2, origin: "https://192.168.66.194:18487", ca: pem });
+    await assert.rejects(resolve(), /product_service_invalid_ca/);
+    await resource({ version: 2, origin: "https://127.0.0.1:18487", ca: pem });
+    await assert.rejects(resolve(), /product_service_invalid_ca/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("development is explicit and origin boundaries exclude secrets and paths", async () => {
   assert.equal(await resolveProductService({ isPackaged: false, environment: {} }), null);
   assert.deepEqual(await resolveProductService({ isPackaged: false, environment: { OMB_PRODUCT_SERVICE_URL: "http://127.0.0.1:1234" } }), { managed: true, origin: "http://127.0.0.1:1234", ca: null });

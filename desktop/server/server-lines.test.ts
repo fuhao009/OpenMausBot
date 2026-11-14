@@ -31,14 +31,4 @@ describe("serverLine", () => {
       expect(serverLine(language, "server.product.welcome")).not.toBe(serverLine("en", "server.product.welcome"));
     }
   });
-
-  it.each(["zh", "zh-Hant", "en", "ko", "de"])("localizes retry status in %s", (language) => {
-    for (const key of ["server.retry.accountBusy", "server.retry.upstreamStream"] as const) {
-      const line = serverLine(language, key, { attempt: 2, seconds: 3 });
-      expect(line).toContain("2");
-      expect(line).toContain("3");
-      expect(line).not.toContain("{");
-      if (language !== "en") expect(line).not.toBe(serverLine("en", key, { attempt: 2, seconds: 3 }));
-    }
-  });
 });

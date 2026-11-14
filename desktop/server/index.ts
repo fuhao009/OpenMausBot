@@ -6772,9 +6772,7 @@ bus.subscribe((event: RuntimeEvent) => {
         role: "bot",
         kind: "activity",
         tool: { name: event.reason === "account_busy"
-          ? serverLine(threadLanguage(event.threadId), "server.retry.accountBusy", { attempt: event.attempt, seconds: Math.round(event.delayMs / 1000) })
-          : event.reason === "upstream_stream"
-          ? serverLine(threadLanguage(event.threadId), "server.retry.upstreamStream", { attempt: event.attempt, seconds: Math.round(event.delayMs / 1000) })
+          ? serverLine(threadLanguage(event.threadId), "server.product.queued")
           : `retrying — attempt ${event.attempt + 1}/${RETRY_MAX_ATTEMPTS} in ${Math.round(event.delayMs / 1000)}s — ${event.reason}`, ok: true },
       });
       break;

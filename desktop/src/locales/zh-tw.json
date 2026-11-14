@@ -1,7 +1,6 @@
 {
-  "server.retry.accountBusy": "等待帳戶空閒名額 — {seconds} 秒後第 {attempt} 次重試",
-  "server.retry.upstreamStream": "上游連線暫時中斷 — {seconds} 秒後第 {attempt} 次重試",
   "server.product.welcome": "你好！我是 Hezuo，可以幫你處理機器人、例行工作和待辦事項。準備好後直接傳訊息給我，我們就開始。",
+  "server.product.queued": "正在排隊，馬上開始…",
   "product.billing.insufficient": "積分不足，暫時無法傳送。目前可用 {n} 積分，請聯絡管理員儲值。",
   "product.billing.expired": "登入已過期，請重新登入",
   "product.billing.requestId": "請求編號",

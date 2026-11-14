@@ -6,8 +6,12 @@ import { errorResponse, HTTPError, json, preflight, secureResponse, withBoundedR
 import { limitedOTPResponse } from "./otp-rate-limit";
 import type { CloudflareFetch } from "./cloudflare-api";
 import { routeAccountAi } from "./account-ai";
+import { routeAccountLifecycle } from "./account-lifecycle";
+import { aiConfigFrom } from "./ai-config";
+import { routeAdminAssets } from "./admin-assets";
 import { routeAiGateway } from "./ai-gateway";
 import { recoverStaleRequests } from "./ai-wallet";
+import { refreshBillingController } from "./task-billing";
 import {
   cleanupEndpointForInstallation,
   deleteManagedEndpoint,
@@ -42,6 +46,13 @@ function routeError(pathname: string, status: number, code: string): Response {
 const SIGN_IN_OTP_PATH = "/api/auth/sign-in/email-otp";
 const ROTATE_ROUTE = /^\/v1\/installations\/([^/]+)\/credentials\/rotate$/;
 const INSTALLATION_ROUTE = /^\/v1\/installations\/([^/]+)$/;
+const MANAGED_ENDPOINT_SETTINGS = [
+  "CLOUDFLARE_ACCOUNT_ID",
+  "CLOUDFLARE_ZONE_ID",
+  "CLOUDFLARE_API_TOKEN",
+  "COMPANION_HOST_SUFFIX",
+  "CLOUDFLARE_ENDPOINT_ACCOUNTS",
+] as const;
 
 function endpointConfig(env: Env): ControlPlaneConfig {
   try { return readConfig(env); }
@@ -106,6 +117,7 @@ async function route(
   cloudflareFetch: CloudflareFetch,
   apnsFetch: typeof fetch,
   highLevelFetch: typeof fetch,
+  aiFetch: typeof fetch,
 ) {
   const url = new URL(request.url);
   if (request.method === "OPTIONS") return preflight(request, config);
@@ -145,7 +157,9 @@ async function route(
   }
 
   const auth = createAuth(env, ctx, config, requestId);
-  const accountAi = await routeAccountAi(request, env, auth, config);
+  const lifecycle = await routeAccountLifecycle(request, env, auth, aiConfigFrom(env).operatorUserIds);
+  if (lifecycle) return lifecycle;
+  const accountAi = await routeAccountAi(request, env, auth, config, aiFetch);
   if (accountAi) return accountAi;
 
   // Public and unauthenticated on purpose: the sign-in page has to know which
@@ -268,6 +282,8 @@ export function createWorker(
       let config: AuthConfig | null = null;
       try {
         config = readAuthConfig(env);
+        const adminAsset = routeAdminAssets(request);
+        if (adminAsset) return secureResponse(adminAsset, request, null, requestId);
         const origin = request.headers.get("origin");
         // HighLevel sends the person's browser to the callback: a top-level
         // navigation that may carry any Origin (or `null` after a cross-site
@@ -277,13 +293,14 @@ export function createWorker(
           return secureResponse(routeError(url.pathname, 403, "origin_not_allowed"), request, config, requestId);
         }
         if (url.pathname.startsWith("/v1/ai/") && request.method !== "OPTIONS") {
-          const response = await routeAiGateway(request, env, aiFetch);
+          const response = await routeAiGateway(request, env, aiFetch, (promise) => ctx.waitUntil(promise));
           return secureResponse(response ?? routeError(url.pathname, 404, "not_found"), request, config, requestId);
         }
-        const ownsBody = url.pathname.startsWith("/v1/account/ai") || url.pathname.startsWith("/v1/operator/ai/");
+        const ownsBody = url.pathname.startsWith("/v1/account/ai") || url.pathname.startsWith("/v1/operator/ai/")
+          || url.pathname === "/v1/operator/channels" || url.pathname === "/v1/operator/billing";
         const boundedRequest = ownsBody ? request : await withBoundedRequestBody(request);
         return secureResponse(
-          await route(boundedRequest, env, ctx, config, requestId, cloudflareFetch, apnsFetch, highLevelFetch),
+          await route(boundedRequest, env, ctx, config, requestId, cloudflareFetch, apnsFetch, highLevelFetch, aiFetch),
           request,
           config,
           requestId,
@@ -299,6 +316,9 @@ export function createWorker(
     },
     scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
       const requestId = crypto.randomUUID();
+      ctx.waitUntil(refreshBillingController(env).catch(() => {
+        console.error(JSON.stringify({ message: "billing controller refresh failed", requestId, errorCode: "billing_internal" }));
+      }));
       ctx.waitUntil(recoverStaleRequests(env).catch(() => {
         console.error(JSON.stringify({ message: "AI reservation recovery failed", requestId, errorCode: "ai_internal" }));
       }));
@@ -309,6 +329,10 @@ export function createWorker(
         console.error(JSON.stringify({ message: "highlevel flow sweep failed", requestId, errorCode: "highlevel_internal" }));
       }));
       ctx.waitUntil((async () => {
+        if (!MANAGED_ENDPOINT_SETTINGS.some((name) => {
+          const value = env[name];
+          return value !== undefined && value !== null && value !== "";
+        })) return;
         let config: ControlPlaneConfig;
         try {
           config = readConfig(env);

@@ -17,6 +17,7 @@
   },
   "scripts": {
     "check": "pnpm types && tsc -p tsconfig.json",
+    "typecheck": "pnpm types && tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "types": "wrangler types --config wrangler.jsonc worker-configuration.d.ts",
     "types:check": "wrangler types --check --config wrangler.jsonc worker-configuration.d.ts",

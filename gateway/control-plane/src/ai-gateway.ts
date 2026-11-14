@@ -1,7 +1,9 @@
 import { authenticateModelToken } from "./account-ai";
-import { findModel, publicModels, readAiConfig, type AiConfig, type AiModelConfig } from "./ai-config";
-import { markRequestStreaming, reserveRequest, reviewRequest, settleRequest } from "./ai-wallet";
+import { findModel, publicModels, type AiConfig, type AiModelConfig } from "./ai-config";
+import { loadRuntimeAiConfig } from "./channel-store";
+import { markRequestStreaming, releaseRequest, reservationMicroPoints, reserveRequest, reviewRequest, settleRequest } from "./ai-wallet";
 import { HTTPError, JSON_HEADERS, json, readBoundedJSON } from "./http";
+import { applyBillingCatalog, estimateTaskMicroPoints, inputReservationTokens, planTaskBilling, refreshBillingController, type TaskBillingSnapshot } from "./task-billing";
 
 /** Screenshots and tool context ride in this body; still bounded. */
 export const AI_REQUEST_LIMIT_BYTES = 48 * 1024 * 1024;
@@ -12,10 +14,14 @@ export const AI_JSON_RESPONSE_LIMIT_BYTES = 16 * 1024 * 1024;
 /** One upstream exchange; a tool follow-up is a separate request with its own
  * reservation. */
 export const AI_UPSTREAM_TIMEOUT_MS = 300_000;
+export const DISCONNECT_DRAIN_MS = 120_000;
 
 const MODELS_PATH = "/v1/ai/models";
 const CHAT_PATH = "/v1/ai/chat/completions";
 const RESPONSES_PATH = "/v1/ai/responses";
+const QUOTE_PATH = "/v1/ai/quote";
+const UPSTREAM_REFUSAL_STATUSES = new Set([400, 401, 403, 404, 408, 409, 413, 422, 429]);
+const AI_BUSY_RETRY_AFTER_SECONDS = 2;
 
 const CHAT_FIELDS = new Set([
   "model",
@@ -36,6 +42,7 @@ const CHAT_FIELDS = new Set([
   "response_format",
   "reasoning_effort",
   "n",
+  "service_tier",
 ]);
 
 const RESPONSES_FIELDS = new Set([
@@ -54,6 +61,7 @@ const RESPONSES_FIELDS = new Set([
   "include",
   "store",
   "background",
+  "service_tier",
 ]);
 
 type InferenceMode = "chat" | "responses";
@@ -62,6 +70,8 @@ interface UsageCandidate {
   cached: unknown;
   input: unknown;
   output: unknown;
+  write: unknown;
+  writeHour: unknown;
 }
 
 interface PreparedRequest {
@@ -69,6 +79,8 @@ interface PreparedRequest {
   outputCap: number;
   stream: boolean;
   upstream: Record<string, unknown>;
+  inputReserve?: number;
+  billing?: TaskBillingSnapshot;
 }
 
 interface UpstreamControl {
@@ -76,6 +88,7 @@ interface UpstreamControl {
   dispose: () => void;
   signal: AbortSignal;
   timedOut: () => boolean;
+  disconnected: () => boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -112,10 +125,13 @@ function failure(error: unknown): Response {
   if (error.status === 413) return inferenceError(413, "request_too_large", "The request body is too large.");
   if (error.status === 401) return inferenceError(401, "ai_token_invalid", "The AI token is invalid or expired.");
   if (error.status === 402) {
+    if (error.code === "budget_exceeded") return inferenceError(402, "budget_exceeded", "The request exceeds the authorized points budget.");
     return inferenceError(402, "insufficient_balance", "Available points cannot cover another request.");
   }
   if (error.status === 429) {
-    return inferenceError(429, "ai_busy", "Too many requests are in flight for this account.");
+    const response = inferenceError(429, "ai_busy", "Too many requests are in flight for this account.");
+    response.headers.set("retry-after", String(AI_BUSY_RETRY_AFTER_SECONDS));
+    return response;
   }
   if (error.status === 403) {
     if (error.code === "ai_suspended") {
@@ -126,7 +142,9 @@ function failure(error: unknown): Response {
     }
     return inferenceError(403, "ai_not_enabled", "AI access for this account is not enabled.");
   }
-  if (error.status === 503) return inferenceError(503, "ai_unavailable", "The AI service is not available.");
+  if (error.status === 503) return error.code === "dynamic_billing_disabled"
+    ? inferenceError(503, "dynamic_billing_disabled", "Task pricing is not enabled.")
+    : inferenceError(503, "ai_unavailable", "The AI service is not available.");
   return inferenceError(400, "invalid_request", "The request was rejected.");
 }
 
@@ -251,12 +269,27 @@ function prepareResponses(body: Record<string, unknown>, model: AiModelConfig): 
   return { model, outputCap, stream, upstream };
 }
 
-function preparedRequest(body: Record<string, unknown>, aiConfig: AiConfig, mode: InferenceMode): PreparedRequest {
+async function preparedRequest(env: Env, body: Record<string, unknown>, aiConfig: AiConfig, mode: InferenceMode): Promise<PreparedRequest> {
   const modelId = body.model;
   if (!isString(modelId) || modelId.length === 0) throw invalid();
-  const model = findModel(aiConfig, modelId);
+  const budget = body.billing;
+  if (budget !== undefined && (!isRecord(budget) || Object.keys(budget).some((key) => key !== "maxMicroPoints") || !isCount(budget.maxMicroPoints))) throw invalid();
+  const plan = await planTaskBilling(env, aiConfig, mode, body);
+  const model = plan?.model ?? findModel(aiConfig, modelId);
   if (!model || !model.enabled || model.protocol !== mode) throw new HTTPError(403, "model_not_allowed");
-  return mode === "chat" ? prepareChat(body, model) : prepareResponses(body, model);
+  if (!plan && body.service_tier !== undefined) throw invalid();
+  const wire: Record<string, unknown> = { ...body, model: model.id };
+  delete wire.billing;
+  if (plan) {
+    if (plan.snapshot.serviceTier === "default") delete wire.service_tier;
+    else wire.service_tier = plan.snapshot.serviceTier;
+  }
+  const prepared = mode === "chat" ? prepareChat(wire, model) : prepareResponses(wire, model);
+  if (plan) prepared.billing = plan.snapshot;
+  prepared.inputReserve = plan?.snapshot.maxInputTokens ?? inputReservationTokens(body, model.maxContextTokens, prepared.outputCap);
+  const reserved = plan?.snapshot.reservedMicroPoints ?? reservationMicroPoints({ ...model, maxContextTokens: prepared.inputReserve, maxOutputTokens: prepared.outputCap });
+  if (isRecord(budget) && reserved > (budget.maxMicroPoints as number)) throw new HTTPError(402, "budget_exceeded");
+  return prepared;
 }
 
 /** A completion body may carry token counts either directly or under `usage`. */
@@ -264,6 +297,17 @@ function usageSource(record: Record<string, unknown>, keys: readonly string[]): 
   const nested = isRecord(record.usage) ? record.usage : null;
   if (nested && keys.some((key) => key in nested)) return nested;
   return keys.some((key) => key in record) ? record : null;
+}
+
+function cacheWrites(source: Record<string, unknown>, details: Record<string, unknown> | null): { write: unknown; writeHour: unknown } {
+  const split = isRecord(source.cache_creation) ? source.cache_creation : null;
+  const hour = split?.ephemeral_1h_input_tokens ?? details?.cache_write_1h_tokens ?? source.cache_write_1h_tokens;
+  const ordinary = split?.ephemeral_5m_input_tokens ?? details?.cache_write_tokens ?? source.cache_write_tokens;
+  const total = source.cache_creation_input_tokens ?? details?.cache_creation_tokens;
+  if (ordinary !== undefined) return { write: ordinary, writeHour: hour ?? null };
+  if (isCount(total) && isCount(hour) && hour <= total) return { write: total - hour, writeHour: hour };
+  if (total !== undefined) return { write: null, writeHour: null };
+  return { write: null, writeHour: hour ?? null };
 }
 
 function chatUsageCandidate(record: Record<string, unknown>): UsageCandidate | null {
@@ -275,6 +319,7 @@ function chatUsageCandidate(record: Record<string, unknown>): UsageCandidate | n
     cached: typeof details?.cached_tokens === "number" ? details.cached_tokens : null,
     input: source.prompt_tokens,
     output: source.completion_tokens,
+    ...cacheWrites(source, details),
   };
 }
 
@@ -286,6 +331,7 @@ function responsesUsageCandidate(record: Record<string, unknown>): UsageCandidat
     cached: typeof details?.cached_tokens === "number" ? details.cached_tokens : null,
     input: source.input_tokens,
     output: source.output_tokens,
+    ...cacheWrites(source, details),
   };
 }
 
@@ -305,21 +351,30 @@ async function settleUsage(env: Env, requestId: string, candidate: UsageCandidat
 }
 
 /** Null when the usage settled, else why it did not. */
-async function settleOutcome(env: Env, requestId: string, candidate: UsageCandidate | null): Promise<string | null> {
+async function settleOutcome(env: Env, requestId: string, candidate: UsageCandidate | null, reason: string | null = null): Promise<string | null> {
   if (!candidate) {
-    await markReview(env, requestId, "usage_missing");
-    return "usage_missing";
+    const missing = reason === "client_disconnected_settled" ? "client_disconnected" : "usage_missing";
+    await markReview(env, requestId, missing);
+    return missing;
   }
-  const { cached, input, output } = candidate;
-  if (!isCount(input) || !isCount(output) || (cached !== null && (!isCount(cached) || cached > input))) {
-    await markReview(env, requestId, "usage_invalid");
-    return "usage_invalid";
+  const { cached, input, output, write, writeHour } = candidate;
+  if (!isCount(input) || !isCount(output) || (cached !== null && (!isCount(cached) || cached > input))
+      || (write !== null && !isCount(write)) || (writeHour !== null && !isCount(writeHour))
+      || Number(cached ?? 0) + Number(write ?? 0) + Number(writeHour ?? 0) > Number(input)) {
+    const invalidUsage = reason === "client_disconnected_settled" ? "client_disconnected" : "usage_invalid";
+    await markReview(env, requestId, invalidUsage);
+    return invalidUsage;
   }
   try {
     const result = await settleRequest(env, requestId, {
       cachedInputTokens: cached === null ? null : cached,
       inputTokens: input,
       outputTokens: output,
+      cacheWriteTokens: write === null ? null : write as number,
+      cacheWriteHourTokens: writeHour === null ? null : writeHour as number,
+    }, Date.now(), reason);
+    await refreshBillingController(env).catch(() => {
+      console.error(JSON.stringify({ message: "billing controller refresh failed", requestId }));
     });
     return result.status === "settled" ? null : "settle_failed";
   } catch {
@@ -327,15 +382,39 @@ async function settleOutcome(env: Env, requestId: string, candidate: UsageCandid
   }
 }
 
+function localDisconnectSignal(request: Request, env: Env, waitUntil: (work: Promise<unknown>) => void) {
+  const id = (request.cf as { localGatewayDisconnectId?: unknown } | undefined)?.localGatewayDisconnectId;
+  if (!env.LOCAL_GATEWAY_DISCONNECT || typeof id !== "string" || !/^[\da-f-]{36}$/i.test(id)) {
+    return { signal: request.signal, dispose() {} };
+  }
+  const disconnected = new AbortController();
+  const lifetime = new AbortController();
+  const abort = () => disconnected.abort();
+  request.signal.addEventListener("abort", abort, { once: true });
+  if (request.signal.aborted) abort();
+  waitUntil(env.LOCAL_GATEWAY_DISCONNECT.fetch(`https://disconnect.local/${id}`, { signal: lifetime.signal })
+    .then(response => { if (response.status === 204) abort(); })
+    .catch(() => { /* Teardown cancels only this notification, never the AI stream. */ }));
+  return {
+    signal: disconnected.signal,
+    dispose() {
+      request.signal.removeEventListener("abort", abort);
+      lifetime.abort();
+    },
+  };
+}
+
 function createUpstreamControl(requestSignal: AbortSignal): UpstreamControl {
   const controller = new AbortController();
   let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, AI_UPSTREAM_TIMEOUT_MS);
-  const onClientAbort = () => controller.abort();
-  if (requestSignal.aborted) controller.abort();
+  let disconnected = false;
+  let timer = setTimeout(() => { timedOut = true; controller.abort(); }, AI_UPSTREAM_TIMEOUT_MS);
+  const onClientAbort = () => {
+    disconnected = true;
+    clearTimeout(timer);
+    timer = setTimeout(() => { timedOut = true; controller.abort(); }, DISCONNECT_DRAIN_MS);
+  };
+  if (requestSignal.aborted) onClientAbort();
   else requestSignal.addEventListener("abort", onClientAbort, { once: true });
   return {
     abort: () => controller.abort(),
@@ -345,6 +424,7 @@ function createUpstreamControl(requestSignal: AbortSignal): UpstreamControl {
     },
     signal: controller.signal,
     timedOut: () => timedOut,
+    disconnected: () => disconnected,
   };
 }
 
@@ -511,17 +591,20 @@ interface StreamOptions {
   model: AiModelConfig;
   requestId: string;
   upstream: Response;
+  waitUntil: (promise: Promise<unknown>) => void;
+  requestSignal: AbortSignal;
+  disposeDisconnect: () => void;
 }
 
-/** Relays upstream SSE with backpressure. The wallet settles before the
- * terminal frame is released; a disconnect or a stream without terminal usage
- * is an unknown outcome and stays a reviewable reservation. */
+/** Relays upstream SSE with backpressure while connected. After disconnect,
+ * draining continues in the execution context until usage or the drain deadline. */
 function forwardStream(options: StreamOptions): Response {
-  const { control, env, mode, model, requestId, upstream } = options;
+  const { control, env, mode, model, requestId, upstream, waitUntil } = options;
   const reader = upstream.body?.getReader();
   if (!reader) {
     void markReview(env, requestId, "upstream_body_missing");
     control.abort();
+    options.disposeDisconnect();
     control.dispose();
     return inferenceError(502, "upstream_error", "The upstream response could not be read.");
   }
@@ -534,10 +617,18 @@ function forwardStream(options: StreamOptions): Response {
   let chatUsage: UsageCandidate | null = null;
   let finished = false;
   let terminal = false;
+  let disconnected = control.disconnected();
+  let drainTimer: NodeJS.Timeout | undefined;
+  const completion = Promise.withResolvers<void>();
+  waitUntil(completion.promise);
+  let output: ReadableStreamDefaultController<Uint8Array>;
+  let outputCancelled = false;
 
   async function shutdown() {
     if (finished) return;
     finished = true;
+    clearTimeout(drainTimer);
+    options.requestSignal.removeEventListener("abort", disconnect);
     try {
       await reader?.cancel();
     } catch {
@@ -545,6 +636,9 @@ function forwardStream(options: StreamOptions): Response {
     }
     control.abort();
     control.dispose();
+    options.disposeDisconnect();
+    if (!outputCancelled) output.close();
+    completion.resolve();
   }
 
   async function processFrames(frames: SseFrame[]): Promise<boolean> {
@@ -555,7 +649,7 @@ function forwardStream(options: StreamOptions): Response {
         continue;
       }
       if (mode === "chat" && data === "[DONE]") {
-        if (await settleUsage(env, requestId, chatUsage)) pending.push(renderFrame(frame));
+        if (await settleOutcome(env, requestId, chatUsage, disconnected || control.disconnected() ? "client_disconnected_settled" : null) === null) pending.push(renderFrame(frame));
         else pending.push(renderStreamError("The response could not be settled."));
         return false;
       }
@@ -564,7 +658,7 @@ function forwardStream(options: StreamOptions): Response {
       try {
         parsed = JSON.parse(data);
       } catch {
-        await markReview(env, requestId, "upstream_stream_malformed");
+        await markReview(env, requestId, disconnected ? "client_disconnected" : "upstream_stream_malformed");
         pending.push(renderStreamError("The upstream response was malformed."));
         return false;
       }
@@ -573,7 +667,7 @@ function forwardStream(options: StreamOptions): Response {
         continue;
       }
       if (parsed.error !== undefined && parsed.error !== null) {
-        await markReview(env, requestId, "upstream_stream_error");
+        await markReview(env, requestId, disconnected ? "client_disconnected" : "upstream_stream_error");
         const failure = upstreamFailure(parsed.error, "The upstream request failed.");
         logStreamFailure(requestId, "upstream_stream_error", failure.code, "error-frame");
         pending.push(renderStreamError(failure.message, failure.code));
@@ -592,7 +686,7 @@ function forwardStream(options: StreamOptions): Response {
       const changed = response ? rewriteModel(response, model.upstreamModel, model.id) : false;
       if (isTerminalEvent(parsed.type)) {
         const candidate = response ? responsesUsageCandidate(response) : null;
-        const unsettled = await settleOutcome(env, requestId, candidate);
+        const unsettled = await settleOutcome(env, requestId, candidate, disconnected || control.disconnected() ? "client_disconnected_settled" : null);
         if (unsettled === null) {
           pending.push(changed ? renderData(frame, JSON.stringify(parsed)) : renderFrame(frame));
         } else if (parsed.type === "response.completed") {
@@ -609,68 +703,67 @@ function forwardStream(options: StreamOptions): Response {
     return true;
   }
 
-  return new Response(new ReadableStream<Uint8Array>({
-    async cancel() {
+  let pumping: Promise<void> | undefined;
+  async function pump(controller?: ReadableStreamDefaultController<Uint8Array>): Promise<void> {
+    for (;;) {
       if (finished) return;
-      await markReview(env, requestId, "client_disconnected");
-      await shutdown();
-    },
-    async pull(controller) {
-      for (;;) {
+      if (disconnected) pending.length = 0;
+      if (pending.length) {
+        if (!controller || (controller.desiredSize ?? 0) <= 0) return;
+        controller.enqueue(encoder.encode(pending.shift()!));
+        continue;
+      }
+      if (terminal) {
+        await shutdown();
+        return;
+      }
+      if (!disconnected && (!controller || (controller.desiredSize ?? 0) <= 0)) return;
+      try {
+        const chunk = await reader!.read();
         if (finished) return;
-        if (pending.length > 0) {
-          if (controller.desiredSize !== null && controller.desiredSize <= 0) return;
-          const text = pending.shift();
-          if (text !== undefined) controller.enqueue(encoder.encode(text));
-          continue;
-        }
-        if (terminal) {
-          await shutdown();
-          controller.close();
-          return;
-        }
-        if (controller.desiredSize !== null && controller.desiredSize <= 0) return;
-
-        let chunk: ReadableStreamReadResult<Uint8Array>;
-        try {
-          chunk = await reader.read();
-        } catch {
-          await markReview(env, requestId, control.timedOut() ? "upstream_timeout" : "upstream_stream_error");
-          pending.push(renderStreamError("The upstream stream failed."));
-          terminal = true;
-          continue;
-        }
-        if (chunk.done) {
-          let frames: SseFrame[];
-          try {
-            frames = sse.flush();
-          } catch {
-            await markReview(env, requestId, "upstream_frame_too_large");
-            pending.push(renderStreamError("The upstream response was malformed."));
-            terminal = true;
-            continue;
-          }
-          if (await processFrames(frames)) {
-            // A stream that ends without a terminal usage is unknown: keep the
-            // reservation for review, and never fabricate a successful end.
-            await markReview(env, requestId, "stream_ended_without_terminal_usage");
-            pending.push(renderStreamError("The upstream stream ended unexpectedly."));
-          }
-          terminal = true;
-          continue;
-        }
         let frames: SseFrame[];
         try {
-          frames = sse.push(decoder.decode(chunk.value, { stream: true }));
+          frames = chunk.done ? sse.flush() : sse.push(decoder.decode(chunk.value, { stream: true }));
         } catch {
-          await markReview(env, requestId, "upstream_frame_too_large");
+          await markReview(env, requestId, disconnected ? "client_disconnected" : "upstream_frame_too_large");
           pending.push(renderStreamError("The upstream response was malformed."));
           terminal = true;
           continue;
         }
-        if (!(await processFrames(frames))) terminal = true;
+        terminal = !(await processFrames(frames));
+        if (chunk.done && !terminal) {
+          await markReview(env, requestId, disconnected ? "client_disconnected" : "stream_ended_without_terminal_usage");
+          pending.push(renderStreamError("The upstream stream ended unexpectedly."));
+          terminal = true;
+        }
+      } catch {
+        if (finished) return;
+        await markReview(env, requestId, disconnected || control.disconnected() ? "client_disconnected" : control.timedOut() ? "upstream_timeout" : "upstream_stream_error");
+        pending.push(renderStreamError("The upstream stream failed."));
+        terminal = true;
       }
+    }
+  }
+  function runPump(controller?: ReadableStreamDefaultController<Uint8Array>): Promise<void> {
+    if (!pumping) pumping = pump(controller).finally(() => { pumping = undefined; });
+    return pumping;
+  }
+  function disconnect() {
+    if (finished || disconnected && drainTimer !== undefined) return;
+    disconnected = true;
+    drainTimer = setTimeout(() => {
+      waitUntil(markReview(env, requestId, "client_disconnected").then(shutdown));
+    }, DISCONNECT_DRAIN_MS);
+    waitUntil(runPump().then(() => finished ? undefined : runPump()));
+  }
+  return new Response(new ReadableStream<Uint8Array>({
+    start(controller) {
+      output = controller;
+      options.requestSignal.addEventListener("abort", disconnect, { once: true });
+      if (disconnected || options.requestSignal.aborted) disconnect();
     },
+    cancel() { outputCancelled = true; disconnect(); },
+    pull(controller) { return runPump(controller); },
   }), {
     headers: { "content-type": "text/event-stream; charset=utf-8" },
     status: 200,
@@ -706,17 +799,13 @@ async function readLimitedBody(response: Response, limit: number): Promise<Uint8
 }
 
 /** Usage a failed exchange still reported: a chat error body with usage, a
- * responses body, or a responses terminal `response.failed` event. Anything
- * else is untrusted and leaves the reservation for review. */
+ * responses body, or a responses terminal `response.failed` event. Body read
+ * failures propagate so a partial exchange never releases points. */
 async function failureUsage(upstream: Response, mode: InferenceMode): Promise<UsageCandidate | null> {
-  let text: string;
-  try {
-    text = new TextDecoder("utf-8", { fatal: true }).decode(
-      await readLimitedBody(upstream, AI_JSON_RESPONSE_LIMIT_BYTES),
-    );
-  } catch {
-    return null;
-  }
+  if (!upstream.body) return null;
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(
+    await readLimitedBody(upstream, AI_JSON_RESPONSE_LIMIT_BYTES),
+  );
   const contentType = upstream.headers.get("content-type")?.toLowerCase() ?? "";
   if (contentType.includes("text/event-stream")) {
     const sse = new SseReader(AI_SSE_FRAME_LIMIT_BYTES);
@@ -765,6 +854,7 @@ async function forwardJSON(options: {
   model: AiModelConfig;
   requestId: string;
   upstream: Response;
+  control: UpstreamControl;
 }): Promise<Response> {
   const { env, mode, model, requestId, upstream } = options;
   let body: Record<string, unknown>;
@@ -776,17 +866,17 @@ async function forwardJSON(options: {
     if (!isRecord(parsed)) throw new Error("not an object");
     body = parsed;
   } catch {
-    await markReview(env, requestId, "upstream_body_unreadable");
+    await markReview(env, requestId, options.control.disconnected() ? "client_disconnected" : "upstream_body_unreadable");
     return inferenceError(502, "upstream_error", "The upstream response could not be read.");
   }
   if (body.error !== undefined && body.error !== null) {
     const candidate = mode === "chat" ? chatUsageCandidate(body) : responsesUsageCandidate(body);
-    if (candidate) await settleUsage(env, requestId, candidate);
+    if (candidate) await settleOutcome(env, requestId, candidate, options.control.disconnected() ? "client_disconnected_settled" : null);
     else await markReview(env, requestId, "upstream_error_body");
     return inferenceError(502, "upstream_error", "The upstream request failed.");
   }
   const candidate = mode === "chat" ? chatUsageCandidate(body) : responsesUsageCandidate(body);
-  if (!(await settleUsage(env, requestId, candidate))) {
+  if (await settleOutcome(env, requestId, candidate, options.control.disconnected() ? "client_disconnected_settled" : null) !== null) {
     return inferenceError(502, "upstream_error", "The response could not be settled.");
   }
   const relayed = rewriteModel(body, model.upstreamModel, model.id) ? JSON.stringify(body) : text;
@@ -809,12 +899,13 @@ async function reserve(options: {
     pricing: {
       cachedRate: model.cachedInputMicroPointsPerMillion,
       inputRate: model.inputMicroPointsPerMillion,
-      maxInputTokens: model.maxContextTokens,
+      maxInputTokens: prepared.inputReserve ?? model.maxContextTokens,
       maxOutputTokens: prepared.outputCap,
       outputRate: model.outputMicroPointsPerMillion,
       pricingVersion: model.pricingVersion,
     },
     tokenId,
+    ...(prepared.billing ? { billing: prepared.billing } : {}),
   });
   if (result.ok) return result.id;
   if (result.reason === "insufficient_balance") throw new HTTPError(402, "insufficient_balance");
@@ -832,15 +923,18 @@ async function dispatch(options: {
   prepared: PreparedRequest;
   request: Request;
   requestId: string;
+  waitUntil: (promise: Promise<unknown>) => void;
 }): Promise<Response> {
-  const { aiConfig, env, fetcher, mode, prepared, request, requestId } = options;
-  const base = aiConfig.upstreamBaseURL;
-  const apiKey = aiConfig.upstreamApiKey;
+  const { aiConfig, env, fetcher, mode, prepared, request, requestId, waitUntil } = options;
+  const route = aiConfig.routes?.get(prepared.model.id);
+  const base = aiConfig.routes ? route?.baseURL : aiConfig.upstreamBaseURL;
+  const apiKey = aiConfig.routes ? route?.apiKey : aiConfig.upstreamApiKey;
   if (!base || !apiKey) {
     await markReview(env, requestId, "ai_unavailable");
     return inferenceError(503, "ai_unavailable", "The AI service is not available.");
   }
-  const control = createUpstreamControl(request.signal);
+  const disconnect = localDisconnectSignal(request, env, waitUntil);
+  const control = createUpstreamControl(disconnect.signal);
   // A relayed stream owns the control until it closes.
   let streamOwned = false;
 
@@ -868,10 +962,17 @@ async function dispatch(options: {
     if (upstream.status < 200 || upstream.status >= 300 || encoded) {
       const candidate = encoded ? null : await failureUsage(upstream, mode);
       await upstream.body?.cancel().catch(() => {});
-      // A failed exchange that still reported trustworthy usage is settled;
-      // anything else keeps the reservation for review.
       if (candidate) await settleUsage(env, requestId, candidate);
-      else await markReview(env, requestId, encoded ? "upstream_content_encoding" : `upstream_status_${upstream.status}`);
+      else if (!encoded && UPSTREAM_REFUSAL_STATUSES.has(upstream.status)) {
+        // This policy releases end-user points, not any upstream billing obligation.
+        const released = await releaseRequest(env, requestId, `upstream_refused_${upstream.status}`);
+        if (released) {
+          return upstream.status === 429
+            ? inferenceError(503, "ai_temporarily_busy", "The AI service is busy. No points were charged.")
+            : inferenceError(503, "ai_temporarily_unavailable", "The AI service is temporarily unavailable. No points were charged.");
+        }
+        await markReview(env, requestId, "upstream_release_failed");
+      } else await markReview(env, requestId, encoded ? "upstream_content_encoding" : `upstream_status_${upstream.status}`);
       return inferenceError(502, "upstream_error", "The upstream request failed.");
     }
 
@@ -885,7 +986,7 @@ async function dispatch(options: {
         else await markReview(env, requestId, "upstream_unexpected_stream");
         return inferenceError(502, "upstream_error", "The upstream returned an unexpected stream.");
       }
-      const response = forwardStream({ control, env, mode, model: prepared.model, requestId, upstream });
+      const response = forwardStream({ control, env, mode, model: prepared.model, requestId, upstream, waitUntil, requestSignal: disconnect.signal, disposeDisconnect: disconnect.dispose });
       streamOwned = true;
       return response;
     }
@@ -898,13 +999,16 @@ async function dispatch(options: {
       else await markReview(env, requestId, "upstream_not_streaming");
       return inferenceError(502, "upstream_error", "The upstream did not stream the response.");
     }
-    return await forwardJSON({ env, mode, model: prepared.model, requestId, upstream });
+    return await forwardJSON({ env, mode, model: prepared.model, requestId, upstream, control });
   } catch {
     // The request may have reached the upstream: never assume it did not.
-    await markReview(env, requestId, control.timedOut() ? "upstream_timeout" : "upstream_unreachable");
+    await markReview(env, requestId, control.disconnected() ? "client_disconnected" : control.timedOut() ? "upstream_timeout" : "upstream_unreachable");
     return inferenceError(502, "upstream_error", "The upstream request failed.");
   } finally {
-    if (!streamOwned) control.dispose();
+    if (!streamOwned) {
+      control.dispose();
+      disconnect.dispose();
+    }
   }
 }
 
@@ -914,19 +1018,22 @@ export async function routeAiGateway(
   request: Request,
   env: Env,
   fetcher: typeof fetch = fetch,
+  waitUntil: (promise: Promise<unknown>) => void = promise => { void promise.catch(() => {}); },
 ): Promise<Response | null> {
   const { pathname } = new URL(request.url);
-  if (pathname !== MODELS_PATH && pathname !== CHAT_PATH && pathname !== RESPONSES_PATH) return null;
+  if (pathname !== MODELS_PATH && pathname !== CHAT_PATH && pathname !== RESPONSES_PATH && pathname !== QUOTE_PATH) return null;
 
+  let requestId: string | undefined;
   try {
-    const aiConfig = readAiConfig(env);
+    const aiConfig = await loadRuntimeAiConfig(env);
     // Authenticate before touching the (potentially 48 MiB) body.
     const admission = await authenticateModelToken(env, request, aiConfig);
 
     if (pathname === MODELS_PATH) {
       if (request.method !== "GET") throw invalid();
+      const catalog = await applyBillingCatalog(env, aiConfig);
       return json({
-        data: publicModels(aiConfig).map((model) => ({
+        data: publicModels(catalog).map((model) => ({
           created: 0,
           id: model.id,
           object: "model",
@@ -936,22 +1043,52 @@ export async function routeAiGateway(
       });
     }
     if (request.method !== "POST") throw invalid();
+    if (pathname === QUOTE_PATH) {
+      const body = await readInferenceBody(request);
+      if ((body.endpoint !== "chat" && body.endpoint !== "responses") || !isRecord(body.request)
+          || Object.keys(body).some((key) => key !== "endpoint" && key !== "request")) throw invalid();
+      const prepared = await preparedRequest(env, body.request, aiConfig, body.endpoint);
+      const snapshot = prepared.billing;
+      if (!snapshot) throw new HTTPError(503, "dynamic_billing_disabled");
+      return json({
+        selectedModel: prepared.model.id, complexity: snapshot.complexity, score: snapshot.score,
+        reasons: snapshot.reasons, estimatedInputTokens: snapshot.estimatedInputTokens,
+        estimatedMicroPoints: estimateTaskMicroPoints(snapshot), reservedMicroPoints: snapshot.reservedMicroPoints,
+        policyRevision: snapshot.policyRevision, currency: snapshot.currency, pointsPerCurrency: snapshot.pointsPerCurrency,
+        rateSnapshot: { inputMicroPointsPerMillion: prepared.model.inputMicroPointsPerMillion,
+          cachedInputMicroPointsPerMillion: prepared.model.cachedInputMicroPointsPerMillion,
+          outputMicroPointsPerMillion: prepared.model.outputMicroPointsPerMillion },
+        noPriceCommitment: true,
+      });
+    }
 
     const mode: InferenceMode = pathname === CHAT_PATH ? "chat" : "responses";
     const body = await readInferenceBody(request);
-    const prepared = preparedRequest(body, aiConfig, mode);
-    if (!aiConfig.ready || !aiConfig.upstreamBaseURL || !aiConfig.upstreamApiKey) {
+    const prepared = await preparedRequest(env, body, aiConfig, mode);
+    if (!aiConfig.ready || (aiConfig.routes ? !aiConfig.routes.has(prepared.model.id) : !aiConfig.upstreamBaseURL || !aiConfig.upstreamApiKey)) {
       throw new HTTPError(503, "ai_unavailable");
     }
-    const requestId = await reserve({
+    requestId = await reserve({
       env,
       mode,
       ownerUserId: admission.ownerUserId,
       prepared,
       tokenId: admission.tokenId,
     });
-    return await dispatch({ aiConfig, env, fetcher, mode, prepared, request, requestId });
+    const exchange = dispatch({ aiConfig, env, fetcher, mode, prepared, request, requestId, waitUntil });
+    waitUntil(exchange);
+    const response = await exchange;
+    response.headers.set("x-ai-request-id", requestId);
+    response.headers.set("x-ai-model", prepared.model.id);
+    response.headers.set("x-ai-pricing-version", prepared.model.pricingVersion);
+    return response;
   } catch (error) {
+    if (requestId) {
+      await markReview(env, requestId, "upstream_unreachable");
+      const response = inferenceError(502, "upstream_error", "The upstream request failed.");
+      response.headers.set("x-ai-request-id", requestId);
+      return response;
+    }
     return failure(error);
   }
 }

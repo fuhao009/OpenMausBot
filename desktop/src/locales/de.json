@@ -1,6 +1,4 @@
 {
-  "server.retry.accountBusy": "Warte auf einen freien Kontoplatz — Wiederholung {attempt} in {seconds} s",
-  "server.retry.upstreamStream": "Kurze Störung beim Anbieter — Wiederholung {attempt} in {seconds} s",
   "server.helper.ask.overview": "Woran arbeiten meine Bots?",
   "server.helper.ask.inbox": "Richte einen Bot für mein Postfach ein",
   "server.helper.ask.routine": "Mach mir eine Morgenroutine",
@@ -2808,5 +2806,6 @@
   "botAccess.overview.allPeople": "Alle Personen",
   "botAccess.overview.toastRemoved": "{bot}: {name} entfernt",
   "server.product.welcome": "Hi! Ich bin Hezuo. Ich helfe dir bei deinen Bots, Routinen und Aufgaben. Schreib mir, wenn du so weit bist, und ich übernehme.",
+  "server.product.queued": "In der Warteschlange, es geht gleich los…",
   "server.product.accessChanged": "Der KI-Zugang des Kontos hat sich geändert. Aktualisiere deinen Kontostatus."
 }

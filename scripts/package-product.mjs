@@ -50,7 +50,8 @@ options:
   --unsigned                 skip macOS signing when no certificate is available
   --dry-run                  validate the origin and write the generated config, build nothing
   --local-origin             allow a loopback origin (the local gateway deployment)
-  --gateway-ca <pem-file>    bundle the deployment's public certificate; required with --local-origin
+  --lan-origin               allow a private-network IPv4 origin (10/8, 172.16/12, 192.168/16), any port
+  --gateway-ca <pem-file>    bundle the deployment's public certificate; required with --local-origin and --lan-origin
   --help                     this text
 
 The origin must be an exact HTTPS origin owned by the operator (no path,
@@ -67,17 +68,21 @@ carry a publicly trusted certificate, so --local-origin also requires
 certificate, bundled for exactly this origin, and nobody has to import
 anything into the operating system's trust store.
 
+--lan-origin is the same exception for a gateway on a private network:
+OMB_PRODUCT_SERVICE_URL may then be https://<10.x | 172.16-31.x | 192.168.x>:<port>.
+It requires --gateway-ca for the same reason, and a public IP address stays refused.
+
 --gateway-ca is a PEM file holding one public certificate (never a private
 key) that the origin's TLS server presents or chains to. It is written into the
 bundled resource as version 2 and applies to that exact origin only: hostname
 and chain checks stay on, and a certificate for another host is refused at
 build time and again when the app starts.`;
 
-class UsageError extends Error {}
+export class UsageError extends Error {}
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   // `pnpm run <script> -- args` forwards the separator itself in pnpm 10.
-  const options = { platform: null, arch: null, dir: false, unsigned: false, dryRun: false, localOrigin: false, gatewayCa: null, help: false };
+  const options = { platform: null, arch: null, dir: false, unsigned: false, dryRun: false, localOrigin: false, lanOrigin: false, gatewayCa: null, help: false };
   for (let index = argv[0] === "--" ? 1 : 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--help" || arg === "-h") options.help = true;
@@ -85,6 +90,7 @@ function parseArgs(argv) {
     else if (arg === "--unsigned") options.unsigned = true;
     else if (arg === "--dry-run") options.dryRun = true;
     else if (arg === "--local-origin") options.localOrigin = true;
+    else if (arg === "--lan-origin") options.lanOrigin = true;
     else if (arg === "--gateway-ca" && argv[index + 1]) options.gatewayCa = argv[++index];
     else if (arg === "--platform" && argv[index + 1]) {
       const value = argv[++index];
@@ -108,6 +114,9 @@ function parseArgs(argv) {
   if (options.localOrigin && !options.gatewayCa) {
     fail("--local-origin needs --gateway-ca: a loopback gateway's certificate can never be publicly trusted, so the app must carry it");
   }
+  if (options.lanOrigin && !options.gatewayCa) {
+    fail("--lan-origin needs --gateway-ca: a private-network gateway's certificate can never be publicly trusted, so the app must carry it");
+  }
   return options;
 }
 
@@ -116,7 +125,7 @@ function fail(message) {
 }
 
 /** The exact origin the desktop pins in its bundled resource. */
-function productOrigin(environment = process.env, { dryRun = false, localOrigin = false } = {}) {
+export function productOrigin(environment = process.env, { dryRun = false, localOrigin = false, lanOrigin = false } = {}) {
   const raw = environment.OMB_PRODUCT_SERVICE_URL;
   if (typeof raw !== "string" || raw.trim() === "") {
     fail("OMB_PRODUCT_SERVICE_URL is required: an exact HTTPS origin the operator owns");
@@ -125,7 +134,7 @@ function productOrigin(environment = process.env, { dryRun = false, localOrigin 
     // A dry run validates the whole config path before the operator's DNS
     // exists; a real build must name a routable host they own, unless the
     // operator explicitly asked for the local gateway's loopback origin.
-    return operatorOrigin(raw, { allowReserved: dryRun, allowLoopback: localOrigin });
+    return operatorOrigin(raw, { allowReserved: dryRun, allowLoopback: localOrigin, allowPrivateLan: lanOrigin });
   } catch (error) {
     const reason = error?.message;
     if (reason === "product_origin_author_domain") {
@@ -137,7 +146,7 @@ function productOrigin(environment = process.env, { dryRun = false, localOrigin 
     if (reason === "product_origin_loopback") {
       fail("OMB_PRODUCT_SERVICE_URL is a loopback origin; pass --local-origin for the local gateway deployment, or name the public host you own");
     }
-    if (reason === "product_origin_public_host") fail("OMB_PRODUCT_SERVICE_URL must name a public DNS host, not an IP address or loopback host");
+    if (reason === "product_origin_public_host") fail("OMB_PRODUCT_SERVICE_URL must name a public DNS host, not an IP address or loopback host; a private-network IPv4 gateway needs --lan-origin");
     if (reason === "product_origin_port") fail("OMB_PRODUCT_SERVICE_URL must use the default HTTPS port");
     fail("OMB_PRODUCT_SERVICE_URL must be one exact HTTPS origin (no path, credentials, query, or fragment)");
   }
@@ -344,7 +353,7 @@ async function unpackedApps(platform, arch) {
 }
 
 export async function packageProduct(options, environment = process.env) {
-  const origin = productOrigin(environment, { dryRun: options.dryRun, localOrigin: options.localOrigin });
+  const origin = productOrigin(environment, { dryRun: options.dryRun, localOrigin: options.localOrigin, lanOrigin: options.lanOrigin });
   // The public certificate, read from the operator's PEM file. It never goes
   // through the environment, a command line is the only input, and only the
   // certificate block is ever written into the bundle.
@@ -382,6 +391,7 @@ export async function packageProduct(options, environment = process.env) {
       steps: steps.map((script) => `pnpm ${script}`),
       builder: ["electron-builder", ...args, "--config", configPath],
       localOrigin: options.localOrigin,
+      lanOrigin: options.lanOrigin,
       pinnedCertificate: gatewayCa !== null,
       identity: { appId: PRODUCT_APP_ID, productName: PRODUCT_NAME, protocol: PRODUCT_PROTOCOL, publish: null },
       notes: [
@@ -423,6 +433,7 @@ export async function packageProduct(options, environment = process.env) {
     dir: options.dir,
     unsigned: options.unsigned,
     localOrigin: options.localOrigin,
+    lanOrigin: options.lanOrigin,
     /** True when the bundle carries the origin's public certificate (resource v2). */
     pinnedCertificate: gatewayCa !== null,
     configPath,

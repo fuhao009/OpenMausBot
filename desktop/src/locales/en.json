@@ -1,6 +1,4 @@
 {
-  "server.retry.accountBusy": "waiting for a free account slot — retry {attempt} in {seconds}s",
-  "server.retry.upstreamStream": "upstream hiccup — retry {attempt} in {seconds}s",
   "product.billing.insufficient": "Not enough points to send right now. Available: {n} points. Contact your administrator to top up.",
   "product.billing.expired": "Your login has expired. Please sign in again.",
   "product.billing.requestId": "Request ID",
@@ -7503,6 +7501,12 @@
   "product.signOut": "Sign out",
   "product.pending": "Your account is registered. Waiting for administrator activation.",
   "product.ready": "Your account is ready.",
+  "product.error.ai.busy": "The service is busy right now. Try again shortly. No points were charged.",
+  "product.error.ai.unavailable": "The AI service is temporarily unavailable. Try again shortly. No points were charged.",
+  "product.error.ai.incomplete": "This reply did not finish. Send it again. Its usage is being checked, and some points are held until that finishes; see your account page.",
+  "product.error.ai.noBalance": "Not enough points to send. Contact your administrator to top up.",
+  "product.error.ai.notEnabled": "Your account doesn't have AI turned on yet. Contact your administrator.",
+  "product.error.ai.signIn": "Your sign-in has expired. Sign in again.",
   "product.insufficient_balance": "Your available points cannot reserve this request. Contact your administrator.",
   "product.suspended": "AI access for this account has been disabled.",
   "product.unavailable": "The AI service is currently unavailable.",
@@ -7604,6 +7608,7 @@
   "product.resendCode": "Send a new code",
   "product.windowUnavailable": "The account window is not available in this build. Open the app's account page to sign in.",
   "server.product.welcome": "Hi! I'm Hezuo. I'm here to help with your bots, routines and tasks. Send me a message when you're ready, and I'll take it from there.",
+  "server.product.queued": "Queued, starting shortly…",
   "server.product.accessChanged": "Account AI access changed: refresh your account status.",
   "product.backupsNote": "This account runs on one managed model, so there is no second AI to fall back to.",
   "product.accountHint": "Open your account"

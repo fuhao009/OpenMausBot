@@ -45,6 +45,7 @@ export interface AiModelConfig extends ProductModel {
   chatMaxTokensField: "max_tokens" | "max_completion_tokens" | null;
   enabled: boolean;
   upstreamModel: string;
+  channelId?: string;
 }
 
 export interface AiConfig {
@@ -56,6 +57,7 @@ export interface AiConfig {
   defaultModel: string | null;
   models: readonly AiModelConfig[];
   operatorUserIds: ReadonlySet<string>;
+  routes?: ReadonlyMap<string, { baseURL: string; apiKey: string }>;
   /** Redacted codes for ignored settings and catalog entries, never values. */
   issues: readonly string[];
   /** True only when a request could be forwarded at all. */
