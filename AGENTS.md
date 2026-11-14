@@ -54,6 +54,12 @@ the local proxy over HTTP/1.1, per command, without changing git config:
 `git -c http.proxy=http://127.0.0.1:7890 -c http.version=HTTP/1.1 fetch personal`.
 Unset the proxy variables for anything that talks to the LAN gateway at 192.168.66.193.
 
+Desktop work, integration with the gateway and product packaging all happen in this
+directory on `feat/bot-panel-unify`; merge `backend/gateway-beta` here rather than in a
+separate integration worktree. The 193 product build needs
+`--lan-origin --gateway-ca <pem>`, and `electron-builder` is only on `PATH` when run
+through `pnpm` (or with `node_modules/.bin` added).
+
 ## Working with the owner
 
 When anything blocks or stalls (a conflict needing a decision, a failing build or
