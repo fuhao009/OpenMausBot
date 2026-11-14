@@ -65,3 +65,14 @@ interleave. This is automatic waiting, not simultaneous control of one screen.
 
 These fixtures do not contact Boat or operate the user's desktop. They verify
 server behavior and transcript state, not visual rendering or a live Boat.
+
+## First-use host consent
+
+`pnpm exec vitest run --config desktop/vite.config.ts desktop/server/control-client.test.ts desktop/server/mcp-bridge.test.ts desktop/server/host-lazy-claim.e2e.test.ts`
+checks the host consent route against an isolated fake engine and real server.
+Allowlisted observation calls such as `list_apps` and `get_desktop_state` may
+proceed once after consent exceeds the action freshness window. Calls that write
+screenshots to files are not observations. Delayed clicks and typing remain
+refused, as do denied/cancelled turns and human-held computers. The bridge derives
+the observation marker from the driver tool and arguments; models do not choose it.
+

@@ -3,17 +3,19 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { writeFileAtomic } from "./atomic.ts";
-import { CONTROL_BUSY, CONTROL_HANDED_BACK, CONTROL_REFUSAL_PLAIN, CONTROL_WAITED, controlRefusal, createControlClient } from "./control-client.ts";
+import { CONTROL_BUSY, CONTROL_HANDED_BACK, CONTROL_REFUSAL_PLAIN, CONTROL_WAITED, controlRefusal, createControlClient, isReadOnlyComputerCall } from "./control-client.ts";
 import { computerPersonAwayText } from "./computer-wait.ts";
 import { hostTimeout } from "./testing/host-timeout.ts";
 import { freePortBlock } from "./testing/ports.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
 import { answerYourComputer, openYourComputerCard, withAnswer } from "./testing/your-computer.ts";
 import { YOUR_COMPUTER_WAITING } from "./your-computer-consent.ts";
+import { createGateInterceptor } from "./mcp-bridge.ts";
 
-const ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 // A first screen call must clear within ACT_WITHIN_MS, the person's answer to its card and the seat's claim included.
 const CALL_WAIT_MS = hostTimeout(5_000);
 const ACT_WITHIN_MS = hostTimeout(1_000);
@@ -293,6 +295,51 @@ describe("lazy host claim and pin on use (issue #1650)", () => {
     writeFileSync(finishFile, "finish");
     await idle(holder.bot.id, holder.threadId);
     await idle(waiter.bot.id, waiter.threadId);
+  }, 60_000);
+
+  itAutoHost.each([
+    ["list_apps", "allow", true],
+    ["get_desktop_state", "allow", true],
+    ["click", "allow", false],
+    ["list_apps", "deny", false],
+    ["list_apps", "cancel", false],
+  ] as const)("gates a first delayed %s call answered %s without replaying it", async (name, answer, shouldForward) => {
+    await start();
+    const { bot } = await apiOk("POST", "/api/bots", { name: "Delayed Consent Bot" });
+    const { task } = await apiOk("POST", `/api/bots/${bot.id}/tasks`, {});
+    await apiOk("POST", `/api/bots/${bot.id}/messages`, { text: "Observe my desktop slowly.", threadId: task.threadId });
+    await busy(bot.id, task.threadId);
+    const computer = mountedComputer(await dumpFor(bot.id));
+    const client = createControlClient({ url: computer.env.OMB_CONTROL_URL, token: computer.env.OMB_CONTROL_TOKEN });
+    const forwarded: string[] = [];
+    const refused: string[] = [];
+    let checks = 0;
+    const intercept = createGateInterceptor({
+      check: (frame) => {
+        checks++;
+        return client.state(true, { observation: isReadOnlyComputerCall(frame) ? "1" : "0" });
+      },
+      forward: (line) => { forwarded.push(line); },
+      refuse: (line) => { refused.push(line); },
+      actWithinMs: ACT_WITHIN_MS,
+    });
+    const call = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: {} } });
+    const pending = intercept(call);
+    await openYourComputerCard(base, task.threadId);
+    await delay(ACT_WITHIN_MS + 100);
+    expect(forwarded).toEqual([]);
+    if (answer === "cancel") {
+      await apiOk("POST", `/api/bots/${bot.id}/interrupt`, { threadId: task.threadId });
+    } else {
+      await answerYourComputer(base, task.threadId, answer);
+    }
+    await pending;
+    expect(checks).toBe(1);
+    expect(forwarded).toEqual(shouldForward ? [call] : []);
+    expect(refused).toHaveLength(shouldForward ? 0 : 1);
+    if (name === "click") expect(JSON.parse(refused[0]!).result.content[0].text).toBe(CONTROL_WAITED);
+    writeFileSync(finishFile, "finish");
+    await idle(bot.id, task.threadId);
   }, 60_000);
 
   itAutoHost("asks once before the first screen call even at Just do it, in plain words naming the app and the site", async () => {

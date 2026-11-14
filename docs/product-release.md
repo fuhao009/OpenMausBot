@@ -135,6 +135,119 @@ Desktop input works; browser completion, terminal command output and OMP
 interaction are not certified by these results. No executor/API substitute was
 used to claim the desktop tasks succeeded.
 
+Follow-up diagnosis used the existing transcript and read-only gateway ledger,
+without replaying paid requests. The browser failure was an upstream HTTP 502
+after 10,456 ms, with no trusted usage and 50.559 points held for review. The
+gateway does not retain that upstream error body, so its deeper cause is unknown.
+The date task searched the agents-only catalog for desktop consent, got unrelated
+tools, and never called the mounted computer tools. Desktop consent is triggered
+by the first actual computer call, not by tool discovery or selecting a surface.
+The OMP task's model requests grew from 24,274 to 37,984 input tokens; 367,901 was
+cumulative input across rounds, not a single prompt. Model-request latency reached
+94,313 ms while the desktop calls themselves returned successful results.
+
+Desktop guidance now distinguishes agents discovery from computer/browser tools,
+explains the real consent entry point, honors explicit GUI-only requests instead
+of forcing background shell, and requires a new idle terminal tab/window before
+typing commands. Tool screenshot history retains the latest two batches without
+rescaling; user attachments, tool outputs and Responses call/reasoning pairs stay
+intact. Image-budget replacement is checked before removing prior valid images.
+Verification: 310 guidance/discovery regressions and 51 image/Responses regressions
+passed, including real loopback HTTP plus stdio MCP screenshot continuation;
+server compilation and isolated fake-engine startup/doctor passed. These changes
+are not yet installed or proven against the live desktop model. They do not fix
+or automatically replay the upstream 502, release held points, or claim that the
+browser/iTerm/OMP end-to-end acceptance now passes.
+
+Ivy's subsequent Baidu request (`b8bc29b9-238d-4c3b-8831-fd746361edce`)
+was inspected read-only from the installed app's transcript and native request log.
+The user stopped it after 173,572 ms, after URL typing and before verified page
+reading. Eight completed model requests consumed 143,653 ms and 222,046 input
+tokens in aggregate; a ninth request was still awaiting a reply. Each request
+advertised 59 tools, and individual input usage rose from 24,446 to 30,364 tokens.
+The first `list_apps` was not forwarded after consent exceeded the action
+freshness window. A later click combined `target` and legacy `scope`, and the
+driver refused it with `invalid_action_target`. The installed server did not yet
+contain the two-batch screenshot-history or direct-tool-discovery changes above.
+The thread retained earlier GUI-only instructions; no live request was replayed
+or silently rerouted to browser automation during diagnosis.
+
+The control gate now permits allowlisted, side-effect-free observations after
+consent while preserving expiry protection for delayed mutations, ended turns,
+cancelled calls and human takeover. The bridge derives observation eligibility
+from raw driver calls, not model-provided flags. Tests passed: 74 control-client
+and bridge cases, then 15 isolated fake-engine/real-server host-claim cases after
+repairing that fixture's obsolete root path. These checks do not certify real
+desktop completion or a faster upstream model response.
+
+The host-computer mount keeps seven observation tools directly advertised and
+routes other permitted tools through the shared search/describe/call directory.
+An offline stdio replay of the checked-in CUA 0.28.2 catalog measured 82,723 bytes
+across 38 direct definitions before the change versus 13,830 bytes across seven
+direct definitions plus three directory entries afterward (83.28% fewer bytes).
+These are serialized tool-definition bytes, not tokenizer counts or latency.
+Target/legacy-field exclusivity is checked before driver dispatch, including
+nullable target schemas; valid legacy calls with a null target remain supported.
+Verification: all 225 chat-MCP and OpenAI structured-tool tests passed; the server
+TypeScript build and bundles completed successfully.
+For manual testing, a copy of the installed app received the rebuilt server tree.
+Its packaged-server smoke passed in disposable data/home directories, including
+MCP, headless commands, backup export, proxy paths and desktop-entry startup.
+After user-approved normal shutdown, it replaced `/Applications/Hezuo.app`;
+the temporary previous-version bundle was removed during the 0.1.140 installation.
+The gateway resource was preserved byte-for-byte. The installed server index
+SHA-256 is `918dc645ea9511693b9c0271b6b382b19624e65a84e1c57ffb2caa01a4cdb789`.
+This local server-only update retains the existing unsigned application identity;
+it is not a new signed release or evidence of live desktop-task success.
+Manual acceptance remains pending: in a fresh Ivy conversation, request GUI-only
+navigation to Baidu and a summary of visible page content. Delay first-use consent
+for ten seconds, then verify observation resumes, navigation succeeds, and no
+`invalid_action_target` occurs. Record the conversation, elapsed time and usage;
+model latency and whole-request tokens are not certified by catalog byte savings.
+
+### Local desktop 0.1.140
+
+The release increments the root package version before compiling the UI, server,
+companion and Electron resources. The host observation allowlist accepts
+`include_accessibility_tree`, so a read-only window capture can continue after
+delayed consent. Shutdown revokes the stopped process's model credential,
+including credentials issued during shutdown, while retaining the account login.
+Targeted verification passed: 89 control/bridge/host-consent cases and 66 account
+cases. The isolated packaged account run also verifies normal process restart,
+retained messages and no usable model token after sign-out.
+
+Local installation keeps one `/Applications/Hezuo.app`. After the replacement
+has been verified, remove assistant-created previous-version application bundles;
+never remove account profiles or workspace data. Every subsequent code delivery
+increments the version instead of replacing code under an unchanged version.
+Version 0.1.140 was fully rebuilt and installed at `/Applications/Hezuo.app`.
+The isolated packaged account receipt `omb-product-verify-KodcS2` passed,
+including restart/history restoration and credential cleanup. The running
+preload reports `0.1.140`; the existing account restored to signed-in/ready
+with Ivy visible. The previous 0.1.139 app backup and release DMG/ZIP were
+removed. This local build is unsigned and is not a notarized public release.
+
+### Local desktop 0.1.141
+
+Account sign-out sends an explicit JSON object and content type to Better Auth's
+JSON-only endpoint. Remote session revocation failures no longer disappear behind
+`Promise.allSettled`: local credentials are removed, the unfinished cleanup is
+reported, and only an explicit next action retries the outstanding revocation.
+An already unauthorized session counts as revoked. The account gate maps HTTP
+429 to the existing localized rate-limit notice rather than network failure.
+The server's login rate limit remains enabled; verification distinguishes a
+local signed-out form from an actually invalidated server session.
+Verification passed: 123 targeted tests and the isolated packaged account run
+`omb-product-verify-S23YGF`, with zero live model tokens and application account
+sessions after sign-out. Against the real gateway, all ten sign-outs returned
+200 and all ten former-session probes returned 401. Nine logins reached a ready
+workspace (mean 764 ms); the tenth returned 429 and displayed the rate-limit
+notice. The rate limit was not disabled. Installed runtime reports 0.1.141 and
+restored the original account to ready; no old application backup remains.
+
+
+
+
 The managed sidebar omits its top-level add/new menu and inline add-bot rows.
 Existing bots and conversations remain accessible; server-side bot and team
 creation capabilities are unchanged.

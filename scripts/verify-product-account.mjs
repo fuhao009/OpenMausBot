@@ -4,11 +4,13 @@
 //   node scripts/verify-product-account.mjs
 //   node scripts/verify-product-account.mjs --app "/absolute/Hezuo Product.app"
 //   node scripts/verify-product-account.mjs --keep     (keep the disposable profile)
+//   node scripts/verify-product-account.mjs --worker-project /path/to/gateway/control-plane
+// The selected project supplies the Worker, migrations and pinned Wrangler runtime.
 //
 // Real here means:
-//   * gateway/control-plane (this checkout) bundled with esbuild and run by
-//     the Miniflare its own Wrangler pins, over TLS on 127.0.0.1, with a D1
-//     database built from this checkout's migrations, the Worker's real EMAIL
+//   * gateway/control-plane (this checkout unless --worker-project is explicit),
+//     bundled with esbuild and run by its own Wrangler's Miniflare over TLS,
+//     with a D1 database built from that project's migrations, the Worker's real EMAIL
 //     binding (a disposable mailbox), and a real loopback upstream reached
 //     through the Worker's own egress hook. Account sign-in, operator
 //     enable/grant, model tokens, billing and the ledger are the production
@@ -29,7 +31,7 @@ import { delimiter, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { parseArgs } from "node:util";
 
-import { electronBinary, packagedBinary, PATHS } from "./product-fixture/runtime.mjs";
+import { electronBinary, packagedBinary, workerProjectPaths } from "./product-fixture/runtime.mjs";
 import { fileURLToPath } from "node:url";
 import { startWorkerFixture, trustFixtureCertificate, FIXTURE_CHARGE_MICRO_POINTS, MODELS } from "./product-fixture/worker-fixture.mjs";
 import { signIn, signInWithPassword, operatorLookup, operatorSetAccount, operatorGrant } from "./product-fixture/operator.mjs";
@@ -51,6 +53,7 @@ function parseCli() {
       // sign-up needs no code, and every later sign-in is the password alone.
       password: { type: "boolean", default: false },
       "bundled-trust": { type: "boolean", default: false },
+      "worker-project": { type: "string" },
     },
     strict: true,
     allowPositionals: false,
@@ -136,7 +139,7 @@ const sleep = delay;
 async function main() {
   const options = parseCli();
   if (options["bundled-trust"] && (!options.app || process.platform !== "darwin")) throw new Error("--bundled-trust requires a macOS --app bundle");
-  if (!existsSync(PATHS.workerEntry)) throw new Error(`the Worker source is missing: ${PATHS.workerEntry}`);
+  const workerProject = workerProjectPaths(options["worker-project"]);
   let appBinary = options.app ? packagedBinary(options.app) : null;
   if (options.app && !appBinary) throw new Error(`no executable inside ${options.app}`);
   const devBinary = appBinary ? null : electronBinary();
@@ -149,6 +152,8 @@ async function main() {
   const receipt = {
     startedAt: new Date().toISOString(),
     app: options.app ? "packaged" : "checkout",
+    scope: { accountGateway: "real selected Worker project", modelUpstream: "synthetic loopback fixture", realModelAcceptance: false },
+    workerProject,
     binary: appBinary ?? devBinary,
     origin: null,
     steps: [],
@@ -182,7 +187,7 @@ async function main() {
   let worker, app, page, gate, liveGate;
   try {
     console.log("starting the real Worker (Miniflare + D1 + EMAIL + egress)…");
-    worker = await startWorkerFixture({ root: join(root, "worker-run"), mail: !options.password,
+    worker = await startWorkerFixture({ root: join(root, "worker-run"), mail: !options.password, workerProject: workerProject.root,
       log: line => console.log(`  worker: ${line}`) });
     receipt.origin = worker.origin;
     trustFixtureCertificate(worker.certPath);
@@ -367,6 +372,64 @@ async function main() {
     await capture(page, "04-chat-hello");
     record("hello billed", { chargedMicroPoints: helloRequest.chargedMicroPoints, requestCount: requests.length });
 
+    // R01: restart the actual app process, keeping only this disposable profile and Worker.
+    // macOS uses Electron's mock keychain here; this does not verify the user's OS keychain.
+    const restart = receipt.accountRestart = {
+      startedAtMs: Date.now(), finishedAtMs: null, durationMs: null, passed: false,
+      credentialStorage: process.platform === "darwin" ? "electron-mock-keychain" : "isolated-platform-storage",
+      realOsKeychainVerified: false, previousPid: app.child.pid,
+    };
+    record("account restart started", { startedAtMs: restart.startedAtMs });
+    try {
+      await waitSettled(page);
+      const idleSnapshot = `(async () => {
+        const response = await fetch('/api/bots');
+        if (!response.ok) throw new Error('workspace snapshot HTTP ' + response.status);
+        const snapshot = await response.json();
+        if (snapshot.bots.some(bot => bot.busy) || snapshot.groups.some(group => group.working)) return null;
+        return snapshot.bots.find(bot => bot.id === ${JSON.stringify(botId)}) ?? null;
+      })()`;
+      const beforeRestart = await page.untilValue(idleSnapshot, { label: "idle workspace before app restart", timeoutMs: 120_000 });
+      const helloMessages = beforeRestart.messages.filter(message => message.text === "你好" || message.text === "Hello from your account.");
+      assert.ok(helloMessages.some(message => message.role === "user" && message.text === "你好"), "saved hello user message");
+      assert.ok(helloMessages.some(message => message.role === "bot" && message.text === "Hello from your account."), "saved hello bot message");
+      restart.threadId = beforeRestart.threadId;
+      restart.messageIds = helloMessages.map(message => message.id);
+      restart.before = await accountSnapshot(page);
+      await capture(page, "04-restart-before");
+      app.child.kill("SIGTERM");
+      const stopped = await Promise.race([app.exited, sleep(15_000).then(() => null)]);
+      assert.ok(stopped, "app must exit normally before restarting; forced termination is not a pass");
+      assert.equal(stopped.code, 0, `normal app exit (${JSON.stringify(stopped)})`);
+      restart.exit = stopped;
+      restart.previousAppLogTail = app.logs();
+      page.close(); gate?.close();
+      page = null; gate = null; liveGate = null;
+      app = launchApp({ appBinary, devBinary, root, origin: worker.origin, certPath: options["bundled-trust"] ? null : worker.certPath, debugPort, verbose: options.verbose });
+      restart.reopenedPid = app.child.pid;
+      assert.notEqual(restart.reopenedPid, restart.previousPid, "a new app process was launched");
+      const reopenedTarget = await waitForPage(debugPort, /^http:\/\/127\.0\.0\.1:\d+\/(\?|$)/, { description: "workspace restored after app restart", timeoutMs: 120_000 });
+      page = await attachPage(reopenedTarget);
+      await page.until(`window.ogb?.productAccount?.state().then(state => state.auth === 'signed_in' && state.runtime === 'ready' && state.user?.email === ${JSON.stringify(ACCOUNT_A)})`, {
+        label: "same account restored without signing in", timeoutMs: 120_000,
+      });
+      await page.until(`document.querySelector('[data-sidebar-product-email]')?.textContent?.trim() === ${JSON.stringify(ACCOUNT_A)}`, { label: "restored account sidebar" });
+      await waitForText(page, "你好");
+      await waitForText(page, "Hello from your account.");
+      await waitSettled(page);
+      const afterRestart = await page.untilValue(idleSnapshot, { label: "restored idle conversation", timeoutMs: 120_000 });
+      assert.equal(afterRestart.threadId, restart.threadId, "restart restores the original thread");
+      for (const expected of helloMessages) {
+        assert.ok(afterRestart.messages.some(message => message.id === expected.id && message.role === expected.role && message.text === expected.text), `restart restores original message ${expected.id}`);
+      }
+      restart.after = await accountSnapshot(page);
+      await capture(page, "04-restart-restored");
+      restart.passed = true;
+    } finally {
+      restart.finishedAtMs = Date.now();
+      restart.durationMs = restart.finishedAtMs - restart.startedAtMs;
+      record("account restart finished", { ...restart });
+    }
     // ---------- 5. Real MCP write, approval required ----------
     console.log("adding the fixture MCP server and asking for a file write…");
     const allowedArtifact = join(root, "allowed-artifact.txt");
@@ -701,6 +764,11 @@ async function main() {
     }
     receipt.processes.liveModelTokens = tokens.n;
     assert.equal(tokens.n, 0, "sign-out left no usable model token");
+    const sessions = await worker.db().prepare(
+      'SELECT COUNT(*) AS n FROM "session" WHERE id IN (SELECT session_id FROM account_ai_tokens WHERE owner_user_id = ?)'
+    ).bind(operatorId).first();
+    receipt.processes.liveAccountSessions = sessions.n;
+    assert.equal(sessions.n, 0, "sign-out invalidated every application account session");
 
     // ---------- 12. Storage facts: encrypted login, per-account roots, untouched legacy ----------
     const userData = join(root, "user-data");
@@ -716,6 +784,7 @@ async function main() {
   } catch (error) {
     receipt.errors.push(error?.stack ?? String(error));
     const failed = await accountSnapshot(page) ?? await accountSnapshot(liveGate ?? gate);
+    if (page) await capture(page, "failure-workspace").catch(() => {});
     if (failed) receipt.failureState = failed;
     receipt.failureStorage = {
       loginRecord: existsSync(join(root, "user-data", "product-account.bin")),
@@ -732,6 +801,13 @@ async function main() {
       receipt.processes.appLogTail = app.logs();
     }
     await worker?.close().catch(() => {});
+    if (worker) {
+      receipt.inferenceRequests = worker.inferenceRequests;
+      receipt.inferenceLog = worker.inferenceLog;
+      const rejectedBilling = worker.inferenceRequests.find(request => request.status === 400
+        && request.errorCode === "invalid_request" && request.fields.includes("billing"));
+      if (rejectedBilling) receipt.compatibilityDiagnostic = "The desktop sent billing, but this checkout Worker rejected the request. Check the gateway billing contract; do not strip the desktop budget to make this fixture pass.";
+    }
     receipt.passed = receipt.errors.length === 0;
     receipt.finishedAt = new Date().toISOString();
     writeFileSync(join(root, "receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);

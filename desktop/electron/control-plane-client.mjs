@@ -819,6 +819,7 @@ export function createControlPlaneClient({
       await request("/api/auth/sign-out", {
         method: "POST",
         token: accountToken,
+        body: {},
       });
     },
   };

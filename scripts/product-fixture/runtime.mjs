@@ -3,12 +3,21 @@
 // migrations. Everything resolves through this checkout: no download, no
 // global install, no user data.
 import { createRequire } from "node:module";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const ROOT = fileURLToPath(new URL("../..", import.meta.url));
-const WORKER_PROJECT = join(ROOT, "gateway", "control-plane");
+export const DEFAULT_WORKER_PROJECT = join(ROOT, "gateway", "control-plane");
+
+export function workerProjectPaths(project = DEFAULT_WORKER_PROJECT) {
+  const root = realpathSync(resolve(project));
+  const paths = { root, workerEntry: join(root, "src", "index.ts"), migrations: join(root, "migrations"), controlPlanePackage: join(root, "package.json") };
+  for (const path of [paths.workerEntry, paths.migrations, paths.controlPlanePackage]) {
+    if (!existsSync(path)) throw new Error(`Worker project path is missing: ${path}`);
+  }
+  return paths;
+}
 
 function requireFrom(base, specifier) {
   return createRequire(join(base, "package.json")).resolve(specifier);
@@ -46,25 +55,25 @@ export function packagedBinary(app) {
   return existsSync(app) ? app : null;
 }
 
-let runtime;
+const runtimes = new Map();
 /** Miniflare from the Wrangler the control-plane project pins (the same
  * runtime `wrangler dev` would use). */
-export async function miniflareRuntime() {
-  if (runtime) return runtime;
-  const wranglerEntry = requireFrom(WORKER_PROJECT, "wrangler");
+export async function miniflareRuntime(project = DEFAULT_WORKER_PROJECT) {
+  if (runtimes.has(project)) return runtimes.get(project);
+  const wranglerEntry = requireFrom(project, "wrangler");
   const miniflarePath = createRequire(wranglerEntry).resolve("miniflare");
   const loaded = await import(pathToFileURL(miniflarePath).href);
   if (typeof loaded.Miniflare !== "function" || typeof loaded.convertV4MiniflareOptions !== "function") {
     throw new Error("miniflare_missing_exports");
   }
-  runtime = loaded;
-  return runtime;
+  runtimes.set(project, loaded);
+  return loaded;
 }
 
 /** Wrangler's own statement splitter, so a migration with triggers applies as
  * `wrangler d1 migrations apply` would. */
-export async function sqlSplitter() {
-  const entry = requireFrom(WORKER_PROJECT, "wrangler");
+export async function sqlSplitter(project = DEFAULT_WORKER_PROJECT) {
+  const entry = requireFrom(project, "wrangler");
   const loaded = await import(pathToFileURL(entry).href);
   if (typeof loaded.unstable_splitSqlQuery !== "function") throw new Error("wrangler_splitter_missing");
   return loaded.unstable_splitSqlQuery;
@@ -75,9 +84,9 @@ export async function esbuild() {
 }
 
 export const PATHS = Object.freeze({
-  workerEntry: join(WORKER_PROJECT, "src", "index.ts"),
-  migrations: join(WORKER_PROJECT, "migrations"),
+  workerEntry: join(DEFAULT_WORKER_PROJECT, "src", "index.ts"),
+  migrations: join(DEFAULT_WORKER_PROJECT, "migrations"),
   uiDist: join(ROOT, "dist"),
   serverDist: join(ROOT, "dist-server", "index.js"),
-  controlPlanePackage: join(WORKER_PROJECT, "package.json"),
+  controlPlanePackage: join(DEFAULT_WORKER_PROJECT, "package.json"),
 });

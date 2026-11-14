@@ -36,6 +36,8 @@ describe("a managed account's points", () => {
       .toEqual({ tone: "error", key: "product.runtimeError" });
     expect(productAccountNotice({ auth: "unavailable", runtime: "stopped", errorCode: "network_unavailable" }))
       .toEqual({ tone: "error", key: "product.serviceUnavailable" });
+    expect(productAccountNotice({ auth: "unavailable", runtime: "stopped", errorCode: "rate_limited" }))
+      .toEqual({ tone: "error", key: "error.plain.rateLimited" });
     expect(productAccountNotice({ auth: "signed_in", runtime: "ready", ai: { ...ai, state: "insufficient_balance" } }))
       .toEqual({ tone: "warning", key: "product.billing.insufficient", params: { n: "3" } });
     expect(productAccountNotice({ auth: "signed_in", runtime: "ready", ai }))

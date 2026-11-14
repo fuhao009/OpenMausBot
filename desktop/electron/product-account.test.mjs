@@ -43,6 +43,66 @@ describe("account lifecycle renewal and drain", () => {
     expect(await f.service.state()).toMatchObject({ auth: "signed_out" });
   });
 
+  it("revokes the stopped process token while preserving the login for a new service", async () => {
+    const drain = Promise.withResolvers();
+    const f = fixture({ saved: savedRecord(), stop: () => drain.promise });
+    await f.service.restore();
+    const saved = structuredClone(f.record.value);
+    const disposing = f.service.dispose();
+    await settle();
+    expect(f.events.filter(event => event.type === "revokeAiToken")).toHaveLength(0);
+    drain.resolve();
+    await disposing;
+    expect(f.events.filter(event => event.type === "revokeAiToken")).toEqual([
+      { type: "revokeAiToken", accountToken: ACCOUNT, tokenId: token(1).id },
+    ]);
+    expect(f.events.filter(event => event.type === "signOut")).toHaveLength(0);
+    expect(f.record.value).toEqual(saved);
+    expect(f.writes).not.toContain(null);
+    await f.service.dispose();
+    expect(f.events.filter(event => event.type === "revokeAiToken")).toHaveLength(1);
+
+    const reopened = createProductAccountService({
+      client: f.client, origin: ORIGIN, now: () => f.now,
+      store: { read: async () => structuredClone(f.record.value), write: async value => { f.record.value = value; } },
+      startRuntime: async () => {}, stopRuntime: async () => {}, applyCapability: async () => {},
+      setTimer: () => 0, clearTimer: () => {},
+    });
+    await reopened.restore();
+    expect(await reopened.state()).toMatchObject({ auth: "signed_in", runtime: "ready", user });
+    expect(f.events.filter(event => event.type === "createAiToken").at(-1).issued).toBe(2);
+    await reopened.dispose();
+    expect(f.events.filter(event => event.type === "revokeAiToken").map(event => event.tokenId)).toEqual([token(1).id, token(2).id]);
+    expect(f.events.filter(event => event.type === "signOut")).toHaveLength(0);
+    expect(f.record.value).toEqual(saved);
+  });
+
+  it("revokes a token whose issuance finishes while disposal waits for the lifecycle queue", async () => {
+    const issuing = Promise.withResolvers();
+    const issued = Promise.withResolvers();
+    const f = fixture({ saved: savedRecord() });
+    f.client.createAiToken = async () => { issuing.resolve(); return issued.promise; };
+    const restoring = f.service.restore();
+    await issuing.promise;
+    const disposing = f.service.dispose();
+    issued.resolve(token(1));
+    await Promise.all([restoring, disposing]);
+    expect(f.events.filter(event => event.type === "revokeAiToken")).toEqual([
+      { type: "revokeAiToken", accountToken: ACCOUNT, tokenId: token(1).id },
+    ]);
+    expect(f.events.filter(event => event.type === "signOut")).toHaveLength(0);
+    expect(f.record.value).toEqual(savedRecord());
+  });
+
+  it("does not revoke a capability while its runtime failed to stop", async () => {
+    const f = fixture({ saved: savedRecord(), stop: async () => { throw new Error("runtime still running"); } });
+    await f.service.restore();
+    await expect(f.service.dispose()).rejects.toThrow("product_runtime_stop_failed");
+    expect(f.events.filter(event => event.type === "revokeAiToken")).toHaveLength(0);
+    expect(f.events.filter(event => event.type === "signOut")).toHaveLength(0);
+    expect(f.record.value).toEqual(savedRecord());
+  });
+
   it("publishes installation renewal and replacement failures without leaking credentials", async () => {
     const f = fixture({ saved: savedRecord() });
     await f.service.restore();
@@ -574,6 +634,86 @@ describe("product account sign-out", () => {
     failing = false;
     expect(await f.service.signOut()).toMatchObject({ auth: "signed_out", runtime: "stopped" });
     expect(f.record.value).toBeNull();
+  });
+
+  it("clears the local login before remote logout and retries a rejected session only on explicit sign-out", async () => {
+    const f = fixture({ saved: savedRecord() });
+    await f.service.restore();
+    const remote = Promise.withResolvers();
+    let activeSession = true;
+    let attempts = 0;
+    f.client.signOut = async (accountToken) => {
+      expect(accountToken).toBe(ACCOUNT);
+      expect(f.record.value).toBeNull();
+      attempts += 1;
+      if (attempts === 1) await remote.promise;
+      activeSession = false;
+    };
+
+    const signingOut = f.service.signOut();
+    await settle();
+    expect(await f.service.state()).toMatchObject({ auth: "signed_out", runtime: "stopped" });
+    expect(f.record.value).toBeNull();
+    expect(attempts).toBe(1);
+    remote.reject(new ControlPlaneError("request_failed", 503));
+    const blocked = await signingOut;
+    expect(blocked).toMatchObject({ auth: "signed_out", runtime: "stopped", errorCode: "sign_out_blocked" });
+    expect(JSON.stringify(blocked)).not.toContain(ACCOUNT);
+    expect(activeSession).toBe(true);
+    expect(await f.service.restore()).toMatchObject({ errorCode: "sign_out_blocked" });
+    await settle();
+    expect(attempts).toBe(1);
+
+    const completed = await f.service.signOut();
+    expect(completed).toMatchObject({ auth: "signed_out", runtime: "stopped" });
+    expect(completed.errorCode).toBeUndefined();
+    expect(attempts).toBe(2);
+    expect(activeSession).toBe(false);
+    expect(f.events.filter(event => event.type === "revokeAiToken")).toHaveLength(1);
+    expect(f.record.value).toBeNull();
+    expect(f.events.filter(event => event.type === "verifyOTP" || event.type === "signInWithPassword")).toHaveLength(0);
+    await f.service.signOut();
+    expect(attempts).toBe(2);
+  });
+
+  it("retries failed capability revocation without repeating a completed session logout", async () => {
+    const f = fixture({ saved: savedRecord() });
+    await f.service.restore();
+    let attempts = 0;
+    let activeCapability = true;
+    f.client.revokeAiToken = async (accountToken, tokenId) => {
+      expect(accountToken).toBe(ACCOUNT);
+      expect(tokenId).toBe(token(1).id);
+      attempts += 1;
+      if (attempts === 1) throw new ControlPlaneError("request_failed", 503);
+      activeCapability = false;
+    };
+    expect(await f.service.signOut()).toMatchObject({ errorCode: "sign_out_blocked" });
+    expect(activeCapability).toBe(true);
+    expect(f.record.value).toBeNull();
+    const completed = await f.service.signOut();
+    expect(completed).toMatchObject({ auth: "signed_out" });
+    expect(completed.errorCode).toBeUndefined();
+    expect(activeCapability).toBe(false);
+    expect(attempts).toBe(2);
+    expect(f.events.filter(event => event.type === "signOut")).toHaveLength(1);
+  });
+
+  it("treats an already expired session as completed logout without retrying", async () => {
+    const f = fixture({ saved: savedRecord() });
+    await f.service.restore();
+    let attempts = 0;
+    f.client.signOut = async () => {
+      attempts += 1;
+      throw new ControlPlaneError("unauthorized", 401);
+    };
+    f.client.revokeAiToken = async () => { throw new ControlPlaneError("unauthorized", 401); };
+    const completed = await f.service.signOut();
+    expect(completed).toMatchObject({ auth: "signed_out", runtime: "stopped" });
+    expect(completed.errorCode).toBeUndefined();
+    expect(f.record.value).toBeNull();
+    await f.service.signOut();
+    expect(attempts).toBe(1);
   });
 
   it("ends the session when the server revokes it", async () => {

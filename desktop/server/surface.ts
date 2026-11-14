@@ -159,9 +159,9 @@ export function surfaceLabel(surface: Surface): string {
 }
 
 /** This computer is the person's own: web work goes elsewhere first, and their first-use question is the harness's to ask. */
-const WEB_WORK_ORDER = "For web work such as finding, booking or looking something up, use, in this order:";
+const WEB_WORK_ORDER = "Unless the user explicitly requests pure GUI or browsing on this desktop, for web work such as finding, booking or looking something up, use, in this order:";
 const YOUR_COMPUTER_LAST =
-  " Use their own browser or screen only when the task needs their own signed-in session and nothing else works. Before your first action on it in a request, Hezuo asks them once whether you may, at every approval level: do not ask in chat yourself, and if they say no, finish another way. " + PLAIN_WORDS;
+  " Otherwise use their own browser or screen only when the task needs their own signed-in session and nothing else works. For an explicit desktop request, begin with the mounted computer observation tool; Hezuo asks for permission on that first use when needed, at every approval level. Do not search for a separate authorization tool or infer denial from select_computer readiness. Do not ask in chat yourself; if permission is denied, stop that route and do not bypass the refusal through another tool. " + PLAIN_WORDS;
 const YOUR_COMPUTER_BESIDE_BROWSER =
   ` This computer is the person's own: their screen, their apps and the browsers they are signed in to. ${WEB_WORK_ORDER} a connected app that does it, your built-in browser, a cloud computer if select_computer offers one.${YOUR_COMPUTER_LAST}`;
 const YOUR_COMPUTER_ALONE =
@@ -170,7 +170,7 @@ const YOUR_COMPUTER_ALONE =
 /** A connected app does a task more cheaply and surely than any screen, and one that is refused or broken is the person's
  * to fix: worked around on a screen, it stays broken and they never hear why. */
 const CONNECTED_APP_FIRST =
-  " When a connected app can do the task, use it before any browser or screen. If that app is refused or fails, say so in one plain line with what fixes it (connecting it, or who can), and ask before doing the task on a screen instead.";
+  " Unless the user explicitly requests pure GUI or desktop browsing, when a connected app can do the task, use it before any browser or screen. If that app is refused or fails, say so in one plain line with what fixes it (connecting it, or who can), and ask before doing the task on a screen instead.";
 
 const RESTATE_SENTENCE =
   " Before your first action on a screen or page in a task, say in one short sentence where you are working, using that same name.";
@@ -181,7 +181,7 @@ const ASK_TO_SWITCH = `explain the mismatch and ask the user to change where thi
 const REPORT_BACK = "tell the bot that gave you this job which place you need and end your turn, because no person watches this conversation";
 
 const SURFACE_AUTHORITY =
-  ` For browser and computer tasks, use Hezuo's mounted browser/computer tools first: inspect the target, perform the action, and verify its result before claiming success. Discover deferred tools by their server/name when needed. Do not substitute the provider's own desktop, a shell-launched browser, or another automation path for the selected Hezuo surface. Ordinary code and file tasks may still use their normal tools. Announcing an action is not performing it. A request naming another place does not move these tools: this computer is the user's host, Local VM is an isolated desktop, the cloud computer is remote, and the built-in browser is a separate browser. If the requested place differs from the mounted one, ${ASK_TO_SWITCH}; never act on a different computer or describe a host window as a VM.`;
+  ` For browser and computer tasks, use Hezuo's mounted browser/computer tools first: inspect the target, perform the action, and verify its result before claiming success. Call listed tools directly; discover deferred computer/browser tools through your engine's server/name discovery, never agents find_tool, which searches only hidden agents tools. Do not substitute the provider's own desktop, a shell-launched browser, or another automation path for the selected Hezuo surface. An explicit pure GUI or desktop browsing request overrides the default preference for connected apps and the built-in browser: stay on the requested desktop, without background shell, API, connector or separate-browser substitutes. For visible terminal work, first open a dedicated new terminal window or tab and verify an idle shell prompt; never type into an existing running session. Ordinary code and file tasks may still use their normal tools. Announcing an action is not performing it. A request naming another place does not move these tools: this computer is the user's host, Local VM is an isolated desktop, the cloud computer is remote, and the built-in browser is a separate browser. If the requested place differs from the mounted one, ${ASK_TO_SWITCH}; never act on a different computer or describe a host window as a VM.`;
 
 /** A Cloud home has neither this computer nor a Local VM; each pair rewrites one phrase of the wording above. */
 const CLOUD_HOME_WORDING: ReadonlyArray<readonly [string, string]> = [

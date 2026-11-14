@@ -42,7 +42,7 @@ function model(id = "hezuo-default", protocol: "chat" | "responses" = "chat", ov
 }
 function connection(over: Record<string, unknown> = {}) {
   return { origin: ORIGIN, userId: "user-1", tokenId: "token-1", token: TOKEN, expiresAt: NOW + 15 * 60_000,
-    defaultModel: "hezuo-default", models: [model()], ...over };
+    defaultModel: "hezuo-default", models: [model()], availableMicroPoints: Number.MAX_SAFE_INTEGER, ...over };
 }
 const ready = (over: Record<string, unknown> = {}) => ({ state: "ready", connection: connection(over) });
 
@@ -167,7 +167,7 @@ describe("the private capability parser", () => {
   it("accepts exactly the documented wire shape", () => {
     expect(parsed(ready())).toEqual({ state: "ready", connection: {
       origin: ORIGIN, userId: "user-1", tokenId: "token-1", token: TOKEN, expiresAt: NOW + 15 * 60_000,
-      defaultModel: "hezuo-default", models: [model()] } });
+      defaultModel: "hezuo-default", models: [model()], availableMicroPoints: Number.MAX_SAFE_INTEGER } });
     expect(parsed({ type: "hezuo:product-ai", requestId: "r-1", state: "ready", connection: connection() }).state).toBe("ready");
     for (const state of ["pending", "suspended", "unavailable"] as const) {
       expect(parsed({ state, connection: null })).toEqual({ state, connection: null });

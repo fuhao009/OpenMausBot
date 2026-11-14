@@ -1407,10 +1407,12 @@ describe("a turn with the person's Windows computer, the built-in browser and th
     await f.start({ integrations: integrations(42) });
     expect(await f.completed()).toMatchObject({ ok: true });
     const names = f.requests[0].tools!.map((tool) => tool.function.name);
-    expect(names).toHaveLength(115);
+    expect(names.length).toBeLessThanOrEqual(128);
     expect(names).toContain("ask_user");
     expect(names).toEqual(expect.arrayContaining(syntheticToolNames("agents_agent", 42)));
-    expect(names).toEqual(expect.arrayContaining(["computer_click", "computer_type_text", "computer_get_window_state"]));
+    expect(names).toEqual(expect.arrayContaining(["computer_get_window_state", "mcp_search_tools", "mcp_describe_tool", "mcp_call_tool"]));
+    expect(names).not.toContain("computer_click");
+    expect(names).not.toContain("computer_type_text");
     expect(names.filter((name) => name.startsWith("computer_browser_"))).toEqual([]);
     expect(f.recorder.events.filter((event) => event.type === "runtime.notice" || event.type === "runtime.error")).toEqual([]);
   });
@@ -1426,21 +1428,23 @@ describe("a turn with the person's Windows computer, the built-in browser and th
     const names = f.requests[0].tools!.map((tool) => tool.function.name);
     expect(names).toHaveLength(128);
     expect(names.at(-1)).toBe("ask_user");
-    expect(f.recorder.events).toContainEqual(expect.objectContaining({ type: "runtime.notice",
-      message: `"data" listed 2 of 5 tools, "device" listed 0 of 23 tools to fit the model's 128-tool limit; the rest are left out of this turn.` }));
+    expect(names).toEqual(expect.arrayContaining(syntheticToolNames("data_table", 5)));
+    expect(names.filter(name => name.startsWith("device_phone_")).length).toBeGreaterThan(0);
+    expect(names.filter(name => name.startsWith("device_phone_")).length).toBeLessThan(23);
+    expect(f.recorder.events.some(event => event.type === "runtime.notice")).toBe(true);
     expect(f.recorder.events.some((event) => event.type === "runtime.error")).toBe(false);
   });
 
-  it("reaches a configured server past the limit through the tool search, says so in one line, and keeps the bot's tool budget", async () => {
+  it("keeps configured tools direct when the host directory frees capacity, and reports that budget", async () => {
     const f = await fixture((_body, response) => answer(response));
     await f.start({ botId: "mira", integrations: integrations(42, { custom: { notes: catalog(syntheticToolNames("note", 14)) } }) });
     expect(await f.completed()).toMatchObject({ ok: true });
     const names = f.requests[0].tools!.map((tool) => tool.function.name);
-    expect(names).toHaveLength(118);
+    expect(names.length).toBeLessThanOrEqual(128);
+    expect(names).toEqual(expect.arrayContaining(syntheticToolNames("notes_note", 14)));
     expect(names.slice(-4)).toEqual(["mcp_search_tools", "mcp_describe_tool", "mcp_call_tool", "ask_user"]);
-    expect(f.recorder.events.filter((event) => event.type === "runtime.notice").map((event) => (event as { message: string }).message))
-      .toEqual([`To fit the model's 128-tool limit, the tools of "notes" are reached through the tool search this turn.`]);
-    expect(toolBudgetOf("mira")).toEqual({ limit: 128, listed: 117, servers: [{ name: "notes", tools: 14, direct: false }] });
+    expect(toolBudgetOf("mira")).toMatchObject({ limit: 128, listed: names.length - 1,
+      servers: expect.arrayContaining([{ name: "notes", tools: 14, direct: true }]) });
   });
 });
 

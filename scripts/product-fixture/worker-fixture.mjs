@@ -8,12 +8,13 @@
 // production code in the Worker.
 import { createServer as createHttpServer } from "node:http";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, readdirSync, existsSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, existsSync } from "node:fs";
 import { createServer as createTcpServer } from "node:net";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import tls from "node:tls";
 
-import { PATHS, esbuild, miniflareRuntime, sqlSplitter } from "./runtime.mjs";
+import { workerProjectPaths, esbuild, miniflareRuntime, sqlSplitter } from "./runtime.mjs";
 
 const MAIL_FROM = "noreply@fixture.test";
 const SECRET = "fixture-better-auth-secret-with-at-least-32-chars";
@@ -75,14 +76,17 @@ export function trustFixtureCertificate(certPath) {
   tls.setDefaultCACertificates([...current, readFileSync(certPath, "utf8")]);
 }
 
-/** Bundle the Worker exactly as a deploy would (its imports are the real
- * modules), once per run. */
-export async function bundleWorker(outputDirectory) {
+/** Bundle the production Worker with a fixture-only observation boundary.
+ * Requests and responses pass through unchanged; only redacted metadata is saved. */
+export async function bundleWorker(outputDirectory, project = workerProjectPaths()) {
   mkdirSync(outputDirectory, { recursive: true });
   const outfile = join(outputDirectory, "index.js");
   const { build } = await esbuild();
   await build({
-    entryPoints: [PATHS.workerEntry],
+    entryPoints: [fileURLToPath(new URL("./worker-entry.mjs", import.meta.url))],
+    plugins: [{ name: "fixture-worker", setup(build) {
+      build.onResolve({ filter: /^fixture:worker$/ }, () => ({ path: project.workerEntry }));
+    } }],
     bundle: true,
     format: "esm",
     platform: "neutral",
@@ -171,16 +175,19 @@ function migrationStatements(split, sql) {
  * how the real bootstrap turn (an operator id learned from `/v1/me`) is
  * modelled. The certificate is reused so the desktop origin never changes.
  */
-export async function startWorkerFixture({ root, log = () => {}, mail = true }) {
+export async function startWorkerFixture({ root, log = () => {}, mail = true, workerProject }) {
+  const project = workerProjectPaths(workerProject);
   const directory = join(root, "worker");
   mkdirSync(directory, { recursive: true });
   const { key, certPem, certPath } = certificate(directory);
-  const script = await bundleWorker(join(root, "worker-bundle"));
+  const script = await bundleWorker(join(root, "worker-bundle"), project);
   const upstream = await startUpstream();
-  const split = await sqlSplitter();
+  const split = await sqlSplitter(project.root);
   const port = await freePort();
   const origin = `https://127.0.0.1:${port}`;
   const state = { operatorUserIds: [], mail, instance: null, db: null };
+  const inferenceRequests = [];
+  const inferenceLog = join(root, "inference-requests.jsonl");
 
   const options = () => {
     const runtime = state.runtime;
@@ -214,6 +221,12 @@ export async function startWorkerFixture({ root, log = () => {}, mail = true }) 
       // the Worker, so it is the only place the fixture touches the network.
       outboundService: async request => {
         const target = new URL(request.url);
+        if (target.hostname === "diagnostics.fixture.test") {
+          const entry = await request.json();
+          inferenceRequests.push(entry);
+          appendFileSync(inferenceLog, `${JSON.stringify(entry)}\n`, { mode: 0o600 });
+          return new Response(null, { status: 204 });
+        }
         const url = `http://127.0.0.1:${upstream.port}${target.pathname}${target.search}`;
         return fetch(url, {
           method: request.method,
@@ -228,7 +241,7 @@ export async function startWorkerFixture({ root, log = () => {}, mail = true }) 
   };
 
   async function start() {
-    const runtime = await miniflareRuntime();
+    const runtime = await miniflareRuntime(project.root);
     state.runtime = runtime;
     state.instance = new runtime.Miniflare(options());
     await state.instance.ready;
@@ -236,9 +249,9 @@ export async function startWorkerFixture({ root, log = () => {}, mail = true }) 
   }
 
   async function applyMigrations() {
-    const files = readdirSync(PATHS.migrations).filter(file => file.endsWith(".sql")).sort();
+    const files = readdirSync(project.migrations).filter(file => file.endsWith(".sql")).sort();
     for (const file of files) {
-      const sql = readFileSync(join(PATHS.migrations, file), "utf8");
+      const sql = readFileSync(join(project.migrations, file), "utf8");
       const statements = migrationStatements(split, sql);
       try {
         await state.db.batch(statements.map(statement => state.db.prepare(statement)));
@@ -293,8 +306,11 @@ export async function startWorkerFixture({ root, log = () => {}, mail = true }) 
     origin,
     certPath,
     certPem,
+    project,
     models: MODELS,
     upstream,
+    inferenceRequests,
+    inferenceLog,
     mail: { nextCode, count: () => mailWatch, files: mailFiles },
     db: () => state.db,
     /** Restart with the operator ids the real bootstrap printed, and

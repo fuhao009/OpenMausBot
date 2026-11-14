@@ -8,14 +8,37 @@ const IMAGE_BYTES = 20 * 1024 * 1024;
 const MIME = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 export const CHAT_IMAGE_BUDGET = 32 * 1024 * 1024;
 
-/** Bound retained base64 before JSON serialization or another model call. */
-export function chatImageBudget() {
+function imageBytes(parts: string | ChatContentPart[] | null): number {
+  return Array.isArray(parts) ? parts.reduce((total, part) => total + (part.type === "image_url" ? part.image_url.url.length : 0), 0) : 0;
+}
+
+type ChatImageBudget = (parts: string | ChatContentPart[] | null, released?: ChatContentPart[]) => void;
+
+/** Check a replacement before releasing anything, so a failed image keeps the last usable view. */
+export function chatImageBudget(): ChatImageBudget {
   let used = 0;
-  return (parts: string | ChatContentPart[] | null) => {
-    if (!Array.isArray(parts)) return;
-    const added = parts.reduce((total, part) => total + (part.type === "image_url" ? part.image_url.url.length : 0), 0);
-    if (used + added > CHAT_IMAGE_BUDGET) throw new Error("Turn image budget exceeded (32 MiB encoded); screenshot cannot be retained. An operation may already have taken effect; inspect its state before retrying.");
-    used += added;
+  return (parts: string | ChatContentPart[] | null, released: ChatContentPart[] = []) => {
+    const next = used + imageBytes(parts) - imageBytes(released);
+    if (next > CHAT_IMAGE_BUDGET) throw new Error("Turn image budget exceeded (32 MiB encoded); screenshot cannot be retained. An operation may already have taken effect; inspect its state before retrying.");
+    used = next;
+  };
+}
+
+/** Only tool-generated batches enter this history; initial user attachments are never evicted. */
+export function chatToolImageHistory(retain: ChatImageBudget) {
+  const batches: ChatContentPart[][] = [];
+  return (batch: ChatContentPart[], incoming: ChatContentPart[]) => {
+    const fresh = batches.at(-1) !== batch;
+    const oldest = fresh && batches.length === 2 ? batches[0] : undefined;
+    retain(incoming, oldest);
+    if (oldest) {
+      for (let index = 0; index < oldest.length; index++) {
+        if (oldest[index].type === "image_url") oldest[index] = { type: "text", text: "[Older tool screenshot omitted; the two most recent screenshot batches are retained.]" };
+      }
+      batches.shift();
+    }
+    if (fresh) batches.push(batch);
+    batch.push(...incoming);
   };
 }
 

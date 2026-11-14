@@ -115,6 +115,17 @@ locally. For computer-enabled requests, root composition constraints appear in
 the description rather than the outgoing parameter root, preserving the full
 original validator before execution.
 
+For the explicitly identified host-computer mount, seven observation tools stay
+directly advertised. Other permitted host tools use the existing
+`mcp_search_tools`, `mcp_describe_tool`, and `mcp_call_tool` directory, retaining
+their original host approval policy and image transport. VM and configured
+third-party mounts do not inherit this policy. An unadvertised direct tool name
+is rejected; the directory is not an authorization bypass. Cua tools advertising
+both target styles reject `target` combined with legacy `scope`, `pid`, or
+`window_id` locally, before forwarding any action. Describe returns the same
+constraint so the model can repair arguments without an attempted desktop action.
+
+
 The driver contract tests exercise real loopback HTTP and stdio MCP processes:
 input-image encoding, computer/browser screenshot delivery, call-ID ordering,
 approval denial with no side effect, malformed images and a screenshot larger

@@ -291,6 +291,54 @@ describe("createGateInterceptor", () => {
     }
   });
 
+  it("forwards a first approved observation exactly once after a long authorization wait", async () => {
+    vi.useFakeTimers();
+    try {
+      const { promise, resolve: approve } = Promise.withResolvers<ControlState>();
+      const check = vi.fn(() => promise);
+      const { forwarded, refused, intercept } = harness(check);
+      const call = JSON.stringify({ id: 1, method: "tools/call", params: { name: "list_apps", arguments: {} } });
+      const pending = intercept(call);
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(forwarded).toEqual([]);
+      approve(free);
+      await pending;
+      expect(check).toHaveBeenCalledTimes(1);
+      expect(forwarded).toEqual([call]);
+      expect(refused).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(["click", "type_text", "get_desktop_state"])("keeps delayed %s mutations behind the fresh-screen guard", async (name) => {
+    const forwarded: string[] = [];
+    const refused: string[] = [];
+    const intercept = createGateInterceptor({
+      check: async () => free,
+      forward: (line) => { forwarded.push(line); },
+      refuse: (line) => { refused.push(line); },
+      actWithinMs: -1,
+    });
+    await intercept(JSON.stringify({ id: 1, method: "tools/call", params: {
+      name, arguments: name === "get_desktop_state" ? { screenshot_out_file: "/tmp/screen.png" } : {},
+    } }));
+    expect(forwarded).toEqual([]);
+    expect(refusalText(refused[0]!)).toBe(CONTROL_WAITED);
+  });
+
+  it.each<ControlState>([
+    person,
+    { held: true, helpOpen: false, blockedReason: "Permission denied" },
+    { held: true, helpOpen: false, blockedReason: "This turn was cancelled" },
+    { held: true, helpOpen: false, blockedReason: CONTROL_UNCONFIRMED },
+  ])("never executes an observation while the gate refuses it: %j", async (state) => {
+    const { forwarded, refused, intercept } = harness(async () => state);
+    await intercept(JSON.stringify({ id: 1, method: "tools/call", params: { name: "list_apps", arguments: {} } }));
+    expect(forwarded).toEqual([]);
+    expect(refused).toHaveLength(1);
+  });
+
   it("checks the next call only once a relayed one has acted, so the agent's calls act in order", async () => {
     const order: string[] = [];
     let finishRelay!: () => void;

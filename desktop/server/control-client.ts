@@ -3,7 +3,7 @@
 
 /** Under the 60 seconds an engine may give one tool call (Codex's default), with room for the action itself. */
 export const CONTROL_WAIT_MS = 45_000;
-/** A call that waited longer is not performed: a late action could outlive a call the engine already retried, and happen twice. */
+/** A mutating call that waited longer is not performed: a late action could land on a changed screen or happen twice. */
 export const CONTROL_ACT_WITHIN_MS = 5_000;
 /** Past the harness's longest answer, so a check it still legitimately holds is never cut off and misread. */
 const READ_TIMEOUT_MS = CONTROL_WAIT_MS + 10_000;
@@ -41,6 +41,31 @@ export interface ControlClient {
   /** `call`: what a tools/call would open, sent along so a first ask can name it; such a read is never cached. */
   state(fresh?: boolean, call?: Record<string, string>): Promise<ControlState>;
   readonly configured: boolean;
+}
+
+// Only known, side-effect-free driver calls and arguments may outlive the action freshness window.
+// In particular, screenshot_out_file writes a file and must never qualify as an observation.
+const OBSERVATION_ARGUMENTS: Readonly<Record<string, readonly string[]>> = {
+  list_apps: [],
+  list_windows: ["pid", "on_screen_only"],
+  get_accessibility_tree: [],
+  get_desktop_state: ["session"],
+  get_window_state: ["pid", "window_id", "session", "capture_mode", "include_screenshot", "include_accessibility_tree", "max_depth", "max_elements", "query"],
+  get_screen_size: ["session"],
+  get_cursor_position: ["session"],
+};
+
+/** Classifies the raw driver tools/call, not a model-facing alias or a caller-supplied read-only flag. */
+export function isReadOnlyComputerCall(frame: unknown): boolean {
+  if (!frame || typeof frame !== "object" || Array.isArray(frame)) return false;
+  const request = frame as Record<string, unknown>;
+  if (request.method !== "tools/call" || !request.params || typeof request.params !== "object" || Array.isArray(request.params)) return false;
+  const params = request.params as Record<string, unknown>;
+  if (typeof params.name !== "string" || !Object.hasOwn(OBSERVATION_ARGUMENTS, params.name)) return false;
+  const args = params.arguments;
+  if (args === undefined) return true;
+  if (!args || typeof args !== "object" || Array.isArray(args)) return false;
+  return Object.keys(args).every((key) => OBSERVATION_ARGUMENTS[params.name as string]!.includes(key));
 }
 
 const DISENGAGED: ControlState = { held: false, helpOpen: false };

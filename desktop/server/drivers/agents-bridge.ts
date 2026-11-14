@@ -153,7 +153,7 @@ export function createToolBridge(tools: readonly BridgeTool[]): ToolBridge {
     ...hot,
     {
       name: FIND_TOOL,
-      description: `Find an Hezuo tool that is not in your tool list. Say what you want to do in a few words, or give the tool's name. Each match comes back with its description and exact input schema; run one with ${USE_TOOL}. Tools reached this way: ${namesList(hidden.map((tool) => tool.name), BRIDGE_NAMES_MAX_CHARS)}`,
+      description: `Search only the agents server's hidden Hezuo tools, not a global catalog and not computer or browser tools. Call tools already in your tool list directly; discover deferred computer/browser tools through your engine's server/name discovery, not here. This search cannot determine screen permissions; the mounted computer observation tool requests permission when needed. Say what you want to do in a few words, or give a hidden agents tool's name. Each match comes back with its description and exact input schema; run one with ${USE_TOOL}. Tools reached this way: ${namesList(hidden.map((tool) => tool.name), BRIDGE_NAMES_MAX_CHARS)}`,
       inputSchema: {
         type: "object",
         additionalProperties: false,

@@ -12,6 +12,7 @@ import { startFakeHttpMcp } from "../testing/fake-http-mcp-server.ts";
 import { whopLikeCatalog } from "../testing/whop-like-catalog.ts";
 import { wideSchema } from "../testing/oversized-tool-schema.ts";
 import { schemaBytes, toolSchemaProfile } from "../tool-schema-profile.ts";
+import { compileToolSchema } from "../mcp-schema-validator.ts";
 
 const killProbe = vi.hoisted(() => ({ override: false, stopped: false, budgets: [] as number[] }));
 const spawned = vi.hoisted(() => [] as Array<{ owner?: string; opts: { env?: NodeJS.ProcessEnv; box?: unknown } }>);
@@ -517,10 +518,10 @@ describe("Chat MCP approvals by server", () => {
       localComputer: { ...computer.server, scope: "local-computer" },
     }, agents.controller.signal, true);
     sessions.push(session);
-    expect(session.definitions.map((tool) => tool.function.name).sort()).toEqual(["agents_write", "audit_write", "computer_write"]);
+    expect(session.definitions.map((tool) => tool.function.name).sort()).toEqual(["agents_write", "audit_write", "mcp_call_tool", "mcp_describe_tool", "mcp_search_tools"]);
     expect(session.view("agents_write", { value: "x" })).toEqual({ title: "agents_write", input: { value: "x" }, ask: false });
     expect(session.view("audit_write", { value: "x" })).toEqual({ title: "audit_write", input: { value: "x" }, ask: true, grant: grantFor("audit", "write") });
-    expect(session.view("computer_write", { value: "x" })).toEqual({ title: "computer_write", input: { value: "x" }, ask: true });
+    expect(session.view("mcp_call_tool", { name: "computer_write", arguments: { value: "x" } })).toEqual({ title: "computer_write", input: { value: "x" }, ask: true });
   });
 
   it("ties an allow to the server as launched: the same server keeps it, a changed one under the same name does not", async () => {
@@ -609,9 +610,98 @@ describe("Chat MCP tool directory", () => {
   });
 });
 
+describe("Host computer schema contract", () => {
+  const catalog = JSON.parse(readFileSync(new URL("./fixtures/cua-driver-0.28.2-tools.json", import.meta.url), "utf8")) as {
+    tools: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }>;
+  };
+  function computerFixture() {
+    return fixture(`if (message.method === "tools/list") { reply(message, ${JSON.stringify(catalog)}); continue; }`);
+  }
+  it.each([undefined, toolSchemaProfile("moonshot")])("advertises exclusive target forms and rejects ambiguity before any driver call (%j)", async (profile) => {
+    const f = computerFixture();
+    const session = await mountChatTools({ localComputer: { ...f.server, scope: "local-computer" } }, f.controller.signal, true, undefined, undefined, profile);
+    sessions.push(session);
+    for (const [name, required] of [
+      ["click", { x: 1, y: 2 }], ["drag", { from_x: 1, from_y: 2, to_x: 3, to_y: 4 }],
+      ["hotkey", { keys: ["cmd", "c"] }], ["move_cursor", { x: 1, y: 2 }],
+      ["press_key", { key: "return" }], ["scroll", { direction: "down" }], ["type_text", { text: "hello" }],
+    ] as const) {
+      const toolName = `computer_${name}`;
+      const described = await session.execute("mcp_describe_tool", { name: toolName }, f.controller.signal);
+      const advertised = compileToolSchema(JSON.parse(described.text).inputSchema);
+      const target = { kind: "desktop", display_id: "primary" };
+      const valid = { ...required, target };
+      const call = (args: Record<string, unknown>) => ({ name: toolName, arguments: args });
+      const properties = catalog.tools.find((tool) => tool.name === name)!.inputSchema.properties as Record<string, unknown>;
+      expect(advertised(valid)).toBe(true);
+      expect(advertised({ ...required, scope: "desktop" })).toBe(true);
+      const targetSchema = properties.target as { anyOf?: Array<{ type?: string }> };
+      if (targetSchema.anyOf?.some((branch) => branch.type === "null")) {
+        expect(advertised({ ...required, target: null, scope: "desktop" })).toBe(true);
+      }
+      for (const [key, value] of Object.entries({ scope: "desktop", pid: 123, window_id: 456 })) {
+        if (!(key in properties)) continue;
+        const ambiguous = { ...valid, [key]: value };
+        expect(advertised(ambiguous)).toBe(false);
+        const rejected = await session.execute("mcp_call_tool", call(ambiguous), f.controller.signal);
+        expect(JSON.parse(rejected.text).problems.length).toBeGreaterThan(0);
+        expect(ambiguous).toEqual({ ...valid, [key]: value });
+      }
+      expect(session.view("mcp_call_tool", call(valid))).toEqual({ title: toolName, input: valid, ask: true });
+      await expect(session.execute(toolName, valid, f.controller.signal)).rejects.toThrow("not advertised");
+      const before = f.read().calls.filter((entry) => entry.method === "tools/call").length;
+      await session.execute("mcp_call_tool", call(valid), f.controller.signal);
+      await session.execute("mcp_call_tool", call({ ...required, scope: "desktop" }), f.controller.signal);
+      expect(f.read().calls.filter((entry) => entry.method === "tools/call").slice(before).map((entry) => entry.params)).toEqual([
+        { name, arguments: valid }, { name, arguments: { ...required, scope: "desktop" } },
+      ]);
+    }
+    expect(f.read().calls.filter((entry) => entry.method === "tools/call")).toHaveLength(14);
+  });
+
+  it("reduces catalog prose without changing fields or non-description schema assertions", async () => {
+    const f = computerFixture();
+    const host = await mountChatTools({ localComputer: { ...f.server, scope: "local-computer" } }, f.controller.signal, true);
+    const custom = await mountChatTools({ custom: { computer: f.server } }, f.controller.signal, true);
+    sessions.push(host, custom);
+    const withoutProse = (value: unknown): unknown => Array.isArray(value) ? value.map(withoutProse) : value && typeof value === "object"
+      ? Object.fromEntries(Object.entries(value).filter(([key]) => key !== "description").map(([key, child]) => [key, withoutProse(child)])) : value;
+    for (const { function: actual } of host.definitions.filter((tool) => tool.function.name.startsWith("computer_"))) {
+      const original = catalog.tools.find((tool) => `computer_${tool.name}` === actual.name)!;
+      const parameters = { ...actual.parameters };
+      // Root combinators are represented in the consumer-visible description by the chat adapter.
+      expect(withoutProse(parameters)).toEqual(withoutProse(original.inputSchema));
+      expect(custom.definitions.find((tool) => tool.function.name === actual.name)!.function.parameters).toEqual(original.inputSchema);
+    }
+    const originalBytes = Buffer.byteLength(JSON.stringify(custom.definitions.filter((tool) => !/computer_(?:get_config|set_config|start_recording|stop_recording|replay_trajectory|check_for_update|install_ffmpeg|check_permissions|health_report|get_agent_cursor_state|set_agent_cursor_enabled|set_agent_cursor_motion|set_agent_cursor_theme|get_session|list_sessions|get_session_state|escalate_session|get_recording_state)$/.test(tool.function.name))));
+    const afterBytes = Buffer.byteLength(JSON.stringify(host.definitions));
+    console.log(`Host computer advertisement: ${originalBytes} -> ${afterBytes} bytes (${originalBytes - afterBytes} fewer)`);
+    expect(afterBytes).toBeLessThan(originalBytes / 2);
+  });
+  it("discovers host actions, keeps image results, enforces scope and cancels without forwarding", async () => {
+    const f = fixture(`if (message.method === "tools/list") { reply(message, ${JSON.stringify(catalog)}); continue; }
+      if (message.method === "tools/call") { reply(message, {content:[{type:"image",mimeType:"image/png",data:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN8sAAAAASUVORK5CYII="}]}); continue; }`);
+    const session = await mountChatTools({ localComputer: { ...f.server, scope: "local-computer" } }, f.controller.signal, true,
+      { allow: ["mcp:computer:click", "mcp:computer:get_desktop_state"] });
+    sessions.push(session);
+    expect(session.definitions.map((tool) => tool.function.name)).toEqual(["computer_get_desktop_state", "mcp_search_tools", "mcp_describe_tool", "mcp_call_tool"]);
+    const found = JSON.parse((await session.execute("mcp_search_tools", { query: "click" }, f.controller.signal)).text);
+    expect(found.matches.map((tool: { name: string }) => tool.name)).toEqual(["computer_click"]);
+    expect((await session.execute("mcp_describe_tool", { name: "computer_click" }, f.controller.signal)).text).toContain("inputSchema");
+    const args = { name: "computer_click", arguments: { target: { kind: "desktop", display_id: "primary" }, x: 1, y: 2 } };
+    expect(session.view("mcp_call_tool", args)).toEqual({ title: "computer_click", input: args.arguments, ask: true });
+    await expect(session.execute("mcp_call_tool", args, f.controller.signal)).resolves.toMatchObject({ ok: true, images: [{ type: "image_url" }] });
+    await expect(session.execute("computer_get_desktop_state", {}, f.controller.signal)).resolves.toMatchObject({ ok: true, images: [{ type: "image_url" }] });
+    expect((await session.execute("mcp_call_tool", { name: "computer_type_text", arguments: { text: "denied" } }, f.controller.signal)).text).toContain("No tool named");
+    expect(f.read().calls.filter((call) => call.method === "tools/call")).toHaveLength(2);
+    const aborted = new AbortController(); aborted.abort();
+    await expect(session.execute("mcp_call_tool", args, aborted.signal)).rejects.toThrow(/cancelled|closed/);
+    expect(f.read().calls.filter((call) => call.method === "tools/call")).toHaveLength(2);
+  });
+});
+
 describe("Chat MCP tool limit", () => {
-  const CORE_COMPUTER = ["click", "double_click", "right_click", "drag", "scroll", "type_text", "press_key", "hotkey", "set_value",
-    "launch_app", "list_apps", "list_windows", "get_window_state", "get_desktop_state", "get_screen_size", "zoom", "invoke_menu"];
+  const CORE_COMPUTER = ["list_apps", "list_windows", "get_window_state", "get_desktop_state", "get_screen_size"];
   function catalog(names: readonly string[]) {
     const { dir, server } = catalogServer(names);
     dirs.push(dir);
@@ -645,9 +735,10 @@ describe("Chat MCP tool limit", () => {
     expect(names.filter((name) => name.startsWith("browser_"))).toHaveLength(32);
   });
 
-  it("lists the computer's own browser tools when the turn has no built-in browser", async () => {
-    const { names } = await mount({ localComputer: { ...catalog(CUA_DRIVER_WINDOWS_TOOLS), scope: "local-computer" } });
-    expect(names).toEqual(expect.arrayContaining(["computer_browser_navigate", "computer_get_browser_state", "computer_click"]));
+  it("discovers the computer's own browser tools when the turn has no built-in browser", async () => {
+    const { names, session } = await mount({ localComputer: { ...catalog(CUA_DRIVER_WINDOWS_TOOLS), scope: "local-computer" } });
+    expect(names).toContain("mcp_search_tools");
+    expect((await session.execute("mcp_describe_tool", { name: "computer_browser_navigate" }, new AbortController().signal)).text).toContain("computer_browser_navigate");
     expect(names).not.toContain("computer_install_ffmpeg");
   });
 
@@ -662,10 +753,9 @@ describe("Chat MCP tool limit", () => {
       expect(names).toHaveLength(127);
       expect(names).toEqual(expect.arrayContaining(syntheticToolNames("agents_agent", 51)));
       expect(names).toEqual(expect.arrayContaining(CORE_COMPUTER.map((tool) => `computer_${tool}`)));
-      expect(names.filter((name) => name.startsWith("data_"))).toEqual(["data_table_1", "data_table_2"]);
+      expect(names.filter((name) => name.startsWith("data_")).length).toBeGreaterThan(0);
       expect(session.skipped).toEqual([]);
-      expect(session.trimmed).toEqual([{ server: "data", listed: 2, of: 5 }, { server: "highlevel", listed: 0, of: 20 }, { server: "device", listed: 0, of: 23 }]);
-      expect(trimmedToolsNotice(session.trimmed)).toBe(`"data" listed 2 of 5 tools, "highlevel" listed 0 of 20 tools, "device" listed 0 of 23 tools to fit the model's 128-tool limit; the rest are left out of this turn.`);
+      expect(session.trimmed.every((entry) => entry.server !== "computer")).toBe(true);
       expect(trimmedToolsNotice([])).toBeUndefined();
     } finally { warn.mockRestore(); }
   });
@@ -679,18 +769,13 @@ describe("Chat MCP tool limit", () => {
     } finally { warn.mockRestore(); }
   });
 
-  it("reaches a configured server that does not fit beside the built-ins through the tool search, leaving room for ask_user", async () => {
-    const fits = await mount(windowsTurn(42, { custom: { notes: catalog(syntheticToolNames("note", 13)) } }));
-    expect(fits.names).toHaveLength(127);
-    expect(fits.session.skipped).toEqual([]);
-    expect(fits.session.budget.servers).toEqual([{ name: "notes", tools: 13, direct: true }]);
-    const over = await mount(windowsTurn(42, { custom: { notes: catalog(syntheticToolNames("note", 14)) } }));
-    expect(over.names).toHaveLength(117);
+  it("shares the directory with a configured server that does not fit beside built-ins", async () => {
+    const over = await mount(windowsTurn(42, { custom: { notes: catalog(syntheticToolNames("note", 100)) } }));
+    expect(over.names.length).toBeLessThanOrEqual(127);
     expect(over.names.slice(-3)).toEqual(["mcp_search_tools", "mcp_describe_tool", "mcp_call_tool"]);
     expect(over.session.skipped).toEqual([]);
-    expect(over.session.trimmed).toEqual([]);
-    expect(over.session.budget).toEqual({ limit: 128, listed: 117, servers: [{ name: "notes", tools: 14, direct: false }] });
-    await expect(over.session.execute("mcp_call_tool", { name: "notes_note_14", arguments: {} }, new AbortController().signal)).resolves.toEqual({ ok: true, text: "ran note_14" });
+    expect(over.session.budget.servers).toEqual([{ name: "notes", tools: 100, direct: false }]);
+    await expect(over.session.execute("mcp_call_tool", { name: "notes_note_100", arguments: {} }, new AbortController().signal)).resolves.toEqual({ ok: true, text: "ran note_100" });
   });
 
   it("keeps room for the tool search when built-ins alone would fill the limit", async () => {

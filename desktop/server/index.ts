@@ -418,6 +418,7 @@ import { ComputerUsePermission } from "./computer-use-permission.ts";
 import { effectiveComputerUsePolicy, isComputerUsePolicy } from "../../packages/shared/computer-use-policy.ts";
 import { cancelWorkspaceYourComputerAsks } from "./your-computer-consent.ts";
 import { askToUseYourComputer, cancelYourComputerAsks, dismissStaleYourComputerCards, yourComputerCallFrom, yourComputerWaiting } from "./your-computer-consent.ts"; import { createComputerAsksHost } from "./host/computer-asks-host.ts";
+import type { YourComputerCall } from "../../packages/shared/your-computer.ts";
 import { discoverExistingPerBotLocalVms, localVmInventoryEntry } from "./local-vm-inventory.ts";
 import { createLocalVmUpdater, LOCAL_VM_UPDATING_PROBLEM, recoverLocalVms, VPS_OUTDATED_HINT, vpsDesktopOutdated, withoutHostWhileUpdating } from "./desktop-updates.ts";
 import { keepInstalledAppsBeforeRemove } from "./local-vm-profiles.ts";
@@ -5766,7 +5767,7 @@ function botComputerControlKey(bot: BotRecord): string {
 }
 
 /** Waits here up to COMPUTER_CALL_WAIT_MS; a call that waited through a person's hold, or whose turn ended, is never performed. */
-async function computerCallGate(internalCapability: InternalCapability, signal?: AbortSignal, call?: ReturnType<typeof yourComputerCallFrom>): Promise<ControlState> {
+async function computerCallGate(internalCapability: InternalCapability, signal?: AbortSignal, call?: YourComputerCall, observation = false): Promise<ControlState> {
   const { botId, threadId, generation } = internalCapability;
   const askedAt = Date.now();
   const deadline = askedAt + COMPUTER_CALL_WAIT_MS;
@@ -5807,13 +5808,13 @@ async function computerCallGate(internalCapability: InternalCapability, signal?:
       const computer = turnComputerResources.get(threadId);
       if (computer && computer.owner.generation === generation && !claimTurnResource(computer.owner, computer.resource)) {
         held = { held: true, helpOpen: false, blockedReason: CONTROL_BUSY };
-      } else if (!internalCapabilityIsActive(internalCapability)) {
+      } else if (signal?.aborted || !internalCapabilityIsActive(internalCapability)) {
         // A call from a turn that is over never reaches the screen.
         return { held: true, helpOpen, blockedReason: "This turn no longer has this computer, so this call was not performed." };
       } else if (personHeld) {
         return { held: true, helpOpen, blockedReason: CONTROL_HANDED_BACK };
       } else {
-        return Date.now() - askedAt > COMPUTER_CALL_ACT_WITHIN_MS ? { held: true, helpOpen, blockedReason: CONTROL_WAITED } : { held: false, helpOpen };
+        return !observation && Date.now() - askedAt > COMPUTER_CALL_ACT_WITHIN_MS ? { held: true, helpOpen, blockedReason: CONTROL_WAITED } : { held: false, helpOpen };
       }
     }
     if (Date.now() >= deadline || signal?.aborted || !internalCapabilityIsActive(internalCapability)) return held;
@@ -14807,7 +14808,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         if (method === "GET") { savedSteps.gateChecked(internalCapability);
           const abort = new AbortController();
           res.once("close", () => { if (!res.writableEnded) abort.abort(); });
-          return json(res, 200, await computerCallGate(internalCapability, abort.signal, yourComputerCallFrom(url.searchParams)));
+          return json(res, 200, await computerCallGate(internalCapability, abort.signal, yourComputerCallFrom(url.searchParams), url.searchParams.get("observation") === "1"));
         }
         return json(res, 405, { error: "method not allowed" });
       }

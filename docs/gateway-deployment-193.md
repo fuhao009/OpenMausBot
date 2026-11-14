@@ -64,3 +64,15 @@ ssh root@192.168.66.193 'systemctl restart hezuo-gateway'
 - 未对部署后的真实数据库执行测试注册、积分修改或推理请求；以上不证明手机/桌面中继完整链路或上游推理可用。
 
 后台方案见 [gateway-admin-design.md](gateway-admin-design.md)。目前不存在可登录的管理网页，设计方案不是已实现后台。
+
+## 2026-11-14 密码登录不限次数
+
+按要求将 Better Auth 的 `rateLimit.customRules["/sign-in/email"]` 设为
+`false`，明确跳过该接口的默认及专属限流；注册、验证码、重置密码和 AI
+限流保持原样。密码登录不再受这层防暴力猜测保护，部署对公网开放前需重新评估风险。
+
+改动已同步桌面工作树、`HezuoBot-gw-beta` 工作树及 193 部署源码。
+隔离 Worker 的 `pnpm exec vitest run test/password-auth.test.ts` 共 13 项通过：
+同一 IP 连续 12 次密码登录均为 200，注册第 6 次仍为 429。
+部署后重启 `hezuo-gateway.service`，服务 active，证书校验下 `/healthz` 返回 200。
+未用真实用户账号执行批量登录测试；桌面 App 无需更新。

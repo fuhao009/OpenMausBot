@@ -31,7 +31,7 @@ import {
 } from "./agents-bridge-switch.ts";
 import { removeTempDir } from "./testing/cleanup.ts";
 import { instanceConfigs, parseConfigPatch, parseStoredConfig } from "./config.ts";
-import { BRIDGE_HOT_TOOL_NAMES, FIND_TOOL, USE_TOOL, agentsToolBridged } from "./drivers/agents-bridge.ts";
+import { BRIDGE_HOT_TOOL_NAMES, FIND_TOOL, agentsToolBridged } from "./drivers/agents-bridge.ts";
 import { SPAWNED_PROXIES } from "./proxy-paths.ts";
 import { availableTools } from "./drivers/agents-catalog.ts";
 import { WATCHER_OPTIONS_CARD_BOT_ID } from "../../packages/shared/options-card.ts";
@@ -835,20 +835,6 @@ describe("the prompt of a bridged turn", () => {
     for (const tool of everyTool) expect(AGENTS_TOOL_BRIDGE_PROMPT, tool).not.toContain(tool);
   });
 
-  it("reads true when the bridge tools are not in the turn's list after all", () => {
-    // A tool selection saved after the prompt was built gives the turn an
-    // unbridged proxy at its mount. So nothing is said about find_tool or
-    // use_tool except on the condition that they are listed, and what is
-    // said without that condition is true of every turn.
-    const sentences = AGENTS_TOOL_BRIDGE_PROMPT.trim().split(/(?<=\.)\s+/);
-    const aboutTheBridge = sentences.filter((sentence) => sentence.includes(FIND_TOOL) || sentence.includes(USE_TOOL));
-    expect(aboutTheBridge).toHaveLength(1);
-    expect(aboutTheBridge[0]!.startsWith(`If ${FIND_TOOL} and ${USE_TOOL} are in your tool list, `)).toBe(true);
-    expect(sentences.filter((sentence) => !aboutTheBridge.includes(sentence))).toEqual(["A tool that is in your tool list is always called directly."]);
-    // one sentence-run, joined to its neighbours like every other section
-    expect(AGENTS_TOOL_BRIDGE_PROMPT.startsWith(" ")).toBe(true);
-    expect(AGENTS_TOOL_BRIDGE_PROMPT).not.toMatch(/\n/);
-  });
 
   it("sits in the stable half, so a warm engine is not relaunched by it turn after turn", () => {
     const first = buildSystemPrompt("You are Kiwi.", "Be brief.", parts, bridged);

@@ -131,6 +131,10 @@ mac:
     - from: dist-native/duckdb/darwin-${arch}/node_modules
       to: duckdb/node_modules
   extendInfo:
+    # Without this string macOS' Local Network privacy gate refuses the app's
+    # outbound LAN sockets (EHOSTUNREACH) and never shows a consent prompt, so a
+    # build that signs in to a gateway on a private/LAN address cannot reach it.
+    NSLocalNetworkUsageDescription: Hezuo signs in to and talks with your team's gateway on this local network.
     NSMicrophoneUsageDescription: Hezuo uses the microphone for voice dictation into the composer.
     NSSpeechRecognitionUsageDescription: Hezuo transcribes your voice on-device to type messages for you.
     NSAccessibilityUsageDescription: Hezuo uses Accessibility when you let a bot control this Mac.

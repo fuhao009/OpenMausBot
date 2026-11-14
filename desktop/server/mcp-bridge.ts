@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 
-import { CONTROL_ACT_WITHIN_MS, CONTROL_UNCONFIRMED, CONTROL_WAITED, controlRefusal, createControlClient, type ControlState } from "./control-client.ts";
+import { CONTROL_ACT_WITHIN_MS, CONTROL_UNCONFIRMED, CONTROL_WAITED, controlRefusal, createControlClient, isReadOnlyComputerCall, type ControlState } from "./control-client.ts";
 import { augmentedPath, resolveCliSpawn } from "./env-path.ts";
 import { textOnlyErrorResultLine } from "./mcp-error-result.ts";
 import { createToolListNormalizer } from "./mcp-tool-schema.ts";
@@ -167,7 +167,7 @@ export function createGateInterceptor(options: {
         return;
       }
       const state = await options.check(frame).catch((): ControlState => ({ held: true, helpOpen: false, blockedReason: CONTROL_UNCONFIRMED }));
-      if (!state.held && Date.now() - arrivedAt <= actWithinMs) {
+      if (!state.held && !state.reason && !state.blockedReason && (Date.now() - arrivedAt <= actWithinMs || isReadOnlyComputerCall(frame))) {
         // A relayed call is checked once, when it arrives; the next frame's check waits until it has acted.
         await options.forward(line);
         return;
@@ -359,7 +359,10 @@ export function runMcpBridge(options: BridgeOptions): void {
   const intercept = createMcpBridgeInterceptor({
     answer,
     forward,
-    ...(client ? { gate: { check: (frame: unknown) => client.state(true, options.gate?.describe?.(frame)) } } : {}),
+    ...(client ? { gate: { check: (frame: unknown) => client.state(true, {
+      ...options.gate?.describe?.(frame),
+      observation: isReadOnlyComputerCall(frame) ? "1" : "0",
+    }) } } : {}),
   });
   let pendingInput = Promise.resolve();
   const inbound = createLineSplitter((line) => {

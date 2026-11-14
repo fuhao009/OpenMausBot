@@ -153,6 +153,9 @@ export function createProductAccountService({
   let capabilityTrouble = false;
   let pendingCapability = Promise.resolve();
   let cleanupBlocked = false;
+  // Failed remote logout is retried only by the next explicit account action.
+  // Keep its bearer here, never in a snapshot or the persisted login record.
+  let pendingRevocation = null;
   /** The address whose emailed code is outstanding (sign-up or reset), so the
    * form can ask for the code without the renderer becoming a credential store. */
   let verificationEmail = null;
@@ -340,7 +343,7 @@ export function createProductAccountService({
     stopPending = false;
     runtimeKey = null;
     runtimeGeneration = 0;
-    if (cleanupBlocked && auth !== "signed_in") {
+    if (cleanupBlocked && !pendingRevocation && auth !== "signed_in") {
       cleanupBlocked = false;
       if (errorCode === "sign_out_blocked") errorCode = "";
       if (workspace !== "error") workspace = "stopped";
@@ -354,9 +357,9 @@ export function createProductAccountService({
     && status.defaultModel !== null
     && status.models.some((model) => model.id === status.defaultModel);
 
-  async function revokeCredential(current) {
-    if (!current || !accountToken) return;
-    try { await client.revokeAiToken(accountToken, current.id); } catch { /* server TTL still bounds it */ }
+  async function revokeCredential(current, token = accountToken) {
+    if (!current || !token) return;
+    try { await client.revokeAiToken(token, current.id); } catch { /* server TTL still bounds it */ }
   }
 
   async function applyStatus(read, stamp) {
@@ -376,15 +379,19 @@ export function createProductAccountService({
       const previous = credential;
       let next = previous && previous.expiresAt > now() + renewLeadMs ? previous : null;
       if (!next) {
+        const issuingAccountToken = accountToken;
         try {
-          next = await client.createAiToken(accountToken, deviceId);
+          next = await client.createAiToken(issuingAccountToken, deviceId);
         } catch (error) {
           if (stale(stamp)) return false;
           errorCode = errorCodeOf(error, "ai_unavailable");
           publish();
           return false;
         }
-        if (stale(stamp)) return false;
+        if (stale(stamp)) {
+          await revokeCredential(next, issuingAccountToken);
+          return false;
+        }
       }
       credential = next;
       const applied = await pushCapability("ready", connectionFor(next), stamp);
@@ -508,6 +515,32 @@ export function createProductAccountService({
     return snapshot();
   }
 
+  async function revokePendingSession() {
+    if (!pendingRevocation) return true;
+    const pending = pendingRevocation;
+    const attempt = async (operation, complete) => {
+      try {
+        await operation();
+      } catch (error) {
+        if (!isUnauthorized(error)) return;
+      }
+      complete();
+    };
+    await Promise.all([
+      ...(pending.credentialId ? [attempt(
+        () => client.revokeAiToken(pending.token, pending.credentialId),
+        () => { pending.credentialId = null; },
+      )] : []),
+      ...(pending.signOut ? [attempt(
+        () => client.signOut(pending.token),
+        () => { pending.signOut = false; },
+      )] : []),
+    ]);
+    if (pending.credentialId || pending.signOut) return false;
+    pendingRevocation = null;
+    return true;
+  }
+
   async function terminate(reason, { revoke, removeRecord }) {
     generation += 1;
     clearScheduled();
@@ -578,18 +611,15 @@ export function createProductAccountService({
       issuedStop = null;
     }
 
-    const forgotten = revoke && token
-      ? Promise.allSettled([
-          ...(previousCredential ? [client.revokeAiToken(token, previousCredential.id)] : []),
-          client.signOut(token),
-        ])
-      : Promise.resolve();
-    const removed = removeRecord
-      ? store.write(null).then(() => true, () => false)
-      : Promise.resolve(true);
-    const [, recordRemoved] = await Promise.all([forgotten, removed]);
+    if (revoke && token) {
+      pendingRevocation = { token, credentialId: previousCredential?.id ?? null, signOut: true };
+    }
+    // Remove the local login before calling the network: a slow or rejected
+    // logout must not leave a restorable login on disk.
+    const recordRemoved = !removeRecord || await store.write(null).then(() => true, () => false);
+    const revoked = await revokePendingSession();
 
-    if (!stopped || !recordRemoved) {
+    if (!stopped || !recordRemoved || !revoked) {
       cleanupBlocked = true;
       errorCode = "sign_out_blocked";
       publish();
@@ -611,6 +641,12 @@ export function createProductAccountService({
     try {
       await store.write(null);
     } catch {
+      cleanupBlocked = true;
+      errorCode = "sign_out_blocked";
+      publish();
+      return false;
+    }
+    if (!await revokePendingSession()) {
       cleanupBlocked = true;
       errorCode = "sign_out_blocked";
       publish();
@@ -1017,6 +1053,11 @@ export function createProductAccountService({
       await stop?.promise;
       await queue;
       if (!await stopWorkspace()) throw new Error("product_runtime_stop_failed");
+      // Only the stopped process's model capability expires here. The account
+      // session and encrypted login record stay available for the next launch.
+      const previousCredential = credential;
+      credential = null;
+      await revokeCredential(previousCredential);
       subscribers.clear();
     },
   };

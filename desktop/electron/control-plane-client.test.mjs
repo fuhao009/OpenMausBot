@@ -295,6 +295,28 @@ describe("control-plane desktop client", () => {
     );
   });
 
+  it("revokes the account session through the JSON-only sign-out endpoint", async () => {
+    let active = true;
+    const client = createControlPlaneClient({
+      baseURL: "https://accounts.openmausbot.com",
+      fetchImpl: async (url, init) => {
+        if (url.endsWith("/api/auth/sign-out")) {
+          if (init.headers.get("content-type") !== "application/json" || init.body !== "{}") {
+            return jsonResponse({ code: "UNSUPPORTED_MEDIA_TYPE" }, { status: 415 });
+          }
+          active = false;
+          return jsonResponse({ success: true });
+        }
+        return active
+          ? jsonResponse({ user: { id: "user-1", email: "ada@example.com" } })
+          : jsonResponse({ error: "unauthorized" }, { status: 401 });
+      },
+    });
+    await expect(client.me(ACCOUNT)).resolves.toMatchObject({ id: "user-1" });
+    await client.signOut(ACCOUNT);
+    await expect(client.me(ACCOUNT)).rejects.toMatchObject({ status: 401 });
+  });
+
   it("keeps a valid installation credential without rotating it", async () => {
     const fetchImpl = vi.fn(async (url) => {
       expect(url).toBe("https://accounts.openmausbot.com/v1/installations/self");

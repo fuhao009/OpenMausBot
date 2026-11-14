@@ -16,6 +16,7 @@ desktop/electron/resources/Hezuo Speech.app
 desktop/electron/resources/OpenMausBot Recorder.app
 release
 .omb-scratch
+/references/
 .wrangler/
 .dev.vars
 .dev.vars.*

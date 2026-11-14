@@ -67,7 +67,6 @@ const RUNTIME_ERRORS: Readonly<Record<string, LocaleKey>> = {
 const SERVICE_ERRORS: Readonly<Record<string, true>> = {
   network_unavailable: true,
   control_plane_unavailable: true,
-  rate_limited: true,
   internal_error: true,
   request_failed: true,
   invalid_response: true,
@@ -82,6 +81,7 @@ const SERVICE_ERRORS: Readonly<Record<string, true>> = {
 
 const SIGN_IN_ERRORS: Readonly<Record<string, LocaleKey>> = {
   invalid_email: "product.error.invalidEmail",
+  rate_limited: "error.plain.rateLimited",
   invalid_otp: "product.error.invalidCode",
   invalid_code: "product.error.invalidCode",
   invalid_credentials: "product.error.invalidCredentials",

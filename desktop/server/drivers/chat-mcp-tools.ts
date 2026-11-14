@@ -67,6 +67,12 @@ const DIRECTORY_TOOL_COUNT = 3;
 const MAX_PAGES = 100;
 const SCHEMA_BYTES = 64 * 1024;
 const CATALOG_BYTES = 1024 * 1024;
+// Keep observation immediately available; action schemas are discovered through the
+// same directory as large catalogs, with their original host identity and approvals.
+const DIRECT_HOST_TOOLS: Record<string, true> = {
+  list_apps: true, list_windows: true, get_window_state: true, get_desktop_state: true,
+  get_screen_size: true, get_accessibility_tree: true, get_cursor_position: true,
+};
 const MAX_FRAMES = 10_000;
 
 function object(value: unknown): value is Record<string, unknown> {
@@ -294,14 +300,74 @@ type CheckedTool = { tool: Record<string, unknown> & { name: string; inputSchema
 type ToolOrigin = Omit<RegisteredTool, "name" | "schema">;
 const ARGUMENTS_MISFIT = "Tool arguments do not match the advertised input schema; use its required fields and types";
 
-function checkedTools(tools: readonly unknown[]): CheckedTool[] {
+// Exact substitutions from Cua Driver 0.28.2's catalog: retain every operational rule,
+// and leave unfamiliar driver prose and all configured third-party schemas untouched.
+const COMPUTER_DESCRIPTIONS: Record<string, string> = {
+  "For multi-call work, prefer a short public session label and repeat it on every call that accepts it. Omit it to use the authenticated transport's implicit lifecycle session.": "Reuse a short public session label across calls; omit for the authenticated transport's implicit lifecycle session.",
+  "For multi-call work, prefer a short public session label and repeat it on every call that\naccepts it. Omit it to use the authenticated transport's implicit lifecycle session.": "Reuse a short public session label across calls; omit for the authenticated transport's implicit lifecycle session.",
+  "For multi-call work, prefer a short public session label and repeat it on every call that accepts it. Omit it to use the authenticated transport's implicit lifecycle session. Browser targets, tabs, and refs belong to the resolved lifecycle session.": "Reuse a short public session label across calls; omit for the authenticated transport's implicit lifecycle session. Browser targets/tabs/refs belong to that session.",
+  'Best-effort-background ladder rung (default "background"). "background": inject without fronting or raising the target — no focus steal. "foreground": briefly front the target, act, then restore the prior frontmost — the explicit last resort when a background attempt didn\'t land. Re-call with "foreground" only for the action that needs it.': 'Default "background": inject without raising/fronting or stealing focus. Last resort "foreground": briefly front, act, restore prior frontmost. Re-call this way only for the action whose background attempt did not land.',
+  "Element index from get_window_state. Requires the matching `snapshot_id` alongside it. Prefer `element_token`, which carries both values.": "get_window_state element index; requires matching snapshot_id. Prefer element_token (carries both).",
+  "Opaque per-snapshot element handle from `structuredContent.elements[].element_token`. If element_index, snapshot_id, or window_id are also supplied they must agree. Returns an explicit stale error once a newer snapshot supersedes it.": "Opaque structuredContent.elements[].element_token. Supplied element_index/snapshot_id/window_id must agree. Newer snapshots invalidate it with a stale error.",
+  "Snapshot handle from get_window_state. Required when targeting by element_index; stale snapshots fail closed.": "get_window_state snapshot handle; required with element_index. Stale snapshots fail closed.",
+};
+
+function compactComputerSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  const compact = (value: unknown): unknown => {
+    if (!object(value)) return value;
+    const result = { ...value };
+    if (typeof result.description === "string" && Object.hasOwn(COMPUTER_DESCRIPTIONS, result.description)) result.description = COMPUTER_DESCRIPTIONS[result.description];
+    for (const key of ["properties", "$defs", "definitions", "patternProperties", "dependentSchemas"]) {
+      if (object(result[key])) result[key] = Object.fromEntries(Object.entries(result[key]).map(([name, child]) => [name, compact(child)]));
+    }
+    for (const key of ["anyOf", "oneOf", "allOf", "prefixItems"]) {
+      if (Array.isArray(result[key])) result[key] = result[key].map(compact);
+    }
+    for (const key of ["items", "additionalProperties", "not", "if", "then", "else", "contains", "propertyNames", "unevaluatedProperties"]) {
+      if (object(result[key])) result[key] = compact(result[key]);
+    }
+    return result;
+  };
+  const result = compact(schema) as Record<string, unknown>;
+  const properties = result.properties;
+  // Both addressing forms remain supported. The driver rejects mixing them even
+  // though its tools/list omits this cross-field constraint. Never choose for callers.
+  const target = object(properties) && object(properties.target) ? properties.target : undefined;
+  const candidates = target ? [target, ...(Array.isArray(target.anyOf) ? target.anyOf : [])] : [];
+  const cuaTarget = candidates.some((candidate) => {
+    if (!object(candidate) || !Array.isArray(candidate.oneOf)) return false;
+    const branches = candidate.oneOf;
+    return [
+      { kind: "window", fields: ["kind", "pid", "window_id"] },
+      { kind: "desktop", fields: ["kind", "display_id"] },
+    ].every(({ kind, fields }) => branches.some((branch: unknown) => {
+      if (!object(branch) || branch.type !== "object" || !object(branch.properties) || !object(branch.properties.kind)
+        || branch.properties.kind.const !== kind || !Array.isArray(branch.required)) return false;
+      const properties = branch.properties;
+      const required = branch.required;
+      return fields.every((field) => Object.hasOwn(properties, field) && required.includes(field));
+    }));
+  });
+  if (object(properties) && target && cuaTarget) {
+    const legacy = ["pid", "window_id", "scope"].filter((key) => key in properties);
+    properties.target = { ...target, description: 'Per-action capture/input target. Omit top-level pid, window_id and scope when using target. display_id="primary" is portable; unsupported displays fail rather than changing coordinate spaces.' };
+    if (legacy.length) {
+      const exclusive = { not: { required: ["target"], properties: { target: { type: "object" } }, anyOf: legacy.map((key) => ({ required: [key] })) } };
+      result.allOf = [...(Array.isArray(result.allOf) ? result.allOf : []), exclusive];
+    }
+  }
+  return result;
+}
+
+function checkedTools(tools: readonly unknown[], hostComputer = false): CheckedTool[] {
   const names = new Set<string>();
   return tools.map((tool) => {
     if (!object(tool) || typeof tool.name !== "string" || !tool.name.trim() || names.has(tool.name)) throw new Error("MCP server advertised an invalid or duplicate tool name");
     names.add(tool.name);
     if (!object(tool.inputSchema) || tool.inputSchema.type !== "object") throw new Error("MCP tools require an object input schema");
     if (Buffer.byteLength(JSON.stringify(tool.inputSchema)) > SCHEMA_BYTES) throw new Error("MCP tool schema exceeds the 64KB limit");
-    return { tool: tool as CheckedTool["tool"], schema: compileServerToolSchema(tool.inputSchema) };
+    const inputSchema = hostComputer ? compactComputerSchema(tool.inputSchema) : tool.inputSchema;
+    return { tool: { ...tool, inputSchema } as CheckedTool["tool"], schema: compileServerToolSchema(inputSchema) };
   });
 }
 
@@ -453,8 +519,16 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
       try { configured.push({ origin: mount.value.origin, tools: checkedTools(mount.value.tools) }); }
       catch (error) { await skip(mount.value.origin.server, error); }
     }
+    const hostCatalog: typeof configured = [];
+    for (const server of offered) {
+      if (!server.origin.hostComputer) continue;
+      const checked = checkedTools(server.tools, true);
+      const deferred = checked.filter(({ tool }) => !Object.hasOwn(DIRECT_HOST_TOOLS, tool.name));
+      if (deferred.length) hostCatalog.push({ origin: server.origin, tools: deferred });
+      server.tools = checked.filter(({ tool }) => Object.hasOwn(DIRECT_HOST_TOOLS, tool.name)).map(({ tool }) => tool);
+    }
     const wanted = [...offered, ...configured].reduce((sum, server) => sum + server.tools.length, 0);
-    const searchRoom = configured.some((server) => server.tools.length) && wanted > MCP_TOOL_COUNT ? DIRECTORY_TOOL_COUNT : 0;
+    const searchRoom = hostCatalog.length || (configured.some((server) => server.tools.length) && wanted > MCP_TOOL_COUNT) ? DIRECTORY_TOOL_COUNT : 0;
     // The agents server keeps its whole list first; configured servers fit in what the built-ins leave.
     const shares = shareToolBudget(offered.map(({ origin, tools }, index) => ({ name: String(index), tools: tools.length, agents: origin.agents }))
       .sort((a, b) => Number(b.agents) - Number(a.agents)), MCP_TOOL_COUNT - searchRoom);
@@ -466,8 +540,8 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
       }
       register(origin, checkedTools(tools));
     }
-    const direct = directServers(configured.map(({ origin, tools }) => ({ name: origin.server, tools: tools.length })), MCP_TOOL_COUNT - definitions.length);
-    const searched: typeof configured = [];
+    const direct = directServers(configured.map(({ origin, tools }) => ({ name: origin.server, tools: tools.length })), MCP_TOOL_COUNT - definitions.length - (hostCatalog.length ? DIRECTORY_TOOL_COUNT : 0));
+    const searched: typeof configured = [...hostCatalog];
     for (const server of configured) {
       if (signal.aborted || closed) throw aborted();
       if (!direct.has(server.origin.server)) searched.push(server);
@@ -493,7 +567,7 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
       for (const tool of directory.listed({ server: DIRECTORY_SERVER, servers: searched.map(({ origin }) => origin.server) })) {
         const name = uniqueName(chatToolName(DIRECTORY_SERVER, tool.name as string), (candidate) => registered.has(candidate) || directoryNames.has(candidate));
         directoryNames.set(name, tool.name as string);
-        definitions.push({ type: "function", function: { name, description: tool.description as string, parameters: tool.inputSchema as Record<string, unknown> } });
+        definitions.push({ type: "function", function: { name, description: (tool.description as string) + (hostCatalog.length ? " The person's computer actions are here: search for computer tools, describe their exact inputs, then call their computer_ name here (not through agents). Computer calls still require per-call approval." : ""), parameters: tool.inputSchema as Record<string, unknown> } });
       }
     }
     budget.listed = definitions.length;

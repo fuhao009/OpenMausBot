@@ -17,7 +17,7 @@ import { redactSecretsInText } from "../redact.ts";
 import { toolDetailPreview } from "../tool-summary.ts";
 import { ChatToolSessionError, chatToolNotices, mountChatTools, type ChatToolDefinition, type ChatToolSession, type ChatToolResult } from "./chat-mcp-tools.ts";
 import { noteToolBudget } from "../tool-budgets.ts";
-import { assertImageTransport, chatImageBudget, chatToolImages, chatUserContent, type ChatContentPart } from "./chat-images.ts";
+import { assertImageTransport, chatImageBudget, chatToolImageHistory, chatToolImages, chatUserContent, type ChatContentPart } from "./chat-images.ts";
 import { promptHalves, volatileContextNote, withContextNote } from "./prompt-split.ts";
 import { createChatToolApproval, refusal } from "./chat-tool-approval.ts";
 import { ChatProtocolError, ChatReasoningDetails, ChatToolCalls, object, type ChatToolCall } from "./openai-chat-protocol.ts";
@@ -582,6 +582,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     const request = messages.at(-1)!;
     const retainImages = chatImageBudget();
     for (const message of messages) retainImages(message.content);
+    const retainToolImages = chatToolImageHistory(retainImages);
     const model = turn.model || options.models().default;
     // Whatever was sent is masked from a reply: a rotating credential is read per request, so the list follows it.
     const secrets = [options.apiKey, ...recentKeys].filter((value): value is string => Boolean(value));
@@ -901,7 +902,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
                   if (result.images?.length) {
                     try {
                       assertImageTransport(options.apiUrl);
-                      retainImages(result.images);
+                      retainToolImages(screenshotParts, chatToolImages(call.id, result.images));
                     } catch (error) {
                       throw new ChatToolSessionError(asError(error).message);
                     }
@@ -924,7 +925,6 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
             emit({ ...base(turn.threadId, turnId), type: "item.completed", itemType: "tool", itemId: call.id, ok: result.ok, output });
             if (!result.ok) { toolFailed = true; failedCalls.push(title); }
             messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: result.ok, result: repeatNote ? `${text}\n\n${repeatNote}` : text }) });
-            screenshotParts.push(...chatToolImages(call.id, result.images));
             abort.signal.throwIfAborted();
             if (fatal) throw fatal;
             if (repeats?.stopped) { stopReason = "incomplete_action"; throw new ChatProtocolError(repeats.stopped); }

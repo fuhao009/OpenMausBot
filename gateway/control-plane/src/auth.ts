@@ -60,9 +60,7 @@ export function createAuth(
       customRules: {
         "/email-otp/send-verification-otp": { window: 60, max: 5 },
         "/sign-in/email-otp": { window: 60, max: 10 },
-        // Password guesses are the one unauthenticated path with a cheap
-        // success signal, so they get the tightest rule of all.
-        "/sign-in/email": { window: 60, max: 10 },
+        "/sign-in/email": false,
         "/sign-up/email": { window: 60, max: 5 },
         "/email-otp/request-password-reset": { window: 60, max: 5 },
         "/email-otp/reset-password": { window: 60, max: 5 },

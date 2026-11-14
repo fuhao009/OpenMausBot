@@ -27,6 +27,7 @@ const refusalOf = (model: string) => JSON.stringify({ error: {
 const NONE_REFUSED = JSON.stringify({ error: { message: `Unsupported value: 'none' is not supported with the '${MODEL}' model.`, type: "invalid_request_error", param: "reasoning_effort", code: "unsupported_value" } });
 const MISSING_SCOPE = JSON.stringify({ error: { message: "You have insufficient permissions for this operation. Missing scopes: api.responses.write.", type: "invalid_request_error", param: null, code: null } });
 
+type ImageInput = { role?: string; content?: string | Array<{ type: string; image_url?: string }> };
 type Call = { path: string; body: Record<string, any> };
 type Script = (call: Call, response: ServerResponse, nth: number) => void;
 
@@ -80,9 +81,15 @@ createInterface({ input: process.stdin }).on("line", (line) => {
   const request = JSON.parse(line);
   if (request.method === "initialize") reply(request.id, { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "fixture", version: "1" } });
   else if (request.method === "tools/list") reply(request.id, { tools: [{ name: "write", description: "Synthetic fixture operation", inputSchema: schema }] });
-  else if (request.method === "tools/call") reply(request.id, { content: request.params.arguments.value === "shot"
-    ? [{ type: "text", text: "Captured." }, { type: "image", mimeType: "image/png", data: "${PNG}" }]
-    : [{ type: "text", text: "Stored." }] });
+  else if (request.method === "tools/call") {
+    const value = request.params.arguments.value;
+    const image = value?.startsWith("shot")
+      ? (value === "shot-invalid" ? "invalid" : Buffer.concat([Buffer.from("${PNG}", "base64"), value.startsWith("shot-large") ? Buffer.alloc(1_450_000, value.charCodeAt(value.length - 1)) : Buffer.from(value)]).toString("base64"))
+      : undefined;
+    reply(request.id, { content: image
+      ? [{ type: "text", text: "Captured." }, { type: "image", mimeType: "image/png", data: value === "shot" ? "${PNG}" : image }]
+      : [{ type: "text", text: "Stored." }] });
+  }
   else if (request.id !== undefined && request.method === "ping") reply(request.id, {});
 });
 `;
@@ -364,6 +371,71 @@ describe("tool rounds over Responses", () => {
         { type: "input_image", image_url: `data:image/png;base64,${PNG}`, detail: "auto" },
       ] },
     ]);
+  });
+
+  it("retains only two screenshot batches on the wire without dropping attachments, reasoning or call results", async () => {
+    const f = await fixture((call, response, nth) => {
+      if (call.path.endsWith("/chat/completions")) return reject(response, 400, refusalOf(MODEL));
+      if (nth <= 4) {
+        const index = nth - 1;
+        const output = [reasoningItem(`rs_${index}`), callItem("audit_write", JSON.stringify({ name: "screen", value: `shot-${index}` }), `call_${index}`, `fc_${index}`)];
+        return events(response, [...output.map((item, i) => done(item, i)), completed(output)]);
+      }
+      answer(response);
+    });
+    const png = join(f.directory, "attachment.png");
+    const bytes = Buffer.from(PNG, "base64");
+    writeFileSync(png, bytes);
+    expect(await f.turn({ images: [{ path: png, mime: "image/png", bytes: bytes.length }] })).toMatchObject({ end: { ok: true } });
+    const requests = f.calls.filter(call => call.path.endsWith("/responses"));
+    expect(requests).toHaveLength(4);
+    const imageUrls = (body: Call["body"]) => (body.input as ImageInput[]).flatMap(item => Array.isArray(item.content) ? item.content.filter(part => part.type === "input_image").map(part => part.image_url) : []);
+    const shotUrl = (index: number) => `data:image/png;base64,${Buffer.concat([bytes, Buffer.from(`shot-${index}`)]).toString("base64")}`;
+    expect(imageUrls(requests[2]!.body)).toEqual([`data:image/png;base64,${PNG}`, shotUrl(1), shotUrl(2)]);
+    expect(imageUrls(requests[3]!.body)).toEqual([`data:image/png;base64,${PNG}`, shotUrl(2), shotUrl(3)]);
+    const input = requests[3]!.body.input;
+    expect(JSON.stringify(input)).toContain("Older tool screenshot omitted");
+    for (let index = 1; index <= 3; index++) {
+      expect(input).toContainEqual(reasoningItem(`rs_${index}`));
+      expect(input).toContainEqual(callItem("audit_write", JSON.stringify({ name: "screen", value: `shot-${index}` }), `call_${index}`, `fc_${index}`));
+      expect(input).toContainEqual({ type: "function_call_output", call_id: `call_${index}`, output: JSON.stringify({ ok: true, result: "Captured." }) });
+    }
+  });
+
+  it("reclaims old screenshot bytes before checking the next wire request budget", async () => {
+    const f = await fixture((call, response, nth) => {
+      if (call.path.endsWith("/chat/completions")) return reject(response, 400, refusalOf(MODEL));
+      if (nth <= 4) {
+        const shot = callItem("audit_write", JSON.stringify({ name: "screen", value: `shot-large-${nth}` }), `call_${nth}`, `fc_${nth}`);
+        return events(response, [done(shot), completed([shot])]);
+      }
+      answer(response);
+    });
+    const png = join(f.directory, "large-attachment.png");
+    const bytes = Buffer.alloc(20 * 1024 * 1024);
+    Buffer.from(PNG, "base64").copy(bytes);
+    writeFileSync(png, bytes);
+    expect(await f.turn({ images: [{ path: png, mime: "image/png", bytes: bytes.length }] })).toMatchObject({ end: { ok: true } });
+    expect(f.calls).toHaveLength(5);
+    const input = f.calls[4]!.body.input as ImageInput[];
+    const images = input.flatMap(item => Array.isArray(item.content) ? item.content.filter(part => part.type === "input_image") : []);
+    expect(images).toHaveLength(3);
+    expect(images[0].image_url).toBe(`data:image/png;base64,${bytes.toString("base64")}`);
+    expect(JSON.stringify(input)).toContain("Older tool screenshot omitted");
+  });
+
+  it("stops after an invalid screenshot without replaying the tool or making another model request", async () => {
+    const f = await fixture((call, response, nth) => {
+      if (call.path.endsWith("/chat/completions")) return reject(response, 400, refusalOf(MODEL));
+      const shot = callItem("audit_write", JSON.stringify({ name: "screen", value: nth === 4 ? "shot-invalid" : `shot-${nth}` }), `call_${nth}`, `fc_${nth}`);
+      events(response, [done(shot), completed([shot])]);
+    });
+    const { end, events: seen } = await f.turn();
+    expect(end).toMatchObject({ ok: false });
+    expect(f.calls).toHaveLength(4);
+    expect(seen.filter(event => event.type === "item.completed" && event.itemType === "tool").map(event => event.ok)).toEqual([true, true, false]);
+    const lastInput = f.calls[3]!.body.input;
+    expect((lastInput as ImageInput[]).filter(item => item.role === "user" && Array.isArray(item.content) && item.content.some(part => part.type === "input_image"))).toHaveLength(2);
   });
 
   it("keeps the round's reasoning through a smaller resend", async () => {

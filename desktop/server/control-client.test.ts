@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  CONTROL_REFUSAL_PLAIN, CONTROL_UNCONFIRMED, CONTROL_WAIT_MS, controlRefusal, createControlClient,
+  CONTROL_REFUSAL_PLAIN, CONTROL_UNCONFIRMED, CONTROL_WAIT_MS, controlRefusal, createControlClient, isReadOnlyComputerCall,
 } from "./control-client.ts";
 
 const options = { url: "http://control.test/state", token: "fixture-token" };
@@ -26,6 +26,38 @@ async function slowControl(delayMs: number | null, body: unknown) {
 }
 
 afterEach(() => vi.restoreAllMocks());
+
+describe("read-only computer call classification", () => {
+  const call = (name: string, args: unknown = {}) => ({ method: "tools/call", params: { name, arguments: args } });
+
+  it.each([
+    ["list_apps", {}],
+    ["list_windows", { pid: 42, on_screen_only: false }],
+    ["get_accessibility_tree", {}],
+    ["get_desktop_state", { session: "s" }],
+    ["get_window_state", { pid: 42, window_id: 7, include_screenshot: true, include_accessibility_tree: true }],
+    ["get_screen_size", {}],
+    ["get_cursor_position", {}],
+  ])("allows only the known observation %s", (name, args) => {
+    expect(isReadOnlyComputerCall(call(name as string, args))).toBe(true);
+  });
+
+  it.each([
+    ["click", {}], ["type_text", { text: "hello" }], ["launch_app", {}],
+    ["start_session", {}], ["get_browser_state", {}], ["computer_list_apps", {}],
+    ["toString", {}], ["list_apps", { unexpected: true }], ["list_apps", null],
+    ["get_desktop_state", { screenshot_out_file: "/tmp/screen.png" }],
+    ["get_window_state", { pid: 42, window_id: 7, screenshot_out_file: "/tmp/screen.png" }],
+  ])("does not treat %s with %j as side-effect free", (name, args) => {
+    expect(isReadOnlyComputerCall(call(name as string, args))).toBe(false);
+  });
+
+  it("rejects non-call frames and malformed parameters", () => {
+    for (const frame of [null, [], {}, { method: "tools/list" }, { method: "tools/call", params: [] }]) {
+      expect(isReadOnlyComputerCall(frame)).toBe(false);
+    }
+  });
+});
 
 describe("computer control client", () => {
   it("waits out a harness that holds the check longer than the old 2 s, and keeps its contention reason", async () => {
