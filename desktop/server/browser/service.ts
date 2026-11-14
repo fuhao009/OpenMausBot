@@ -161,6 +161,11 @@ export class BrowserService {
     return profile;
   }
 
+  /** The runtime selected for a trusted profile target. */
+  isEmbedded(target: BrowserTarget): boolean {
+    return this.#options.backend(target.key).kind === "embedded";
+  }
+
   #bySession(session: string): ProfileState | undefined {
     for (const profile of this.#profiles.values()) if (profile.session === session) return profile;
     return undefined;

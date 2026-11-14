@@ -22,7 +22,6 @@ const PAGE_HEADERS = { "content-security-policy": "frame-ancestors 'none'", "x-f
 /** Pages with an entry of their own: the app, and the desktop window's rail of places. */
 const PAGES: Record<string, string> = { "/": "/index.html", "/rail": "/rail.html" };
 
-/** Public by design: the same bundle anyone can download, with no secrets, and /pair must load before a session exists. */
 export function serveStatic(res: ServerResponse, path: string, staticDir: string | null): boolean {
   if (!staticDir) return false;
   const safe = PAGES[path] ?? path.replace(/\.\./g, "");

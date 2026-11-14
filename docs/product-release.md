@@ -28,6 +28,18 @@ users install the app and sign in with an email code, and the app's default
 bot runs on the operator's account AI gateway. Nothing in this flow asks a
 user for a model key, an engine CLI, or a service address.
 
+Hezuo's local application UI is desktop-only: SPA routes, HTML and built assets
+require the private owner capability injected by the app's Electron session.
+An ordinary browser cannot load the UI or use its browser API session. Native
+clients and authenticated internal communications retain their existing paths;
+this restriction does not disable the Bot's browsing of other websites.
+After building the UI (`pnpm exec vite build desktop`), run
+`node --experimental-strip-types scripts/verify-desktop-only.mjs` for isolated
+fake-engine verification with the real Electron renderer and an ordinary Chrome
+refusal. It prints an evidence directory containing screenshots and a receipt,
+then stops its own processes and removes disposable profiles. This is not a
+signed-installer or live-model acceptance test.
+
 Managed default-bot and new-bot welcomes are local messages, not AI requests.
 Their greetings and setup choices follow the interface language, including
 Simplified Chinese, Traditional Chinese, English and Korean. Managed mode

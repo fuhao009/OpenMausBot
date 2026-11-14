@@ -391,6 +391,17 @@ const bridge = {
       return () => ipcRenderer.removeListener("desktop-viewer:state", handler);
     },
   },
+  browserSurface: {
+    attach: (input) => ipcRenderer.invoke("browser-surface:attach", input),
+    layout: (input) => ipcRenderer.invoke("browser-surface:layout", input),
+    focus: (input) => ipcRenderer.invoke("browser-surface:focus", input),
+    detach: (input) => ipcRenderer.invoke("browser-surface:detach", input),
+    onState: (cb) => {
+      const handler = (_event, state) => cb(state);
+      ipcRenderer.on("browser-surface:state", handler);
+      return () => ipcRenderer.removeListener("browser-surface:state", handler);
+    },
+  },
   desktopWorkspace: {
     open: (input) => ipcRenderer.invoke("desktop-workspace:open", input),
     layout: (items) => ipcRenderer.invoke("desktop-workspace:layout", items),

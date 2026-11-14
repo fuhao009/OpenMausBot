@@ -1,7 +1,5 @@
 # Issue #1635 — Design
 
-要件: `docs/requirements/issue-1635-requirements.md`
-
 ## レビュー反映
 
 要件・設計の初回レビュー（Claude / Grok。Codex は実装前に取り込む）で、コードと突き合わせて残したもの。

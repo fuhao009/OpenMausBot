@@ -4,6 +4,21 @@ Before claiming a server or conversation change works, follow
 [`docs/verification/README.md`](docs/verification/README.md). Always launch an
 isolated fixture; never verify mutations against the user's live app or data.
 
+## Desktop Bot and real-model verification
+
+The managed Hezuo Bot uses the project's `product-ai` account gateway, not a
+Codex CLI login. Read `docs/gateway-deployment-193.md` before diagnosing model
+availability or testing the Bot. The deployed gateway has database-managed
+model channels in `ai_channel_catalog`; empty model fields in `gateway.json`
+or `ai: false` in `gateway-runtime.json` do not establish that AI is unavailable.
+Check the account's available models and the Bot/conversation's actual selection.
+Never print or copy model credentials during diagnosis.
+
+For model-driven browser acceptance, send natural-language requirements to the
+project Bot and record its actual model, Bot name, each action, elapsed time,
+and independently observed page result. Direct scripted tool calls and fake
+model responses are not evidence of real-model task completion.
+
 ## Comments
 
 Write a comment only for what the code cannot say:

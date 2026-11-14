@@ -1,5 +1,35 @@
 # 192.168.66.193 网关部署
 
+## 电脑端 Bot 模型链路（2026-11-14 实机核对）
+
+安装版 `/Applications/Hezuo.app/Contents/Resources/product-service.json` 指向
+`https://192.168.66.193:18487`，并包含网关 CA。网关服务端已经部署，模型渠道已经配置。
+托管版 Bot 走项目自己的 `product-ai`（界面名称 Hezuo AI）及账号网关，不需要 Codex CLI 登录或个人模型密钥。
+
+**不要因为 `gateway.json` 中模型字段为空，或 `gateway-runtime.json` 显示 `ai: false`，就判断没有模型。**
+本次只读检查发现，这两个文件未反映数据库中的渠道配置；实际模型目录保存在 D1 的
+`ai_channel_catalog.snapshot_json`。核对时还应检查账号可用模型及 Bot/会话实际选择，不能把网关默认模型当作所有 Bot 的模型。
+
+| 模型 ID | 已启用 | 协议 | 上游模型 |
+| --- | --- | --- | --- |
+| `gpt-6-luna` | 是，网关默认 | `responses` | `gpt-6-luna` |
+| `gpt-6.1-sol` | 是 | `responses` | `gpt-6.1-sol` |
+| `gpt-6-astra` | 是 | `responses` | `gpt-6-astra` |
+| `gpt-6-luna-chat` | 是 | `chat` | `gpt-6-luna` |
+
+- 已启用渠道：`omp-fuhaoliang`（OMP Fuhaoliang），地址 `https://api.muzeai.top/v1`；数据库存在加密凭据，不读取、复制或输出其内容。
+- 服务状态：`hezuo-gateway.service` 为 active。
+- 本次检查时，最近三条 `account_ai_requests` 均为 `settled`，模型为 `gpt-6-luna-chat`，记录耗时为 6141、5669、5194 ms。这些是已有推理记录，不是浏览器验收结果。
+- 实际数据库文件：`/var/lib/hezuo-gateway/state/d1/miniflare-D1DatabaseObject/ebc39d1dd414791fd5b9687094fc221f1605b876d0f2096b673dbaf585b55bd2.sqlite`。路径若变化，从服务数据目录定位；只读检查，不修改生产数据。
+- 上表是核对时的快照，之后以账号模型目录和实际请求记录为准。
+
+### Bot 网页验收要求
+
+用户自然语言需求 → Hezuo Bot → 账号网关真实模型 → 模型选择浏览器工具 → 目标网页变化 → 结果返回模型 → Bot 回复。
+每项必须记录测试事项、实际模型、Bot 名字、每步动作与耗时、页面证据及是否成功。
+测试脚本直接调用工具、模拟模型、已有服务端推理记录，都不能替代这条完整链路。
+目前尚未完成真实模型驱动内嵌网页的验收；内嵌页面绑定也不能视为已经接入正式应用。
+
 ## 部署记录
 
 - 地址：`https://192.168.66.193:18487`，仅绑定该内网地址。
@@ -10,7 +40,7 @@
 - 证书：`/var/lib/hezuo-gateway/tls/gateway-cert.pem`；私钥只留服务器。
 - 本机证书副本：`.omb-scratch/remote-gateway-193/gateway-cert.pem`。
 
-本次为全新部署，未迁移原电脑数据库、账户或上游凭据。密码登录能力已开启；未配置邮件、上游模型、价格或运营者，因此邮箱验证码和 AI 推理未启用。没有修改现有 nginx 或其他服务。
+初次部署时为全新环境，未迁移原电脑数据库、账户或上游凭据；当时仅开启密码登录，未配置邮件、上游模型、价格或运营者。模型配置现状以上方实机核对为准。没有修改现有 nginx 或其他服务。
 
 ## 运维
 

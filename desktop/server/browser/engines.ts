@@ -8,7 +8,7 @@ import type { BrowserLive } from "../browser-live.ts";
 import type { BrowserRuntime, BrowserSpawnSpec } from "../browser-runtime.ts";
 import type { StepContext } from "../browser-steps.ts";
 import type { FillLoginDeps } from "../login-fill.ts";
-import { LocalBackend } from "./backends.ts";
+import { LocalBackend, type Backend } from "./backends.ts";
 import { sandboxDisabled } from "./chrome/host-setup.ts";
 import type { HostKind } from "./chrome/flags.ts";
 import { ChromeLauncher } from "./chrome/launcher.ts";
@@ -48,6 +48,7 @@ export interface ChromeEngineOptions {
   egressPort(key: string): Promise<number>;
   idleMs(): number;
   egressNotice(key: string): string | null;
+  backend?: Backend;
   log?: (line: string) => void;
 }
 
@@ -73,7 +74,7 @@ export class ChromeEngine {
     this.#registry = new ProcessRegistry(browserRoot(options.dataDir));
     let screen: ReturnType<typeof displayScreen> | null = null;
     const locale = browserLanguage(env) ?? null;
-    const backend = new LocalBackend({
+    const backend = options.backend ?? new LocalBackend({
       dataDir: options.dataDir,
       host: options.host,
       platform,
@@ -122,9 +123,9 @@ export class ChromeEngine {
   start({ inUse, prepare }: { inUse: boolean; prepare: boolean }): void {
     const starting = inUse && !this.#inUse;
     this.#inUse = inUse;
-    if (!inUse && !this.#cleared && this.#everUsed()) this.#tick();
+    if (!this.#options.backend && !inUse && !this.#cleared && this.#everUsed()) this.#tick();
     this.#cleared = true;
-    if (inUse && prepare && this.launcher.plan().kind !== "legacy") void this.launcher.prepare();
+    if (!this.#options.backend && inUse && prepare && this.launcher.plan().kind !== "legacy") void this.launcher.prepare();
     if (starting) this.#tick();
     this.#timer ??= setInterval(() => { if (this.#inUse || this.#running()) this.#tick(); }, SWEEP_MS);
     this.#timer.unref?.();
@@ -132,7 +133,7 @@ export class ChromeEngine {
 
   #tick(): void {
     void this.service.closeIdle().catch(() => undefined);
-    void sweep({ root: browserRoot(this.#options.dataDir), registry: this.#registry }).catch(() => undefined);
+    if (!this.#options.backend) void sweep({ root: browserRoot(this.#options.dataDir), registry: this.#registry }).catch(() => undefined);
   }
 
   #running(): boolean {
@@ -156,7 +157,7 @@ export class ChromeEngine {
   /** A deleted bot's or profile's browser: stopped, and its folder, downloads and screenshots gone. */
   async erase(request: { kind: "bot" | "profile"; id: string; partitionId: string }): Promise<boolean> {
     const key = request.kind === "bot" ? `bot:${request.id}` : `shared:${request.partitionId}`;
-    if (!this.#everUsed()) return true;
+    if (!this.#options.backend && !this.#everUsed()) return true;
     try {
       await this.service.erase(key);
       return true;
@@ -168,6 +169,7 @@ export class ChromeEngine {
 
   /** For the browser status: what the new engine will run here. */
   summary(): { kind: "engine"; version: string; chrome: string } | { kind: "unavailable"; reason: string } {
+    if (this.#options.backend) return { kind: "engine", version: "omb-cdp", chrome: "Embedded Chromium" };
     const plan = this.launcher.plan();
     if (plan.kind === "legacy") return { kind: "unavailable", reason: `Chrome is needed for the new browser: ${plan.reason}` };
     return { kind: "engine", version: "omb-cdp", chrome: this.launcher.describe() };

@@ -87,6 +87,14 @@ const __APP_VERSION__: string;
     code?: "renderer-gone" | "profile-deleted" | "evicted";
   }
 
+  interface EmbeddedBrowserSurfaceState {
+    surfaceId: string;
+    revision: number;
+    status: "opening" | "ready" | "closed" | "error";
+    visible: boolean;
+    interactive: boolean;
+  }
+
   interface DesktopWorkspaceState {
     contextId: string;
     open: boolean;
@@ -378,8 +386,15 @@ const __APP_VERSION__: string;
         currentState(): Promise<{ open: boolean; contextId: string | null }>;
         onState(cb: (state: { open: boolean; contextId: string | null }) => void): () => void;
       };
-      /** Two Local VM viewers embedded in one app window. URLs are accepted
-       * only by main-process validation and never return over this bridge. */
+      /** A server-authorized browser view; no profile paths or credentials cross this bridge. */
+      browserSurface?: {
+        attach(input: { botId: string; threadId?: string; viewerId: string }): Promise<EmbeddedBrowserSurfaceState>;
+        layout(input: { surfaceId: string; revision: number; bounds: DesktopWorkspaceBounds | null; visible: boolean }): Promise<void>;
+        focus(input: { surfaceId: string; revision: number }): Promise<void>;
+        detach(input: { surfaceId: string; revision: number }): Promise<void>;
+        onState(cb: (state: EmbeddedBrowserSurfaceState) => void): () => void;
+      };
+      /** Two Local VM viewers embedded in one app window. URLs never return over this bridge. */
       desktopWorkspace?: {
         open(input: {
           contextId: string;

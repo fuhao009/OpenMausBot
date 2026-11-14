@@ -78,9 +78,50 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
   const pageHandled = useRef(0);
   const signInPage = useRef<string | null>(null);
   const pageNow = useRef<string | null>(null);
+  const scopedThread = browserScope(state.config?.team, bot.threadId).threadId;
+  const nativeViewport = useRef<HTMLDivElement>(null);
+  const [nativeViewer, setNativeViewer] = useState("");
+  const [nativeSurface, setNativeSurface] = useState<EmbeddedBrowserSurfaceState | null>(null);
+  useEffect(() => { setNativeViewer(""); setNativeSurface(null); }, [bot.id, bot.browserProfile, attempt]);
+  useEffect(() => {
+    const bridge = window.ogb?.browserSurface;
+    if (!bridge || !nativeViewer || !connected) return;
+    let alive = true;
+    let attached: EmbeddedBrowserSurfaceState | null = null;
+    const stop = bridge.onState((next) => {
+      if (alive && attached?.surfaceId === next.surfaceId && attached.revision === next.revision) setNativeSurface(next);
+    });
+    void bridge.attach({ botId: bot.id, ...(scopedThread ? { threadId: scopedThread } : {}), viewerId: nativeViewer }).then((next) => {
+      attached = next;
+      if (alive) setNativeSurface(next);
+      else void bridge.detach(next);
+    }).catch(() => { if (alive) setError("The embedded browser could not open. Reconnect to try again."); });
+    return () => { alive = false; stop(); setNativeSurface(null); if (attached) void bridge.detach(attached); };
+  }, [bot.id, bot.browserProfile, scopedThread, nativeViewer, connected]);
+  useEffect(() => {
+    const bridge = window.ogb?.browserSurface;
+    const element = nativeViewport.current;
+    if (!bridge || !element || !nativeSurface) return;
+    const update = () => {
+      const rect = element.getBoundingClientRect();
+      const visible = pageVisible && !showProfiles && !showTyping && !document.querySelector("dialog[open], [aria-modal='true']") && rect.width > 0 && rect.height > 0;
+      void bridge.layout({ surfaceId: nativeSurface.surfaceId, revision: nativeSurface.revision,
+        bounds: visible ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null, visible });
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    const mutations = new MutationObserver(update);
+    mutations.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["open", "aria-modal"] });
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    update();
+    return () => { observer.disconnect(); mutations.disconnect(); window.removeEventListener("resize", update); window.removeEventListener("scroll", update, true); };
+  }, [nativeSurface?.surfaceId, nativeSurface?.revision, pageVisible, showProfiles, showTyping, maximized, fullscreen]);
+  useEffect(() => {
+    if (nativeSurface?.interactive && nativeSurface.visible) void window.ogb?.browserSurface?.focus(nativeSurface).catch(() => {});
+  }, [nativeSurface?.surfaceId, nativeSurface?.interactive, nativeSurface?.visible]);
   const latest = useRef({ openSignInPage: () => {}, takeControl: () => {} });
   const signInOpen = state.computerControl?.[bot.id]?.help?.place === "browser";
-  const scopedThread = browserScope(state.config?.team, bot.threadId).threadId;
   keepNow.current = kept || signInOpen;
   const profileName = bot.browserProfile === "guest" ? "Temporary browser"
     : state.config?.browserProfiles?.find((profile) => profile.id === bot.browserProfile)?.name ?? `${bot.name}’s own browser`;
@@ -157,6 +198,7 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
   }, []);
 
   const onMessage = useCallback((message: Readonly<Record<string, unknown>>) => {
+    if (message.type === "surface" && typeof message.viewerId === "string") setNativeViewer(message.viewerId);
     if (message.type === "tabs") {
       const next = tabsOf(message.tabs);
       setTabs(next);
@@ -324,7 +366,7 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
     {error && <div role="alert" className="flex shrink-0 items-center justify-between gap-2 border-b border-hairline/30 px-3 py-2 text-[12px] text-danger"><span>{error}</span>{!connected && <button className="shrink-0 underline" onClick={reconnect}>{t("browser.panel.reconnect")}</button>}</div>}
     {takeStatus === "stale" && <div role="status" className="shrink-0 border-b border-hairline/30 px-3 py-1.5 text-[12px] text-accent-text">{t("browser.control.stale", { name: bot.name })}</div>}
     {passkeyWall && passkeyDismissed !== nav.url && <PasskeyNotice wall={passkeyWall} botName={bot.name} onDismiss={() => setPasskeyDismissed(nav.url)} />}
-    <div className="relative flex min-h-0 flex-1 flex-col bg-inset/40">
+    <div ref={nativeViewport} className="relative flex min-h-0 flex-1 flex-col bg-inset/40">
       {shown ? (
         <StreamSurface
           key={`${attempt}:${stream ? "stream" : "live"}:${bot.browserProfile ?? ""}`}

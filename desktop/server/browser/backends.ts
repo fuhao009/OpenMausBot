@@ -10,7 +10,7 @@ import { clearSingleton, staleSingletonLock, type ProcessRegistry } from "./chro
 import { languageList } from "./chrome/wrapper.ts";
 import { downgradeRefusal, ensureProfile, forgetOpenTabs, markCleanExit, profileDir, profileHash, recordOpenedBy, versionOf, workspaceId } from "./chrome/profile.ts";
 
-export type BackendKind = "local" | "my-chrome" | "cdp-url";
+export type BackendKind = "local" | "my-chrome" | "cdp-url" | "embedded";
 
 export interface BackendCaps {
   persistentProfile: boolean;

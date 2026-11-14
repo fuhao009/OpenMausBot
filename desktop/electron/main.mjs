@@ -1,4 +1,5 @@
 import { installRendererSmokeProbe } from "./renderer-smoke-probe.mjs";
+import { createEmbeddedBrowserRuntime } from "./embedded-browser-runtime.mjs";
 import { createDesktopViewerWindow } from "./desktop-viewer-window.mjs";
 import { showContextMenu } from "./window-context-menu.mjs";
 import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, Tray, WebContentsView, clipboard, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, powerSaveBlocker, safeStorage, screen, session, shell, systemPreferences, utilityProcess, nativeTheme } from "electron";
@@ -111,6 +112,7 @@ import {
 } from "./companion-account-service.mjs";
 import { createProductGatewayHost, writeProductAccountTrust, clearProductAccountTrust } from "./product-gateway-host.mjs";
 import capabilitiesModule from "./capabilities.cjs";
+import { createBotTestApi } from "./bot-test-api.mjs";
 import environmentsModule from "./environments.cjs";
 import localOriginModule from "./local-origin.cjs";
 import { buildApplicationMenu } from "./menu.mjs";
@@ -286,6 +288,12 @@ app.on("second-instance", (_event, commandLine) => {
 });
 
 let serverProc = null;
+const embeddedRuntimes = new Map();
+async function closeEmbeddedRuntime(proc) {
+  const runtime = embeddedRuntimes.get(proc);
+  embeddedRuntimes.delete(proc);
+  await runtime?.close();
+}
 let serverReady = !app.isPackaged;
 let secureCredentials = {};
 let secureCredentialState = null;
@@ -298,7 +306,9 @@ let productAccountRoot = null;
 let productAccountKey = null;
 let productAuthWindow = null;
 let productRuntimeGeneration = 0;
+let botTestApi = null;
 let localSwitchInFlight = false;
+let productModelReady = false;
 let managedDesktop = null;
 let cloudAccount = null, updatesConsent = null, desktopPrefs = null, ownHome = null, twoPlaces = null, windowFrameMade = null;
 let cloudAccountStarted = Promise.resolve();
@@ -390,6 +400,7 @@ function desktopDataDir() {
 
 async function stopUtilityServer(proc, timeoutMs = UTILITY_SERVER_STOP_TIMEOUT_MS) {
   if (!proc) return true;
+  await closeEmbeddedRuntime(proc);
   const exited = utilityServerExits.get(proc);
   if (!exited) return false;
   try {
@@ -1249,6 +1260,7 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
     OMB_DATA_DIR: dataDir,
     // Fail-closed until this process sends the private connection; never a descriptor inherited from the shell.
     OMB_DESKTOP_PARENT: "1",
+    OMB_EMBEDDED_BROWSER: productFixture ? "0" : "1",
     OMB_DESKTOP_LAUNCH_ID: desktopLaunchId,
     OMB_STATIC_DIR: app.isPackaged ? path.join(process.resourcesPath, "ui") : path.join(app.getAppPath(), "dist"),
     OMB_RESOURCES_PATH: process.resourcesPath,
@@ -1277,6 +1289,14 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
     env: childEnv,
     stdio: ["ignore", "pipe", "pipe"],
   });
+  if (!productFixture) embeddedRuntimes.set(proc, createEmbeddedBrowserRuntime({
+    proc, dataDir, accountKey: productAccountKey ?? dataDir, session,
+    createNativeView: options => new WebContentsView(options), owner: () => mainWindow,
+    createFallbackWindow: () => new BrowserWindow({ width: 1100, height: 780, title: "Hezuo Browser", parent: mainWindow ?? undefined,
+      webPreferences: { partition: `embedded-browser-shell-${randomUUID()}`, nodeIntegration: false, contextIsolation: true, sandbox: true } }),
+    current: () => serverSupervisor.isCurrent(proc) && !desktopShutdownStarted,
+    serverPort: () => SERVER_PORT,
+  }));
   let resolveServerExit;
   utilityServerExits.set(proc, new Promise((resolve) => {
     resolveServerExit = resolve;
@@ -1290,6 +1310,7 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
   proc.on("message", (message) => {
     if (!serverSupervisor.isCurrent(proc)) return;
     try {
+      if (embeddedRuntimes.get(proc)?.receive(message)) return;
       if (productService && message?.type === "hezuo:renew-ai-token" && typeof message.requestId === "string") {
         void productAccount?.renewAiToken().then(ok => {
           if (serverProc === proc) proc.postMessage({ type: "hezuo:renew-ai-token-result", requestId: message.requestId, ok });
@@ -1314,6 +1335,7 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
   let exited = false;
   proc.once("exit", (code) => {
     exited = true;
+    void closeEmbeddedRuntime(proc);
     trustedApprovalMode.rejectProcess(proc);
     managedDesktopRelay.rejectProcess(proc);
     resolveServerExit();
@@ -2442,6 +2464,16 @@ const localWorkspaceOnly = (channel, handler) => localOnly(channel, workspaceOnl
   if (productService && /^(environments:|organization:|cloud-account:|cloud-plan:)/.test(channel)) throw new Error("product_workspace_managed");
   return handler(...args);
 }));
+const embeddedSurfaceOnly = handler => localWorkspaceOnly("browser-surface", (event, input) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) throw new Error("Browser surface owner required");
+  const runtime = embeddedRuntimes.get(serverProc);
+  if (!runtime) throw new Error("Embedded browser unavailable");
+  return handler(runtime, input);
+});
+ipcMain.handle("browser-surface:attach", embeddedSurfaceOnly((runtime, input) => runtime.attach(input)));
+ipcMain.handle("browser-surface:layout", embeddedSurfaceOnly((runtime, input) => runtime.layout(input)));
+ipcMain.handle("browser-surface:focus", embeddedSurfaceOnly((runtime, input) => runtime.focus(input)));
+ipcMain.handle("browser-surface:detach", embeddedSurfaceOnly((runtime, input) => { if (input && typeof input.surfaceId === "string" && Number.isSafeInteger(input.revision)) runtime.detach(input); }));
 // No renderer-supplied address, token, paid flag or callback can choose an account or activate Pro.
 for (const method of ["state", "begin", "signInAgain", "reopen", "cancel", "refresh", "signOut", "openDashboard", "offer"]) {
   ipcMain.handle(`cloud-account:${method}`, localWorkspaceOnly(`cloud-account:${method}`, () => ensureCloudAccount()[method]()));
@@ -2874,6 +2906,19 @@ async function startProductDesktop() {
         ? Promise.resolve({ mode: "unavailable", reason: "fixture_computer_permission_not_granted" })
         : startCua().catch(() => ({ mode: "unavailable", reason: "computer_unavailable" }));
       createWindow();
+      if (process.argv.includes("--bot-test-api")) {
+        const testServer = serverProc;
+        const request = (route, init) => {
+          if (generation !== productRuntimeGeneration || accountKey !== productAccountKey || serverProc !== testServer) {
+            return Promise.reject(new Error("test_runtime_unavailable"));
+          }
+          return localServerRequest(route, init);
+        };
+        botTestApi = createBotTestApi({ request, descriptorPath: path.join(productAccountRoot, "bot-test-api.json"), ready: () => {
+          return generation === productRuntimeGeneration && accountKey === productAccountKey && productModelReady;
+        } });
+        await botTestApi.start();
+      }
       void startProductPhoneGateway()?.catch((error) => slog(`product phone gateway: ${error?.message || "failed"}`));
       closingAuth = true;
       productAuthWindow?.close();
@@ -2882,7 +2927,10 @@ async function startProductDesktop() {
     },
     stopRuntime: async ({ generation }) => {
       if (generation !== productRuntimeGeneration) return;
+      await botTestApi?.close();
+      botTestApi = null;
       serverSupervisor.pause();
+      await closeEmbeddedRuntime(serverProc);
       routineWake.stop();
       await drainProductRuntime();
       mainWindow?.destroy(); mainWindow = null;
@@ -2910,6 +2958,7 @@ async function startProductDesktop() {
       await managedDesktopRelay.sendProductAi(serverProc, { state, connection });
     },
     onState: state => {
+      productModelReady = state.auth === "signed_in" && state.runtime === "ready" && state.ai?.state === "ready";
       if (state.errorCode === "sign_out_draining") openAuth();
       accountIpc?.publish(state);
       if (state.auth === "signed_out") {
@@ -3260,6 +3309,7 @@ app.on("before-quit", async (e) => {
   if (cuaCleanedUp) return;
   e.preventDefault();
   // Cancel a scheduled recovery before yielding.
+  await Promise.all([...embeddedRuntimes.keys()].map(closeEmbeddedRuntime));
   const stoppingServer = serverSupervisor.shutdown();
   syncCompanionKeepAwake(false, false);
   routineWake.stop();

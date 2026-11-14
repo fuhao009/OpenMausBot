@@ -97,6 +97,15 @@ export interface ViewerOptions {
   pointer?: boolean;
 }
 
+export interface NativeViewerState {
+  person: string;
+  owner: string;
+  canOperate: boolean;
+  controls: boolean;
+  hidden: boolean;
+  targetId: string | null;
+}
+
 /** What a hub needs from the browser service. */
 export interface HubHost {
   readonly control: ProfileControl<Tab>;
@@ -441,6 +450,7 @@ export class ViewerHub {
   #emulated = false;
   #applying: Promise<void> = Promise.resolve();
   readonly #hold: ViewerHold;
+  readonly #nativeListeners = new Set<() => void>();
 
   constructor(host: HubHost) {
     this.host = host;
@@ -451,6 +461,19 @@ export class ViewerHub {
 
   get size(): number {
     return this.viewers.size;
+  }
+
+  /** Reads the existing stream viewer's authority, never a new native-surface grant. */
+  nativeViewer(viewerId: string): NativeViewerState | null {
+    const viewer = [...this.viewers].find((view) => view.id === viewerId && !view.closed);
+    if (!viewer) return null;
+    return { person: viewer.options.person, owner: viewer.options.owner, canOperate: viewer.options.canOperate,
+      controls: this.#hold.controls(viewer), hidden: this.#hold.hides(viewer), targetId: this.host.active()?.page.targetId ?? null };
+  }
+
+  onNativeChange(listener: () => void): () => void {
+    this.#nativeListeners.add(listener);
+    return () => this.#nativeListeners.delete(listener);
   }
 
   /** Someone watching could answer a site's HTTP sign-in. */
@@ -591,6 +614,7 @@ export class ViewerHub {
   }
 
   broadcastControl(): void {
+    for (const listener of this.#nativeListeners) { try { listener(); } catch {} }
     for (const viewer of this.viewers) {
       void viewer.hide(this.#hold.hides(viewer));
       viewer.push(this.controlFor(viewer));
@@ -674,6 +698,7 @@ export class ViewerHub {
 
   /** The tab in front, or the tabs, changed. A zoom, or a page narrower than any window, is emulated on every tab, new ones too. */
   tabsChanged(): void {
+    for (const listener of this.#nativeListeners) { try { listener(); } catch {} }
     const active = this.host.active();
     this.broadcast(this.tabsMessage());
     if (active) this.broadcast({ type: "url", url: active.page.url() });
@@ -719,6 +744,7 @@ export class ViewerHub {
   }
 
   stopped(reason: "closed" | "crashed" | "asleep"): void {
+    for (const listener of this.#nativeListeners) { try { listener(); } catch {} }
     this.#applied = null;
     for (const viewer of this.viewers) {
       void viewer.bind(null);

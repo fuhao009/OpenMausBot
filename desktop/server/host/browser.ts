@@ -38,6 +38,7 @@ import { LAUNCHER_SECCOMP_FD, type LauncherBox } from "../browser/chrome/wrapper
 import type { HostKind } from "../browser/chrome/flags.ts";
 import { browserEngineKind, type BrowserEngineKind } from "../browser/config.ts";
 import { ChromeEngine, chromeTarget, LiveRouter, profileKey, RuntimeRouter } from "../browser/engines.ts";
+import type { Backend } from "../browser/backends.ts";
 import { CHROME_BROWSER_SYSTEM_PROMPT } from "../browser/prompt.ts";
 import { passkeyAnnotation } from "../browser/passkey-notice.ts";
 import { LentChromeDoors, lentChromeGuidance, type ChromeLender } from "../browser/lent-chrome.ts";
@@ -77,6 +78,7 @@ export interface BrowserHostDeps {
   audienceOf?(threadId: string): Audience;
   /** The box every Chrome of the bots' browsers runs in (a Team Cloud's), or none. */
   browserBox?(seccompFd: number, ro: readonly string[]): LauncherBox | null;
+  browserBackend?: Backend;
 }
 
 /** The lent computer's connection for a browser's pages, under the rule for everything it lends: only while the last
@@ -117,9 +119,11 @@ export function createBrowserHost(deps: BrowserHostDeps) {
   } });
   const host: HostKind = DESKTOP_MANAGED ? "desktop" : CLOUD_HOME || existsSync("/.dockerenv") ? "container" : "server";
   const idleMs = () => browserIdleMs(cfg, { cloudHome: Boolean(CLOUD_HOME) });
+  const engineKind = () => DESKTOP_MANAGED && deps.browserBackend ? "chrome" : browserEngineKind(cfg);
   const chromeEngine = new ChromeEngine({
     dataDir: DATA_DIR,
     host,
+    ...(deps.browserBackend ? { backend: deps.browserBackend } : {}),
     egressPort: (key) => browserEgress.open(key),
     egressNotice: (key) => browserEgress.takeNotice(key),
     idleMs,
@@ -221,7 +225,7 @@ export function createBrowserHost(deps: BrowserHostDeps) {
   const browserSweep = {
     start() {
       agentBrowserSweep.start();
-      chromeEngine.start({ inUse: browserEngineKind(cfg) === "chrome", prepare: builtInBrowserEnabled(cfg) });
+      chromeEngine.start({ inUse: engineKind() === "chrome", prepare: builtInBrowserEnabled(cfg) });
       return browserSweep;
     },
     closeAll: () => {
@@ -318,7 +322,7 @@ export function createBrowserHost(deps: BrowserHostDeps) {
   }
   /** The new engine runs a bot's browser when the flag is on, except in the person's own Chrome. */
   function onChrome(profile: string | undefined): boolean {
-    return browserEngineKind(cfg) === "chrome" && !usesMyChrome(browserProfileIdOf(profile));
+    return engineKind() === "chrome" && !usesMyChrome(browserProfileIdOf(profile));
   }
   function chromeSpec(botId: string, profile: string | undefined, audience: Audience): { session: string; spec: ReturnType<ChromeEngine["spec"]> } {
     const suffix = noted(audience);
@@ -409,8 +413,8 @@ export function createBrowserHost(deps: BrowserHostDeps) {
         if (!closed) console.warn(`browser ${session}: could not close it after the browser engine changed`);
       });
     }
-    if (browserEngineKind(cfg) !== "chrome") void chromeEngine.service.closeAll().catch(() => undefined);
-    chromeEngine.start({ inUse: browserEngineKind(cfg) === "chrome", prepare: builtInBrowserEnabled(cfg) });
+    if (engineKind() !== "chrome") void chromeEngine.service.closeAll().catch(() => undefined);
+    chromeEngine.start({ inUse: engineKind() === "chrome", prepare: builtInBrowserEnabled(cfg) });
   }
   function browserRunning(session: string, spec: Spec | undefined): boolean {
     if (chromeTarget(session, spec)) return chromeEngine.service.runs(session);
@@ -423,6 +427,23 @@ export function createBrowserHost(deps: BrowserHostDeps) {
     const audience = browserAudience(threadId);
     const session = bot.browserProfile === "guest" ? temporaryBrowserSessions.get(bot.id + audienceBrowserSuffix(audience)) : currentBrowserSession(bot.id, bot.browserProfile, audience);
     return { session, spec: session === undefined ? undefined : usedBrowserSessions.get(session) };
+  }
+
+  /** Resolves a local owner's existing stream, never renderer-supplied profile keys or hold claims. */
+  function resolveEmbeddedSurface(request: { botId: string; threadId: string; viewerId: string }) {
+    if (!DESKTOP_MANAGED || !deps.browserBackend || !builtInBrowserEnabled(cfg)) return null;
+    const bot = store.botByThread(request.threadId);
+    if (!bot || bot.id !== request.botId || bot.browser === false || bot.computer === "off" || !onChrome(bot.browserProfile)) return null;
+    const audience = browserAudience(request.threadId);
+    const session = bot.browserProfile === "guest" ? temporaryBrowserSessions.get(bot.id + audienceBrowserSuffix(audience)) : currentBrowserSession(bot.id, bot.browserProfile, audience);
+    if (!session) return null;
+    const target = chromeEngine.target(session);
+    if (!target) return null;
+    const profile = chromeEngine.service.profiles().find((entry) => entry.key === target.key);
+    const viewer = profile?.hub.nativeViewer(request.viewerId);
+    if (!profile || !profile.run || !viewer || viewer.person !== "local-owner" || viewer.owner !== "local-owner") return null;
+    return { profileKey: target.key, state: () => profile.run && !profile.run.closing ? profile.hub.nativeViewer(request.viewerId) : null,
+      subscribe: (listener: () => void) => profile.hub.onNativeChange(listener) };
   }
   /** Tried until no turn holds the browser and no call runs in it, or for 30 s: the stopped turn may still be settling. */
   async function closeForMemory(session: string, spec: Spec): Promise<void> {
@@ -535,7 +556,7 @@ export function createBrowserHost(deps: BrowserHostDeps) {
   function engineSummary<T extends { myChrome: boolean }>(agentBrowser: T): (T | (ReturnType<ChromeEngine["summary"]> & { myChrome: boolean })) & { engine: BrowserEngineKind; serverSites?: boolean } {
     // Self-hosted servers only: the owner's switch for this server's own sites and its local network.
     const serverSites = egressHost === "server" ? { serverSites: cfg.browserEngine?.egress?.localNetwork === true } : {};
-    if (browserEngineKind(cfg) !== "chrome") return { ...agentBrowser, ...serverSites, engine: "agent-browser" };
+    if (engineKind() !== "chrome") return { ...agentBrowser, ...serverSites, engine: "agent-browser" };
     return { ...chromeEngine.summary(), myChrome: agentBrowser.myChrome, ...lentChromeSummary(), ...serverSites, engine: "chrome" };
   }
 
@@ -544,6 +565,7 @@ export function createBrowserHost(deps: BrowserHostDeps) {
     currentBrowserSession, forgetTemporaryBrowser, myChromeAvailable, lentChromeSummary, usesMyChrome, browserSessionSpec, browserIntegration,
     browserReady, currentBrowserSpec, loginInput, browserSystemPrompt, signedInSitesRefusal, closeBrowser, browserEngineSwitched,
     eraseDeletedBrowser, engineSummary, engineBrowsers, browserAudience, browserSessionsOf, signedInSitesTarget, uploadPaths,
+    resolveEmbeddedSurface,
     eraseAudienceBrowsers,
   };
 }

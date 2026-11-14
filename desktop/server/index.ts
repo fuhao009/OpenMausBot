@@ -177,6 +177,7 @@ import {
   openCodeProviderKeys,
 } from "./config.ts";
 import { serveStatic } from "./static-files.ts";
+import { desktopUiAccessAllowed } from "./desktop-ui-access.ts";
 import { startUpkeep } from "./host/start-upkeep.ts";
 import { ComputerControl } from "./computer-control.ts";
 import { resetPathCache } from "./env-path.ts";
@@ -448,6 +449,8 @@ import { browserRestartRefusal } from "./browser-live.ts";
 import { browserEngineStatus } from "./browser-engine.ts";
 import { chromeLauncher } from "./browser/chrome/launcher.ts";
 import { createBrowserHost } from "./host/browser.ts";
+import { createEmbeddedBrowserBackend } from "./browser/embedded-backend.ts";
+import { browserEgress } from "./browser/egress/registry.ts";
 import { createScreenFrameSource, rememberTurnFrame, type ScreenCapture } from "./screen-frame-source.ts";
 import { screenFrameHash, screenSurfaceForTool, screenTouchingTool, settledFrameIsNews } from "./screen-frame-gate.ts";
 import { asSchedule, RoutineRequestService } from "./routine-requests.ts"; import { ownerSpokeOnly } from "./cloud-routine-level.ts"; import { routineRunCard, routineRunFallbackText } from "./routine-run-card.ts";
@@ -1333,6 +1336,8 @@ type UtilityParentPort = {
 };
 // Only Electron's utility process supplies parentPort, private to the desktop main process; plain Node leaves it absent.
 const utilityParentPort = (process as NodeJS.Process & { parentPort?: UtilityParentPort }).parentPort;
+const embeddedBrowserBackend = utilityParentPort && process.versions.electron && process.env.OMB_EMBEDDED_BROWSER === "1"
+  ? createEmbeddedBrowserBackend({ send: message => utilityParentPort.postMessage(message), egressPort: key => browserEgress.open(key) }) : undefined;
 type DesktopPrivateMessage = BrowserCleanupWireRequest | import("./login-handoff.ts").LoginHandoffResult | {
   type: "hezuo:browser-control";
   botId: string;
@@ -1410,6 +1415,7 @@ const phoneSecrets = new PhoneSecretBridge(postDesktopPrivateMessage);
 utilityParentPort?.on("message", (event) => {
   const message = event?.data;
   try {
+    if (embeddedBrowserBackend?.receive(message)) return;
     if (applyDesktopMutationTokenMessage(message) || desktopComputer.receive(message)) return;
     if (handleComputerUsePolicyMessage(message)) return;
     if (handleDesktopTrustedApprovalMessage(message)) return;
@@ -2371,8 +2377,45 @@ function cancelDirectTurnDispatch(botId: string, expectedThreadId?: string): Dir
 const {
   browserRuntime, browserLive, usedBrowserSessions, browserSweep, temporaryBrowserSessions,
   currentBrowserSession, forgetTemporaryBrowser, myChromeAvailable, usesMyChrome, lentChromeSummary, browserSessionSpec, browserIntegration,
-  browserReady, currentBrowserSpec, loginInput, browserSystemPrompt, closeBrowser, browserEngineSwitched, eraseDeletedBrowser, engineSummary, browserSessionsOf, signedInSitesTarget, uploadPaths, eraseAudienceBrowsers,
-} = createBrowserHost({ cfg, store: () => store, turnResources, activeInternalGenerationByThread, mintInternalCapability, DESKTOP_MANAGED, CLOUD_HOME, PORT, engineMemory, audienceOf: teamHost.browserAudience, ...(CLOUD_TEAM ? { browserBox: (fd: number, ro: readonly string[]) => botBox.browserBox(fd, ro) } : {}), lendRefusal: (turn) => cloudLendingRefusal({ botId: store.botByThread(turn.threadId)?.id ?? "", threadId: turn.threadId, generation: turn.generation }), device: () => deviceLinks.route(CLOUD_HOME_LENDER) ?? sharedComputers.internetAway(CLOUD_HOME_LENDER) ?? { unshared: true as const }, lentChrome: CLOUD_PERSONAL ? { route: () => deviceLinks.chromeRoute(CLOUD_HOME_LENDER), lender: () => sharedComputers.chromeLender(CLOUD_HOME_LENDER) } : undefined });
+  browserReady, currentBrowserSpec, loginInput, browserSystemPrompt, closeBrowser, browserEngineSwitched, eraseDeletedBrowser, engineSummary, browserSessionsOf, signedInSitesTarget, uploadPaths, eraseAudienceBrowsers, resolveEmbeddedSurface,
+} = createBrowserHost({ cfg, store: () => store, turnResources, activeInternalGenerationByThread, mintInternalCapability, DESKTOP_MANAGED, CLOUD_HOME, PORT, engineMemory, browserBackend: embeddedBrowserBackend, audienceOf: teamHost.browserAudience, ...(CLOUD_TEAM ? { browserBox: (fd: number, ro: readonly string[]) => botBox.browserBox(fd, ro) } : {}), lendRefusal: (turn) => cloudLendingRefusal({ botId: store.botByThread(turn.threadId)?.id ?? "", threadId: turn.threadId, generation: turn.generation }), device: () => deviceLinks.route(CLOUD_HOME_LENDER) ?? sharedComputers.internetAway(CLOUD_HOME_LENDER) ?? { unshared: true as const }, lentChrome: CLOUD_PERSONAL ? { route: () => deviceLinks.chromeRoute(CLOUD_HOME_LENDER), lender: () => sharedComputers.chromeLender(CLOUD_HOME_LENDER) } : undefined });
+const embeddedSurfaceSubscriptions = new Map<string, () => void>();
+function closeEmbeddedSurfaces() {
+  for (const off of embeddedSurfaceSubscriptions.values()) off();
+  embeddedSurfaceSubscriptions.clear();
+  embeddedBrowserBackend?.close();
+}
+utilityParentPort?.on("message", event => {
+  if (!embeddedBrowserBackend || !event.data) return;
+  const message = event.data as Record<string, unknown>;
+  if (message.type === "hezuo:embedded-surface-detach" && typeof message.subscriptionId === "string") {
+    embeddedSurfaceSubscriptions.get(message.subscriptionId)?.();
+    embeddedSurfaceSubscriptions.delete(message.subscriptionId);
+    return;
+  }
+  if (message.type !== "hezuo:embedded-surface-resolve" || typeof message.requestId !== "string") return;
+  const requestId = message.requestId;
+  embeddedSurfaceSubscriptions.get(requestId)?.();
+  const botId = typeof message.botId === "string" ? message.botId : "";
+  const threadId = typeof message.threadId === "string" ? message.threadId : store.bot(botId)?.threadId ?? "";
+  const found = typeof message.viewerId === "string" ? resolveEmbeddedSurface({ botId, threadId, viewerId: message.viewerId }) : null;
+  const state = found?.state();
+  if (!found || !state || state.person !== "local-owner" || state.owner !== "local-owner") {
+    utilityParentPort.postMessage({ type: "hezuo:embedded-surface-resolved", requestId, ok: false });
+    return;
+  }
+  const publish = () => {
+    const next = found.state();
+    const state = next?.person === "local-owner" && next.owner === "local-owner" ? next : null;
+    utilityParentPort.postMessage({ type: "hezuo:embedded-surface-state", subscriptionId: requestId, state });
+    if (!state) { embeddedSurfaceSubscriptions.get(requestId)?.(); embeddedSurfaceSubscriptions.delete(requestId); }
+  };
+  embeddedSurfaceSubscriptions.set(requestId, found.subscribe(publish));
+  utilityParentPort.postMessage({ type: "hezuo:embedded-surface-resolved", requestId, ok: true, profileKey: found.profileKey, state });
+  publish();
+});
+process.once("disconnect", closeEmbeddedSurfaces);
+process.once("exit", closeEmbeddedSurfaces);
 
 const dataSheets = new DataSheetRegistry({
   broadcast: (frame) => broadcast({ ...frame }),
@@ -12717,6 +12760,10 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
   let m: RegExpMatchArray | null = null;
   let releaseWorkspaceRequest: (() => void) | undefined;
   try {
+    if (!desktopUiAccessAllowed(req, { ownerToken: desktopMutationToken, cookieName: SESSION_COOKIE, url, oauthCallbackPath: MCP_OAUTH_CALLBACK_PATH })) {
+      res.setHeader("cache-control", "no-store");
+      return json(res, 403, { error: "This interface is available only in the Hezuo desktop app." });
+    }
     if (method === "GET" && path === "/api/health/hosted") {
       res.setHeader("cache-control", "no-store");
       const hosted = hostedWorkspaceConfiguration();
@@ -12751,7 +12798,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       res.end(answer.text);
       return;
     }
-    // Two public routes come first; everything else needs the loopback owner or a paired session with the right scope.
+    // Static UI is desktop-owner gated above; other deployments keep their public sign-in page.
     if (method === "GET" && !path.startsWith("/api/") && !path.startsWith("/.well-known/") && (moveFreeze.screen(path) ? (res.writeHead(302, { location: moveFreeze.screen(path)!, "cache-control": "no-store" }).end(), true) : serveStatic(res, path, STATIC_DIR))) return;
     if (method === "GET" && path === "/.well-known/hezuo/environment") {
       return json(res, 200, environmentDescriptor({ environmentId: ENVIRONMENT_ID, ...TEAM_LABEL, desktopManaged: DESKTOP_MANAGED, emailSignIn: !HOSTED_WORKSPACE && !CLOUD_HOME && emailSignIn.enabled(), sharedComputers: lendingEnabled(), cloudHome: Boolean(CLOUD_HOME), cloudTeam: CLOUD_TEAM !== null, ownHome: ownHome.takesMove() }));
@@ -15762,6 +15809,7 @@ const gracefulShutdown = createGracefulShutdown({
       const temporaries = [...temporaryBrowserSessions.keys()].map((botId) => forgetTemporaryBrowser(botId));
       await Promise.all([...temporaries, browserSweep.closeAll()]);
       await browserRuntime.closeAll();
+      closeEmbeddedSurfaces();
     },
     () => liveCalls.shutdown(),
     () => flushAllProfileHistory(),

@@ -392,8 +392,11 @@ export async function launchVerificationServer(
   try {
     // First-run filesystem work can exceed a second on Windows.
     const timeout = AbortSignal.timeout(Math.max(1, deadline - Date.now()));
+    const ownerHeaders: Record<string, string> = parentEnv.OMB_TEST_DESKTOP_OWNER_TOKEN
+      ? { "x-hezuo-desktop-owner": parentEnv.OMB_TEST_DESKTOP_OWNER_TOKEN }
+      : {};
     const list = await fetch(`${url}/api/bots`, {
-      headers: { origin: url },
+      headers: { origin: url, ...ownerHeaders },
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     });
     const body = list.ok ? await list.json() as { bots?: Array<{ id: string }> } : null;
@@ -404,7 +407,7 @@ export async function launchVerificationServer(
     const renameTimeout = AbortSignal.timeout(Math.max(1, deadline - Date.now()));
     const rename = await fetch(`${url}/api/bots/${seeded[0].id}/profile`, {
       method: "PATCH",
-      headers: { "content-type": "application/json", origin: url },
+      headers: { "content-type": "application/json", origin: url, ...ownerHeaders },
       body: JSON.stringify({ name: FIXTURE_STARTER_BOT_NAME }),
       signal: signal ? AbortSignal.any([signal, renameTimeout]) : renameTimeout,
     });

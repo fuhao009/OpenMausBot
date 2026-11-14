@@ -184,6 +184,7 @@ class StreamSession {
 
   attached(viewer: Viewer, service: BrowserService): void {
     this.viewer = viewer;
+    if (service.isEmbedded(this.request.target)) this.ws.send(JSON.stringify({ type: "surface", viewerId: viewer.id }));
     for (const message of this.#early.splice(0)) this.#input(message, service);
   }
 
